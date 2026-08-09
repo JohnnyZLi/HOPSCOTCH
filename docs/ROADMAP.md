@@ -38,12 +38,12 @@
 
 ## Lab 03 — Protocol theater
 
-- TCP handshake and teardown
-- Retransmission and loss
-- Congestion-window visualization
-- DNS resolution chain
-- TLS handshake
-- HTTP/2 and HTTP/3/QUIC comparison
+- [x] TCP handshake and teardown
+- [x] Retransmission and loss
+- [x] Congestion-window visualization
+- [ ] DNS resolution chain
+- [ ] TLS handshake
+- [ ] HTTP/2 and HTTP/3/QUIC comparison
 
 ## Lab 04 — Network builder
 
