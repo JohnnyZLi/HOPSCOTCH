@@ -16,3 +16,11 @@
     min-height: 0;
   }
 }
+
+@media (max-width: 680px) {
+  .tcp-message-token {
+    top: calc(50% - 92px);
+    min-width: 106px;
+    max-width: 146px;
+  }
+}
