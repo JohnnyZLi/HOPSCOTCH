@@ -33,8 +33,8 @@
 - [x] Raw bytes mapped back to selected header fields
 - [x] Animate field changes and checksum/length relationships
 - [x] Link the captured packet back to the Lab 01 recovery event
-- [ ] CI/typecheck validation
-- [ ] Linux Chromium desktop/mobile visual audit
+- [x] CI/typecheck validation
+- [x] Linux Chromium desktop/mobile visual audit
 
 ## Lab 03 — Protocol theater
 
