@@ -323,7 +323,7 @@ export default function App() {
                   <strong>{labState.phase.toUpperCase()}</strong>
                 </div>
                 <div>
-                  <span>ACTIVE ROUTE</span>
+                  <span>INSTALLED PATH</span>
                   <strong>{activePath.label.toUpperCase()}</strong>
                 </div>
                 <div>
@@ -349,9 +349,9 @@ export default function App() {
                 <motion.div
                   key={activeEvent.id}
                   className={`lab-event-callout severity-${activeEvent.payload.severity}`}
-                  initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 12, scale: 0.985, filter: 'blur(6px)' }}
-                  animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-                  exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.99, filter: 'blur(4px)' }}
+                  initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 12, scale: 0.985 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.99 }}
                   transition={{ duration: 0.28 }}
                 >
                   <span>{formatTime(activeEvent.atMs)}</span>
