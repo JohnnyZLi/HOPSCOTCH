@@ -4,14 +4,15 @@ interface Env {
   };
 }
 
-const json = (value: unknown, init: ResponseInit = {}) =>
-  Response.json(value, {
+function json(value: unknown, init: ResponseInit = {}): Response {
+  const headers = new Headers(init.headers);
+  headers.set('cache-control', 'no-store');
+
+  return Response.json(value, {
     ...init,
-    headers: {
-      'cache-control': 'no-store',
-      ...init.headers,
-    },
+    headers,
   });
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
