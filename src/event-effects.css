@@ -1,0 +1,181 @@
+.lab-camera {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  transform-origin: 50% 50%;
+  pointer-events: none;
+}
+
+.lab-phase-flash {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 58% 42%, rgba(121, 242, 218, 0.2), transparent 56%);
+  mix-blend-mode: screen;
+}
+
+.lab-phase-flash.severity-critical {
+  background:
+    radial-gradient(circle at 62% 38%, rgba(255, 94, 112, 0.34), transparent 44%),
+    linear-gradient(105deg, transparent 38%, rgba(255, 94, 112, 0.12), transparent 62%);
+}
+
+.lab-phase-flash.severity-warning {
+  background: radial-gradient(circle at 50% 50%, rgba(255, 203, 112, 0.22), transparent 54%);
+}
+
+.lab-phase-flash.severity-success {
+  background: radial-gradient(circle at 52% 52%, rgba(121, 242, 218, 0.26), transparent 58%);
+}
+
+.lab-control-motion,
+.lab-motion-route {
+  fill: none;
+  stroke: none;
+}
+
+.lab-lsa-pulse {
+  fill: #fff4cf;
+  stroke: var(--warning);
+  stroke-width: 0.42;
+  opacity: 0;
+  vector-effect: non-scaling-stroke;
+}
+
+.lab-candidate-route {
+  fill: none;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 8 8;
+  opacity: 0;
+  vector-effect: non-scaling-stroke;
+}
+
+.lab-candidate-route.candidate-primary {
+  stroke: rgba(255, 94, 112, 0.88);
+}
+
+.lab-candidate-route.candidate-alternate {
+  stroke: rgba(121, 242, 218, 0.98);
+  filter: drop-shadow(0 0 5px rgba(121, 242, 218, 0.35));
+}
+
+.lab-recovery-packet {
+  fill: #effffa;
+  stroke: var(--success);
+  stroke-width: 0.42;
+  opacity: 0;
+  vector-effect: non-scaling-stroke;
+}
+
+.lab-failure-impact {
+  pointer-events: none;
+}
+
+.lab-failure-wave {
+  fill: none;
+  stroke: rgba(255, 94, 112, 0.9);
+  stroke-width: 0.45;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  vector-effect: non-scaling-stroke;
+}
+
+.lab-failure-impact:not(.is-current) .lab-failure-wave {
+  display: none;
+}
+
+.lab-fracture-mark {
+  fill: none;
+  stroke: #ff8190;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  opacity: 0.92;
+  vector-effect: non-scaling-stroke;
+}
+
+.lab-failure-impact.is-current .lab-fracture-mark {
+  stroke-dashoffset: 1;
+}
+
+.lab-network-field[data-phase="failure"] .lab-node:not(.is-event-actor):not(.is-event-target),
+.lab-network-field[data-phase="converging"] .lab-node:not(.is-event-actor):not(.is-event-target) {
+  opacity: 0.68;
+}
+
+.lab-network-field[data-phase="recomputing"] .lab-link:not(.is-failed) {
+  opacity: 0.28;
+}
+
+.lab-network-field[data-phase="rerouting"] .lab-link:not(.is-path-active):not(.is-failed),
+.lab-network-field[data-phase="recovered"] .lab-link:not(.is-path-active):not(.is-failed) {
+  opacity: 0.22;
+}
+
+.lab-network-field[data-phase="rerouting"] .lab-node:not(.is-path-node),
+.lab-network-field[data-phase="recovered"] .lab-node:not(.is-path-node) {
+  opacity: 0.42;
+}
+
+.lab-network-field[data-phase="rerouting"] .lab-node.is-path-node .lab-node-ring,
+.lab-network-field[data-phase="recovered"] .lab-node.is-path-node .lab-node-ring {
+  stroke: var(--success);
+  filter: drop-shadow(0 0 4px rgba(121, 242, 218, 0.44));
+}
+
+.lab-network-field[data-phase="rerouting"] .lab-active-route {
+  stroke: var(--warning);
+  stroke-width: 2.15;
+}
+
+.lab-network-field[data-phase="recovered"] .lab-active-route {
+  stroke: var(--success);
+  stroke-width: 2.05;
+  filter: drop-shadow(0 0 5px rgba(121, 242, 218, 0.44));
+}
+
+.lab-network-field[data-event="route.advertise"] .lab-link.is-control-active {
+  stroke: var(--warning);
+  filter: drop-shadow(0 0 5px rgba(255, 203, 112, 0.42));
+}
+
+.lab-network-field[data-event="route.recompute"] .lab-node.kind-edge .lab-node-halo {
+  fill: rgba(255, 203, 112, 0.12);
+  stroke: rgba(255, 203, 112, 0.48);
+}
+
+.lab-network-field[data-event="flow.recover"] .lab-node.is-path-node .lab-node-core {
+  fill: #eafff8;
+}
+
+@media (max-width: 680px) {
+  .lab-camera {
+    transform-origin: 50% 48%;
+  }
+
+  .lab-candidate-route {
+    stroke-width: 1.1;
+  }
+
+  .lab-fracture-mark {
+    stroke-width: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lab-failure-wave,
+  .lab-lsa-pulse,
+  .lab-recovery-packet {
+    display: none;
+  }
+
+  .lab-candidate-route {
+    opacity: 0.78;
+  }
+}
