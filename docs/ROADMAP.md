@@ -9,29 +9,32 @@
 - [x] Deterministic event model skeleton
 - [x] Cloudflare Worker + Static Assets configuration
 - [x] Production custom-domain declaration for `hopscotch.johnnyli.dev`
-- [ ] Lockfile and clean CI run
-- [ ] First Cloudflare deployment
+- [x] Lockfile and clean CI run
+- [x] First Cloudflare deployment
 - [ ] Cross-browser/performance baseline
 
 ## Lab 01 — Failure and recovery
 
-Build one polished scenario end to end:
-
-- Redundant four-to-six-router topology
-- Active traffic flow
-- Link failure injection
-- OSPF-style control-plane propagation
-- Route recomputation
-- Traffic failover
-- Timeline pause/scrub/replay
-- Event inspector explaining *why* the route changed
+- [x] Redundant six-node routed topology
+- [x] Active traffic flow
+- [x] Link failure injection
+- [x] OSPF-style control-plane propagation
+- [x] Route recomputation
+- [x] Traffic failover
+- [x] Timeline pause/scrub/replay
+- [x] Event inspector explaining *why* the route changed
+- [x] Linux Chromium desktop/mobile visual audit
 
 ## Lab 02 — Packet microscope
 
-- Ethernet + IPv4/IPv6 + TCP/UDP encapsulation
-- Expand/collapse headers without page changes
-- Animate field changes and checksum/length relationships
-- Link packet objects back to events on the global timeline
+- [x] Ethernet + IPv4/IPv6 + TCP/UDP deterministic packet model
+- [x] IPv4 header checksum and TCP/UDP pseudo-header checksum derivation
+- [x] Expand/collapse headers without page changes
+- [x] Raw bytes mapped back to selected header fields
+- [x] Animate field changes and checksum/length relationships
+- [x] Link the captured packet back to the Lab 01 recovery event
+- [x] CI/typecheck validation
+- [x] Linux Chromium desktop/mobile visual audit
 
 ## Lab 03 — Protocol theater
 
