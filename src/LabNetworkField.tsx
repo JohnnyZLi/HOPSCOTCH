@@ -1,4 +1,4 @@
-import { animate } from 'animejs';
+import { animate, stagger, svg } from 'animejs';
 import { useEffect, useMemo, useRef } from 'react';
 import { useReducedMotion } from 'motion/react';
 import type {
@@ -27,11 +27,14 @@ export function LabNetworkField({
   const reduceMotion = useReducedMotion();
   const nodesById = useMemo(() => nodeMap(scenario.nodes), [scenario.nodes]);
   const activePath = scenario.paths.find((path) => path.id === state.activePathId) ?? scenario.paths[0];
-  const activePoints = activePath.nodeIds
+  const activeNodes = activePath.nodeIds
     .map((nodeId) => nodesById.get(nodeId))
-    .filter((node): node is TopologyNode => Boolean(node))
-    .map((node) => `${node.x},${node.y}`)
+    .filter((node): node is TopologyNode => Boolean(node));
+  const activePoints = activeNodes.map((node) => `${node.x},${node.y}`).join(' ');
+  const activePathD = activeNodes
+    .map((node, index) => `${index === 0 ? 'M' : 'L'} ${node.x} ${node.y}`)
     .join(' ');
+  const routeHealthy = state.phase === 'steady' || state.phase === 'rerouting' || state.phase === 'recovered';
 
   useEffect(() => {
     const root = svgRef.current;
@@ -44,10 +47,24 @@ export function LabNetworkField({
       loop: true,
     });
 
+    const routePath = root.querySelector<SVGPathElement>('.lab-motion-route');
+    const packets = root.querySelectorAll('.lab-flow-packet');
+    const packetFlow = routePath && packets.length > 0 && routeHealthy
+      ? animate(packets, {
+          ...svg.createMotionPath(routePath),
+          opacity: [0, 1, 1, 0],
+          duration: 2600,
+          delay: stagger(620),
+          ease: 'linear',
+          loop: true,
+        })
+      : undefined;
+
     return () => {
       flow.cancel();
+      packetFlow?.cancel();
     };
-  }, [activePath.id, reduceMotion]);
+  }, [activePath.id, reduceMotion, routeHealthy]);
 
   useEffect(() => {
     const root = svgRef.current;
@@ -75,7 +92,7 @@ export function LabNetworkField({
       animations.push(
         animate(eventNodes, {
           opacity: [0.12, 0.92, 0.16],
-          scale: [0.82, 1.55, 1],
+          scale: [0.82, 1.7, 1],
           duration: 900,
           ease: 'outExpo',
         }),
@@ -85,7 +102,7 @@ export function LabNetworkField({
     if (activeEvent.kind === 'link.failure' && failedLinks.length > 0) {
       animations.push(
         animate(failedLinks, {
-          opacity: [1, 0.12, 0.88, 0.22, 0.5],
+          opacity: [1, 0.12, 0.88, 0.22, 0.62],
           duration: 880,
           ease: 'inOutSine',
         }),
@@ -103,7 +120,7 @@ export function LabNetworkField({
     <svg
       ref={svgRef}
       className="lab-network-field"
-      viewBox="0 0 100 100"
+      viewBox="0 0 120 72"
       preserveAspectRatio="xMidYMid meet"
       role="img"
       aria-label="Six-node routed network showing the active application path and failure recovery state"
@@ -111,9 +128,16 @@ export function LabNetworkField({
     >
       <defs>
         <filter id="labRouteGlow" x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur stdDeviation="0.55" result="blur" />
+          <feGaussianBlur stdDeviation="0.8" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="labPacketGlow" x="-250%" y="-250%" width="500%" height="500%">
+          <feGaussianBlur stdDeviation="1.25" result="packetBlur" />
+          <feMerge>
+            <feMergeNode in="packetBlur" />
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
@@ -143,7 +167,7 @@ export function LabNetworkField({
                 <text
                   className="lab-link-metric"
                   x={(from.x + to.x) / 2}
-                  y={(from.y + to.y) / 2 - 1.4}
+                  y={(from.y + to.y) / 2 - 1.6}
                   textAnchor="middle"
                 >
                   {failed ? 'DOWN' : `COST ${link.metric}`}
@@ -154,6 +178,7 @@ export function LabNetworkField({
         })}
       </g>
 
+      <path className="lab-motion-route" d={activePathD} />
       <polyline
         key={activePath.id}
         className="lab-active-route"
@@ -161,6 +186,19 @@ export function LabNetworkField({
         filter="url(#labRouteGlow)"
         pathLength="100"
       />
+
+      <g className={`lab-flow-packets${routeHealthy ? ' is-flowing' : ''}`} aria-hidden="true">
+        {[0, 1, 2, 3].map((packet) => (
+          <circle
+            key={packet}
+            className="lab-flow-packet"
+            cx="0"
+            cy="0"
+            r="0.82"
+            filter="url(#labPacketGlow)"
+          />
+        ))}
+      </g>
 
       <g className="lab-nodes">
         {scenario.nodes.map((node) => {
@@ -172,10 +210,10 @@ export function LabNetworkField({
               className={`lab-node kind-${node.kind}${actor ? ' is-event-actor' : ''}${target ? ' is-event-target' : ''}`}
               transform={`translate(${node.x} ${node.y})`}
             >
-              <circle className="lab-node-halo" r="4.6" />
-              <circle className="lab-node-ring" r="2.35" />
-              <circle className="lab-node-core" r="0.82" />
-              <text className="lab-node-label" x="0" y="7.2" textAnchor="middle">
+              <circle className="lab-node-halo" r="5.5" />
+              <circle className="lab-node-ring" r="2.7" />
+              <circle className="lab-node-core" r="0.95" />
+              <text className="lab-node-label" x="0" y="7.8" textAnchor="middle">
                 {node.shortLabel}
               </text>
             </g>
