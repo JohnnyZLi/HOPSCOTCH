@@ -128,14 +128,24 @@ export function TlsTheater({
     setPlaying(true);
   };
 
-  const wireEncrypted = activeEvent.protection === 'handshake' || activeEvent.protection === 'application';
-  const protectionLabel = activeEvent.protection === 'cleartext'
+  const handshakeKeysReady = state.activeKeys.includes('handshake');
+  const wireProtection = state.applicationReady ? 'application' : handshakeKeysReady ? 'handshake' : 'cleartext';
+  const wireEncrypted = wireProtection !== 'cleartext';
+  const protectionLabel = wireProtection === 'cleartext'
     ? 'VISIBLE HANDSHAKE'
-    : activeEvent.protection === 'handshake'
+    : wireProtection === 'handshake'
       ? 'HANDSHAKE KEYS'
-      : activeEvent.protection === 'application'
-        ? 'APPLICATION KEYS'
-        : 'LOCAL STATE';
+      : 'APPLICATION KEYS';
+  const boundaryTitle = activeEvent.direction === 'local'
+    ? 'LOCAL STATE TRANSITION'
+    : wireEncrypted
+      ? 'ENCRYPTED TLS RECORD'
+      : activeEvent.message;
+  const boundaryNote = activeEvent.direction === 'local'
+    ? `No wire message · wire protection remains ${wireProtection === 'cleartext' ? 'cleartext' : `${wireProtection} keys`}`
+    : wireEncrypted
+      ? 'Handshake/application semantic label shown by curated trace'
+      : 'Negotiation remains visible at this point';
 
   return (
     <motion.section
@@ -163,7 +173,7 @@ export function TlsTheater({
       <div className="tls-stage">
         <div className="tls-stage-meta">
           <div><span>PHASE</span><strong>{state.phaseLabel}</strong></div>
-          <div><span>PROTECTION</span><strong>{protectionLabel}</strong></div>
+          <div><span>WIRE PROTECTION</span><strong>{protectionLabel}</strong></div>
           <div><span>ALPN</span><strong>{state.negotiatedAlpn ?? 'OFFERING h2 / http1.1'}</strong></div>
         </div>
 
@@ -176,8 +186,8 @@ export function TlsTheater({
           <div className="tls-wire"><i /><b /><i /></div>
           <div className="tls-encryption-boundary">
             <span>WIRE VISIBILITY</span>
-            <strong>{wireEncrypted ? 'ENCRYPTED TLS RECORD' : activeEvent.direction === 'local' ? 'NO WIRE MESSAGE' : activeEvent.message}</strong>
-            <small>{wireEncrypted ? 'Handshake/application semantic label shown by curated trace' : 'Negotiation remains visible at this point'}</small>
+            <strong>{boundaryTitle}</strong>
+            <small>{boundaryNote}</small>
           </div>
           <div className="tls-endpoint endpoint-server">
             <span>SERVER</span>
@@ -188,7 +198,7 @@ export function TlsTheater({
           <div className={`tls-message-token protection-${activeEvent.protection}${activeEvent.direction === 'local' ? ' is-local' : ''}`}>
             <span>{activeEvent.protection.toUpperCase()}</span>
             <strong>{activeEvent.message}</strong>
-            {wireEncrypted && <i aria-hidden="true">◆</i>}
+            {wireEncrypted && activeEvent.direction !== 'local' && <i aria-hidden="true">◆</i>}
           </div>
           <div className="tls-local-pulse" aria-hidden="true" />
         </div>
