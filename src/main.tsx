@@ -6,6 +6,7 @@ import './lab.css';
 import './visual-audit.css';
 import './event-effects.css';
 import './packet.css';
+import './tcp.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
