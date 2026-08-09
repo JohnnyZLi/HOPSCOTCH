@@ -2,10 +2,12 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useMemo, useState } from 'react';
 import { LabNetworkField } from './LabNetworkField';
 import { NetworkField } from './NetworkField';
+import { PacketMicroscope } from './PacketMicroscope';
 import { lab01Scenario, lab01StateAt } from './simulation/lab01';
 import { latestEventAtOrBefore, type NetworkLayer } from './simulation/model';
 
 type DisplayMode = 'overview' | 'xray';
+type ActiveLab = 'failure' | 'packet' | null;
 
 const layers: Array<{ id: NetworkLayer; label: string; kicker: string; description: string }> = [
   {
@@ -49,18 +51,16 @@ function formatTime(timeMs: number): string {
 export default function App() {
   const [layer, setLayer] = useState<NetworkLayer>('internet');
   const [mode, setMode] = useState<DisplayMode>('overview');
-  const [labActive, setLabActive] = useState(false);
+  const [activeLab, setActiveLab] = useState<ActiveLab>(null);
   const [labXray, setLabXray] = useState(true);
   const [timeMs, setTimeMs] = useState(0);
   const [playing, setPlaying] = useState(false);
   const reduceMotion = useReducedMotion();
   const active = layers.find((item) => item.id === layer) ?? layers[0];
   const labState = useMemo(() => lab01StateAt(timeMs), [timeMs]);
-  const activeEvent = useMemo(
-    () => latestEventAtOrBefore(lab01Scenario, timeMs),
-    [timeMs],
-  );
+  const activeEvent = useMemo(() => latestEventAtOrBefore(lab01Scenario, timeMs), [timeMs]);
   const activePath = lab01Scenario.paths.find((path) => path.id === labState.activePathId) ?? lab01Scenario.paths[0];
+  const failureLabActive = activeLab === 'failure';
 
   const actorNode = lab01Scenario.nodes.find((node) => node.id === activeEvent.actorId);
   const targetNode = lab01Scenario.nodes.find((node) => node.id === activeEvent.targetId);
@@ -85,7 +85,7 @@ export default function App() {
   const cameraY = ((36 - focusY) / 36) * 9;
 
   useEffect(() => {
-    if (!playing || !labActive) return;
+    if (!playing || !failureLabActive) return;
 
     const startedAt = performance.now();
     const startedFrom = timeMs;
@@ -103,13 +103,24 @@ export default function App() {
 
     frameId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frameId);
-  }, [labActive, playing]);
+  }, [failureLabActive, playing]);
 
-  const startLab = () => {
+  const openFailureLab = (atMs = 0, autoplay = true) => {
     setLayer('routing');
-    setTimeMs(0);
-    setLabActive(true);
-    setPlaying(true);
+    setTimeMs(atMs);
+    setActiveLab('failure');
+    setPlaying(autoplay);
+  };
+
+  const openPacketLab = () => {
+    setPlaying(false);
+    setLayer('packet');
+    setActiveLab('packet');
+  };
+
+  const exitLabs = () => {
+    setPlaying(false);
+    setActiveLab(null);
   };
 
   const togglePlayback = () => {
@@ -118,9 +129,7 @@ export default function App() {
       return;
     }
 
-    if (timeMs >= lab01Scenario.durationMs) {
-      setTimeMs(0);
-    }
+    if (timeMs >= lab01Scenario.durationMs) setTimeMs(0);
     setPlaying(true);
   };
 
@@ -129,9 +138,20 @@ export default function App() {
     setTimeMs(nextTime);
   };
 
+  const overviewAction = layer === 'packet'
+    ? { label: 'Open packet microscope', run: openPacketLab }
+    : { label: 'Run failure lab', run: () => openFailureLab(0, true) };
+
+  const buildLabel = activeLab === 'failure' ? 'LAB 01' : activeLab === 'packet' ? 'LAB 02' : 'LAB 00';
+  const buildStatus = activeLab === 'failure'
+    ? labState.statusLabel
+    : activeLab === 'packet'
+      ? 'PACKET TRACE ACTIVE'
+      : 'Foundation online';
+
   return (
-    <main className="app-shell" data-layer={layer} data-mode={mode} data-lab={labActive ? 'active' : 'idle'}>
-      {!labActive && <NetworkField mode={mode} layer={layer} />}
+    <main className="app-shell" data-layer={layer} data-mode={mode} data-lab={activeLab ? 'active' : 'idle'}>
+      {!activeLab && <NetworkField mode={mode} layer={layer} />}
       <div className="grid-field" aria-hidden="true" />
       <div className="scene-vignette" aria-hidden="true" />
 
@@ -141,28 +161,18 @@ export default function App() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
       >
-        <button
-          className="brand-lockup brand-button"
-          type="button"
-          onClick={() => {
-            setPlaying(false);
-            setLabActive(false);
-          }}
-          aria-label="Return to HOPSCOTCH overview"
-        >
+        <button className="brand-lockup brand-button" type="button" onClick={exitLabs} aria-label="Return to HOPSCOTCH overview">
           <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
           <strong>HOPSCOTCH</strong>
         </button>
         <div className="build-state">
-          <span>{labActive ? 'LAB 01' : 'LAB 00'}</span>
-          <span className={`status-dot${labActive ? ` phase-${labState.phase}` : ''}`}>
-            {labActive ? labState.statusLabel : 'Foundation online'}
-          </span>
+          <span>{buildLabel}</span>
+          <span className={`status-dot${failureLabActive ? ` phase-${labState.phase}` : ''}`}>{buildStatus}</span>
         </div>
       </motion.header>
 
       <AnimatePresence mode="wait" initial={false}>
-        {!labActive ? (
+        {!activeLab ? (
           <motion.div
             key="overview"
             className="overview-scene"
@@ -172,61 +182,36 @@ export default function App() {
             transition={{ duration: 0.45 }}
           >
             <section className="hero-copy">
-              <motion.p
-                className="eyebrow"
-                initial={reduceMotion ? false : { opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1, duration: 0.7 }}
-              >
+              <motion.p className="eyebrow" initial={reduceMotion ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.7 }}>
                 Interactive network systems laboratory
               </motion.p>
 
-              <motion.h1
-                initial={reduceMotion ? false : { opacity: 0, y: 34 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.16, duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
-              >
+              <motion.h1 initial={reduceMotion ? false : { opacity: 0, y: 34 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16, duration: 0.85, ease: [0.16, 1, 0.3, 1] }}>
                 SEE THE
                 <span>INTERNET</span>
                 HAPPEN.
               </motion.h1>
 
-              <motion.p
-                className="lede"
-                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.28, duration: 0.7 }}
-              >
+              <motion.p className="lede" initial={reduceMotion ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28, duration: 0.7 }}>
                 Move from the global Internet to a single packet without losing the story in between.
                 Routes, protocols, failures, and recovery become something you can watch, stop, rewind, and interrogate.
               </motion.p>
 
-              <motion.div
-                className="hero-actions"
-                initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.38, duration: 0.65 }}
-              >
+              <motion.div className="hero-actions" initial={reduceMotion ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38, duration: 0.65 }}>
                 <motion.button
                   className="primary-action"
                   type="button"
-                  onClick={startLab}
+                  onClick={overviewAction.run}
                   whileHover={reduceMotion ? undefined : { y: -2, scale: 1.015 }}
                   whileTap={reduceMotion ? undefined : { scale: 0.985 }}
                 >
-                  Run failure lab
+                  {overviewAction.label}
                   <span aria-hidden="true">↗</span>
                 </motion.button>
-                <button
-                  className="text-action text-button"
-                  type="button"
-                  onClick={() => setMode((current) => (current === 'overview' ? 'xray' : 'overview'))}
-                >
+                <button className="text-action text-button" type="button" onClick={() => setMode((current) => (current === 'overview' ? 'xray' : 'overview'))}>
                   {mode === 'overview' ? 'Preview X-ray' : 'Hide X-ray'}
                 </button>
-                <a className="text-action" href="https://github.com/JohnnyZLi/HOPSCOTCH">
-                  Source
-                </a>
+                <a className="text-action" href="https://github.com/JohnnyZLi/HOPSCOTCH">Source</a>
               </motion.div>
             </section>
 
@@ -257,7 +242,7 @@ export default function App() {
               <h2>{active.label}</h2>
               <p>{active.description}</p>
               <div className="card-rule" />
-              <small>{mode === 'xray' ? 'X-RAY OVERLAY ACTIVE' : 'OVERVIEW MODEL'}</small>
+              <small>{layer === 'packet' ? 'PACKET MICROSCOPE READY' : mode === 'xray' ? 'X-RAY OVERLAY ACTIVE' : 'OVERVIEW MODEL'}</small>
             </motion.aside>
 
             <footer className="timeline-preview">
@@ -265,13 +250,12 @@ export default function App() {
                 <span>TIME MACHINE</span>
                 <span>00:00.000</span>
               </div>
-              <div className="timeline-track" aria-hidden="true">
-                <i />
-                <b />
-              </div>
-              <span className="timeline-note">Lab 01 ready · deterministic failure replay</span>
+              <div className="timeline-track" aria-hidden="true"><i /><b /></div>
+              <span className="timeline-note">Lab 01 online · Lab 02 packet microscope</span>
             </footer>
           </motion.div>
+        ) : activeLab === 'packet' ? (
+          <PacketMicroscope key="lab02" onExit={exitLabs} onOpenSourceEvent={() => openFailureLab(5400, false)} />
         ) : (
           <motion.section
             key="lab01"
@@ -287,23 +271,10 @@ export default function App() {
                 <h1>BREAK THE ROUTE.<br /><span>WATCH IT THINK.</span></h1>
               </div>
               <div className="lab-heading-actions">
-                <button
-                  type="button"
-                  className={labXray ? 'lab-mode active' : 'lab-mode'}
-                  onClick={() => setLabXray((current) => !current)}
-                >
+                <button type="button" className={labXray ? 'lab-mode active' : 'lab-mode'} onClick={() => setLabXray((current) => !current)}>
                   X-RAY {labXray ? 'ON' : 'OFF'}
                 </button>
-                <button
-                  type="button"
-                  className="lab-mode"
-                  onClick={() => {
-                    setPlaying(false);
-                    setLabActive(false);
-                  }}
-                >
-                  EXIT LAB
-                </button>
+                <button type="button" className="lab-mode" onClick={exitLabs}>EXIT LAB</button>
               </div>
             </header>
 
@@ -318,31 +289,13 @@ export default function App() {
               />
 
               <div className="lab-stage-meta">
-                <div>
-                  <span>PHASE</span>
-                  <strong>{labState.phase.toUpperCase()}</strong>
-                </div>
-                <div>
-                  <span>INSTALLED PATH</span>
-                  <strong>{activePath.label.toUpperCase()}</strong>
-                </div>
-                <div>
-                  <span>PATH COST</span>
-                  <strong>{activePath.metric}</strong>
-                </div>
+                <div><span>PHASE</span><strong>{labState.phase.toUpperCase()}</strong></div>
+                <div><span>INSTALLED PATH</span><strong>{activePath.label.toUpperCase()}</strong></div>
+                <div><span>PATH COST</span><strong>{activePath.metric}</strong></div>
               </div>
 
-              <motion.div
-                className="lab-camera"
-                animate={reduceMotion ? undefined : { x: cameraX, y: cameraY, scale: cameraScale }}
-                transition={{ type: 'spring', stiffness: 110, damping: 20, mass: 0.85 }}
-              >
-                <LabNetworkField
-                  scenario={lab01Scenario}
-                  state={labState}
-                  activeEvent={activeEvent}
-                  xray={labXray}
-                />
+              <motion.div className="lab-camera" animate={reduceMotion ? undefined : { x: cameraX, y: cameraY, scale: cameraScale }} transition={{ type: 'spring', stiffness: 110, damping: 20, mass: 0.85 }}>
+                <LabNetworkField scenario={lab01Scenario} state={labState} activeEvent={activeEvent} xray={labXray} />
               </motion.div>
 
               <AnimatePresence mode="wait" initial={false}>
@@ -371,12 +324,7 @@ export default function App() {
                   const complete = event.atMs <= timeMs;
                   const current = event.id === activeEvent.id;
                   return (
-                    <button
-                      key={event.id}
-                      type="button"
-                      className={`${complete ? 'complete' : ''}${current ? ' current' : ''}`}
-                      onClick={() => seek(event.atMs)}
-                    >
+                    <button key={event.id} type="button" className={`${complete ? 'complete' : ''}${current ? ' current' : ''}`} onClick={() => seek(event.atMs)}>
                       <span className="event-index">{String(index + 1).padStart(2, '0')}</span>
                       <span className="event-copy">
                         <strong>{event.payload.title}</strong>
@@ -386,42 +334,22 @@ export default function App() {
                   );
                 })}
               </div>
-              <div className="event-detail">
-                <span>WHY THIS MATTERS</span>
-                <p>{activeEvent.payload.detail}</p>
-              </div>
+              <div className="event-detail"><span>WHY THIS MATTERS</span><p>{activeEvent.payload.detail}</p></div>
             </aside>
 
             <footer className="time-machine">
               <div className="time-controls">
-                <button type="button" onClick={togglePlayback} aria-label={playing ? 'Pause scenario' : 'Play scenario'}>
-                  {playing ? 'Ⅱ' : '▶'}
-                </button>
+                <button type="button" onClick={togglePlayback} aria-label={playing ? 'Pause scenario' : 'Play scenario'}>{playing ? 'Ⅱ' : '▶'}</button>
                 <button type="button" onClick={() => seek(0)} aria-label="Reset scenario">↺</button>
               </div>
-              <div className="time-readout">
-                <span>TIME MACHINE</span>
-                <strong>{formatTime(timeMs)}</strong>
-              </div>
+              <div className="time-readout"><span>TIME MACHINE</span><strong>{formatTime(timeMs)}</strong></div>
               <div className="scrubber-wrap">
                 <div className="timeline-markers" aria-hidden="true">
                   {lab01Scenario.events.map((event) => (
-                    <i
-                      key={event.id}
-                      className={event.atMs <= timeMs ? 'passed' : ''}
-                      style={{ left: `${(event.atMs / lab01Scenario.durationMs) * 100}%` }}
-                    />
+                    <i key={event.id} className={event.atMs <= timeMs ? 'passed' : ''} style={{ left: `${(event.atMs / lab01Scenario.durationMs) * 100}%` }} />
                   ))}
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max={lab01Scenario.durationMs}
-                  step="10"
-                  value={Math.round(timeMs)}
-                  onChange={(event) => seek(Number(event.currentTarget.value))}
-                  aria-label="Scenario time"
-                />
+                <input type="range" min="0" max={lab01Scenario.durationMs} step="10" value={Math.round(timeMs)} onChange={(event) => seek(Number(event.currentTarget.value))} aria-label="Scenario time" />
               </div>
               <span className="time-duration">{formatTime(lab01Scenario.durationMs)}</span>
             </footer>
