@@ -96,7 +96,9 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
       ease: 'inOutSine',
     });
 
-    return () => animation.cancel();
+    return () => {
+      animation.cancel();
+    };
   }, [activeEvent.id, reduceMotion]);
 
   const chooseMode = (nextMode: DnsMode) => {
@@ -161,19 +163,22 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
           <div className="dns-link recursive-auth" aria-hidden="true" />
           <div className="dns-link recursive-cache" aria-hidden="true" />
 
-          {(['stub', 'recursive', 'root', 'tld', 'authoritative', 'cache'] as const).map((actor) => (
-            <div
-              key={actor}
-              data-dns-actor={actor}
-              className={`dns-actor actor-${actor}${upstreamDimmed && ['root', 'tld', 'authoritative'].includes(actor) ? ' is-idle-upstream' : ''}${activeEvent.from === actor || activeEvent.to === actor ? ' is-current' : ''}`}
-            >
-              <span>{actorLabels[actor].label}</span>
-              <strong>{actorLabels[actor].sub}</strong>
-              {actor === 'cache' && (
-                <small>{state.cacheState === 'empty' ? 'EMPTY' : `${DNS_ANSWER} · ${state.cacheTtlSeconds ?? 0}s`}</small>
-              )}
-            </div>
-          ))}
+          {(['stub', 'recursive', 'root', 'tld', 'authoritative', 'cache'] as const).map((actor) => {
+            const idleUpstream = upstreamDimmed && (actor === 'root' || actor === 'tld' || actor === 'authoritative');
+            return (
+              <div
+                key={actor}
+                data-dns-actor={actor}
+                className={`dns-actor actor-${actor}${idleUpstream ? ' is-idle-upstream' : ''}${activeEvent.from === actor || activeEvent.to === actor ? ' is-current' : ''}`}
+              >
+                <span>{actorLabels[actor].label}</span>
+                <strong>{actorLabels[actor].sub}</strong>
+                {actor === 'cache' && (
+                  <small>{state.cacheState === 'empty' ? 'EMPTY' : `${DNS_ANSWER} · ${state.cacheTtlSeconds ?? 0}s`}</small>
+                )}
+              </div>
+            );
+          })}
 
           <div className={`dns-message-token severity-${activeEvent.severity}`}>
             <span>{activeEvent.kind.replace('.', ' ')}</span>
