@@ -10,6 +10,7 @@ import './tcp.css';
 import './tcp-audit.css';
 import './dns.css';
 import './dns-audit.css';
+import './tls.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

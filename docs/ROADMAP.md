@@ -42,7 +42,7 @@
 - [x] Retransmission and loss
 - [x] Congestion-window visualization
 - [x] DNS resolution chain
-- [ ] TLS handshake
+- [x] TLS handshake
 - [ ] HTTP/2 and HTTP/3/QUIC comparison
 
 ## Lab 04 — Network builder
