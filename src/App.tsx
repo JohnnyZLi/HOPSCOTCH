@@ -62,6 +62,28 @@ export default function App() {
   );
   const activePath = lab01Scenario.paths.find((path) => path.id === labState.activePathId) ?? lab01Scenario.paths[0];
 
+  const actorNode = lab01Scenario.nodes.find((node) => node.id === activeEvent.actorId);
+  const targetNode = lab01Scenario.nodes.find((node) => node.id === activeEvent.targetId);
+  const focusX = actorNode && targetNode
+    ? (actorNode.x + targetNode.x) / 2
+    : actorNode?.x ?? targetNode?.x ?? 60;
+  const focusY = actorNode && targetNode
+    ? (actorNode.y + targetNode.y) / 2
+    : actorNode?.y ?? targetNode?.y ?? 36;
+  const cameraScale = labState.phase === 'failure'
+    ? 1.045
+    : labState.phase === 'converging'
+      ? 1.028
+      : labState.phase === 'recomputing'
+        ? 1.018
+        : labState.phase === 'rerouting'
+          ? 1.032
+          : labState.phase === 'recovered'
+            ? 1.012
+            : 1;
+  const cameraX = ((60 - focusX) / 60) * 14;
+  const cameraY = ((36 - focusY) / 36) * 9;
+
   useEffect(() => {
     if (!playing || !labActive) return;
 
@@ -286,6 +308,15 @@ export default function App() {
             </header>
 
             <div className="lab-stage">
+              <motion.div
+                key={`flash-${activeEvent.id}`}
+                className={`lab-phase-flash severity-${activeEvent.payload.severity}`}
+                initial={reduceMotion ? false : { opacity: activeEvent.payload.severity === 'critical' ? 0.34 : 0.16 }}
+                animate={{ opacity: 0 }}
+                transition={{ duration: activeEvent.payload.severity === 'critical' ? 0.95 : 0.7 }}
+                aria-hidden="true"
+              />
+
               <div className="lab-stage-meta">
                 <div>
                   <span>PHASE</span>
@@ -301,18 +332,33 @@ export default function App() {
                 </div>
               </div>
 
-              <LabNetworkField
-                scenario={lab01Scenario}
-                state={labState}
-                activeEvent={activeEvent}
-                xray={labXray}
-              />
+              <motion.div
+                className="lab-camera"
+                animate={reduceMotion ? undefined : { x: cameraX, y: cameraY, scale: cameraScale }}
+                transition={{ type: 'spring', stiffness: 110, damping: 20, mass: 0.85 }}
+              >
+                <LabNetworkField
+                  scenario={lab01Scenario}
+                  state={labState}
+                  activeEvent={activeEvent}
+                  xray={labXray}
+                />
+              </motion.div>
 
-              <div className={`lab-event-callout severity-${activeEvent.payload.severity}`}>
-                <span>{formatTime(activeEvent.atMs)}</span>
-                <strong>{activeEvent.payload.title}</strong>
-                <p>{activeEvent.payload.summary}</p>
-              </div>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={activeEvent.id}
+                  className={`lab-event-callout severity-${activeEvent.payload.severity}`}
+                  initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 12, scale: 0.985, filter: 'blur(6px)' }}
+                  animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+                  exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.99, filter: 'blur(4px)' }}
+                  transition={{ duration: 0.28 }}
+                >
+                  <span>{formatTime(activeEvent.atMs)}</span>
+                  <strong>{activeEvent.payload.title}</strong>
+                  <p>{activeEvent.payload.summary}</p>
+                </motion.div>
+              </AnimatePresence>
             </div>
 
             <aside className="event-inspector" aria-label="Causal event chain">
