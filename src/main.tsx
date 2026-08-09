@@ -8,6 +8,7 @@ import './event-effects.css';
 import './packet.css';
 import './tcp.css';
 import './tcp-audit.css';
+import './dns.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
