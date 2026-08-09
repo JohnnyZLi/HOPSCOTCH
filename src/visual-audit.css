@@ -1,0 +1,107 @@
+.network-field {
+  z-index: 0;
+  opacity: 0.9;
+}
+
+.grid-field {
+  z-index: 1;
+}
+
+.scene-vignette {
+  z-index: 2;
+}
+
+.topbar {
+  z-index: 10;
+}
+
+.hero-copy {
+  z-index: 5;
+}
+
+.scale-rail,
+.layer-card,
+.timeline-preview {
+  z-index: 6;
+}
+
+.lab-network-field {
+  inset: 42px 12px 62px;
+  width: calc(100% - 24px);
+  height: calc(100% - 104px);
+}
+
+.lab-link {
+  stroke-width: 0.72;
+}
+
+.lab-link.is-path-active {
+  stroke-width: 0.95;
+}
+
+.lab-link.is-control-active {
+  stroke-width: 1.35;
+}
+
+.lab-link.is-failed {
+  stroke-width: 1.35;
+  opacity: 0.7;
+}
+
+.lab-active-route {
+  stroke-width: 1.65;
+  stroke-dasharray: 8 10;
+}
+
+.lab-motion-route {
+  fill: none;
+  stroke: none;
+}
+
+.lab-flow-packet {
+  fill: #eafffa;
+  stroke: var(--cyan);
+  stroke-width: 0.4;
+  opacity: 0;
+  vector-effect: non-scaling-stroke;
+}
+
+.lab-node-halo {
+  stroke-width: 0.5;
+}
+
+.lab-node-ring {
+  stroke-width: 0.8;
+}
+
+.lab-node-label {
+  font-size: 2.05px;
+}
+
+.lab-link-metric {
+  font-size: 1.8px;
+}
+
+@media (max-width: 680px) {
+  .scale-rail {
+    display: flex;
+    gap: 6px;
+    padding-bottom: 5px;
+    scrollbar-width: none;
+  }
+
+  .scale-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scale-rail button {
+    min-width: 86px;
+    flex: 0 0 86px;
+  }
+
+  .lab-network-field {
+    inset: 52px 4px 78px;
+    width: calc(100% - 8px);
+    height: calc(100% - 130px);
+  }
+}
