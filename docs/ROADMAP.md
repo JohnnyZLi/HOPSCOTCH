@@ -41,7 +41,7 @@
 - [x] TCP handshake and teardown
 - [x] Retransmission and loss
 - [x] Congestion-window visualization
-- [ ] DNS resolution chain
+- [x] DNS resolution chain
 - [ ] TLS handshake
 - [ ] HTTP/2 and HTTP/3/QUIC comparison
 
