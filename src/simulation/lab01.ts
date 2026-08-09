@@ -11,12 +11,12 @@ export const lab01Scenario: SimulationScenario = {
   title: 'Failure and recovery',
   durationMs: 7000,
   nodes: [
-    { id: 'client', label: 'Client', shortLabel: 'CLIENT', x: 9, y: 52, kind: 'client' },
-    { id: 'edge', label: 'Edge Router', shortLabel: 'EDGE', x: 27, y: 52, kind: 'edge' },
-    { id: 'r1', label: 'Router 1', shortLabel: 'R1', x: 48, y: 29, kind: 'router' },
-    { id: 'r2', label: 'Router 2', shortLabel: 'R2', x: 48, y: 75, kind: 'router' },
-    { id: 'core', label: 'Core Router', shortLabel: 'CORE', x: 70, y: 52, kind: 'router' },
-    { id: 'service', label: 'Application', shortLabel: 'APP', x: 91, y: 52, kind: 'service' },
+    { id: 'client', label: 'Client', shortLabel: 'CLIENT', x: 8, y: 36, kind: 'client' },
+    { id: 'edge', label: 'Edge Router', shortLabel: 'EDGE', x: 28, y: 36, kind: 'edge' },
+    { id: 'r1', label: 'Router 1', shortLabel: 'R1', x: 52, y: 14, kind: 'router' },
+    { id: 'r2', label: 'Router 2', shortLabel: 'R2', x: 52, y: 58, kind: 'router' },
+    { id: 'core', label: 'Core Router', shortLabel: 'CORE', x: 84, y: 36, kind: 'router' },
+    { id: 'service', label: 'Application', shortLabel: 'APP', x: 112, y: 36, kind: 'service' },
   ],
   links: [
     { id: 'client-edge', from: 'client', to: 'edge', metric: 1, role: 'access' },
