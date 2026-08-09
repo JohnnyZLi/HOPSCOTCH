@@ -107,7 +107,7 @@ function formatIpv6(bytes: readonly number[]): string {
   for (let index = 0; index < 16; index += 2) {
     groups.push((((bytes[index] ?? 0) << 8) | (bytes[index + 1] ?? 0)).toString(16));
   }
-  return groups.join(':').replace(/(^|:)0:0:0:0:0(?=:|$)/, '$1:');
+  return groups.join(':');
 }
 
 export function hex16(value: number): string {
@@ -162,7 +162,7 @@ function buildIpv4(config: PacketConfig, transportLength: number): { bytes: numb
   };
 }
 
-function buildIpv6(config: PacketConfig, transportLength: number): { bytes: number[]; fields: PacketField[] } {
+function buildIpv6(config: PacketConfig, transportLength: number): { bytes: number[]; checksum: null; fields: PacketField[] } {
   const payloadLength = transportLength + config.payloadBytes;
   const nextHeader = config.transport === 'tcp' ? 6 : 17;
   const bytes = [
@@ -175,6 +175,7 @@ function buildIpv6(config: PacketConfig, transportLength: number): { bytes: numb
   ];
   return {
     bytes,
+    checksum: null,
     fields: [
       { id: 'ip6-version', label: 'Version / Flow', value: 'IPv6 · flow label 0', offset: 0, length: 4 },
       { id: 'ip6-length', label: 'Payload Length', value: `${payloadLength} bytes`, offset: 4, length: 2, derived: true, note: 'Transport header + application payload' },
@@ -300,7 +301,7 @@ export function buildPacket(input: PacketConfig): PacketSnapshot {
     networkBytes: network.bytes.length + transport.bytes.length + payload.length,
     transportBytes: transport.bytes.length + payload.length,
     payloadBytes: payload.length,
-    networkChecksum: config.family === 'ipv4' ? network.checksum : null,
+    networkChecksum: network.checksum,
     transportChecksum: transport.checksum,
   };
 }
