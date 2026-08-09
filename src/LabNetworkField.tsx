@@ -44,14 +44,16 @@ export function LabNetworkField({
       loop: true,
     });
 
-    return () => flow.cancel();
+    return () => {
+      flow.cancel();
+    };
   }, [activePath.id, reduceMotion]);
 
   useEffect(() => {
     const root = svgRef.current;
     if (!root || reduceMotion) return;
 
-    const animations = [];
+    const animations: Array<ReturnType<typeof animate>> = [];
     const controlLinks = root.querySelectorAll('.lab-link.is-control-active');
     const eventNodes = root.querySelectorAll('.lab-node.is-event-actor .lab-node-halo');
     const failedLinks = root.querySelectorAll('.lab-link.is-failed');
@@ -90,7 +92,11 @@ export function LabNetworkField({
       );
     }
 
-    return () => animations.forEach((animation) => animation.cancel());
+    return () => {
+      animations.forEach((animation) => {
+        animation.cancel();
+      });
+    };
   }, [activeEvent.id, activeEvent.kind, reduceMotion, state.controlLinkIds, state.failedLinkIds]);
 
   return (
