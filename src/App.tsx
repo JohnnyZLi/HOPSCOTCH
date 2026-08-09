@@ -1,5 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useMemo, useState } from 'react';
+import { DnsTheater } from './DnsTheater';
 import { LabNetworkField } from './LabNetworkField';
 import { NetworkField } from './NetworkField';
 import { PacketMicroscope } from './PacketMicroscope';
@@ -8,7 +9,7 @@ import { lab01Scenario, lab01StateAt } from './simulation/lab01';
 import { latestEventAtOrBefore, type NetworkLayer } from './simulation/model';
 
 type DisplayMode = 'overview' | 'xray';
-type ActiveLab = 'failure' | 'packet' | 'tcp' | null;
+type ActiveLab = 'failure' | 'packet' | 'tcp' | 'dns' | null;
 
 const layers: Array<{ id: NetworkLayer; label: string; kicker: string; description: string }> = [
   { id: 'internet', label: 'Internet', kicker: 'Scale 05', description: 'Autonomous systems, peering, backbone paths, and infrastructure.' },
@@ -93,6 +94,12 @@ export default function App() {
     setActiveLab('tcp');
   };
 
+  const openDnsLab = () => {
+    setPlaying(false);
+    setLayer('application');
+    setActiveLab('dns');
+  };
+
   const exitLabs = () => {
     setPlaying(false);
     setActiveLab(null);
@@ -116,16 +123,26 @@ export default function App() {
     ? { label: 'Open packet microscope', run: openPacketLab }
     : layer === 'transport'
       ? { label: 'Open TCP theater', run: openTcpLab }
-      : { label: 'Run failure lab', run: () => openFailureLab(0, true) };
+      : layer === 'application'
+        ? { label: 'Open DNS theater', run: openDnsLab }
+        : { label: 'Run failure lab', run: () => openFailureLab(0, true) };
 
-  const buildLabel = activeLab === 'failure' ? 'LAB 01' : activeLab === 'packet' ? 'LAB 02' : activeLab === 'tcp' ? 'LAB 03' : 'LAB 00';
+  const buildLabel = activeLab === 'failure'
+    ? 'LAB 01'
+    : activeLab === 'packet'
+      ? 'LAB 02'
+      : activeLab === 'tcp' || activeLab === 'dns'
+        ? 'LAB 03'
+        : 'LAB 00';
   const buildStatus = activeLab === 'failure'
     ? labState.statusLabel
     : activeLab === 'packet'
       ? 'PACKET TRACE ACTIVE'
       : activeLab === 'tcp'
         ? 'TCP THEATER ACTIVE'
-        : 'Foundation online';
+        : activeLab === 'dns'
+          ? 'DNS THEATER ACTIVE'
+          : 'Foundation online';
 
   return (
     <main className="app-shell" data-layer={layer} data-mode={mode} data-lab={activeLab ? 'active' : 'idle'}>
@@ -174,19 +191,21 @@ export default function App() {
 
             <motion.aside key={active.id} className="layer-card" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 16, filter: 'blur(8px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} transition={{ duration: 0.34 }}>
               <span>{active.kicker}</span><h2>{active.label}</h2><p>{active.description}</p><div className="card-rule" />
-              <small>{layer === 'packet' ? 'PACKET MICROSCOPE READY' : layer === 'transport' ? 'TCP PROTOCOL THEATER READY' : mode === 'xray' ? 'X-RAY OVERLAY ACTIVE' : 'OVERVIEW MODEL'}</small>
+              <small>{layer === 'packet' ? 'PACKET MICROSCOPE READY' : layer === 'transport' ? 'TCP PROTOCOL THEATER READY' : layer === 'application' ? 'DNS RESOLUTION THEATER READY' : mode === 'xray' ? 'X-RAY OVERLAY ACTIVE' : 'OVERVIEW MODEL'}</small>
             </motion.aside>
 
             <footer className="timeline-preview">
               <div className="timeline-labels"><span>TIME MACHINE</span><span>00:00.000</span></div>
               <div className="timeline-track" aria-hidden="true"><i /><b /></div>
-              <span className="timeline-note">Lab 01 routing · Lab 02 packet · Lab 03 TCP theater</span>
+              <span className="timeline-note">Lab 01 routing · Lab 02 packet · Lab 03 TCP + DNS theater</span>
             </footer>
           </motion.div>
         ) : activeLab === 'packet' ? (
           <PacketMicroscope key="lab02" onExit={exitLabs} onOpenSourceEvent={() => openFailureLab(5400, false)} />
         ) : activeLab === 'tcp' ? (
-          <TcpTheater key="lab03" onExit={exitLabs} onOpenPacket={openPacketLab} />
+          <TcpTheater key="lab03-tcp" onExit={exitLabs} onOpenPacket={openPacketLab} />
+        ) : activeLab === 'dns' ? (
+          <DnsTheater key="lab03-dns" onExit={exitLabs} />
         ) : (
           <motion.section key="lab01" className="lab-workspace" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.985, filter: 'blur(14px)' }} animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.02, filter: 'blur(10px)' }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
             <header className="lab-heading">
