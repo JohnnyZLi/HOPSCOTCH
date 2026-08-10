@@ -23,7 +23,7 @@ export interface PortableJourneyScenarioV1 {
 
 const transportProfiles = new Set<JourneyTransportProfile>(['tcp-h2', 'quic-h3']);
 const dnsProfiles = new Set<JourneyDnsProfile>(['cache-miss', 'cache-hit']);
-const impairmentProfiles = new Set<JourneyImpairmentProfile>(['clean', 'single-loss']);
+const impairmentProfiles = new Set<JourneyImpairmentProfile>(['clean', 'single-loss', 'latency-spike']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -39,46 +39,33 @@ function normalizeName(value: unknown): string | undefined {
 }
 
 function normalizeTime(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
-    throw new Error('Scenario timeMs must be a non-negative integer.');
-  }
+  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 0) throw new Error('Scenario timeMs must be a non-negative integer.');
   return value;
 }
 
 function normalizeTransport(value: unknown): JourneyTransportProfile {
-  if (typeof value !== 'string' || !transportProfiles.has(value as JourneyTransportProfile)) {
-    throw new Error('Invalid Journey transport profile.');
-  }
+  if (typeof value !== 'string' || !transportProfiles.has(value as JourneyTransportProfile)) throw new Error('Invalid Journey transport profile.');
   return value as JourneyTransportProfile;
 }
 
 function normalizeDns(value: unknown): JourneyDnsProfile {
-  if (typeof value !== 'string' || !dnsProfiles.has(value as JourneyDnsProfile)) {
-    throw new Error('Invalid Journey DNS profile.');
-  }
+  if (typeof value !== 'string' || !dnsProfiles.has(value as JourneyDnsProfile)) throw new Error('Invalid Journey DNS profile.');
   return value as JourneyDnsProfile;
 }
 
 function normalizeImpairment(value: unknown): JourneyImpairmentProfile {
-  if (typeof value !== 'string' || !impairmentProfiles.has(value as JourneyImpairmentProfile)) {
-    throw new Error('Invalid Journey impairment profile.');
-  }
+  if (typeof value !== 'string' || !impairmentProfiles.has(value as JourneyImpairmentProfile)) throw new Error('Invalid Journey impairment profile.');
   return value as JourneyImpairmentProfile;
 }
 
 export function scenarioConfigFromPortable(scenario: PortableJourneyScenarioV1): JourneyScenarioConfig {
-  return {
-    transportProfile: scenario.transportProfile,
-    dnsProfile: scenario.dnsProfile,
-    impairmentProfile: scenario.impairmentProfile,
-  };
+  return { transportProfile: scenario.transportProfile, dnsProfile: scenario.dnsProfile, impairmentProfile: scenario.impairmentProfile };
 }
 
 export function normalizePortableJourneyScenario(value: unknown): PortableJourneyScenarioV1 {
   if (!isRecord(value)) throw new Error('Journey scenario must be a JSON object.');
   if (value.schema !== JOURNEY_SCENARIO_SCHEMA) throw new Error('Unsupported Journey scenario schema.');
   if (value.version !== JOURNEY_SCENARIO_VERSION) throw new Error('Unsupported Journey scenario version.');
-
   const hostname = normalizeJourneyHostname(typeof value.hostname === 'string' ? value.hostname : '');
   const transportProfile = normalizeTransport(value.transportProfile);
   const dnsProfile = normalizeDns(value.dnsProfile);
@@ -87,35 +74,11 @@ export function normalizePortableJourneyScenario(value: unknown): PortableJourne
   const name = normalizeName(value.name);
   const generated = buildJourneyScenario(hostname, { transportProfile, dnsProfile, impairmentProfile });
   const timeMs = Math.min(requestedTimeMs, generated.durationMs);
-
-  return {
-    schema: JOURNEY_SCENARIO_SCHEMA,
-    version: JOURNEY_SCENARIO_VERSION,
-    ...(name ? { name } : {}),
-    hostname,
-    transportProfile,
-    dnsProfile,
-    impairmentProfile,
-    timeMs,
-  };
+  return { schema: JOURNEY_SCENARIO_SCHEMA, version: JOURNEY_SCENARIO_VERSION, ...(name ? { name } : {}), hostname, transportProfile, dnsProfile, impairmentProfile, timeMs };
 }
 
-export function createPortableJourneyScenario(input: {
-  name?: string;
-  hostname: string;
-  config: JourneyScenarioConfig;
-  timeMs: number;
-}): PortableJourneyScenarioV1 {
-  return normalizePortableJourneyScenario({
-    schema: JOURNEY_SCENARIO_SCHEMA,
-    version: JOURNEY_SCENARIO_VERSION,
-    name: input.name,
-    hostname: input.hostname,
-    transportProfile: input.config.transportProfile,
-    dnsProfile: input.config.dnsProfile,
-    impairmentProfile: input.config.impairmentProfile,
-    timeMs: input.timeMs,
-  });
+export function createPortableJourneyScenario(input: { name?: string; hostname: string; config: JourneyScenarioConfig; timeMs: number }): PortableJourneyScenarioV1 {
+  return normalizePortableJourneyScenario({ schema: JOURNEY_SCENARIO_SCHEMA, version: JOURNEY_SCENARIO_VERSION, name: input.name, hostname: input.hostname, transportProfile: input.config.transportProfile, dnsProfile: input.config.dnsProfile, impairmentProfile: input.config.impairmentProfile, timeMs: input.timeMs });
 }
 
 export function serializeJourneyScenario(scenario: PortableJourneyScenarioV1): string {
@@ -124,11 +87,7 @@ export function serializeJourneyScenario(scenario: PortableJourneyScenarioV1): s
 
 export function parseJourneyScenarioJson(json: string): PortableJourneyScenarioV1 {
   let parsed: unknown;
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    throw new Error('Journey scenario file is not valid JSON.');
-  }
+  try { parsed = JSON.parse(json); } catch { throw new Error('Journey scenario file is not valid JSON.'); }
   return normalizePortableJourneyScenario(parsed);
 }
 
@@ -148,20 +107,9 @@ export function encodeJourneyQuery(scenario: PortableJourneyScenarioV1): string 
 export function decodeJourneyQuery(search: string): PortableJourneyScenarioV1 | null {
   const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
   if (params.get('journey') !== '1') return null;
-
   const rawTime = params.get('t');
   if (rawTime === null || !/^\d+$/.test(rawTime)) throw new Error('Shared Journey time must be a non-negative integer.');
-
-  return normalizePortableJourneyScenario({
-    schema: JOURNEY_SCENARIO_SCHEMA,
-    version: JOURNEY_SCENARIO_VERSION,
-    name: params.get('name') ?? undefined,
-    hostname: params.get('host') ?? '',
-    transportProfile: params.get('transport'),
-    dnsProfile: params.get('dns'),
-    impairmentProfile: params.get('impairment'),
-    timeMs: Number(rawTime),
-  });
+  return normalizePortableJourneyScenario({ schema: JOURNEY_SCENARIO_SCHEMA, version: JOURNEY_SCENARIO_VERSION, name: params.get('name') ?? undefined, hostname: params.get('host') ?? '', transportProfile: params.get('transport'), dnsProfile: params.get('dns'), impairmentProfile: params.get('impairment'), timeMs: Number(rawTime) });
 }
 
 export function buildJourneyShareUrl(baseUrl: string, scenario: PortableJourneyScenarioV1): string {
