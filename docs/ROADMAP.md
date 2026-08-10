@@ -153,12 +153,39 @@ One canonical event log and time machine connects the scale-specific labs into a
 - [x] all 8 transport × DNS × impairment combinations under contract
 
 ### 06E — scenario authoring + sharing
-- [ ] canonical serializable Journey config/schema
-- [ ] human-readable scenario names/descriptions
-- [ ] import/export
-- [ ] shareable URL representation
-- [ ] strict forward-compatible validation/migration
-- [ ] authored scenarios restore all branch axes and time position
+- [x] canonical serializable Journey schema v1
+- [x] optional human-readable scenario name
+- [x] strict validation and deterministic time clamping
+- [x] JSON import/export
+- [x] readable share URL representation
+- [x] direct shared-link bootstrap into Journey
+- [x] invalid URL/file fails closed without mutating active state
+- [x] authored scenarios restore all branch axes and time position
+- [x] detail-lab return preserves restored state
+- [x] Journey semantic + sharing contracts permanently wired into CI
+
+## Lab 07 — GOD MODE scenario modifiers
+
+The next architecture should avoid a combinatorial pile of hard-coded Journey branches. Impairments become deterministic scenario modifiers that insert/transform canonical events while preserving the same reducer contract.
+
+### 07A — modifier pipeline + latency spike
+- [ ] declarative modifier interface and deterministic ordering
+- [ ] migrate `single-loss` onto the modifier pipeline without changing its event log
+- [ ] add `latency-spike` as a second impairment modifier
+- [ ] transport-correct RTT/ACK-clock semantics for TCP and QUIC
+- [ ] no false claim that latency alone triggers packet-loss congestion response
+- [ ] distinct latency visual language from loss/recovery
+- [ ] modifier composition contract across TCP/H2 and QUIC/H3 + both DNS profiles
+- [ ] sharing schema accepts the new impairment without breaking existing v1 links/files
+- [ ] exact production-artifact desktop/mobile/reduced-motion audit
+
+### Later GOD MODE modifiers
+- [ ] route/link failure during an active Journey
+- [ ] congestion / queue growth
+- [ ] DNS failure / retry path
+- [ ] server failure
+- [ ] partition / unreachable state
+- [ ] route leak / policy anomaly teaching scenario
 
 ## Measured/native mode — future
 
