@@ -1,7 +1,6 @@
 import {
   BUILDER_LIMITS,
   cloneBuilderGraph,
-  cloneBuilderLayout,
   defaultBuilderGraph,
   defaultBuilderLayout,
   type BuilderGraph,
@@ -112,6 +111,15 @@ function validateLayout(value: unknown, graph: BuilderGraph): BuilderLayout {
   return layout;
 }
 
+function layoutForGraph(layout: BuilderLayout, graph: BuilderGraph): BuilderLayout {
+  const scoped: BuilderLayout = {};
+  for (const node of graph.nodes) {
+    const point = layout[node.id];
+    if (point) scoped[node.id] = { ...point };
+  }
+  return scoped;
+}
+
 function migrateV1(raw: Record<string, unknown>): BuilderScenarioV2 {
   const graph = validateGraph({ nodes: raw.nodes, links: raw.links });
   return validateV2({ ...raw, version: 2, graph });
@@ -162,7 +170,7 @@ export function createBuilderScenario(name: string, graph: BuilderGraph, sourceI
     graph: cloneBuilderGraph(graph),
     sourceId,
     destinationId,
-    layout: cloneBuilderLayout(layout),
+    layout: layoutForGraph(layout, graph),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   });
