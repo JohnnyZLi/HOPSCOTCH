@@ -44,7 +44,7 @@ export function InternetScaleTheater({ onExit, onOpenObserved }: { onExit: () =>
 
   useEffect(() => {
     const canvas = canvasRef.current; if (!canvas) return;
-    let frame = 0; let raf = 0;
+    let raf = 0;
     const draw = (now: number) => {
       const rect = canvas.getBoundingClientRect(); const ratio = Math.min(window.devicePixelRatio || 1, 2);
       const width = Math.max(1, rect.width); const height = Math.max(1, rect.height);
@@ -77,12 +77,13 @@ export function InternetScaleTheater({ onExit, onOpenObserved }: { onExit: () =>
         const point = pointFor(node.asn, width, height, zoom); const onPath = winner?.asns.includes(node.asn) ?? false; const endpoint = node.asn === source || node.asn === destination;
         ctx.beginPath(); ctx.arc(point.x, point.y, endpoint ? 7.5 : onPath ? 6.2 : dense ? 3.2 : 4.2, 0, Math.PI * 2);
         ctx.fillStyle = node.asn === source ? '#7a9cff' : node.asn === destination ? '#f2c879' : onPath ? '#79f2da' : '#33424c'; ctx.fill();
-        if (endpoint || onPath || !dense) {
+        const showLabel = endpoint || onPath || (!dense && width >= 560);
+        if (showLabel) {
           ctx.font = `${endpoint ? 700 : 600} ${endpoint ? 11 : 9}px ui-monospace, SFMono-Regular, Menlo, monospace`; ctx.fillStyle = endpoint ? '#eaf2f6' : onPath ? '#bdfbf0' : '#64737d';
           ctx.fillText(asLabel(node.asn), point.x + 8, point.y - 7);
         }
       }
-      frame += 1; if (!reduceMotion) raf = requestAnimationFrame(draw);
+      if (!reduceMotion) raf = requestAnimationFrame(draw);
     };
     draw(performance.now());
     return () => cancelAnimationFrame(raf);
