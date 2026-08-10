@@ -2,10 +2,12 @@ export type JourneyScale = 'internet' | 'routing' | 'transport' | 'application' 
 export type JourneyProvenance = 'SIMULATED' | 'EDGE OBSERVED' | 'PUBLIC COLLECTOR' | 'PUBLIC DATA' | 'INFERRED';
 export type JourneyZoomDirection = 'in' | 'out' | 'hold';
 export type JourneyTransportProfile = 'tcp-h2' | 'quic-h3';
+export type JourneyDnsProfile = 'cache-miss' | 'cache-hit';
 export type JourneyDetailLab = 'dns' | 'tcp' | 'tls' | 'http' | 'packet' | 'builder' | 'internet' | 'physical' | 'observed';
 export type JourneyEventKind =
   | 'intent.accepted'
   | 'dns.cache-check'
+  | 'dns.cache-hit'
   | 'dns.query'
   | 'dns.referral'
   | 'dns.answer'
@@ -29,6 +31,16 @@ export type JourneyEventKind =
   | 'camera.pullback'
   | 'journey.complete';
 
+export interface JourneyScenarioConfig {
+  transportProfile: JourneyTransportProfile;
+  dnsProfile: JourneyDnsProfile;
+}
+
+export const DEFAULT_JOURNEY_CONFIG: JourneyScenarioConfig = {
+  transportProfile: 'tcp-h2',
+  dnsProfile: 'cache-miss',
+};
+
 export interface JourneyEvent {
   id: string;
   atMs: number;
@@ -44,6 +56,7 @@ export interface JourneyEvent {
   actor: string;
   target?: string;
   detailLab?: JourneyDetailLab;
+  ttlSeconds?: number;
 }
 
 export interface JourneyScenario {
@@ -51,6 +64,7 @@ export interface JourneyScenario {
   hostname: string;
   destinationAddress: string;
   transportProfile: JourneyTransportProfile;
+  dnsProfile: JourneyDnsProfile;
   durationMs: number;
   events: JourneyEvent[];
 }
@@ -68,6 +82,7 @@ export interface JourneyState {
   activeEventIndex: number;
   completedEventIds: string[];
   transportProfile: JourneyTransportProfile;
+  dnsProfile: JourneyDnsProfile;
   scale: JourneyScale;
   scaleDepth: number;
   previousScale: JourneyScale;
@@ -76,6 +91,7 @@ export interface JourneyState {
   phase: string;
   provenance: JourneyProvenance;
   dns: DnsJourneyState;
+  dnsTtlSeconds: number | null;
   resolvedAddress: string | null;
   route: RouteJourneyState;
   transport: TransportJourneyState;
@@ -126,20 +142,54 @@ function event(
   return { id, atMs, kind, scale, zoom, protocol, phase, title, summary, detail, actor, target, detailLab, provenance };
 }
 
-function sharedPrelude(hostname: string, destinationAddress: string): JourneyEvent[] {
+function withTtl(source: JourneyEvent, ttlSeconds: number): JourneyEvent {
+  return { ...source, ttlSeconds };
+}
+
+function shiftEvents(events: JourneyEvent[], deltaMs: number): JourneyEvent[] {
+  if (deltaMs === 0) return events;
+  return events.map((current) => ({ ...current, atMs: current.atMs + deltaMs }));
+}
+
+function intentEvent(hostname: string): JourneyEvent {
+  return event('intent', 0, 'intent.accepted', 'application', 'hold', 'URL', 'intent', `Navigate to ${hostname}`, 'The application turns a human hostname into a network dependency graph.', 'A URL is intent, not a route. HOPSCOTCH starts at the application layer and moves outward only when the next dependency requires it.', 'browser', hostname);
+}
+
+function dnsMissEvents(hostname: string, destinationAddress: string): JourneyEvent[] {
   return [
-    event('intent', 0, 'intent.accepted', 'application', 'hold', 'URL', 'intent', `Navigate to ${hostname}`, 'The application turns a human hostname into a network dependency graph.', 'A URL is intent, not a route. HOPSCOTCH starts at the application layer and only moves outward when the next dependency requires a lower layer.', 'browser', hostname),
-    event('dns-cache', 420, 'dns.cache-check', 'application', 'hold', 'DNS', 'cache-check', 'DNS cache checked', 'No usable cached answer exists for this curated journey.', 'The cache miss is simulated so the full resolver path remains visible.', 'stub resolver', hostname, 'dns'),
+    event('dns-cache', 420, 'dns.cache-check', 'application', 'hold', 'DNS', 'cache-miss', 'DNS cache miss', 'No usable cached answer exists for this curated journey.', 'The simulated miss forces the complete recursive resolution path to remain visible.', 'stub resolver', hostname, 'dns'),
     event('dns-recursive', 850, 'dns.query', 'application', 'hold', 'DNS', 'recursive-query', 'Stub asks recursive resolver', `A recursive A query is issued for ${hostname}.`, 'The stub asks one recursive resolver to finish the job. The recursive resolver performs iterative upstream work.', 'stub resolver', 'recursive resolver', 'dns'),
     event('dns-root', 1320, 'dns.referral', 'application', 'hold', 'DNS', 'root-referral', 'Root referral received', 'The recursive resolver learns where to continue the namespace walk.', 'A referral narrows the search to the next authority.', 'root authority', 'recursive resolver', 'dns'),
     event('dns-tld', 1810, 'dns.referral', 'application', 'hold', 'DNS', 'tld-referral', 'TLD referral received', 'The recursive resolver is directed toward the authoritative zone.', 'The resolver continues iteratively rather than asking the browser to chase each authority.', 'TLD authority', 'recursive resolver', 'dns'),
     event('dns-answer', 2310, 'dns.answer', 'application', 'hold', 'DNS', 'answer', `${hostname} → ${destinationAddress}`, 'The authoritative answer supplies a documentation-only destination address for the deterministic story.', '203.0.113.0/24 is documentation space. This journey never implies that example.test is a live public host.', 'authoritative DNS', 'recursive resolver', 'dns'),
-    event('dns-store', 2700, 'dns.cache-store', 'application', 'hold', 'DNS', 'cache-store', 'Answer cached', 'The recursive result becomes reusable until its simulated TTL expires.', 'Caching changes future dependency cost, not the meaning of the current answer.', 'recursive resolver', 'cache', 'dns'),
-    event('route-lookup', 3140, 'route.lookup', 'routing', 'out', 'IP', 'route-lookup', 'Destination enters the routing table', `${destinationAddress} requires a next-hop decision outside the local subnet.`, 'The camera moves outward because an IP destination cannot leave the host until a route and next hop exist.', 'host routing table', destinationAddress, 'builder'),
-    event('gateway', 3560, 'route.gateway', 'routing', 'hold', 'Ethernet/IP', 'gateway', 'Default gateway selected', 'The host has a viable local path to the router that can forward toward the Internet.', 'This is a deterministic teaching topology, not a measurement of the viewer’s LAN.', 'client', 'edge router', 'builder'),
-    event('as-path', 4050, 'internet.policy-path', 'internet', 'out', 'BGP policy model', 'as-path', 'Interdomain path context appears', 'A simulated valley-free AS path carries the story beyond the local routing domain.', 'The AS path is SIMULATED. Public collector paths, when attached, remain separate evidence and never replace this story path.', 'access AS', 'content AS', 'internet'),
-    event('physical-context', 4520, 'internet.physical-context', 'internet', 'hold', 'Physical Internet', 'infrastructure-context', 'Physical infrastructure comes into view', 'Interconnection facilities give geography to the story without claiming a cable or exact forwarding path.', 'PeeringDB facility points can decorate this moment as PUBLIC DATA. Any connecting great-circle geometry remains INFERRED.', 'public facility context', 'destination region', 'physical', 'INFERRED'),
+    withTtl(event('dns-store', 2700, 'dns.cache-store', 'application', 'hold', 'DNS', 'cache-store', 'Answer cached', 'The recursive result becomes reusable until its simulated TTL expires.', 'The cache starts at a deterministic 300-second TTL and ages with Journey time.', 'recursive resolver', 'cache', 'dns'), 300),
   ];
+}
+
+function dnsHitEvents(hostname: string, destinationAddress: string): JourneyEvent[] {
+  return [
+    withTtl(event('dns-hit', 420, 'dns.cache-hit', 'application', 'hold', 'DNS', 'cache-hit', 'DNS cache hit', `${hostname} → ${destinationAddress} is already cached.`, 'A deterministic unexpired cached answer satisfies the name dependency immediately. No recursive, root, TLD, or authoritative traffic occurs.', 'stub resolver cache', hostname, 'dns'), 258),
+  ];
+}
+
+function routingInternetEvents(destinationAddress: string, times: [number, number, number, number]): JourneyEvent[] {
+  const [routeAt, gatewayAt, asAt, physicalAt] = times;
+  return [
+    event('route-lookup', routeAt, 'route.lookup', 'routing', 'out', 'IP', 'route-lookup', 'Destination enters the routing table', `${destinationAddress} requires a next-hop decision outside the local subnet.`, 'The camera moves outward because an IP destination cannot leave the host until a route and next hop exist.', 'host routing table', destinationAddress, 'builder'),
+    event('gateway', gatewayAt, 'route.gateway', 'routing', 'hold', 'Ethernet/IP', 'gateway', 'Default gateway selected', 'The host has a viable local path to the router that can forward toward the Internet.', 'This is a deterministic teaching topology, not a measurement of the viewer’s LAN.', 'client', 'edge router', 'builder'),
+    event('as-path', asAt, 'internet.policy-path', 'internet', 'out', 'BGP policy model', 'as-path', 'Interdomain path context appears', 'A simulated valley-free AS path carries the story beyond the local routing domain.', 'The AS path is SIMULATED. Public collector paths, when attached, remain separate evidence and never replace this story path.', 'access AS', 'content AS', 'internet'),
+    event('physical-context', physicalAt, 'internet.physical-context', 'internet', 'hold', 'Physical Internet', 'infrastructure-context', 'Physical infrastructure comes into view', 'Interconnection facilities give geography to the story without claiming a cable or exact forwarding path.', 'PeeringDB facility points can decorate this moment as PUBLIC DATA. Any connecting great-circle geometry remains INFERRED.', 'public facility context', 'destination region', 'physical', 'INFERRED'),
+  ];
+}
+
+function sharedPrelude(hostname: string, destinationAddress: string, dnsProfile: JourneyDnsProfile): JourneyEvent[] {
+  const dnsEvents = dnsProfile === 'cache-hit'
+    ? dnsHitEvents(hostname, destinationAddress)
+    : dnsMissEvents(hostname, destinationAddress);
+  const routingTimes: [number, number, number, number] = dnsProfile === 'cache-hit'
+    ? [900, 1340, 1800, 2320]
+    : [3140, 3560, 4050, 4520];
+  return [intentEvent(hostname), ...dnsEvents, ...routingInternetEvents(destinationAddress, routingTimes)];
 }
 
 function tcpH2Events(hostname: string): JourneyEvent[] {
@@ -190,21 +240,25 @@ function sharedTail(hostname: string, profile: JourneyTransportProfile): Journey
   ];
 }
 
-export function buildJourneyScenario(hostnameInput = 'example.test', transportProfile: JourneyTransportProfile = 'tcp-h2'): JourneyScenario {
+export function buildJourneyScenario(hostnameInput = 'example.test', config: Partial<JourneyScenarioConfig> = {}): JourneyScenario {
   const hostname = normalizeJourneyHostname(hostnameInput);
   const destinationAddress = '203.0.113.42';
+  const normalizedConfig: JourneyScenarioConfig = { ...DEFAULT_JOURNEY_CONFIG, ...config };
+  const timelineShiftMs = normalizedConfig.dnsProfile === 'cache-hit' ? -2200 : 0;
+  const transportEvents = normalizedConfig.transportProfile === 'quic-h3' ? quicH3Events(hostname) : tcpH2Events(hostname);
   const events = [
-    ...sharedPrelude(hostname, destinationAddress),
-    ...(transportProfile === 'quic-h3' ? quicH3Events(hostname) : tcpH2Events(hostname)),
-    ...sharedTail(hostname, transportProfile),
+    ...sharedPrelude(hostname, destinationAddress, normalizedConfig.dnsProfile),
+    ...shiftEvents(transportEvents, timelineShiftMs),
+    ...shiftEvents(sharedTail(hostname, normalizedConfig.transportProfile), timelineShiftMs),
   ];
 
   return {
-    id: `url-journey:${hostname}:${transportProfile}`,
+    id: `url-journey:${hostname}:${normalizedConfig.transportProfile}:${normalizedConfig.dnsProfile}`,
     hostname,
     destinationAddress,
-    transportProfile,
-    durationMs: 15000,
+    transportProfile: normalizedConfig.transportProfile,
+    dnsProfile: normalizedConfig.dnsProfile,
+    durationMs: 15000 + timelineShiftMs,
     events,
   };
 }
@@ -226,6 +280,8 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
   const completed = scenario.events.filter((candidate) => candidate.atMs <= timeMs);
 
   let dns: DnsJourneyState = 'idle';
+  let dnsTtlBase: number | null = null;
+  let dnsCachedAtMs: number | null = null;
   let resolvedAddress: string | null = null;
   let route: RouteJourneyState = 'idle';
   let transport: TransportJourneyState = 'closed';
@@ -238,10 +294,20 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
   for (const current of completed) {
     switch (current.kind) {
       case 'dns.cache-check': dns = 'cache-miss'; break;
+      case 'dns.cache-hit':
+        dns = 'cached';
+        resolvedAddress = scenario.destinationAddress;
+        dnsTtlBase = current.ttlSeconds ?? null;
+        dnsCachedAtMs = current.atMs;
+        break;
       case 'dns.query':
       case 'dns.referral': dns = 'resolving'; break;
       case 'dns.answer': dns = 'resolved'; resolvedAddress = scenario.destinationAddress; break;
-      case 'dns.cache-store': dns = 'cached'; break;
+      case 'dns.cache-store':
+        dns = 'cached';
+        dnsTtlBase = current.ttlSeconds ?? null;
+        dnsCachedAtMs = current.atMs;
+        break;
       case 'route.lookup': route = 'lookup'; break;
       case 'route.gateway': route = 'gateway-ready'; break;
       case 'internet.policy-path': route = 'internet-path-ready'; break;
@@ -262,12 +328,17 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
     }
   }
 
+  const dnsTtlSeconds = dnsTtlBase === null || dnsCachedAtMs === null
+    ? null
+    : Math.max(0, dnsTtlBase - Math.floor((timeMs - dnsCachedAtMs) / 1000));
+
   return {
     timeMs,
     activeEvent,
     activeEventIndex,
     completedEventIds: completed.map((current) => current.id),
     transportProfile: scenario.transportProfile,
+    dnsProfile: scenario.dnsProfile,
     scale: activeEvent.scale,
     scaleDepth: JOURNEY_SCALE_DEPTH[activeEvent.scale],
     previousScale: previousEvent.scale,
@@ -276,6 +347,7 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
     phase: activeEvent.phase,
     provenance: activeEvent.provenance,
     dns,
+    dnsTtlSeconds,
     resolvedAddress,
     route,
     transport,

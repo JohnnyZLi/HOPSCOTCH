@@ -7,6 +7,7 @@ import {
   journeyStateAt,
   normalizeJourneyHostname,
   type JourneyDetailLab,
+  type JourneyDnsProfile,
   type JourneyScale,
   type JourneyState,
   type JourneyTransportProfile,
@@ -16,10 +17,16 @@ import './journey-branch.css';
 
 const scaleOrder: JourneyScale[] = ['internet', 'routing', 'transport', 'application', 'packet'];
 const PROFILE_KEY = 'hopscotch.journey.transport-profile';
+const DNS_PROFILE_KEY = 'hopscotch.journey.dns-profile';
 
 function initialProfile(): JourneyTransportProfile {
   if (typeof sessionStorage === 'undefined') return 'tcp-h2';
   return sessionStorage.getItem(PROFILE_KEY) === 'quic-h3' ? 'quic-h3' : 'tcp-h2';
+}
+
+function initialDnsProfile(): JourneyDnsProfile {
+  if (typeof sessionStorage === 'undefined') return 'cache-miss';
+  return sessionStorage.getItem(DNS_PROFILE_KEY) === 'cache-hit' ? 'cache-hit' : 'cache-miss';
 }
 
 function formatTime(timeMs: number): string {
@@ -34,7 +41,7 @@ function provenanceClass(value: string): string {
 
 function sceneMode(state: JourneyState): string {
   if (state.scale !== 'application') return `${state.scale}:${state.transportProfile}`;
-  if (state.protocol === 'DNS') return 'dns';
+  if (state.protocol === 'DNS') return `dns:${state.dnsProfile}`;
   if (state.protocol.includes('TLS')) return `tls:${state.transportProfile}`;
   if (state.protocol.startsWith('HTTP')) return `http:${state.transportProfile}`;
   return state.journeyComplete || state.responseReady ? 'response' : 'intent';
@@ -71,8 +78,16 @@ function TransportScene({ state }: { state: JourneyState }) {
 }
 
 function DnsScene({ state, hostname, address }: { state: JourneyState; hostname: string; address: string }) {
+  if (state.dnsProfile === 'cache-hit') {
+    return <div className="journey-scene dns-scene dns-hit-scene">
+      <div className="dns-hit-path"><div className="active"><i/><span>STUB</span></div><b>→</b><div className="active cache"><i/><span>LOCAL CACHE</span></div></div>
+      <div className="dns-answer"><span>{hostname}</span><b>→</b><strong>{state.resolvedAddress ?? address}</strong></div>
+      <div className="dns-upstream-idle"><span>RECURSIVE · IDLE</span><span>ROOT · IDLE</span><span>TLD · IDLE</span><span>AUTH · IDLE</span></div>
+      <p>Cache hit · TTL {state.dnsTtlSeconds ?? '—'}s. No upstream DNS traffic is generated.</p>
+    </div>;
+  }
   const nodes = ['STUB','RECURSIVE','ROOT','TLD','AUTH'];
-  return <div className="journey-scene dns-scene"><div className="dns-chain">{nodes.map((node,index)=><div key={node} className={index <= Math.min(4, Math.max(0, state.activeEventIndex - 1)) ? 'active' : ''}><i/><span>{node}</span></div>)}</div><div className="dns-answer"><span>{hostname}</span><b>→</b><strong>{state.resolvedAddress ?? 'RESOLVING…'}</strong></div><p>{state.dns === 'cached' ? `Resolver cache now holds ${address}.` : 'Recursive resolution is walking authority state.'}</p></div>;
+  return <div className="journey-scene dns-scene"><div className="dns-chain">{nodes.map((node,index)=><div key={node} className={index <= Math.min(4, Math.max(0, state.activeEventIndex - 1)) ? 'active' : ''}><i/><span>{node}</span></div>)}</div><div className="dns-answer"><span>{hostname}</span><b>→</b><strong>{state.resolvedAddress ?? 'RESOLVING…'}</strong></div><p>{state.dns === 'cached' ? `Resolver cache holds ${address} · TTL ${state.dnsTtlSeconds ?? '—'}s.` : 'Recursive resolution is walking authority state.'}</p></div>;
 }
 
 function TlsScene({ state, hostname }: { state: JourneyState; hostname: string }) {
@@ -133,19 +148,24 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, onHos
 }) {
   const reduceMotion = useReducedMotion();
   const [profile, setProfile] = useState<JourneyTransportProfile>(initialProfile);
+  const [dnsProfile, setDnsProfile] = useState<JourneyDnsProfile>(initialDnsProfile);
   const [playing, setPlaying] = useState(startPlaying);
   const [draftHostname, setDraftHostname] = useState(hostname);
   const [hostError, setHostError] = useState<string | null>(null);
   const [evidenceLoading, setEvidenceLoading] = useState(false);
   const [evidenceError, setEvidenceError] = useState<string | null>(null);
   const eventRailRef = useRef<HTMLDivElement>(null);
-  const scenario = useMemo(() => buildJourneyScenario(hostname, profile), [hostname, profile]);
+  const scenario = useMemo(() => buildJourneyScenario(hostname, { transportProfile: profile, dnsProfile }), [hostname, profile, dnsProfile]);
   const state = useMemo(() => journeyStateAt(scenario, timeMs), [scenario, timeMs]);
   const mode = sceneMode(state);
 
   useEffect(() => {
     sessionStorage.setItem(PROFILE_KEY, profile);
   }, [profile]);
+
+  useEffect(() => {
+    sessionStorage.setItem(DNS_PROFILE_KEY, dnsProfile);
+  }, [dnsProfile]);
 
   useEffect(() => {
     if (!playing) return;
@@ -183,6 +203,13 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, onHos
     onTimeChange(0);
   };
 
+  const chooseDnsProfile = (next: JourneyDnsProfile) => {
+    if (next === dnsProfile) return;
+    setPlaying(false);
+    setDnsProfile(next);
+    onTimeChange(0);
+  };
+
   const attachEvidence = async () => {
     setEvidenceLoading(true); setEvidenceError(null);
     try {
@@ -201,26 +228,28 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, onHos
   const depthDelta = state.scaleDepth - JOURNEY_SCALE_DEPTH[state.previousScale];
   const enteringScale = state.zoom === 'in' || depthDelta > 0 ? .72 : state.zoom === 'out' || depthDelta < 0 ? 1.28 : .97;
   const profileLabel = profile === 'quic-h3' ? 'QUIC + H3' : 'TCP + H2';
+  const dnsLabel = dnsProfile === 'cache-hit' ? 'CACHE HIT' : 'CACHE MISS';
+  const dnsStateLabel = state.dns === 'cached' && state.dnsTtlSeconds !== null ? `CACHED · ${state.dnsTtlSeconds}s` : state.dns.toUpperCase();
 
-  return <motion.section className="journey-workspace" data-profile={profile} initial={reduceMotion ? {opacity:1}:{opacity:0,scale:.985}} animate={{opacity:1,scale:1}} exit={{opacity:0}}>
-    <header className="journey-heading"><div><p className="eyebrow">Lab 06B · URL Journey</p><h1>ONE REQUEST.<br/><span>TWO TRANSPORTS.</span></h1></div><div className="journey-heading-actions"><span>{profileLabel} · {scenario.events.length} EVENTS</span><button className="lab-mode" type="button" onClick={onExit}>EXIT JOURNEY</button></div></header>
+  return <motion.section className="journey-workspace" data-profile={profile} data-dns-profile={dnsProfile} initial={reduceMotion ? {opacity:1}:{opacity:0,scale:.985}} animate={{opacity:1,scale:1}} exit={{opacity:0}}>
+    <header className="journey-heading"><div><p className="eyebrow">Lab 06C · URL Journey</p><h1>ONE REQUEST.<br/><span>FOUR JOURNEYS.</span></h1></div><div className="journey-heading-actions"><span>{profileLabel} · {dnsLabel} · {scenario.events.length} EVENTS</span><button className="lab-mode" type="button" onClick={onExit}>EXIT JOURNEY</button></div></header>
 
-    <form className="journey-config journey-config-branch" onSubmit={applyHostname}><label><span>HOSTNAME</span><input value={draftHostname} maxLength={253} spellCheck={false} autoComplete="off" onChange={(event)=>setDraftHostname(event.currentTarget.value)}/></label><button type="submit">APPLY + RESET</button><div className="journey-profile" role="group" aria-label="Journey transport profile"><button type="button" className={profile==='tcp-h2'?'active':''} onClick={()=>chooseProfile('tcp-h2')}>TCP + H2</button><button type="button" className={profile==='quic-h3'?'active':''} onClick={()=>chooseProfile('quic-h3')}>QUIC + H3</button></div><button type="button" className="context-button" onClick={()=>void attachEvidence()} disabled={evidenceLoading}>{evidenceLoading?'ATTACHING…':evidence?'REFRESH CONTEXT':'ATTACH CONTEXT'}</button><p>{hostError ?? evidenceError ?? 'Branch choice is simulated configuration. Live/public evidence never chooses or rewrites the transport path.'}</p></form>
+    <form className="journey-config journey-config-branch" onSubmit={applyHostname}><label><span>HOSTNAME</span><input value={draftHostname} maxLength={253} spellCheck={false} autoComplete="off" onChange={(event)=>setDraftHostname(event.currentTarget.value)}/></label><button type="submit">APPLY + RESET</button><div className="journey-profile journey-transport-profile" role="group" aria-label="Journey transport profile"><button type="button" className={profile==='tcp-h2'?'active':''} onClick={()=>chooseProfile('tcp-h2')}>TCP + H2</button><button type="button" className={profile==='quic-h3'?'active':''} onClick={()=>chooseProfile('quic-h3')}>QUIC + H3</button></div><div className="journey-profile journey-dns-profile" role="group" aria-label="Journey DNS profile"><button type="button" className={dnsProfile==='cache-miss'?'active':''} onClick={()=>chooseDnsProfile('cache-miss')}>CACHE MISS</button><button type="button" className={dnsProfile==='cache-hit'?'active':''} onClick={()=>chooseDnsProfile('cache-hit')}>CACHE HIT</button></div><button type="button" className="context-button" onClick={()=>void attachEvidence()} disabled={evidenceLoading}>{evidenceLoading?'ATTACHING…':evidence?'REFRESH CONTEXT':'ATTACH CONTEXT'}</button><p>{hostError ?? evidenceError ?? 'Scenario branches are simulated configuration. Live/public evidence never chooses DNS cache state or transport.'}</p></form>
 
     <div className="journey-main">
       <section className="journey-stage">
-        <div className="journey-stage-meta"><div><span>TIME</span><strong>{formatTime(timeMs)}</strong></div><div><span>SCALE</span><strong>{state.scale.toUpperCase()}</strong></div><div><span>PROFILE</span><strong>{profileLabel}</strong></div><div><span>PROTOCOL</span><strong>{state.protocol}</strong></div><div><span>PROVENANCE</span><strong className={provenanceClass(state.provenance)}>{state.provenance}</strong></div></div>
+        <div className="journey-stage-meta"><div><span>TIME</span><strong>{formatTime(timeMs)}</strong></div><div><span>SCALE</span><strong>{state.scale.toUpperCase()}</strong></div><div><span>TRANSPORT</span><strong>{profileLabel}</strong></div><div><span>DNS PATH</span><strong>{dnsLabel}</strong></div><div><span>PROTOCOL</span><strong>{state.protocol}</strong></div><div><span>PROVENANCE</span><strong className={provenanceClass(state.provenance)}>{state.provenance}</strong></div></div>
         <div className="journey-camera">
           <nav className="journey-depth" aria-label="Active Journey scale">{scaleOrder.map((scale)=><div key={scale} className={`${scale===state.scale?'active':''} ${JOURNEY_SCALE_DEPTH[scale] < state.scaleDepth?'behind':''}`}><i/><span>{scale.toUpperCase()}</span><small>0{JOURNEY_SCALE_DEPTH[scale]+1}</small></div>)}</nav>
           <div className="journey-scene-shell"><div className="depth-rings" aria-hidden="true"><i/><i/><i/><i/></div><AnimatePresence mode="wait" initial={false}><motion.div key={`${state.scale}:${mode}`} className="journey-scene-transition" initial={reduceMotion ? {opacity:1}:{opacity:0,scale:enteringScale,filter:'blur(12px)'}} animate={{opacity:1,scale:1,filter:'blur(0px)'}} exit={reduceMotion ? {opacity:0}:{opacity:0,scale:state.zoom==='out'?.72:1.24,filter:'blur(10px)'}} transition={reduceMotion ? {duration:0} : {duration:.46,ease:[.16,1,.3,1]}}><SemanticScene state={state} hostname={scenario.hostname} address={scenario.destinationAddress}/></motion.div></AnimatePresence></div>
           <AnimatePresence mode="wait" initial={false}><motion.article key={state.activeEvent.id} className="journey-callout" initial={reduceMotion?{opacity:1}:{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={reduceMotion ? {duration:0} : {duration:.24}}><div><span>{formatTime(state.activeEvent.atMs)}</span><b className={provenanceClass(state.activeEvent.provenance)}>{state.activeEvent.provenance}</b></div><h2>{state.activeEvent.title}</h2><p>{state.activeEvent.summary}</p><small>{state.activeEvent.detail}</small>{detail&&<button type="button" onClick={()=>{setPlaying(false);onOpenDetail(detail,timeMs)}}>OPEN {detail.toUpperCase()} DETAIL ↗</button>}</motion.article></AnimatePresence>
         </div>
-        <div className="journey-state-strip"><div><span>DNS</span><strong>{state.dns.toUpperCase()}</strong></div><div><span>ROUTE</span><strong>{state.route.toUpperCase()}</strong></div><div><span>{profile==='quic-h3'?'QUIC':'TCP'}</span><strong>{state.transport.toUpperCase()}</strong></div><div><span>TLS</span><strong>{state.tls.toUpperCase()}</strong></div><div><span>{profile==='quic-h3'?'H3':'H2'}</span><strong>{state.http.toUpperCase()}</strong></div><div><span>PACKET</span><strong>{state.packet.toUpperCase()}</strong></div></div>
+        <div className="journey-state-strip"><div><span>DNS</span><strong>{dnsStateLabel}</strong></div><div><span>ROUTE</span><strong>{state.route.toUpperCase()}</strong></div><div><span>{profile==='quic-h3'?'QUIC':'TCP'}</span><strong>{state.transport.toUpperCase()}</strong></div><div><span>TLS</span><strong>{state.tls.toUpperCase()}</strong></div><div><span>{profile==='quic-h3'?'H3':'H2'}</span><strong>{state.http.toUpperCase()}</strong></div><div><span>PACKET</span><strong>{state.packet.toUpperCase()}</strong></div></div>
       </section>
 
-      <aside className="journey-rail"><section className="journey-context"><div className="rail-title"><span>ENDPOINT CONTEXT</span><strong>{evidence?'ATTACHED':'SIMULATION ONLY'}</strong></div>{evidence?<><div className="context-facts"><div><b>EDGE OBSERVED</b><strong>{evidence.edge.asn?`AS${evidence.edge.asn}`:'ASN UNAVAILABLE'}</strong><small>{evidence.edge.colo??'COLO UNAVAILABLE'}</small></div><div><b>PUBLIC COLLECTOR</b><strong>{evidence.routing.originAsns.length?evidence.routing.originAsns.map((asn)=>`AS${asn}`).join(' / '):'ORIGIN UNAVAILABLE'}</strong><small>{evidence.routing.prefix??'PREFIX UNAVAILABLE'}</small></div></div><p><b>DECORATION ONLY.</b> These observations do not choose {profileLabel} and do not become the simulated path.</p></>:<p>Attach optional Cloudflare/RIPE context. The selected {profileLabel} story remains deterministic.</p>}</section><section className="journey-events"><div className="rail-title"><span>CAUSAL CHAIN</span><strong>{String(state.activeEventIndex+1).padStart(2,'0')} / {scenario.events.length}</strong></div><div className="journey-event-list" ref={eventRailRef}>{scenario.events.map((current,index)=>{const complete=current.atMs<=timeMs;const active=current.id===state.activeEvent.id;return <button type="button" key={current.id} className={`journey-event ${complete?'complete':''} ${active?'current':''}`} onClick={()=>seek(current.atMs)}><span>{String(index+1).padStart(2,'0')}</span><div><strong>{current.title}</strong><small>{formatTime(current.atMs)} · {current.scale.toUpperCase()} · {current.protocol}</small></div><i className={provenanceClass(current.provenance)}/></button>})}</div></section></aside>
+      <aside className="journey-rail"><section className="journey-context"><div className="rail-title"><span>ENDPOINT CONTEXT</span><strong>{evidence?'ATTACHED':'SIMULATION ONLY'}</strong></div>{evidence?<><div className="context-facts"><div><b>EDGE OBSERVED</b><strong>{evidence.edge.asn?`AS${evidence.edge.asn}`:'ASN UNAVAILABLE'}</strong><small>{evidence.edge.colo??'COLO UNAVAILABLE'}</small></div><div><b>PUBLIC COLLECTOR</b><strong>{evidence.routing.originAsns.length?evidence.routing.originAsns.map((asn)=>`AS${asn}`).join(' / '):'ORIGIN UNAVAILABLE'}</strong><small>{evidence.routing.prefix??'PREFIX UNAVAILABLE'}</small></div></div><p><b>DECORATION ONLY.</b> These observations do not choose {profileLabel} or {dnsLabel} and do not become the simulated path.</p></>:<p>Attach optional Cloudflare/RIPE context. The selected {profileLabel} · {dnsLabel} story remains deterministic.</p>}</section><section className="journey-events"><div className="rail-title"><span>CAUSAL CHAIN</span><strong>{String(state.activeEventIndex+1).padStart(2,'0')} / {scenario.events.length}</strong></div><div className="journey-event-list" ref={eventRailRef}>{scenario.events.map((current,index)=>{const complete=current.atMs<=timeMs;const active=current.id===state.activeEvent.id;return <button type="button" key={current.id} className={`journey-event ${complete?'complete':''} ${active?'current':''}`} onClick={()=>seek(current.atMs)}><span>{String(index+1).padStart(2,'0')}</span><div><strong>{current.title}</strong><small>{formatTime(current.atMs)} · {current.scale.toUpperCase()} · {current.protocol}</small></div><i className={provenanceClass(current.provenance)}/></button>})}</div></section></aside>
     </div>
 
-    <footer className="journey-time-machine"><div className="journey-time-controls"><button type="button" onClick={togglePlayback}>{playing?'Ⅱ':'▶'}</button><button type="button" onClick={()=>seek(0)}>↺</button></div><div className="journey-time-readout"><span>GLOBAL TIME MACHINE · {profileLabel}</span><strong>{formatTime(timeMs)}</strong></div><div className="journey-scrubber"><div>{scenario.events.map((current)=><i key={current.id} className={current.atMs<=timeMs?'passed':''} style={{left:`${current.atMs/scenario.durationMs*100}%`}}/>)}</div><input type="range" min="0" max={scenario.durationMs} step="10" value={Math.round(timeMs)} onChange={(event)=>seek(Number(event.currentTarget.value))}/></div><span className="journey-duration">{formatTime(scenario.durationMs)}</span></footer>
+    <footer className="journey-time-machine"><div className="journey-time-controls"><button type="button" onClick={togglePlayback}>{playing?'Ⅱ':'▶'}</button><button type="button" onClick={()=>seek(0)}>↺</button></div><div className="journey-time-readout"><span>GLOBAL TIME MACHINE · {profileLabel} · {dnsLabel}</span><strong>{formatTime(timeMs)}</strong></div><div className="journey-scrubber"><div>{scenario.events.map((current)=><i key={current.id} className={current.atMs<=timeMs?'passed':''} style={{left:`${current.atMs/scenario.durationMs*100}%`}}/>)}</div><input type="range" min="0" max={scenario.durationMs} step="10" value={Math.round(timeMs)} onChange={(event)=>seek(Number(event.currentTarget.value))}/></div><span className="journey-duration">{formatTime(scenario.durationMs)}</span></footer>
   </motion.section>;
 }
