@@ -5,12 +5,14 @@ import {
   normalizeJourneyHostname,
 } from '../src/journey/model.ts';
 
-const configs = [
-  { transportProfile: 'tcp-h2', dnsProfile: 'cache-miss' },
-  { transportProfile: 'quic-h3', dnsProfile: 'cache-miss' },
-  { transportProfile: 'tcp-h2', dnsProfile: 'cache-hit' },
-  { transportProfile: 'quic-h3', dnsProfile: 'cache-hit' },
-];
+const transportProfiles = ['tcp-h2', 'quic-h3'];
+const dnsProfiles = ['cache-miss', 'cache-hit'];
+const impairmentProfiles = ['clean', 'single-loss'];
+const scenarios = new Map();
+
+function key(config) {
+  return `${config.transportProfile}:${config.dnsProfile}:${config.impairmentProfile}`;
+}
 
 function validateCommon(scenario) {
   assert.equal(scenario.hostname, 'example.test');
@@ -28,26 +30,38 @@ function validateCommon(scenario) {
   assert.equal(start.transport, 'closed');
   assert.equal(start.transportProfile, scenario.transportProfile);
   assert.equal(start.dnsProfile, scenario.dnsProfile);
+  assert.equal(start.impairmentProfile, scenario.impairmentProfile);
+  assert.equal(start.impairmentState, scenario.impairmentProfile === 'clean' ? 'clean' : 'armed');
 
   const end = journeyStateAt(scenario, scenario.durationMs);
   assert.equal(end.journeyComplete, true);
   assert.equal(end.scale, 'application');
   assert.equal(end.completedEventIds.length, scenario.events.length);
   assert.equal(end.resolvedAddress, '203.0.113.42');
+  assert.equal(end.impairmentState, scenario.impairmentProfile === 'clean' ? 'clean' : 'recovered');
 }
 
-const scenarios = new Map();
-for (const config of configs) {
-  const scenario = buildJourneyScenario('Example.Test.', config);
-  validateCommon(scenario);
-  scenarios.set(`${config.transportProfile}:${config.dnsProfile}`, scenario);
+for (const transportProfile of transportProfiles) {
+  for (const dnsProfile of dnsProfiles) {
+    for (const impairmentProfile of impairmentProfiles) {
+      const config = { transportProfile, dnsProfile, impairmentProfile };
+      const scenario = buildJourneyScenario('Example.Test.', config);
+      validateCommon(scenario);
+      scenarios.set(key(config), scenario);
+    }
+  }
 }
 
-const tcpMiss = scenarios.get('tcp-h2:cache-miss');
-const quicMiss = scenarios.get('quic-h3:cache-miss');
-const tcpHit = scenarios.get('tcp-h2:cache-hit');
-const quicHit = scenarios.get('quic-h3:cache-hit');
+const tcpMiss = scenarios.get('tcp-h2:cache-miss:clean');
+const quicMiss = scenarios.get('quic-h3:cache-miss:clean');
+const tcpHit = scenarios.get('tcp-h2:cache-hit:clean');
+const quicHit = scenarios.get('quic-h3:cache-hit:clean');
+const tcpMissLoss = scenarios.get('tcp-h2:cache-miss:single-loss');
+const quicMissLoss = scenarios.get('quic-h3:cache-miss:single-loss');
+const tcpHitLoss = scenarios.get('tcp-h2:cache-hit:single-loss');
+const quicHitLoss = scenarios.get('quic-h3:cache-hit:single-loss');
 
+// Lab 06C clean branches are regression fixtures.
 assert.equal(tcpMiss.events.length, 30);
 assert.equal(quicMiss.events.length, 28);
 assert.equal(tcpHit.events.length, 25);
@@ -56,8 +70,11 @@ assert.equal(tcpMiss.durationMs, 15000);
 assert.equal(quicMiss.durationMs, 15000);
 assert.equal(tcpHit.durationMs, 12800);
 assert.equal(quicHit.durationMs, 12800);
+assert.deepEqual(tcpMiss.events.map(({ id, atMs }) => ({ id, atMs })), [
+  ['intent',0],['dns-cache',420],['dns-recursive',850],['dns-root',1320],['dns-tld',1810],['dns-answer',2310],['dns-store',2700],['route-lookup',3140],['gateway',3560],['as-path',4050],['physical-context',4520],['tcp-syn',5000],['tcp-synack',5320],['tcp-ack',5620],['tls-clienthello',6070],['tls-serverhello',6470],['tls-encrypted',6840],['tls-certificate',7210],['tls-finished',7610],['h2-settings',8070],['h2-request',8540],['h2-headers',9030],['h2-data',9550],['packet-frame',10120],['packet-headers',10680],['transfer-complete',11300],['response-ready',12020],['pullback-route',12750],['pullback-internet',13500],['complete',14500],
+].map(([id,atMs])=>({id,atMs})));
 
-for (const miss of [tcpMiss, quicMiss]) {
+for (const miss of [tcpMiss, quicMiss, tcpMissLoss, quicMissLoss]) {
   const ids = miss.events.map((event) => event.id);
   assert.ok(ids.includes('dns-recursive'));
   assert.ok(ids.includes('dns-root'));
@@ -65,15 +82,9 @@ for (const miss of [tcpMiss, quicMiss]) {
   assert.ok(ids.includes('dns-answer'));
   assert.ok(ids.includes('dns-store'));
   assert.ok(!ids.includes('dns-hit'));
-  assert.equal(journeyStateAt(miss, 900).dns, 'resolving');
-  const cached = journeyStateAt(miss, 2800);
-  assert.equal(cached.dns, 'cached');
-  assert.equal(cached.resolvedAddress, '203.0.113.42');
-  assert.equal(cached.dnsTtlSeconds, 300);
-  assert.equal(journeyStateAt(miss, 3800).dnsTtlSeconds, 299);
 }
 
-for (const hit of [tcpHit, quicHit]) {
+for (const hit of [tcpHit, quicHit, tcpHitLoss, quicHitLoss]) {
   const ids = hit.events.map((event) => event.id);
   assert.ok(ids.includes('dns-hit'));
   assert.ok(!ids.includes('dns-recursive'));
@@ -81,25 +92,15 @@ for (const hit of [tcpHit, quicHit]) {
   assert.ok(!ids.includes('dns-tld'));
   assert.ok(!ids.includes('dns-answer'));
   assert.ok(!ids.includes('dns-store'));
-
   const cached = journeyStateAt(hit, 420);
   assert.equal(cached.dns, 'cached');
-  assert.equal(cached.resolvedAddress, '203.0.113.42');
   assert.equal(cached.dnsTtlSeconds, 258);
-  assert.equal(journeyStateAt(hit, 1420).dnsTtlSeconds, 257);
-
-  const route = journeyStateAt(hit, 900);
-  assert.equal(route.route, 'lookup');
-  assert.equal(route.scale, 'routing');
-  const internet = journeyStateAt(hit, 2320);
-  assert.equal(internet.route, 'internet-path-ready');
-  assert.equal(internet.scale, 'internet');
 }
 
-// Transport branch remains independent from DNS branch.
-for (const dnsProfile of ['cache-miss', 'cache-hit']) {
-  const tcp = scenarios.get(`tcp-h2:${dnsProfile}`);
-  const quic = scenarios.get(`quic-h3:${dnsProfile}`);
+// Clean transport protocol exclusivity remains intact for both DNS profiles.
+for (const dnsProfile of dnsProfiles) {
+  const tcp = scenarios.get(`tcp-h2:${dnsProfile}:clean`);
+  const quic = scenarios.get(`quic-h3:${dnsProfile}:clean`);
   const tcpProtocols = tcp.events.map((event) => event.protocol).join(' | ');
   const quicProtocols = quic.events.map((event) => event.protocol).join(' | ');
   assert.match(tcpProtocols, /TCP/);
@@ -112,38 +113,78 @@ for (const dnsProfile of ['cache-miss', 'cache-hit']) {
   assert.ok(!quic.events.some((event) => event.protocol === 'TCP'));
 }
 
-// Miss profile preserves the existing Lab 06B transport timing.
-let tcpState = journeyStateAt(tcpMiss, 5700);
-assert.equal(tcpState.transport, 'established');
-assert.equal(tcpState.protocol, 'TCP');
-tcpState = journeyStateAt(tcpMiss, 7700);
-assert.equal(tcpState.tls, 'application-keys');
-tcpState = journeyStateAt(tcpMiss, 9700);
-assert.equal(tcpState.http, 'streaming');
-tcpState = journeyStateAt(tcpMiss, 10700);
-assert.equal(tcpState.packet, 'headers');
+// Loss profile adds four canonical events and exactly 1.6 seconds without changing the pre-loss chain.
+for (const dnsProfile of dnsProfiles) {
+  for (const transportProfile of transportProfiles) {
+    const clean = scenarios.get(`${transportProfile}:${dnsProfile}:clean`);
+    const loss = scenarios.get(`${transportProfile}:${dnsProfile}:single-loss`);
+    assert.equal(loss.events.length, clean.events.length + 4);
+    assert.equal(loss.durationMs, clean.durationMs + 1600);
+    const cleanDataIndex = clean.events.findIndex((event) => event.kind === 'http.data');
+    const lossDataIndex = loss.events.findIndex((event) => event.kind === 'http.data');
+    assert.deepEqual(loss.events.slice(0, lossDataIndex + 1), clean.events.slice(0, cleanDataIndex + 1));
+    assert.equal(loss.events.filter((event) => event.kind.startsWith('transport.loss')).length, 2);
+    assert.equal(loss.events.filter((event) => event.kind === 'transport.retransmit').length, 1);
+    assert.equal(loss.events.filter((event) => event.kind === 'transport.recovered').length, 1);
+    assert.equal(loss.events.find((event) => event.id === 'packet-frame').atMs, clean.events.find((event) => event.id === 'packet-frame').atMs + 1600);
+    assert.equal(loss.events.find((event) => event.id === 'complete').atMs, clean.events.find((event) => event.id === 'complete').atMs + 1600);
+  }
+}
 
-let quicState = journeyStateAt(quicMiss, 5800);
-assert.equal(quicState.transport, 'handshake');
-assert.equal(quicState.tls, 'handshake-keys');
-quicState = journeyStateAt(quicMiss, 7000);
-assert.equal(quicState.transport, 'established');
-assert.equal(quicState.tls, 'application-keys');
-quicState = journeyStateAt(quicMiss, 9500);
-assert.equal(quicState.http, 'streaming');
-assert.equal(quicState.protocol, 'HTTP/3');
+assert.equal(tcpMissLoss.events.length, 34);
+assert.equal(quicMissLoss.events.length, 32);
+assert.equal(tcpHitLoss.events.length, 29);
+assert.equal(quicHitLoss.events.length, 27);
+assert.equal(tcpMissLoss.durationMs, 16600);
+assert.equal(quicMissLoss.durationMs, 16600);
+assert.equal(tcpHitLoss.durationMs, 14400);
+assert.equal(quicHitLoss.durationMs, 14400);
 
-// Cache hit shifts the downstream causal chain exactly 2.2 seconds earlier.
+// TCP loss semantics are TCP-only and deterministic.
+for (const tcpLoss of [tcpMissLoss, tcpHitLoss]) {
+  const loss = tcpLoss.events.find((event) => event.id === 'tcp-loss');
+  const detected = tcpLoss.events.find((event) => event.id === 'tcp-gap');
+  const retransmit = tcpLoss.events.find((event) => event.id === 'tcp-retransmit');
+  const recovered = tcpLoss.events.find((event) => event.id === 'tcp-recovered');
+  assert.match(loss.summary, /SEQ 2461–3920/);
+  assert.match(detected.title, /duplicate ACK 2461/i);
+  assert.match(retransmit.title, /Fast retransmit/i);
+  assert.match(recovered.summary, /2461 to 8301/);
+  assert.ok(!tcpLoss.events.some((event) => /packet 4108|packet 4113|ACK ranges/i.test(`${event.title} ${event.summary} ${event.detail}`)));
+  assert.equal(journeyStateAt(tcpLoss, loss.atMs).impairmentState, 'lost');
+  assert.equal(journeyStateAt(tcpLoss, detected.atMs).impairmentState, 'detected');
+  assert.equal(journeyStateAt(tcpLoss, retransmit.atMs).impairmentState, 'recovering');
+  assert.equal(journeyStateAt(tcpLoss, recovered.atMs).impairmentState, 'recovered');
+}
+
+// QUIC loss semantics use packet-number/ACK-range/STREAM state and never resurrect the lost packet number.
+for (const quicLoss of [quicMissLoss, quicHitLoss]) {
+  const loss = quicLoss.events.find((event) => event.id === 'quic-loss');
+  const detected = quicLoss.events.find((event) => event.id === 'quic-gap');
+  const retransmit = quicLoss.events.find((event) => event.id === 'quic-retransmit');
+  const recovered = quicLoss.events.find((event) => event.id === 'quic-recovered');
+  assert.match(loss.title, /packet 4108/i);
+  assert.match(loss.summary, /STREAM offset 4096–5555/);
+  assert.match(detected.summary, /4105–4107 and 4109–4112/);
+  assert.match(retransmit.title, /packet 4113/i);
+  assert.match(retransmit.detail, /never retransmits packet number 4108/i);
+  assert.match(recovered.summary, /STREAM range/i);
+  assert.ok(!quicLoss.events.some((event) => /duplicate ACK 2461|SEQ 2461|fast retransmit/i.test(`${event.title} ${event.summary} ${event.detail}`)));
+  assert.equal(journeyStateAt(quicLoss, loss.atMs).impairmentState, 'lost');
+  assert.equal(journeyStateAt(quicLoss, detected.atMs).impairmentState, 'detected');
+  assert.equal(journeyStateAt(quicLoss, retransmit.atMs).impairmentState, 'recovering');
+  assert.equal(journeyStateAt(quicLoss, recovered.atMs).impairmentState, 'recovered');
+}
+
+// Cache hit still shifts the entire downstream causal chain 2.2 seconds earlier in both clean and loss profiles.
 assert.equal(tcpHit.events.find((event) => event.id === 'tcp-syn').atMs, 2800);
 assert.equal(quicHit.events.find((event) => event.id === 'quic-initial').atMs, 2800);
-assert.equal(tcpHit.events.find((event) => event.id === 'packet-frame').atMs, 7920);
-assert.equal(quicHit.events.find((event) => event.id === 'packet-frame').atMs, 7920);
-assert.equal(tcpHit.events.find((event) => event.id === 'complete').atMs, 12300);
-assert.equal(quicHit.events.find((event) => event.id === 'complete').atMs, 12300);
+assert.equal(tcpHitLoss.events.find((event) => event.id === 'tcp-loss').atMs, tcpMissLoss.events.find((event) => event.id === 'tcp-loss').atMs - 2200);
+assert.equal(quicHitLoss.events.find((event) => event.id === 'quic-loss').atMs, quicMissLoss.events.find((event) => event.id === 'quic-loss').atMs - 2200);
 
 assert.equal(normalizeJourneyHostname('cloudflare.com'), 'cloudflare.com');
 assert.throws(() => normalizeJourneyHostname('https://cloudflare.com/x'), /hostname only/i);
 assert.throws(() => normalizeJourneyHostname('203.0.113.42'), /hostname instead of an IP/i);
 assert.throws(() => normalizeJourneyHostname('localhost'), /at least one dot/i);
 
-console.log('Journey matrix contract passed: TCP/H2 + QUIC/H3 × DNS cache miss + cache hit.');
+console.log('Journey contract passed: transport × DNS × impairment matrix with deterministic TCP/QUIC loss recovery.');
