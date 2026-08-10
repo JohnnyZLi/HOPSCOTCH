@@ -2,10 +2,13 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useMemo, useState } from 'react';
 import { DnsTheater } from './DnsTheater';
 import { HttpComparisonTheater } from './HttpComparisonTheater';
+import { JourneyScenarioMenu } from './JourneyScenarioMenu';
 import { JourneyTheater } from './JourneyTheater';
 import { InternetScaleTheater } from './InternetScaleTheater';
 import type { InternetEvidenceSnapshot } from './internet/evidence';
+import { bootstrapJourneyFromSearch, seedJourneyBrowserScenario } from './journey/browser.ts';
 import type { JourneyDetailLab } from './journey/model';
+import type { PortableJourneyScenarioV1 } from './journey/scenario.ts';
 import { LabNetworkField } from './LabNetworkField';
 import { NetworkBuilder } from './NetworkBuilder';
 import { NetworkField } from './NetworkField';
@@ -28,6 +31,10 @@ const layers: Array<{ id: NetworkLayer; label: string; kicker: string; descripti
   { id: 'packet', label: 'Packet', kicker: 'Scale 01', description: 'Frames, headers, fields, encapsulation, and individual protocol messages.' },
 ];
 
+const initialJourneyBootstrap = typeof window === 'undefined'
+  ? { scenario: null, error: null }
+  : bootstrapJourneyFromSearch(window.location.search);
+
 function formatTime(timeMs: number): string {
   const seconds = Math.floor(timeMs / 1000).toString().padStart(2, '0');
   const milliseconds = Math.floor(timeMs % 1000).toString().padStart(3, '0');
@@ -35,17 +42,20 @@ function formatTime(timeMs: number): string {
 }
 
 export default function App() {
-  const [layer, setLayer] = useState<NetworkLayer>('internet');
+  const initialSharedJourney = initialJourneyBootstrap.scenario;
+  const [layer, setLayer] = useState<NetworkLayer>(initialSharedJourney ? 'application' : 'internet');
   const [mode, setMode] = useState<DisplayMode>('overview');
-  const [activeLab, setActiveLab] = useState<ActiveLab>(null);
+  const [activeLab, setActiveLab] = useState<ActiveLab>(initialSharedJourney ? 'journey' : null);
   const [labXray, setLabXray] = useState(true);
   const [timeMs, setTimeMs] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [journeyHostname, setJourneyHostname] = useState('example.test');
-  const [journeyTimeMs, setJourneyTimeMs] = useState(0);
-  const [journeyStartPlaying, setJourneyStartPlaying] = useState(true);
+  const [journeyHostname, setJourneyHostname] = useState(initialSharedJourney?.hostname ?? 'example.test');
+  const [journeyTimeMs, setJourneyTimeMs] = useState(initialSharedJourney?.timeMs ?? 0);
+  const [journeyStartPlaying, setJourneyStartPlaying] = useState(!initialSharedJourney);
   const [journeyReturnPending, setJourneyReturnPending] = useState(false);
   const [journeyEvidence, setJourneyEvidence] = useState<InternetEvidenceSnapshot | null>(null);
+  const [journeyScenarioName, setJourneyScenarioName] = useState(initialSharedJourney?.name ?? '');
+  const [journeyRenderKey, setJourneyRenderKey] = useState(0);
   const reduceMotion = useReducedMotion();
   const active = layers.find((item) => item.id === layer) ?? layers[0];
   const labState = useMemo(() => lab01StateAt(timeMs), [timeMs]);
@@ -107,6 +117,7 @@ export default function App() {
     setJourneyTimeMs(0);
     setJourneyStartPlaying(true);
     setJourneyReturnPending(false);
+    setJourneyScenarioName('');
     setActiveLab('journey');
   };
   const openJourneyDetail = (lab: JourneyDetailLab, atMs: number) => {
@@ -120,6 +131,19 @@ export default function App() {
     setJourneyReturnPending(true);
     setLayer(detailLayer[lab]);
     setActiveLab(lab);
+  };
+  const importJourneyScenario = (scenario: PortableJourneyScenarioV1) => {
+    seedJourneyBrowserScenario(scenario);
+    setPlaying(false);
+    setJourneyHostname(scenario.hostname);
+    setJourneyTimeMs(scenario.timeMs);
+    setJourneyStartPlaying(false);
+    setJourneyReturnPending(false);
+    setJourneyEvidence(null);
+    setJourneyScenarioName(scenario.name ?? '');
+    setLayer('application');
+    setActiveLab('journey');
+    setJourneyRenderKey((current) => current + 1);
   };
   const exitLabs = () => { setPlaying(false); setJourneyReturnPending(false); setActiveLab(null); };
   const exitActiveLab = () => {
@@ -199,6 +223,7 @@ export default function App() {
           <strong>HOPSCOTCH</strong>
         </button>
         <div className="build-state"><span>{buildLabel}</span><span className={`status-dot${failureLabActive ? ` phase-${labState.phase}` : ''}`}>{buildStatus}</span></div>
+        {activeLab === 'journey' && <JourneyScenarioMenu hostname={journeyHostname} timeMs={journeyTimeMs} name={journeyScenarioName} onNameChange={setJourneyScenarioName} onImportScenario={importJourneyScenario} />}
       </motion.header>
 
       <AnimatePresence mode="wait" initial={false}>
@@ -228,7 +253,7 @@ export default function App() {
             <footer className="timeline-preview"><div className="timeline-labels"><span>TIME MACHINE</span><span>00:00.000</span></div><div className="timeline-track" aria-hidden="true"><i /><b /></div><span className="timeline-note">Lab 01 failure · Lab 02 packet · Lab 03 protocols · Lab 04 builder · Lab 05 Internet · Lab 06 Journey</span></footer>
           </motion.div>
         ) : activeLab === 'journey' ? (
-          <JourneyTheater key="lab06" hostname={journeyHostname} timeMs={journeyTimeMs} startPlaying={journeyStartPlaying} evidence={journeyEvidence} onHostnameChange={setJourneyHostname} onTimeChange={setJourneyTimeMs} onEvidenceChange={setJourneyEvidence} onOpenDetail={openJourneyDetail} onExit={exitLabs} />
+          <JourneyTheater key={`lab06-${journeyRenderKey}`} hostname={journeyHostname} timeMs={journeyTimeMs} startPlaying={journeyStartPlaying} evidence={journeyEvidence} onHostnameChange={setJourneyHostname} onTimeChange={setJourneyTimeMs} onEvidenceChange={setJourneyEvidence} onOpenDetail={openJourneyDetail} onExit={exitLabs} />
         ) : activeLab === 'packet' ? (
           <PacketMicroscope key="lab02" onExit={exitActiveLab} onOpenSourceEvent={() => openFailureLab(5400, false)} />
         ) : activeLab === 'tcp' ? (
