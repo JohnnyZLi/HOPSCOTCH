@@ -11,6 +11,7 @@ import './tcp-audit.css';
 import './dns.css';
 import './dns-audit.css';
 import './tls.css';
+import './journey-audit.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
