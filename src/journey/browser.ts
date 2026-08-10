@@ -12,10 +12,11 @@ export interface JourneyBrowserBootstrap {
 }
 
 export function readJourneyBrowserConfig(storage: Pick<Storage, 'getItem'> = sessionStorage): JourneyScenarioConfig {
+  const storedImpairment = storage.getItem(IMPAIRMENT_KEY);
   return {
     transportProfile: storage.getItem(TRANSPORT_KEY) === 'quic-h3' ? 'quic-h3' : 'tcp-h2',
     dnsProfile: storage.getItem(DNS_KEY) === 'cache-hit' ? 'cache-hit' : 'cache-miss',
-    impairmentProfile: storage.getItem(IMPAIRMENT_KEY) === 'single-loss' ? 'single-loss' : 'clean',
+    impairmentProfile: storedImpairment === 'single-loss' || storedImpairment === 'latency-spike' ? storedImpairment : 'clean',
   };
 }
 
