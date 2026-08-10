@@ -113,6 +113,7 @@ export function PhysicalInternetGlobe({
   const corridorRef = useRef<THREE.Line | null>(null);
   const corridorPulseRef = useRef<THREE.Mesh | null>(null);
   const corridorPathRef = useRef<THREE.Vector3[]>([]);
+  const targetZoomRef = useRef(3.15);
   const reduceMotion = useReducedMotion();
 
   const [snapshot, setSnapshot] = useState<PublicInfrastructureSnapshot | null>(null);
@@ -176,7 +177,7 @@ export function PhysicalInternetGlobe({
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 40);
-    camera.position.set(0, 0.05, zoom);
+    camera.position.set(0, 0.05, targetZoomRef.current);
     cameraRef.current = camera;
 
     const globe = new THREE.Group();
@@ -222,9 +223,9 @@ export function PhysicalInternetGlobe({
     corridorPulseRef.current = pulse;
 
     let dragging = false;
+    let dragDistance = 0;
     let previousX = 0;
     let previousY = 0;
-    let targetZoom = zoom;
     let targetRotationX = globe.rotation.x;
     let targetRotationY = globe.rotation.y;
     const raycaster = new THREE.Raycaster();
@@ -245,6 +246,7 @@ export function PhysicalInternetGlobe({
 
     const pointerDown = (event: PointerEvent) => {
       dragging = true;
+      dragDistance = 0;
       previousX = event.clientX;
       previousY = event.clientY;
       renderer.domElement.setPointerCapture(event.pointerId);
@@ -255,6 +257,7 @@ export function PhysicalInternetGlobe({
       const dy = event.clientY - previousY;
       previousX = event.clientX;
       previousY = event.clientY;
+      dragDistance += Math.hypot(dx, dy);
       targetRotationY += dx * 0.006;
       targetRotationX = THREE.MathUtils.clamp(targetRotationX + dy * 0.0045, -1.05, 1.05);
     };
@@ -265,7 +268,7 @@ export function PhysicalInternetGlobe({
     };
     const click = (event: MouseEvent) => {
       const points = facilityPointsRef.current;
-      if (!points || dragging) return;
+      if (!points || dragDistance > 5) return;
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -278,8 +281,9 @@ export function PhysicalInternetGlobe({
     };
     const wheel = (event: WheelEvent) => {
       event.preventDefault();
-      targetZoom = THREE.MathUtils.clamp(targetZoom + event.deltaY * 0.0016, 2.15, 4.6);
-      setZoom(Number(targetZoom.toFixed(2)));
+      const nextZoom = THREE.MathUtils.clamp(targetZoomRef.current + event.deltaY * 0.0016, 2.15, 4.6);
+      targetZoomRef.current = nextZoom;
+      setZoom(Number(nextZoom.toFixed(2)));
     };
     renderer.domElement.addEventListener('pointerdown', pointerDown);
     renderer.domElement.addEventListener('pointermove', pointerMove);
@@ -292,7 +296,7 @@ export function PhysicalInternetGlobe({
       if (!reduceMotion && !dragging) targetRotationY += 0.00036;
       globe.rotation.x += (targetRotationX - globe.rotation.x) * 0.09;
       globe.rotation.y += (targetRotationY - globe.rotation.y) * 0.09;
-      camera.position.z += (targetZoom - camera.position.z) * 0.1;
+      camera.position.z += (targetZoomRef.current - camera.position.z) * 0.1;
 
       const path = corridorPathRef.current;
       if (corridorPulseRef.current && path.length > 1) {
@@ -402,14 +406,15 @@ export function PhysicalInternetGlobe({
     corridorRef.current = line;
   }, [corridorA, corridorB]);
 
-  useEffect(() => {
-    const camera = cameraRef.current;
-    if (camera) camera.position.z = zoom;
-  }, [zoom]);
-
   const cycleDensity = () => {
     const index = DENSITY_LEVELS.indexOf(density);
     setDensity(DENSITY_LEVELS[(index + 1) % DENSITY_LEVELS.length]);
+  };
+
+  const updateZoom = (value: number) => {
+    const nextZoom = THREE.MathUtils.clamp(value, 2.15, 4.6);
+    targetZoomRef.current = nextZoom;
+    setZoom(nextZoom);
   };
 
   return (
@@ -435,7 +440,7 @@ export function PhysicalInternetGlobe({
 
         <aside className="physical-panel">
           <section className="facility-inspector"><div className="physical-panel-title"><span>PUBLIC DATA</span><strong>FACILITY INSPECTOR</strong></div>{selectedFacility ? <><h2>{selectedFacility.name}</h2><p>{facilityLocation(selectedFacility)}</p><dl><div><dt>PEERINGDB ID</dt><dd>{selectedFacility.id}</dd></div><div><dt>COORDINATES</dt><dd>{selectedFacility.latitude.toFixed(4)}, {selectedFacility.longitude.toFixed(4)}</dd></div><div><dt>NETWORKS</dt><dd>{selectedFacility.networkCount ?? '—'}</dd></div><div><dt>EXCHANGES</dt><dd>{selectedFacility.exchangeCount ?? '—'}</dd></div></dl><div className="physical-buttons"><button type="button" className={corridorAId === selectedFacility.id ? 'active' : ''} onClick={() => setCorridorAId(selectedFacility.id)}>SET CORRIDOR A</button><button type="button" className={corridorBId === selectedFacility.id ? 'active' : ''} onClick={() => setCorridorBId(selectedFacility.id)}>SET CORRIDOR B</button></div></> : <p className="physical-empty-copy">Click one of the facility points on the globe.</p>}</section>
-          <section><div className="physical-panel-title"><span>VIEW</span><strong>SCENE DENSITY</strong></div><button className="density-button" type="button" onClick={cycleDensity}><span>VISIBLE PUBLIC POINTS</span><strong>{density}</strong><i>{density === 80 ? 'FOCUS' : density === 150 ? 'BALANCED' : 'DENSE'}</i></button><label>CAMERA DISTANCE<input type="range" min="2.15" max="4.6" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.currentTarget.value))}/></label></section>
+          <section><div className="physical-panel-title"><span>VIEW</span><strong>SCENE DENSITY</strong></div><button className="density-button" type="button" onClick={cycleDensity}><span>VISIBLE PUBLIC POINTS</span><strong>{density}</strong><i>{density === 80 ? 'FOCUS' : density === 150 ? 'BALANCED' : 'DENSE'}</i></button><label>CAMERA DISTANCE<input type="range" min="2.15" max="4.6" step="0.05" value={zoom} onChange={(event) => updateZoom(Number(event.currentTarget.value))}/></label></section>
           <section><div className="physical-panel-title"><span>FACILITIES</span><strong>{visibleFacilities.length} / {snapshot?.facilities.length ?? 0}</strong></div><div className="facility-list">{visibleFacilities.slice(0, 30).map((facility) => <button type="button" key={facility.id} className={facility.id === selectedId ? 'active' : ''} onClick={() => setSelectedId(facility.id)}><span>{facility.name}</span><small>{facilityLocation(facility)}</small></button>)}</div></section>
           <section className="physical-provenance"><div className="physical-panel-title"><span>PROVENANCE</span><strong>TRUTH BOUNDARY</strong></div><p><b>PUBLIC DATA</b> points are PeeringDB facility locations. The yellow corridor is <b>INFERRED</b> geometry only. No submarine cable, IX relationship, or packet path is claimed by this scene.</p><small>{snapshot?.note ?? 'Waiting for public infrastructure data.'}</small></section>
         </aside>
