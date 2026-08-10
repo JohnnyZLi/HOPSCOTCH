@@ -1,12 +1,14 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { readJourneyBrowserConfig } from './journey/browser.ts';
 import {
   buildJourneyShareUrl,
-  normalizePortableJourneyScenario,
+  createPortableJourneyScenario,
   parseJourneyScenarioJson,
   serializeJourneyScenario,
   type PortableJourneyScenarioV1,
 } from './journey/scenario.ts';
+import './JourneyScenarioMenu.css';
 
 function safeFileName(name: string): string {
   const normalized = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -14,27 +16,27 @@ function safeFileName(name: string): string {
 }
 
 export function JourneyScenarioMenu({
-  scenario,
+  hostname,
+  timeMs,
   onImportScenario,
 }: {
-  scenario: PortableJourneyScenarioV1;
+  hostname: string;
+  timeMs: number;
   onImportScenario: (scenario: PortableJourneyScenarioV1) => void;
 }) {
   const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState(scenario.name ?? '');
+  const [name, setName] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (scenario.name !== undefined) setName(scenario.name);
-  }, [scenario.name]);
-
-  const currentScenario = () => normalizePortableJourneyScenario({
-    ...scenario,
+  const currentScenario = () => createPortableJourneyScenario({
     name: name.trim() || undefined,
+    hostname,
+    config: readJourneyBrowserConfig(),
+    timeMs: Math.max(0, Math.round(timeMs)),
   });
 
   const copyLink = async () => {
