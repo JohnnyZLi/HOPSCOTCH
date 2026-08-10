@@ -1,9 +1,11 @@
+import { applyJourneyModifiers } from './modifiers.ts';
+
 export type JourneyScale = 'internet' | 'routing' | 'transport' | 'application' | 'packet';
 export type JourneyProvenance = 'SIMULATED' | 'EDGE OBSERVED' | 'PUBLIC COLLECTOR' | 'PUBLIC DATA' | 'INFERRED';
 export type JourneyZoomDirection = 'in' | 'out' | 'hold';
 export type JourneyTransportProfile = 'tcp-h2' | 'quic-h3';
 export type JourneyDnsProfile = 'cache-miss' | 'cache-hit';
-export type JourneyImpairmentProfile = 'clean' | 'single-loss';
+export type JourneyImpairmentProfile = 'clean' | 'single-loss' | 'latency-spike';
 export type JourneyDetailLab = 'dns' | 'tcp' | 'tls' | 'http' | 'packet' | 'builder' | 'internet' | 'physical' | 'observed';
 export type JourneyEventKind =
   | 'intent.accepted'
@@ -23,6 +25,9 @@ export type JourneyEventKind =
   | 'transport.loss-detected'
   | 'transport.retransmit'
   | 'transport.recovered'
+  | 'transport.latency'
+  | 'transport.rtt-update'
+  | 'transport.latency-cleared'
   | 'tls.message'
   | 'tls.validation'
   | 'tls.keys'
@@ -48,6 +53,18 @@ export const DEFAULT_JOURNEY_CONFIG: JourneyScenarioConfig = {
   impairmentProfile: 'clean',
 };
 
+export interface JourneyTransportMetrics {
+  baselineRttMs?: number;
+  latestRttMs?: number;
+  adjustedRttMs?: number;
+  smoothedRttMs?: number;
+  rttVarMs?: number;
+  ackDelayMs?: number;
+  timerLabel?: 'RTO' | 'PTO';
+  timerMs?: number;
+  lossDetected?: boolean;
+}
+
 export interface JourneyEvent {
   id: string;
   atMs: number;
@@ -64,6 +81,7 @@ export interface JourneyEvent {
   target?: string;
   detailLab?: JourneyDetailLab;
   ttlSeconds?: number;
+  transportMetrics?: JourneyTransportMetrics;
 }
 
 export interface JourneyScenario {
@@ -73,6 +91,7 @@ export interface JourneyScenario {
   transportProfile: JourneyTransportProfile;
   dnsProfile: JourneyDnsProfile;
   impairmentProfile: JourneyImpairmentProfile;
+  appliedModifierIds: string[];
   durationMs: number;
   events: JourneyEvent[];
 }
@@ -83,7 +102,7 @@ export type TransportJourneyState = 'closed' | 'handshake' | 'established' | 'co
 export type TlsJourneyState = 'idle' | 'negotiating' | 'validating' | 'handshake-keys' | 'application-keys';
 export type HttpJourneyState = 'idle' | 'control' | 'request-sent' | 'headers' | 'streaming' | 'complete';
 export type PacketJourneyState = 'idle' | 'frame' | 'headers';
-export type JourneyImpairmentState = 'clean' | 'armed' | 'lost' | 'detected' | 'recovering' | 'recovered';
+export type JourneyImpairmentState = 'clean' | 'armed' | 'lost' | 'detected' | 'recovering' | 'recovered' | 'delayed' | 'estimating' | 'normalized';
 
 export interface JourneyState {
   timeMs: number;
@@ -94,6 +113,7 @@ export interface JourneyState {
   dnsProfile: JourneyDnsProfile;
   impairmentProfile: JourneyImpairmentProfile;
   impairmentState: JourneyImpairmentState;
+  transportMetrics: JourneyTransportMetrics | null;
   scale: JourneyScale;
   scaleDepth: number;
   previousScale: JourneyScale;
@@ -251,32 +271,6 @@ function sharedTail(hostname: string, profile: JourneyTransportProfile): Journey
   ];
 }
 
-function lossEvents(transportProfile: JourneyTransportProfile, dataAtMs: number): JourneyEvent[] {
-  if (transportProfile === 'tcp-h2') {
-    return [
-      event('tcp-loss', dataAtMs + 160, 'transport.loss', 'packet', 'in', 'TCP', 'loss', 'TCP data segment is lost', 'SEQ 2461–3920 disappears before the receiver.', 'Later TCP bytes can arrive, but cumulative delivery cannot advance beyond the missing receive-next byte.', 'network path', 'TCP receiver', 'tcp'),
-      event('tcp-gap', dataAtMs + 400, 'transport.loss-detected', 'transport', 'out', 'TCP', 'gap-detected', 'Three duplicate ACK 2461 signals expose the gap', 'Repeated cumulative ACK 2461 tells the sender later bytes arrived beyond a missing range.', 'Three duplicate ACKs trigger the curated fast-retransmit path; the application remains blocked behind the TCP byte gap.', 'TCP receiver', 'TCP sender', 'tcp'),
-      event('tcp-retransmit', dataAtMs + 700, 'transport.retransmit', 'packet', 'in', 'TCP', 'retransmit', 'Fast retransmit sends SEQ 2461–3920 again', 'The sender retransmits the missing TCP byte range without waiting for the normal retransmission timeout.', 'The repair is a new transmission of the missing byte range; transport sequence semantics remain TCP-specific.', 'TCP sender', 'TCP receiver', 'tcp'),
-      event('tcp-recovered', dataAtMs + 1050, 'transport.recovered', 'application', 'out', 'HTTP/2', 'loss-recovered', 'HTTP/2 delivery resumes', 'The repaired gap lets the cumulative ACK advance from 2461 to 8301 and releases buffered response bytes.', 'HTTP/2 did not repair the loss itself; TCP restored the ordered byte stream underneath it.', 'TCP receiver', 'HTTP/2', 'http'),
-    ];
-  }
-  return [
-    event('quic-loss', dataAtMs + 160, 'transport.loss', 'packet', 'in', 'QUIC', 'loss', 'QUIC packet 4108 is lost', 'Packet 4108 carried STREAM offset 4096–5555 and disappears before the receiver.', 'The QUIC packet number is lost permanently; recovery will retransmit the STREAM data in a different packet number.', 'network path', 'QUIC receiver', 'http'),
-    event('quic-gap', dataAtMs + 400, 'transport.loss-detected', 'transport', 'out', 'QUIC', 'gap-detected', 'ACK ranges expose packet-number gap 4108', 'ACK ranges 4105–4107 and 4109–4112 show that packet 4108 is missing.', 'QUIC loss detection works from packet-number/ACK-range state, not TCP cumulative duplicate ACK semantics.', 'QUIC receiver', 'QUIC sender', 'http'),
-    event('quic-retransmit', dataAtMs + 700, 'transport.retransmit', 'packet', 'in', 'QUIC', 'retransmit', 'STREAM range is retransmitted in packet 4113', 'STREAM offset 4096–5555 is sent again inside new QUIC packet number 4113.', 'QUIC never retransmits packet number 4108. The data is retransmitted, but the new packet has a new packet number.', 'QUIC sender', 'QUIC receiver', 'http'),
-    event('quic-recovered', dataAtMs + 1050, 'transport.recovered', 'application', 'out', 'HTTP/3', 'loss-recovered', 'HTTP/3 request stream resumes', 'The repaired STREAM range closes the ordering gap on this HTTP/3 request stream.', 'The affected stream can advance after its missing range arrives; no TCP sequence or cumulative-ACK state exists in this branch.', 'QUIC receiver', 'HTTP/3', 'http'),
-  ];
-}
-
-function injectLoss(events: JourneyEvent[], transportProfile: JourneyTransportProfile): JourneyEvent[] {
-  const data = events.find((current) => current.kind === 'http.data');
-  const packetFrame = events.find((current) => current.id === 'packet-frame');
-  if (!data || !packetFrame) throw new Error('Journey loss injection requires response data and packet-frame events.');
-  const recoveryDelayMs = 1600;
-  const shifted = events.map((current) => current.atMs >= packetFrame.atMs ? { ...current, atMs: current.atMs + recoveryDelayMs } : current);
-  return [...shifted, ...lossEvents(transportProfile, data.atMs)].sort((a, b) => a.atMs - b.atMs);
-}
-
 export function buildJourneyScenario(hostnameInput = 'example.test', config: Partial<JourneyScenarioConfig> = {}): JourneyScenario {
   const hostname = normalizeJourneyHostname(hostnameInput);
   const destinationAddress = '203.0.113.42';
@@ -285,13 +279,10 @@ export function buildJourneyScenario(hostnameInput = 'example.test', config: Par
   const baseTransportEvents = normalizedConfig.transportProfile === 'quic-h3' ? quicH3Events(hostname) : tcpH2Events(hostname);
   const transportEvents = shiftEvents(baseTransportEvents, dnsShiftMs);
   const tailEvents = shiftEvents(sharedTail(hostname, normalizedConfig.transportProfile), dnsShiftMs);
-  const downstreamEvents = normalizedConfig.impairmentProfile === 'single-loss'
-    ? injectLoss([...transportEvents, ...tailEvents], normalizedConfig.transportProfile)
-    : [...transportEvents, ...tailEvents];
-  const lossDelayMs = normalizedConfig.impairmentProfile === 'single-loss' ? 1600 : 0;
+  const modifierResult = applyJourneyModifiers([...transportEvents, ...tailEvents], normalizedConfig);
   const events = [
     ...sharedPrelude(hostname, destinationAddress, normalizedConfig.dnsProfile),
-    ...downstreamEvents,
+    ...modifierResult.events,
   ];
 
   return {
@@ -301,7 +292,8 @@ export function buildJourneyScenario(hostnameInput = 'example.test', config: Par
     transportProfile: normalizedConfig.transportProfile,
     dnsProfile: normalizedConfig.dnsProfile,
     impairmentProfile: normalizedConfig.impairmentProfile,
-    durationMs: 15000 + dnsShiftMs + lossDelayMs,
+    appliedModifierIds: modifierResult.appliedModifierIds,
+    durationMs: 15000 + dnsShiftMs + modifierResult.addedDurationMs,
     events,
   };
 }
@@ -331,7 +323,8 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
   let tls: TlsJourneyState = 'idle';
   let http: HttpJourneyState = 'idle';
   let packet: PacketJourneyState = 'idle';
-  let impairmentState: JourneyImpairmentState = scenario.impairmentProfile === 'single-loss' ? 'armed' : 'clean';
+  let impairmentState: JourneyImpairmentState = scenario.impairmentProfile === 'clean' ? 'clean' : 'armed';
+  let transportMetrics: JourneyTransportMetrics | null = null;
   let responseReady = false;
   let journeyComplete = false;
 
@@ -361,6 +354,18 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
       case 'transport.loss-detected': impairmentState = 'detected'; break;
       case 'transport.retransmit': impairmentState = 'recovering'; break;
       case 'transport.recovered': impairmentState = 'recovered'; break;
+      case 'transport.latency':
+        impairmentState = 'delayed';
+        transportMetrics = current.transportMetrics ?? transportMetrics;
+        break;
+      case 'transport.rtt-update':
+        impairmentState = 'estimating';
+        transportMetrics = current.transportMetrics ?? transportMetrics;
+        break;
+      case 'transport.latency-cleared':
+        impairmentState = 'normalized';
+        transportMetrics = current.transportMetrics ?? transportMetrics;
+        break;
       case 'tls.message': tls = 'negotiating'; break;
       case 'tls.validation': tls = 'validating'; break;
       case 'tls.keys': tls = current.phase === 'application-keys' ? 'application-keys' : 'handshake-keys'; break;
@@ -389,6 +394,7 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
     dnsProfile: scenario.dnsProfile,
     impairmentProfile: scenario.impairmentProfile,
     impairmentState,
+    transportMetrics,
     scale: activeEvent.scale,
     scaleDepth: JOURNEY_SCALE_DEPTH[activeEvent.scale],
     previousScale: previousEvent.scale,
