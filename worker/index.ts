@@ -3,6 +3,10 @@ import type {
   EdgeObservation,
   InternetEvidenceSnapshot,
 } from '../src/internet/evidence';
+import type {
+  PublicInfrastructureFacility,
+  PublicInfrastructureSnapshot,
+} from '../src/internet/infrastructure';
 
 interface Env {
   ASSETS: {
@@ -15,6 +19,14 @@ function json(value: unknown, init: ResponseInit = {}): Response {
   headers.set('cache-control', 'no-store');
   headers.set('content-type', 'application/json; charset=utf-8');
   return Response.json(value, { ...init, headers });
+}
+
+function cacheableJson(value: unknown, maxAgeSeconds: number): Response {
+  return json(value, {
+    headers: {
+      'cache-control': `public, max-age=${maxAgeSeconds}, s-maxage=${maxAgeSeconds}`,
+    },
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -202,6 +214,56 @@ async function buildSnapshot(request: Request, hostname: string): Promise<Intern
   };
 }
 
+function finiteCoordinate(value: unknown, min: number, max: number): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) return null;
+  return value;
+}
+
+function nullableCount(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+async function publicInfrastructure(): Promise<PublicInfrastructureSnapshot> {
+  const fields = 'id,name,city,country,latitude,longitude,net_count,ix_count,status';
+  const payload = await fetchJson(
+    `https://www.peeringdb.com/api/fac?limit=250&fields=${encodeURIComponent(fields)}`,
+    5500,
+    {
+      accept: 'application/json',
+      'user-agent': 'HOPSCOTCH/0.0.1 (+https://hopscotch.johnnyli.dev)',
+    },
+  );
+  const data = Array.isArray(payload.data) ? payload.data : [];
+  const facilities: PublicInfrastructureFacility[] = [];
+  for (const raw of data) {
+    if (!isRecord(raw) || raw.status === 'deleted') continue;
+    if (typeof raw.id !== 'number' || !Number.isInteger(raw.id) || typeof raw.name !== 'string' || raw.name.length === 0) continue;
+    const latitude = finiteCoordinate(raw.latitude, -90, 90);
+    const longitude = finiteCoordinate(raw.longitude, -180, 180);
+    if (latitude === null || longitude === null) continue;
+    facilities.push({
+      provenance: 'PUBLIC DATA',
+      id: raw.id,
+      name: raw.name.slice(0, 160),
+      city: typeof raw.city === 'string' && raw.city.length > 0 ? raw.city.slice(0, 100) : null,
+      country: typeof raw.country === 'string' && raw.country.length > 0 ? raw.country.slice(0, 8) : null,
+      latitude,
+      longitude,
+      networkCount: nullableCount(raw.net_count),
+      exchangeCount: nullableCount(raw.ix_count),
+    });
+  }
+  return {
+    schema: 'hopscotch.internet-infrastructure',
+    version: 1,
+    provenance: 'PUBLIC DATA',
+    source: 'PeeringDB',
+    generatedAt: new Date().toISOString(),
+    facilities,
+    note: 'Facility locations come from PeeringDB public interconnection data. A plotted facility is infrastructure context, not proof that any selected traffic traversed it.',
+  };
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -213,6 +275,15 @@ export default {
     if (url.pathname === '/api/internet/edge') {
       if (request.method !== 'GET') return json({ ok: false, error: 'Method not allowed' }, { status: 405 });
       return json(edgeObservation(request));
+    }
+
+    if (url.pathname === '/api/internet/infrastructure') {
+      if (request.method !== 'GET') return json({ ok: false, error: 'Method not allowed' }, { status: 405 });
+      try {
+        return cacheableJson(await publicInfrastructure(), 900);
+      } catch (error) {
+        return json({ ok: false, error: `Public infrastructure data is unavailable: ${error instanceof Error ? error.message : 'unknown upstream error'}` }, { status: 502 });
+      }
     }
 
     if (url.pathname === '/api/internet/snapshot') {
