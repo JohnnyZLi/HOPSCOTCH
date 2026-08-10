@@ -68,7 +68,7 @@ export const defaultBuilderGraph: BuilderGraph = {
     { id: 'r1-core', a: 'r1', b: 'core', cost: 10, failed: false, builtin: true },
     { id: 'edge-r2', a: 'edge', b: 'r2', cost: 30, failed: false, builtin: true },
     { id: 'r2-core', a: 'r2', b: 'core', cost: 20, failed: false, builtin: true },
-    { id: 'r1-r2', a: 'r1', b: 'r2', cost: 12, failed: false, builtin: true },
+    { id: 'r1-r2', a: 'r1', b: 'r2', cost: 40, failed: false, builtin: true },
     { id: 'core-app', a: 'core', b: 'app', cost: 1, failed: false, builtin: true },
   ],
 };
