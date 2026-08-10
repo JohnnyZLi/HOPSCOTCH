@@ -5,7 +5,7 @@ import {
   type JourneyImpairmentProfile,
   type JourneyScenarioConfig,
   type JourneyTransportProfile,
-} from './model';
+} from './model.ts';
 
 export const JOURNEY_SCENARIO_SCHEMA = 'hopscotch.url-journey' as const;
 export const JOURNEY_SCENARIO_VERSION = 1 as const;
