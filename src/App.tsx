@@ -8,16 +8,17 @@ import { NetworkBuilder } from './NetworkBuilder';
 import { NetworkField } from './NetworkField';
 import { ObservedInternet } from './ObservedInternet';
 import { PacketMicroscope } from './PacketMicroscope';
+import { PhysicalInternetGlobe } from './PhysicalInternetGlobe';
 import { TcpTheater } from './TcpTheater';
 import { TlsTheater } from './TlsTheater';
 import { lab01Scenario, lab01StateAt } from './simulation/lab01';
 import { latestEventAtOrBefore, type NetworkLayer } from './simulation/model';
 
 type DisplayMode = 'overview' | 'xray';
-type ActiveLab = 'failure' | 'packet' | 'tcp' | 'dns' | 'tls' | 'http' | 'builder' | 'internet' | 'observed' | null;
+type ActiveLab = 'failure' | 'packet' | 'tcp' | 'dns' | 'tls' | 'http' | 'builder' | 'physical' | 'internet' | 'observed' | null;
 
 const layers: Array<{ id: NetworkLayer; label: string; kicker: string; description: string }> = [
-  { id: 'internet', label: 'Internet', kicker: 'Scale 05', description: 'Autonomous systems, peering, public routing evidence, and clearly labeled inference.' },
+  { id: 'internet', label: 'Internet', kicker: 'Scale 05', description: 'Physical interconnection infrastructure, autonomous systems, public routing evidence, and clearly labeled inference.' },
   { id: 'routing', label: 'Routing', kicker: 'Scale 04', description: 'Build a weighted graph, change topology, inject failures, and watch route truth recompute.' },
   { id: 'transport', label: 'Transport', kicker: 'Scale 03', description: 'Flows, congestion windows, retransmissions, loss, and multiplexing.' },
   { id: 'application', label: 'Application', kicker: 'Scale 02', description: 'DNS, TLS, HTTP, QUIC, and the exchanges behind an application request.' },
@@ -89,6 +90,7 @@ export default function App() {
   const openTlsLab = () => { setPlaying(false); setLayer('application'); setActiveLab('tls'); };
   const openHttpLab = () => { setPlaying(false); setLayer('application'); setActiveLab('http'); };
   const openBuilderLab = () => { setPlaying(false); setLayer('routing'); setActiveLab('builder'); };
+  const openPhysicalInternet = () => { setPlaying(false); setLayer('internet'); setActiveLab('physical'); };
   const openInternetLab = () => { setPlaying(false); setLayer('internet'); setActiveLab('internet'); };
   const openObservedInternet = () => { setPlaying(false); setLayer('internet'); setActiveLab('observed'); };
   const exitLabs = () => { setPlaying(false); setActiveLab(null); };
@@ -108,7 +110,7 @@ export default function App() {
         ? { label: 'Compare HTTP/2 vs HTTP/3', run: openHttpLab }
         : layer === 'routing'
           ? { label: 'Open network builder', run: openBuilderLab }
-          : { label: 'Open Internet scale', run: openInternetLab };
+          : { label: 'Open physical Internet', run: openPhysicalInternet };
 
   const buildLabel = activeLab === 'failure'
     ? 'LAB 01'
@@ -118,7 +120,7 @@ export default function App() {
         ? 'LAB 03'
         : activeLab === 'builder'
           ? 'LAB 04'
-          : activeLab === 'internet' || activeLab === 'observed'
+          : activeLab === 'physical' || activeLab === 'internet' || activeLab === 'observed'
             ? 'LAB 05'
             : 'LAB 00';
   const buildStatus = activeLab === 'failure'
@@ -135,11 +137,13 @@ export default function App() {
               ? 'HTTP/2 ↔ HTTP/3 ACTIVE'
               : activeLab === 'builder'
                 ? 'NETWORK BUILDER ACTIVE'
-                : activeLab === 'internet'
-                  ? 'SIMULATED AS THEATER ACTIVE'
-                  : activeLab === 'observed'
-                    ? 'INTERNET EVIDENCE ACTIVE'
-                    : 'Foundation online';
+                : activeLab === 'physical'
+                  ? 'PHYSICAL INTERNET ATLAS ACTIVE'
+                  : activeLab === 'internet'
+                    ? 'SIMULATED AS THEATER ACTIVE'
+                    : activeLab === 'observed'
+                      ? 'INTERNET EVIDENCE ACTIVE'
+                      : 'Foundation online';
 
   return (
     <main className="app-shell" data-layer={layer} data-mode={mode} data-lab={activeLab ? 'active' : 'idle'}>
@@ -175,7 +179,7 @@ export default function App() {
 
             <motion.aside key={active.id} className="layer-card" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 16, filter: 'blur(8px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} transition={{ duration: 0.34 }}>
               <span>{active.kicker}</span><h2>{active.label}</h2><p>{active.description}</p><div className="card-rule" />
-              <small>{layer === 'packet' ? 'PACKET MICROSCOPE READY' : layer === 'transport' ? 'TCP PROTOCOL THEATER READY' : layer === 'application' ? 'HTTP + TLS + DNS THEATER READY' : layer === 'routing' ? 'DYNAMIC NETWORK BUILDER READY' : 'SIMULATED + OBSERVED INTERNET MODES READY'}</small>
+              <small>{layer === 'packet' ? 'PACKET MICROSCOPE READY' : layer === 'transport' ? 'TCP PROTOCOL THEATER READY' : layer === 'application' ? 'HTTP + TLS + DNS THEATER READY' : layer === 'routing' ? 'DYNAMIC NETWORK BUILDER READY' : 'PHYSICAL + SIMULATED + OBSERVED INTERNET MODES READY'}</small>
             </motion.aside>
 
             <footer className="timeline-preview"><div className="timeline-labels"><span>TIME MACHINE</span><span>00:00.000</span></div><div className="timeline-track" aria-hidden="true"><i /><b /></div><span className="timeline-note">Lab 01 failure · Lab 02 packet · Lab 03 protocols · Lab 04 builder · Lab 05 Internet</span></footer>
@@ -192,6 +196,8 @@ export default function App() {
           <HttpComparisonTheater key="lab03-http" onExit={exitLabs} onOpenTls={openTlsLab} />
         ) : activeLab === 'builder' ? (
           <NetworkBuilder key="lab04" onExit={exitLabs} onOpenFailureStory={() => openFailureLab(0, true)} />
+        ) : activeLab === 'physical' ? (
+          <PhysicalInternetGlobe key="lab05-physical" onExit={exitLabs} onOpenSimulated={openInternetLab} onOpenObserved={openObservedInternet} />
         ) : activeLab === 'internet' ? (
           <InternetScaleTheater key="lab05-simulated" onExit={exitLabs} onOpenObserved={openObservedInternet} />
         ) : activeLab === 'observed' ? (
