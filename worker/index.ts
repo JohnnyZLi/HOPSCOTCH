@@ -16,7 +16,7 @@ interface Env {
 
 function json(value: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
-  headers.set('cache-control', 'no-store');
+  if (!headers.has('cache-control')) headers.set('cache-control', 'no-store');
   headers.set('content-type', 'application/json; charset=utf-8');
   return Response.json(value, { ...init, headers });
 }
