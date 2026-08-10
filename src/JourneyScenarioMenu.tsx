@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useRef, useState } from 'react';
-import { readJourneyBrowserConfig } from './journey/browser.ts';
+import { readJourneyBrowserConfig, suspendJourneyClock } from './journey/browser.ts';
 import {
   buildJourneyShareUrl,
   createPortableJourneyScenario,
@@ -83,6 +83,7 @@ export function JourneyScenarioMenu({
     setError(null);
     try {
       const imported = parseJourneyScenarioJson(await file.text());
+      suspendJourneyClock();
       onNameChange(imported.name ?? '');
       setShareUrl('');
       setStatus('SCENARIO IMPORTED');
