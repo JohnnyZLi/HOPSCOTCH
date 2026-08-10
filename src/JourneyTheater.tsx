@@ -76,6 +76,10 @@ function PacketScene({ state }: { state: JourneyState }) {
   return <div className="journey-scene packet-scene"><div className="packet-layers"><div><span>ETHERNET</span><strong>14 B</strong></div><div><span>IPv4</span><strong>20 B</strong></div><div><span>TCP</span><strong>20 B+</strong></div><div className="encrypted"><span>TLS APPLICATION DATA</span><strong>ENCRYPTED</strong></div></div><div className="packet-bytes">{['45','00','01','9A','00','01','40','00','40','06','B7','5C','C0','00','02','0A','CB','00','71','2A'].map((byte,index)=><b key={`${byte}-${index}`} className={state.packet === 'headers' && index < 12 ? 'hot' : ''}>{byte}</b>)}</div><p>{state.packet === 'headers' ? 'Header bytes are mapped to delivery fields while the TLS payload remains opaque.' : 'One representative frame is frozen without creating a second transfer.'}</p></div>;
 }
 
+function IntentScene({ hostname }: { hostname: string }) {
+  return <div className="journey-scene response-scene intent-scene"><div className="browser-frame"><div><i/><i/><i/><span>{hostname}</span></div><section><b>URL</b><strong>APPLICATION INTENT</strong><p>The browser has a hostname and an intent. DNS, routing, transport, encryption, and HTTP state do not exist yet.</p></section></div></div>;
+}
+
 function ResponseScene({ hostname }: { hostname: string }) {
   return <div className="journey-scene response-scene"><div className="browser-frame"><div><i/><i/><i/><span>{hostname}</span></div><section><b>200</b><strong>RESPONSE READY</strong><p>Intent satisfied after DNS, routing, transport, encryption, HTTP, and packet delivery.</p></section></div></div>;
 }
@@ -84,7 +88,8 @@ function ApplicationScene({ state, hostname, address }: { state: JourneyState; h
   if (state.protocol === 'DNS') return <DnsScene state={state} hostname={hostname} address={address}/>;
   if (state.protocol.startsWith('TLS')) return <TlsScene state={state} hostname={hostname}/>;
   if (state.protocol.startsWith('HTTP')) return <HttpScene state={state} hostname={hostname}/>;
-  return <ResponseScene hostname={hostname}/>;
+  if (state.responseReady || state.journeyComplete) return <ResponseScene hostname={hostname}/>;
+  return <IntentScene hostname={hostname}/>;
 }
 
 function SemanticScene({ state, hostname, address }: { state: JourneyState; hostname: string; address: string }) {
