@@ -4,6 +4,7 @@ import { decodeJourneyQuery, type PortableJourneyScenarioV1 } from './scenario.t
 const TRANSPORT_KEY = 'hopscotch.journey.transport-profile';
 const DNS_KEY = 'hopscotch.journey.dns-profile';
 const IMPAIRMENT_KEY = 'hopscotch.journey.impairment-profile';
+let journeyClockSuspended = false;
 
 export interface JourneyBrowserBootstrap {
   scenario: PortableJourneyScenarioV1 | null;
@@ -36,6 +37,18 @@ export function seedJourneyBrowserScenario(
     dnsProfile: scenario.dnsProfile,
     impairmentProfile: scenario.impairmentProfile,
   }, storage);
+}
+
+export function suspendJourneyClock(): void {
+  journeyClockSuspended = true;
+}
+
+export function resumeJourneyClock(): void {
+  journeyClockSuspended = false;
+}
+
+export function isJourneyClockSuspended(): boolean {
+  return journeyClockSuspended;
 }
 
 export function bootstrapJourneyFromSearch(
