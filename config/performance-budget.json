@@ -4,7 +4,9 @@
   "policy": {
     "enforcedMetrics": "stable-structural-and-semantic",
     "timingMetrics": "diagnostic-only",
-    "browserLaunchAttempts": 3
+    "browserLaunchAttempts": 3,
+    "stressFixtures": "query-only-production-renderers",
+    "stressBudgets": "hosted-baseline-enforced"
   },
   "baseline": {
     "commit": "8058e9ee0c0d70b626f0f5343cf176207d65a6d0",
