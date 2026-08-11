@@ -14,7 +14,7 @@
     "test:worker-contract": "node scripts/worker-contract-check.mjs",
     "test:journey-contract": "node scripts/journey-contract-check.mjs",
     "test:journey-sharing-contract": "node scripts/journey-sharing-contract-check.mjs",
-    "check": "npm run typecheck && npm run test:builder-contract && npm run test:worker-contract && npm run test:journey-contract && npm run test:journey-sharing-contract && npm run test:journey-god-mode-contract && npm run test:journey-composition-contract && npm run test:journey-path-outage-contract && npm run test:journey-congestion-contract && npm run test:journey-dns-failure-contract && npm run test:journey-server-failure-contract && npm run test:journey-partition-contract && npm run test:journey-route-leak-contract && npm run test:high-density-contract && npm run build",
+    "check": "npm run typecheck && npm run test:builder-contract && npm run test:worker-contract && npm run test:journey-contract && npm run test:journey-sharing-contract && npm run test:journey-god-mode-contract && npm run test:journey-composition-contract && npm run test:journey-path-outage-contract && npm run test:journey-congestion-contract && npm run test:journey-dns-failure-contract && npm run test:journey-server-failure-contract && npm run test:journey-partition-contract && npm run test:journey-route-leak-contract && npm run test:high-density-contract && npm run test:native-measurement-contract && npm run build",
     "performance:profile": "node scripts/performance-profile.mjs",
     "performance:check": "node scripts/performance-profile.mjs --enforce",
     "preview": "vite preview",
@@ -30,6 +30,7 @@
     "test:journey-partition-contract": "node scripts/journey-partition-contract-check.mjs",
     "test:journey-route-leak-contract": "node scripts/journey-route-leak-contract-check.mjs",
     "test:high-density-contract": "node scripts/high-density-contract-check.mjs",
+    "test:native-measurement-contract": "node scripts/native-measurement-contract-check.mjs",
     "compatibility:chrome": "node scripts/performance-profile.mjs --compatibility",
     "compatibility:firefox": "node scripts/firefox-compatibility.mjs"
   },

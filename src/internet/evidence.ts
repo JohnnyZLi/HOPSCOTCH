@@ -1,4 +1,4 @@
-export type EvidenceProvenance = 'EDGE OBSERVED' | 'PUBLIC COLLECTOR' | 'INFERRED' | 'SIMULATED';
+export type EvidenceProvenance = 'LOCAL MEASURED' | 'EDGE OBSERVED' | 'PUBLIC COLLECTOR' | 'INFERRED' | 'SIMULATED';
 export type EvidenceAvailability = 'available' | 'unavailable' | 'partial';
 
 export interface EvidenceFact<T> {

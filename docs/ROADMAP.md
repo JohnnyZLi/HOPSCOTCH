@@ -314,7 +314,7 @@ GOD MODE impairments are deterministic modifiers over the same canonical Journey
 
 Browser-visible evidence is intentionally limited. A future native measurement source may provide data that browsers cannot legitimately observe, such as local interfaces, route tables, traceroute/ICMP, richer transport telemetry, and packet-level captures.
 
-- [ ] define native measurement provenance contract
+- [x] define native measurement provenance contract
 - [ ] keep measured state separate from simulated Journey state
 - [ ] ingest native/network-diagnostics data without pretending it is globally complete
 - [ ] map measured facts into existing semantic scenes where appropriate
