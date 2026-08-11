@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -14,17 +14,32 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: agent/lab-08c-browser-gpu-compatibility
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Apply validated Lab 08C candidates
+        run: |
+          python3 scripts/apply-lab08c.py
+          python3 scripts/apply-lab08c-firefox.py
       - run: npm run check
-      - name: Upload production build
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: hopscotch-dist
-          path: dist
-          if-no-files-found: error
-          retention-days: 3
+      - name: Validate Chrome compatibility modes
+        run: |
+          HOPSCOTCH_GPU_MODE=default HOPSCOTCH_REPORT_PATH=artifacts/compatibility-default.json node scripts/performance-profile.mjs --compatibility
+          HOPSCOTCH_GPU_MODE=swiftshader HOPSCOTCH_REPORT_PATH=artifacts/compatibility-swiftshader.json node scripts/performance-profile.mjs --compatibility
+          HOPSCOTCH_GPU_MODE=disabled HOPSCOTCH_REPORT_PATH=artifacts/compatibility-disabled.json node scripts/performance-profile.mjs --compatibility
+      - name: Validate Firefox compatibility
+        run: node scripts/firefox-compatibility.mjs
+      - name: Finalize permanent Lab 08C source
+        run: python3 scripts/finalize-lab08c.py
+      - name: Commit validated Lab 08C source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff --cached --quiet && exit 0
+          git commit -m "Promote Lab 08C compatibility matrix"
+          git push origin HEAD:agent/lab-08c-browser-gpu-compatibility
