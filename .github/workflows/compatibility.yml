@@ -53,6 +53,8 @@ jobs:
       - name: Probe hosted Firefox automation capability
         run: node scripts/firefox-capability-probe.mjs
       - run: npm run build
+      - name: Apply Firefox BiDi viewport candidate
+        run: python3 scripts/apply-lab08c-firefox.py
       - name: Run Firefox production semantic compatibility
         run: node scripts/firefox-compatibility.mjs
       - name: Upload Firefox reports
