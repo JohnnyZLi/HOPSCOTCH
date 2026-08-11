@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import { readJourneyBrowserConfig, seedJourneyBrowserScenario, writeJourneyBrowserConfig } from '../src/journey/browser.ts';
 import { buildJourneyScenario, journeyStateAt } from '../src/journey/model.ts';
 import { normalizeJourneyModifierIds } from '../src/journey/modifiers.ts';
+import { createPortableJourneyScenario } from '../src/journey/scenario.ts';
 
 const config = (transportProfile, dnsProfile, modifierIds) => ({
   transportProfile,
@@ -33,6 +35,15 @@ function validateCanonicalScenario(scenario, expectedModifiers, expectedCount, e
   const start = journeyStateAt(scenario, 0);
   assert.deepEqual(start.modifierIds, expectedModifiers);
   assert.equal(start.impairmentState, expectedModifiers.length ? 'armed' : 'clean');
+}
+
+function memoryStorage(seed = {}) {
+  const values = new Map(Object.entries(seed));
+  return {
+    getItem(key) { return values.has(key) ? values.get(key) : null; },
+    setItem(key, value) { values.set(key, String(value)); },
+    snapshot() { return Object.fromEntries(values); },
+  };
 }
 
 assert.deepEqual(normalizeJourneyModifierIds([]), []);
@@ -85,4 +96,41 @@ const legacyLoss = buildJourneyScenario('example.test', { transportProfile: 'qui
 validateCanonicalScenario(legacyLoss, ['single-loss'], 27, 14400);
 assert.deepEqual(eventTimes(legacyLoss, ['quic-loss', 'quic-gap', 'quic-retransmit', 'quic-recovered']), [7410, 7650, 7950, 8300]);
 
-console.log('Journey composition contract passed: canonical modifier sets, legacy compatibility, pair compositions, and triple composition.');
+// Browser persistence stores the canonical set and migrates the old single-profile key.
+const composedStorage = memoryStorage();
+writeJourneyBrowserConfig(config('quic-h3', 'cache-hit', ['latency-spike', 'route-failure', 'single-loss']), composedStorage);
+assert.deepEqual(readJourneyBrowserConfig(composedStorage), {
+  transportProfile: 'quic-h3',
+  dnsProfile: 'cache-hit',
+  impairmentProfile: 'composed',
+  modifierIds: ['route-failure', 'single-loss', 'latency-spike'],
+});
+assert.equal(composedStorage.snapshot()['hopscotch.journey.modifiers'], '["route-failure","single-loss","latency-spike"]');
+
+const legacyStorage = memoryStorage({
+  'hopscotch.journey.transport-profile': 'quic-h3',
+  'hopscotch.journey.dns-profile': 'cache-hit',
+  'hopscotch.journey.impairment-profile': 'route-failure',
+});
+assert.deepEqual(readJourneyBrowserConfig(legacyStorage), {
+  transportProfile: 'quic-h3',
+  dnsProfile: 'cache-hit',
+  impairmentProfile: 'route-failure',
+});
+
+const portableTriple = createPortableJourneyScenario({
+  name: 'Triple fault',
+  hostname: 'example.test',
+  config: config('tcp-h2', 'cache-miss', ['latency-spike', 'single-loss', 'route-failure']),
+  timeMs: 12500,
+});
+const importedStorage = memoryStorage();
+seedJourneyBrowserScenario(portableTriple, importedStorage);
+assert.deepEqual(readJourneyBrowserConfig(importedStorage), {
+  transportProfile: 'tcp-h2',
+  dnsProfile: 'cache-miss',
+  impairmentProfile: 'composed',
+  modifierIds: ['route-failure', 'single-loss', 'latency-spike'],
+});
+
+console.log('Journey composition contract passed: canonical modifier sets, legacy compatibility, pair/triple composition, and browser persistence migration.');
