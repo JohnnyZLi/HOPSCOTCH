@@ -221,7 +221,7 @@ GOD MODE impairments are deterministic modifiers over the same canonical Journey
 - [x] schema-v1 single-modifier and schema-v2 composed sharing/persistence compatibility
 - [x] GOD MODE OUTAGE selector, route scene reuse, and outage-specific RTO/PTO teaching panel
 - [x] permanent state/model/composition contract wired into `npm run check`
-- [ ] exact production-artifact desktop/mobile/reduced-motion audit
+- [x] exact production-artifact desktop/mobile/reduced-motion audit
 
 ### Later GOD MODE stories
 - [ ] congestion / queue growth
