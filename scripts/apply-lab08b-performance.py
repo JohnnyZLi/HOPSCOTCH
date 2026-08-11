@@ -35,9 +35,8 @@ replace_once(
 )
 replace_once(
     "    const cycles=${Number(stressConfig.seekCycles)};",
-    "    const cycles=${Number(1)} * ${'${Number(cycles)}'};",
+    "    const cycles=${Number(cycles)};",
 )
-text = text.replace("const cycles=${Number(1)} * ${Number(cycles)};", "const cycles=${Number(cycles)};")
 replace_once(
     "    cycles: stressConfig.seekCycles,",
     "    cycles,",
