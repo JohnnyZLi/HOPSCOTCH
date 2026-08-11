@@ -140,7 +140,7 @@ function SemanticGlyph({ category }: { category: NativeMeasurementCategory }) {
   const dots = category === 'traceroute' ? 5 : category === 'transport' ? 4 : category === 'route' ? 3 : 2;
   return <div className={`measured-glyph glyph-${category}`} aria-hidden="true">
     <span className="glyph-line" />
-    {Array.from({ length: dots }, (_, index) => <i key={index} style={{ left: `${dots === 1 ? 50 : 8 + (index / (dots - 1)) * 84}%` }} />)}
+    {Array.from({ length: dots }, (_, index) => <i key={index} style={{ left: `${8 + (index / (dots - 1)) * 84}%` }} />)}
   </div>;
 }
 

@@ -13,6 +13,7 @@ import { LabNetworkField } from './LabNetworkField';
 import { NetworkBuilder } from './NetworkBuilder';
 import { NetworkField } from './NetworkField';
 import { ObservedInternet } from './ObservedInternet';
+import { MeasuredNetworkWorkspace } from './MeasuredNetworkWorkspace';
 import { PacketMicroscope } from './PacketMicroscope';
 import { PhysicalInternetGlobe } from './PhysicalInternetGlobe';
 import { TcpTheater } from './TcpTheater';
@@ -21,7 +22,7 @@ import { lab01Scenario, lab01StateAt } from './simulation/lab01';
 import { latestEventAtOrBefore, type NetworkLayer } from './simulation/model';
 
 type DisplayMode = 'overview' | 'xray';
-type ActiveLab = 'journey' | 'failure' | 'packet' | 'tcp' | 'dns' | 'tls' | 'http' | 'builder' | 'physical' | 'internet' | 'observed' | null;
+type ActiveLab = 'journey' | 'failure' | 'packet' | 'tcp' | 'dns' | 'tls' | 'http' | 'builder' | 'physical' | 'internet' | 'observed' | 'measured' | null;
 
 const layers: Array<{ id: NetworkLayer; label: string; kicker: string; description: string }> = [
   { id: 'internet', label: 'Internet', kicker: 'Scale 05', description: 'Physical interconnection infrastructure, autonomous systems, public routing evidence, and clearly labeled inference.' },
@@ -111,6 +112,7 @@ export default function App() {
   const openPhysicalInternet = () => { setPlaying(false); setLayer('internet'); setActiveLab('physical'); };
   const openInternetLab = () => { setPlaying(false); setLayer('internet'); setActiveLab('internet'); };
   const openObservedInternet = () => { setPlaying(false); setLayer('internet'); setActiveLab('observed'); };
+  const openMeasuredNetwork = () => { setPlaying(false); setLayer('internet'); setActiveLab('measured'); };
   const openJourney = () => {
     setPlaying(false);
     setLayer('application');
@@ -179,7 +181,9 @@ export default function App() {
           ? { label: 'Open network builder', run: openBuilderLab }
           : { label: 'Open physical Internet', run: openPhysicalInternet };
 
-  const buildLabel = activeLab === 'journey'
+  const buildLabel = activeLab === 'measured'
+    ? 'LAB 09'
+    : activeLab === 'journey'
     ? 'LAB 07'
     : activeLab === 'failure'
     ? 'LAB 01'
@@ -192,7 +196,9 @@ export default function App() {
           : activeLab === 'physical' || activeLab === 'internet' || activeLab === 'observed'
             ? 'LAB 05'
             : 'LAB 00';
-  const buildStatus = activeLab === 'journey'
+  const buildStatus = activeLab === 'measured'
+    ? 'LOCAL MEASUREMENT WORKSPACE ACTIVE'
+    : activeLab === 'journey'
     ? 'GOD MODE JOURNEY ACTIVE'
     : activeLab === 'failure'
     ? labState.statusLabel
@@ -240,6 +246,7 @@ export default function App() {
               <motion.p className="lede" initial={reduceMotion ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28, duration: 0.7 }}>Move from the global Internet to a single packet without losing the story in between. Routes, protocols, failures, and recovery become something you can watch, stop, rewind, build, and interrogate.</motion.p>
               <motion.div className="hero-actions" initial={reduceMotion ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38, duration: 0.65 }}>
                 <motion.button className="primary-action" type="button" onClick={openJourney} whileHover={reduceMotion ? undefined : { y: -2, scale: 1.015 }} whileTap={reduceMotion ? undefined : { scale: 0.985 }}>Play URL journey<span aria-hidden="true">↗</span></motion.button>
+                <button className="text-action text-button" type="button" onClick={openMeasuredNetwork}>Inspect measured report</button>
                 <button className="text-action text-button" type="button" onClick={overviewAction.run}>{overviewAction.label}</button>
                 <button className="text-action text-button" type="button" onClick={() => setMode((current) => (current === 'overview' ? 'xray' : 'overview'))}>{mode === 'overview' ? 'Preview X-ray' : 'Hide X-ray'}</button>
                 <a className="text-action" href="https://github.com/JohnnyZLi/HOPSCOTCH">Source</a>
@@ -255,7 +262,7 @@ export default function App() {
               <small>{layer === 'packet' ? 'PACKET MICROSCOPE READY' : layer === 'transport' ? 'TCP PROTOCOL THEATER READY' : layer === 'application' ? 'HTTP + TLS + DNS THEATER READY' : layer === 'routing' ? 'DYNAMIC NETWORK BUILDER READY' : 'PHYSICAL + SIMULATED + OBSERVED INTERNET MODES READY'}</small>
             </motion.aside>
 
-            <footer className="timeline-preview"><div className="timeline-labels"><span>TIME MACHINE</span><span>00:00.000</span></div><div className="timeline-track" aria-hidden="true"><i /><b /></div><span className="timeline-note">Lab 01 failure · Lab 02 packet · Lab 03 protocols · Lab 04 builder · Lab 05 Internet · Lab 06 Journey</span></footer>
+            <footer className="timeline-preview"><div className="timeline-labels"><span>TIME MACHINE</span><span>00:00.000</span></div><div className="timeline-track" aria-hidden="true"><i /><b /></div><span className="timeline-note">Lab 01 failure · Lab 02 packet · Lab 03 protocols · Lab 04 builder · Lab 05 Internet · Lab 06 Journey · Lab 09 measured</span></footer>
           </motion.div>
         ) : activeLab === 'journey' ? (
           <JourneyTheater key={`lab06-${journeyRenderKey}`} hostname={journeyHostname} timeMs={journeyTimeMs} startPlaying={journeyStartPlaying} evidence={journeyEvidence} onHostnameChange={setJourneyHostname} onTimeChange={setJourneyTimeMs} onEvidenceChange={setJourneyEvidence} onOpenDetail={openJourneyDetail} onExit={exitLabs} />
@@ -277,6 +284,8 @@ export default function App() {
           <InternetScaleTheater key="lab05-simulated" onExit={exitActiveLab} onOpenObserved={openObservedInternet} />
         ) : activeLab === 'observed' ? (
           <ObservedInternet key="lab05-observed" onExit={exitActiveLab} onOpenSimulated={openInternetLab} />
+        ) : activeLab === 'measured' ? (
+          <MeasuredNetworkWorkspace key="lab09-measured" onExit={exitActiveLab} />
         ) : (
           <motion.section key="lab01" className="lab-workspace" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.985, filter: 'blur(14px)' }} animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.02, filter: 'blur(10px)' }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
             <header className="lab-heading"><div><p className="eyebrow">Lab 01 · Failure & recovery</p><h1>BREAK THE ROUTE.<br /><span>WATCH IT THINK.</span></h1></div><div className="lab-heading-actions"><button type="button" className={labXray ? 'lab-mode active' : 'lab-mode'} onClick={() => setLabXray((current) => !current)}>X-RAY {labXray ? 'ON' : 'OFF'}</button><button type="button" className="lab-mode" onClick={exitActiveLab}>EXIT LAB</button></div></header>
