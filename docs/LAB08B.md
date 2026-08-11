@@ -89,7 +89,7 @@ Lab 08A already performs three passes through the maximum composed 54-event Jour
 
 The test verifies event count and scenario identity never change, document `scrollY` remains zero, and post-GC heap growth remains bounded.
 
-Hosted baseline after forced GC: **~+2.13 MiB** heap growth on the final budget-validation run.
+Hosted baseline after forced GC: **~+2.13 MiB** heap growth on the budget-validation run.
 
 Stress ceiling:
 
@@ -120,10 +120,10 @@ The first complete hosted Chrome baseline measured:
 | Builder | 32 nodes / 96 links | 762 | ~5.47 MiB |
 | Physical WebGL | 2,000 simulated points | 188 | ~6.15 MiB |
 
-The final transient budget-validation run passed with both Lab 08A and Lab 08B budgets enforced simultaneously:
+The final budget-validation runs passed with both Lab 08A and Lab 08B budgets enforced simultaneously:
 
-- normal 3×54 seek growth: ~**+1.45 MiB**
-- high-density 12×54 seek growth: ~**+2.13 MiB**
+- normal 3×54 seek growth: roughly **+1.4–1.5 MiB**
+- high-density 12×54 seek growth: roughly **+2.1–2.2 MiB**
 - JS gzip: **319,571 bytes**, below the unchanged 08A **380,000-byte** limit
 - CSS gzip: **25,068 bytes**, below the unchanged **32,000-byte** limit
 - all renderer structural counts and stress-specific DOM/heap ceilings
@@ -131,4 +131,4 @@ The final transient budget-validation run passed with both Lab 08A and Lab 08B b
 - no horizontal-overflow or document-scroll regressions
 - no runtime/console failures
 
-The next completion gate is promotion of these already-validated renderer/profiler changes into the permanent branch source, followed by ordinary read-only CI + Performance runs with no patch helpers.
+The renderer injection, deterministic fixtures, high-density contract, profiler extensions, and stress budgets have now been promoted into the permanent branch source. All transient apply helpers and `pretypecheck` have been removed, both workflows are back to their normal read-only forms, and ordinary CI plus ordinary Performance have passed on that permanent tree. The remaining completion step is synchronization of the shared ROADMAP/ARCHITECTURE/README state through the same validated gate.
