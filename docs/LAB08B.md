@@ -26,11 +26,7 @@ It has one deterministic valley-free backbone from AS4200000000 to AS4200000007:
 
 Additional customer/provider spokes and peer edges make the Canvas draw loop meaningfully denser without deliberately constructing a graph that makes policy-path enumeration explode combinatorially.
 
-The fixture contract proves:
-
-- exact 160/220 counts and unique IDs
-- the guaranteed policy-compliant backbone remains reachable
-- the expected relationship traversal remains stable
+The fixture contract proves exact 160/220 counts and unique IDs, a reachable policy-compliant backbone, and stable relationship traversal.
 
 Canvas remains the correct renderer at this density: the hosted browser mounted the 160/220 scene with only **403 DOM elements** because AS nodes/relationships are drawn rather than expanded into hundreds of React elements.
 
@@ -48,13 +44,7 @@ The Builder stress fixture does not invent a larger unsupported topology. It exe
 - **32 nodes**
 - **96 links**
 
-The deterministic graph has a fixed 8×4 layout, guaranteed connectivity, and a valid source-to-destination route. The Node contract runs the real Builder scenario validator and proves:
-
-- exact 32/96 fixture counts
-- route remains reachable
-- scenario serialize/deserialize round trip preserves the ceiling graph
-- **33 nodes are rejected**
-- **97 links are rejected**
+The deterministic graph has a fixed 8×4 layout, guaranteed connectivity, and a valid source-to-destination route. The Node contract runs the real Builder scenario validator and proves exact 32/96 fixture counts, route reachability, schema round-trip preservation, rejection at **33 nodes**, and rejection at **97 links**.
 
 This is intentionally DOM/SVG rather than Canvas because Builder elements remain directly interactive and authorable. The product ceiling is therefore also a renderer-safety ceiling rather than an unbounded graph promise.
 
@@ -97,12 +87,7 @@ Lab 08A already performs three passes through the maximum composed 54-event Jour
 
 **12 × 54 = 648 deterministic event seeks**
 
-The test still verifies:
-
-- event count never changes
-- scenario identity/heading never changes
-- document `scrollY` remains zero
-- post-GC heap growth remains bounded
+The test verifies event count and scenario identity never change, document `scrollY` remains zero, and post-GC heap growth remains bounded.
 
 Hosted baseline after forced GC: **~+2.13 MiB** heap growth on the final budget-validation run.
 
@@ -135,13 +120,14 @@ The first complete hosted Chrome baseline measured:
 | Builder | 32 nodes / 96 links | 762 | ~5.47 MiB |
 | Physical WebGL | 2,000 simulated points | 188 | ~6.15 MiB |
 
-The final transient budget-validation run also passed:
+The final transient budget-validation run passed with both Lab 08A and Lab 08B budgets enforced simultaneously:
 
 - normal 3×54 seek growth: ~**+1.45 MiB**
 - high-density 12×54 seek growth: ~**+2.13 MiB**
-- JS gzip: **319,571 bytes**, still below the unchanged 08A **380,000-byte** limit
-- CSS gzip: **25,068 bytes**, still below the unchanged **32,000-byte** limit
-- all structural/semantic stress assertions
+- JS gzip: **319,571 bytes**, below the unchanged 08A **380,000-byte** limit
+- CSS gzip: **25,068 bytes**, below the unchanged **32,000-byte** limit
+- all renderer structural counts and stress-specific DOM/heap ceilings
+- all semantic assertions
 - no horizontal-overflow or document-scroll regressions
 - no runtime/console failures
 
