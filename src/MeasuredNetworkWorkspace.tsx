@@ -1,13 +1,11 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ingestNetworkDiagnosticsReportV2,
-  type NetworkDiagnosticsIngestion,
-} from './measurement/networkDiagnosticsAdapter.ts';
+import { ingestNetworkDiagnosticsReportV2 } from './measurement/networkDiagnosticsAdapter.ts';
 import {
   measuredFactsByCategory,
   measuredFreshnessAt,
   type MeasuredFreshness,
+  type MeasuredSnapshotState,
 } from './measurement/state.ts';
 import type {
   NativeMeasurementCategory,
@@ -144,10 +142,9 @@ function SemanticGlyph({ category }: { category: NativeMeasurementCategory }) {
   </div>;
 }
 
-export function MeasuredNetworkWorkspace({ onExit }: { onExit: () => void }) {
+export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange, onExit }: { measuredState: MeasuredSnapshotState | null; onMeasuredStateChange: (state: MeasuredSnapshotState | null) => void; onExit: () => void }) {
   const reduceMotion = useReducedMotion();
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [ingestion, setIngestion] = useState<NetworkDiagnosticsIngestion | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<NativeMeasurementCategory>('interface');
@@ -155,29 +152,30 @@ export function MeasuredNetworkWorkspace({ onExit }: { onExit: () => void }) {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
-    if (ingestion === null) return;
+    if (measuredState === null) return;
     const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
     return () => window.clearInterval(timer);
-  }, [ingestion]);
+  }, [measuredState]);
 
   const categoryCounts = useMemo(() => {
     const counts = new Map<NativeMeasurementCategory, number>();
-    for (const category of CATEGORY_ORDER) counts.set(category, ingestion ? measuredFactsByCategory(ingestion.state, category).length : 0);
+    for (const category of CATEGORY_ORDER) counts.set(category, measuredState ? measuredFactsByCategory(measuredState, category).length : 0);
     return counts;
-  }, [ingestion]);
+  }, [measuredState]);
 
   const selectedFacts = useMemo(
-    () => ingestion ? measuredFactsByCategory(ingestion.state, selectedCategory) : [],
-    [ingestion, selectedCategory],
+    () => measuredState ? measuredFactsByCategory(measuredState, selectedCategory) : [],
+    [measuredState, selectedCategory],
   );
   const selectedGroups = useMemo(() => groupFacts(selectedFacts), [selectedFacts]);
   const activeTargetGroup = selectedGroups.find((group) => targetKey(group.target) === selectedTargetKey) ?? selectedGroups[0] ?? null;
-  const freshness = ingestion ? measuredFreshnessAt(ingestion.state, nowMs) : null;
+  const freshness = measuredState ? measuredFreshnessAt(measuredState, nowMs) : null;
   const categoryCopy = CATEGORY_COPY[selectedCategory];
+  const skippedSections = measuredState?.snapshot.warnings.filter((warning) => warning.includes(':') || warning.startsWith('unknown root fields ignored:')) ?? [];
 
-  const chooseBestCategory = (next: NetworkDiagnosticsIngestion) => {
+  const chooseBestCategory = (next: MeasuredSnapshotState) => {
     const preferred: NativeMeasurementCategory[] = ['transport', 'route', 'interface', 'dns', 'icmp', 'traceroute', 'packet-capture'];
-    const first = preferred.find((category) => measuredFactsByCategory(next.state, category).length > 0);
+    const first = preferred.find((category) => measuredFactsByCategory(next, category).length > 0);
     setSelectedCategory(first ?? 'interface');
     setSelectedTargetKey(null);
   };
@@ -195,17 +193,17 @@ export function MeasuredNetworkWorkspace({ onExit }: { onExit: () => void }) {
       const text = await file.text();
       const parsed: unknown = JSON.parse(text);
       const next = ingestNetworkDiagnosticsReportV2(parsed);
-      setIngestion(next);
+      onMeasuredStateChange(next.state);
       setFileName(file.name);
       setNowMs(Date.now());
-      chooseBestCategory(next);
+      chooseBestCategory(next.state);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to import this Network Diagnostics report.');
     }
   };
 
   const clear = () => {
-    setIngestion(null);
+    onMeasuredStateChange(null);
     setFileName(null);
     setError(null);
     setSelectedCategory('interface');
@@ -214,7 +212,7 @@ export function MeasuredNetworkWorkspace({ onExit }: { onExit: () => void }) {
 
   return <motion.section
     className="measured-workspace"
-    data-measured-loaded={ingestion ? 'true' : 'false'}
+    data-measured-loaded={measuredState ? 'true' : 'false'}
     initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.987, filter: 'blur(12px)' }}
     animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
     exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.012, filter: 'blur(8px)' }}
@@ -227,8 +225,8 @@ export function MeasuredNetworkWorkspace({ onExit }: { onExit: () => void }) {
       </div>
       <div className="measured-heading-actions">
         <span className="measured-truth-chip">LOCAL MEASURED · BOUNDED · NOT GLOBAL</span>
-        <button className="lab-mode" type="button" onClick={() => inputRef.current?.click()}>{ingestion ? 'IMPORT ANOTHER' : 'IMPORT REPORT'}</button>
-        {ingestion && <button className="lab-mode measured-clear" type="button" onClick={clear}>CLEAR</button>}
+        <button className="lab-mode" type="button" onClick={() => inputRef.current?.click()}>{measuredState ? 'IMPORT ANOTHER' : 'IMPORT REPORT'}</button>
+        {measuredState && <button className="lab-mode measured-clear" type="button" onClick={clear}>CLEAR</button>}
         <button className="lab-mode" type="button" onClick={onExit}>EXIT LAB</button>
         <input ref={inputRef} className="measured-file-input" type="file" accept=".json,application/json" onChange={(event) => void importFile(event)} />
       </div>
@@ -245,21 +243,21 @@ export function MeasuredNetworkWorkspace({ onExit }: { onExit: () => void }) {
 
     <AnimatePresence mode="wait" initial={false}>
       {error && <motion.div key={error} className="measured-error" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-        <strong>IMPORT REJECTED</strong><span>{error}</span>{ingestion && <small>THE PREVIOUS VALID REPORT REMAINS ACTIVE.</small>}
+        <strong>IMPORT REJECTED</strong><span>{error}</span>{measuredState && <small>THE PREVIOUS VALID REPORT REMAINS ACTIVE.</small>}
       </motion.div>}
     </AnimatePresence>
 
-    {!ingestion ? <section className="measured-empty">
+    {!measuredState ? <section className="measured-empty">
       <SemanticGlyph category="route" />
       <div><strong>NO LOCAL MEASUREMENT LOADED</strong><p>Import a Network Diagnostics Suite report-v2 JSON file. HOPSCOTCH will not probe localhost, upload the file, or invent measurements for sections that were not captured.</p></div>
       <button type="button" onClick={() => inputRef.current?.click()}>CHOOSE JSON REPORT <span>↗</span></button>
     </section> : <>
       <section className="measured-capture-strip" aria-label="Imported measurement capture">
-        <div className="capture-source"><span className="provenance measured">LOCAL MEASURED</span><div><small>SOURCE</small><strong>{ingestion.snapshot.source.tool}</strong><span>{ingestion.snapshot.source.platform.toUpperCase()} · ADAPTER {ingestion.snapshot.source.adapterVersion}</span></div></div>
+        <div className="capture-source"><span className="provenance measured">LOCAL MEASURED</span><div><small>SOURCE</small><strong>{measuredState.snapshot.source.tool}</strong><span>{measuredState.snapshot.source.platform.toUpperCase()} · ADAPTER {measuredState.snapshot.source.adapterVersion}</span></div></div>
         <div><span>REPORT</span><strong>{fileName ?? 'IMPORTED JSON'}</strong></div>
-        <div><span>FACTS</span><strong>{ingestion.state.availability.total}</strong><small>{ingestion.state.availability.available} available · {ingestion.state.availability.partial} partial · {ingestion.state.availability.unavailable} unavailable</small></div>
+        <div><span>FACTS</span><strong>{measuredState.availability.total}</strong><small>{measuredState.availability.available} available · {measuredState.availability.partial} partial · {measuredState.availability.unavailable} unavailable</small></div>
         <div className={`capture-freshness state-${freshness?.classification ?? 'fresh'}`}><span>CAPTURE AGE</span><strong>{freshness ? freshnessLabel(freshness.classification) : '—'}</strong><small>{freshness ? captureAgeLabel(freshness.ageMs) : '—'}</small></div>
-        <div><span>COMPLETED</span><strong>{new Date(ingestion.snapshot.capture.completedAt).toLocaleString()}</strong></div>
+        <div><span>COMPLETED</span><strong>{new Date(measuredState.snapshot.capture.completedAt).toLocaleString()}</strong></div>
       </section>
 
       <div className="measured-main">
@@ -310,9 +308,9 @@ export function MeasuredNetworkWorkspace({ onExit }: { onExit: () => void }) {
             <div><dt>GLOBAL COMPLETE</dt><dd>FALSE</dd></div>
             <div><dt>SNAPSHOT TARGET</dt><dd>MULTI-TARGET / NONE</dd></div>
           </dl>
-          <section><span>LIMITATIONS</span>{ingestion.snapshot.scope.limitations.map((line) => <p key={line}>{line}</p>)}</section>
-          {ingestion.skippedSections.length > 0 && <section className="measured-skipped"><span>NOT PROMOTED TO LOCAL MEASURED</span>{ingestion.skippedSections.map((line) => <p key={line}>{line}</p>)}</section>}
-          {ingestion.snapshot.warnings.length > 0 && <details><summary>ALL ADAPTER WARNINGS · {ingestion.snapshot.warnings.length}</summary><div>{ingestion.snapshot.warnings.map((line) => <p key={line}>{line}</p>)}</div></details>}
+          <section><span>LIMITATIONS</span>{measuredState.snapshot.scope.limitations.map((line) => <p key={line}>{line}</p>)}</section>
+          {skippedSections.length > 0 && <section className="measured-skipped"><span>NOT PROMOTED TO LOCAL MEASURED</span>{skippedSections.map((line) => <p key={line}>{line}</p>)}</section>}
+          {measuredState.snapshot.warnings.length > 0 && <details><summary>ALL ADAPTER WARNINGS · {measuredState.snapshot.warnings.length}</summary><div>{measuredState.snapshot.warnings.map((line) => <p key={line}>{line}</p>)}</div></details>}
           <footer><span>SESSION ONLY</span><strong>NOT STORED · NOT UPLOADED</strong></footer>
         </aside>
       </div>

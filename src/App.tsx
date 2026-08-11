@@ -14,6 +14,7 @@ import { NetworkBuilder } from './NetworkBuilder';
 import { NetworkField } from './NetworkField';
 import { ObservedInternet } from './ObservedInternet';
 import { MeasuredNetworkWorkspace } from './MeasuredNetworkWorkspace';
+import type { MeasuredSnapshotState } from './measurement/state.ts';
 import { PacketMicroscope } from './PacketMicroscope';
 import { PhysicalInternetGlobe } from './PhysicalInternetGlobe';
 import { TcpTheater } from './TcpTheater';
@@ -55,6 +56,7 @@ export default function App() {
   const [journeyStartPlaying, setJourneyStartPlaying] = useState(!initialSharedJourney);
   const [journeyReturnPending, setJourneyReturnPending] = useState(false);
   const [journeyEvidence, setJourneyEvidence] = useState<InternetEvidenceSnapshot | null>(null);
+  const [measuredSession, setMeasuredSession] = useState<MeasuredSnapshotState | null>(null);
   const [journeyScenarioName, setJourneyScenarioName] = useState(initialSharedJourney?.name ?? '');
   const [journeyRenderKey, setJourneyRenderKey] = useState(0);
   const reduceMotion = useReducedMotion();
@@ -265,7 +267,7 @@ export default function App() {
             <footer className="timeline-preview"><div className="timeline-labels"><span>TIME MACHINE</span><span>00:00.000</span></div><div className="timeline-track" aria-hidden="true"><i /><b /></div><span className="timeline-note">Lab 01 failure · Lab 02 packet · Lab 03 protocols · Lab 04 builder · Lab 05 Internet · Lab 06 Journey · Lab 09 measured</span></footer>
           </motion.div>
         ) : activeLab === 'journey' ? (
-          <JourneyTheater key={`lab06-${journeyRenderKey}`} hostname={journeyHostname} timeMs={journeyTimeMs} startPlaying={journeyStartPlaying} evidence={journeyEvidence} onHostnameChange={setJourneyHostname} onTimeChange={setJourneyTimeMs} onEvidenceChange={setJourneyEvidence} onOpenDetail={openJourneyDetail} onExit={exitLabs} />
+          <JourneyTheater key={`lab06-${journeyRenderKey}`} hostname={journeyHostname} timeMs={journeyTimeMs} startPlaying={journeyStartPlaying} evidence={journeyEvidence} measuredState={measuredSession} onHostnameChange={setJourneyHostname} onTimeChange={setJourneyTimeMs} onEvidenceChange={setJourneyEvidence} onOpenDetail={openJourneyDetail} onExit={exitLabs} />
         ) : activeLab === 'packet' ? (
           <PacketMicroscope key="lab02" onExit={exitActiveLab} onOpenSourceEvent={() => openFailureLab(5400, false)} />
         ) : activeLab === 'tcp' ? (
@@ -285,7 +287,7 @@ export default function App() {
         ) : activeLab === 'observed' ? (
           <ObservedInternet key="lab05-observed" onExit={exitActiveLab} onOpenSimulated={openInternetLab} />
         ) : activeLab === 'measured' ? (
-          <MeasuredNetworkWorkspace key="lab09-measured" onExit={exitActiveLab} />
+          <MeasuredNetworkWorkspace key="lab09-measured" measuredState={measuredSession} onMeasuredStateChange={setMeasuredSession} onExit={exitActiveLab} />
         ) : (
           <motion.section key="lab01" className="lab-workspace" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.985, filter: 'blur(14px)' }} animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.02, filter: 'blur(10px)' }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
             <header className="lab-heading"><div><p className="eyebrow">Lab 01 · Failure & recovery</p><h1>BREAK THE ROUTE.<br /><span>WATCH IT THINK.</span></h1></div><div className="lab-heading-actions"><button type="button" className={labXray ? 'lab-mode active' : 'lab-mode'} onClick={() => setLabXray((current) => !current)}>X-RAY {labXray ? 'ON' : 'OFF'}</button><button type="button" className="lab-mode" onClick={exitActiveLab}>EXIT LAB</button></div></header>

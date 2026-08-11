@@ -3,6 +3,8 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { InternetEvidenceError, InternetEvidenceSnapshot } from './internet/evidence';
 import { JourneyCongestionPanel } from './JourneyCongestionPanel';
 import { JourneyServerFailurePanel } from './JourneyServerFailurePanel';
+import { MeasuredEvidenceSidecar } from './MeasuredEvidenceSidecar';
+import type { MeasuredSnapshotState } from './measurement/state.ts';
 import { JourneyLatencyPanel } from './JourneyLatencyPanel';
 import { JourneyPolicyLeakPanel } from './JourneyPolicyLeakPanel';
 import { readJourneyBrowserConfig, writeJourneyBrowserConfig } from './journey/browser.ts';
@@ -263,11 +265,12 @@ function SemanticScene({ state, hostname, address }: { state: JourneyState; host
   return <ApplicationScene state={state} hostname={hostname} address={address}/>;
 }
 
-export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, onHostnameChange, onTimeChange, onEvidenceChange, onOpenDetail, onExit }: {
+export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, measuredState, onHostnameChange, onTimeChange, onEvidenceChange, onOpenDetail, onExit }: {
   hostname: string;
   timeMs: number;
   startPlaying: boolean;
   evidence: InternetEvidenceSnapshot | null;
+  measuredState: MeasuredSnapshotState | null;
   onHostnameChange: (hostname: string) => void;
   onTimeChange: (timeMs: number) => void;
   onEvidenceChange: (evidence: InternetEvidenceSnapshot | null) => void;
@@ -381,6 +384,7 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, onHos
   const serverFailureSelected = selectedModifiers.includes('server-failure');
   const routeLeakSelected = selectedModifiers.includes('route-leak');
   const partitionSelected = selectedModifiers.includes('partition');
+  const measuredScene = state.scale === 'routing' ? 'routing' : state.scale === 'transport' ? 'transport' : state.scale === 'application' && state.protocol === 'DNS' ? 'dns' : null;
 
   return <motion.section className="journey-workspace" data-profile={profile} data-dns-profile={dnsProfile} data-impairment={impairmentProfile} data-modifiers={selectedModifiers.join(' ')} initial={reduceMotion ? {opacity:1}:{opacity:0,scale:.985}} animate={{opacity:1,scale:1}} exit={{opacity:0}}>
     <header className="journey-heading"><div><p className="eyebrow">Lab 07 · GOD MODE Journey</p><h1>ONE REQUEST.<br/><span>BREAK THE PATH.</span></h1></div><div className="journey-heading-actions"><span>{profileLabel} · {dnsLabel} · {godModeLabel} · {scenario.events.length} EVENTS</span><button className="lab-mode" type="button" onClick={onExit}>EXIT JOURNEY</button></div></header>
@@ -392,7 +396,7 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, onHos
         <div className="journey-stage-meta"><div><span>TIME</span><strong>{formatTime(timeMs)}</strong></div><div><span>SCALE</span><strong>{state.scale.toUpperCase()}</strong></div><div><span>TRANSPORT</span><strong>{profileLabel}</strong></div><div><span>DNS PATH</span><strong>{dnsLabel}</strong></div><div><span>ACTIVE PHASE</span><strong className={toneClass}>{state.impairmentState.toUpperCase()}</strong></div><div><span>PROTOCOL</span><strong>{state.protocol}</strong></div><div><span>PROVENANCE</span><strong className={provenanceClass(state.provenance)}>{state.provenance}</strong></div></div>
         <div className="journey-camera">
           <nav className="journey-depth" aria-label="Active Journey scale">{scaleOrder.map((scale)=><div key={scale} className={`${scale===state.scale?'active':''} ${JOURNEY_SCALE_DEPTH[scale] < state.scaleDepth?'behind':''}`}><i/><span>{scale.toUpperCase()}</span><small>0{JOURNEY_SCALE_DEPTH[scale]+1}</small></div>)}</nav>
-          <div className="journey-scene-shell"><div className="depth-rings" aria-hidden="true"><i/><i/><i/><i/></div><AnimatePresence mode="wait" initial={false}><motion.div key={`${state.scale}:${mode}`} className="journey-scene-transition" initial={reduceMotion ? {opacity:1}:{opacity:0,scale:enteringScale,filter:'blur(12px)'}} animate={{opacity:1,scale:1,filter:'blur(0px)'}} exit={reduceMotion ? {opacity:0}:{opacity:0,scale:state.zoom==='out'?.72:1.24,filter:'blur(10px)'}} transition={reduceMotion ? {duration:0} : {duration:.46,ease:[.16,1,.3,1]}}><SemanticScene state={state} hostname={scenario.hostname} address={scenario.destinationAddress}/></motion.div></AnimatePresence></div>
+          <div className={`journey-scene-shell ${measuredState && measuredScene ? 'measured-evidence-active' : ''}`}><div className="depth-rings" aria-hidden="true"><i/><i/><i/><i/></div><AnimatePresence mode="wait" initial={false}><motion.div key={`${state.scale}:${mode}`} className="journey-scene-transition" initial={reduceMotion ? {opacity:1}:{opacity:0,scale:enteringScale,filter:'blur(12px)'}} animate={{opacity:1,scale:1,filter:'blur(0px)'}} exit={reduceMotion ? {opacity:0}:{opacity:0,scale:state.zoom==='out'?.72:1.24,filter:'blur(10px)'}} transition={reduceMotion ? {duration:0} : {duration:.46,ease:[.16,1,.3,1]}}><SemanticScene state={state} hostname={scenario.hostname} address={scenario.destinationAddress}/></motion.div></AnimatePresence><MeasuredEvidenceSidecar measuredState={measuredState} scene={measuredScene} hostname={scenario.hostname} destinationAddress={scenario.destinationAddress}/></div>
           <AnimatePresence mode="wait" initial={false}><motion.article key={state.activeEvent.id} className={`journey-callout ${calloutClass}`} initial={reduceMotion?{opacity:1}:{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={reduceMotion ? {duration:0} : {duration:.24}}><div><span>{formatTime(state.activeEvent.atMs)}</span><b className={provenanceClass(state.activeEvent.provenance)}>{state.activeEvent.provenance}</b></div><h2>{state.activeEvent.title}</h2><p>{state.activeEvent.summary}</p><small>{state.activeEvent.detail}</small>{detail&&<button type="button" onClick={()=>{setPlaying(false);onOpenDetail(detail,timeMs)}}>OPEN {detail.toUpperCase()} DETAIL ↗</button>}</motion.article></AnimatePresence>
         </div>
         <div className="journey-state-strip"><div><span>DNS</span><strong className={dnsFailureSelected?toneClass:''}>{dnsStateLabel}</strong></div><div><span>ROUTE</span><strong className={routeSelected?toneClass:''}>{state.route.toUpperCase()}</strong></div><div><span>{profile==='quic-h3'?'QUIC':'TCP'}</span><strong className={lossSelected||latencySelected||outageSelected||congestionSelected||partitionSelected?toneClass:''}>{transportStateLabel}</strong></div><div><span>TLS</span><strong>{state.tls.toUpperCase()}</strong></div><div><span>{profile==='quic-h3'?'H3':'H2'}</span><strong>{state.http.toUpperCase()}</strong></div><div><span>PACKET</span><strong>{state.packet.toUpperCase()}</strong></div></div>
