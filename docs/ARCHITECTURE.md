@@ -240,6 +240,8 @@ A public collector path is not the viewer's packet path. Optional live evidence 
 
 `LOCAL MEASURED` is observational, not global truth. Native measurement schema v1 requires `vantage = local-host`, `completeness = bounded`, `globalComplete = false`, explicit limitations, adapter/tool identity, a bounded capture interval, and per-fact timestamps/targets. Arbitrary nested model objects are rejected as measured values so a native adapter cannot launder Journey events, modifiers, inferred topology, or other canonical state into the measured evidence channel.
 
+Validated native snapshots project into a separate `hopscotch.measured-state` model. That model indexes and classifies measured facts only; it does not import Journey code, expose Journey event/modifier/scenario types, enter the modifier pipeline, or mutate canonical time/reducer state. Target-specific snapshots remain separate rather than being merged into a supposed global view. Capture freshness is presentation metadata computed from an explicit caller-supplied `now`, never a hidden model clock or a network outcome.
+
 ## 8. Data adapters + Cloudflare Worker
 
 The Worker is an adapter layer and static-file runtime. Current responsibilities include:
@@ -318,6 +320,7 @@ Current validation layers:
 17. **High-density renderer contracts** — query-only deterministic fixtures exercise AS Canvas at 160/220, Builder at its real 32/96 authoring ceiling, the physical WebGL buffer at 2,000 SIMULATED points, and a 12×54 seek churn pass with separate hosted-baseline stress ceilings.
 18. **Browser/GPU compatibility matrix** — the exact production artifact runs in hosted Chrome default, explicit SwiftShader, and WebGL-disabled modes plus a real Firefox/Gecko WebDriver + BiDi semantic pass. Renderer capability may select WebGL or the explicit fallback, but canonical network state must remain identical.
 19. **Native measurement provenance contract** — schema-v1 parsing/round trips and negative fixtures prove `LOCAL MEASURED` facts remain local-vantage, time-bounded, target-explicit, source-attributed, non-global, and structurally unable to embed canonical Journey/model objects as measured truth.
+20. **Measured-state separation contract** — projection/indexing, target isolation, partial/unavailable preservation, explicit-time freshness, zero Journey imports/types, and byte/deep-equal Journey reconstruction before/after measured snapshot replacement prove observational state cannot rewrite simulated truth.
 
 ## Performance rules
 
@@ -342,12 +345,12 @@ Current validation layers:
 
 ## Architectural direction
 
-The original proof was one routed-link failure/recovery scenario. The architecture now spans packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, deterministic multi-cause GOD MODE composition, cross-layer outage recovery, ECN queue/congestion response, DNS timeout/retry behavior, HTTP service-unavailable retry, terminal network partition behavior, BGP route-leak policy anomalies that keep reachability separate from policy correctness, a production-artifact performance budget that measures renderer cost without making frame timing part of simulation truth, deterministic high-density stress fixtures that exercise the real Canvas/DOM-SVG/WebGL boundaries without changing default scenes, a Chrome/Firefox compatibility matrix that proves renderer/GPU fallback does not change semantic truth, and a fail-closed native provenance contract established before any local measurement adapter is connected.
+The original proof was one routed-link failure/recovery scenario. The architecture now spans packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, deterministic multi-cause GOD MODE composition, cross-layer outage recovery, ECN queue/congestion response, DNS timeout/retry behavior, HTTP service-unavailable retry, terminal network partition behavior, BGP route-leak policy anomalies that keep reachability separate from policy correctness, a production-artifact performance budget that measures renderer cost without making frame timing part of simulation truth, deterministic high-density stress fixtures that exercise the real Canvas/DOM-SVG/WebGL boundaries without changing default scenes, a Chrome/Firefox compatibility matrix that proves renderer/GPU fallback does not change semantic truth, and a native-measurement architecture with both fail-closed provenance validation and a separate measured-state projection that cannot rewrite Journey truth.
 
 The next pressure points are:
 
 - loss-based or AQM variants of congestion only where they remain explicitly distinct from the current zero-drop ECN story
 - native adapter/bridge integration that emits only validated `LOCAL MEASURED` snapshots
-- projection of measured facts into semantic scenes without mutating simulated Journey truth
+- measured-mode semantic scenes that consume the separate measured-state model without mutating simulated Journey truth
 
 Those additions should extend the canonical-event/modifier/reducer boundary rather than bypass it.
