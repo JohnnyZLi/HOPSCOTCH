@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -14,9 +14,6 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: agent/lab-07g-server-service-unavailable
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -31,24 +28,3 @@ jobs:
           path: dist
           if-no-files-found: error
           retention-days: 3
-      - name: Commit validated Lab 07G workspace
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/lab-07g-server-service-unavailable'
-        shell: bash
-        run: |
-          git checkout origin/main -- .github/workflows/ci.yml package.json
-          python3 <<'PY'
-          import json
-          from pathlib import Path
-          path = Path('package.json')
-          data = json.loads(path.read_text())
-          scripts = data['scripts']
-          scripts['test:journey-server-failure-contract'] = 'node scripts/journey-server-failure-contract-check.mjs'
-          scripts['check'] = scripts['check'].replace('npm run test:journey-dns-failure-contract && npm run build', 'npm run test:journey-dns-failure-contract && npm run test:journey-server-failure-contract && npm run build')
-          path.write_text(json.dumps(data, indent=2) + '\n')
-          PY
-          rm scripts/apply-lab07g.py
-          git config user.name "HOPSCOTCH Agent"
-          git config user.email "actions@users.noreply.github.com"
-          git add -A
-          git commit -m "Lab 07G: model server service unavailable" -m "Adds deterministic HTTP 503/Retry-After semantics, safe GET replay on the same established connection, server state metrics, GOD MODE UI support, persistence compatibility, and permanent contracts. Closes #48."
-          git push origin HEAD:agent/lab-07g-server-service-unavailable
