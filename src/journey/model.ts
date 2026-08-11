@@ -395,7 +395,10 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
       case 'transport.segment': transport = 'handshake'; break;
       case 'transport.established': transport = 'established'; break;
       case 'transport.loss': impairmentState = 'lost'; break;
-      case 'transport.loss-detected': impairmentState = 'detected'; break;
+      case 'transport.loss-detected':
+        impairmentState = 'detected';
+        transportMetrics = current.transportMetrics ?? transportMetrics;
+        break;
       case 'transport.retransmit': impairmentState = 'recovering'; break;
       case 'transport.recovered': impairmentState = 'recovered'; break;
       case 'transport.latency':

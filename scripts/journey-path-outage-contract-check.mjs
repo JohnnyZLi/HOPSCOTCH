@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readJourneyBrowserConfig, writeJourneyBrowserConfig } from '../src/journey/browser.ts';
-import { buildJourneyScenario } from '../src/journey/model.ts';
+import { buildJourneyScenario, journeyStateAt } from '../src/journey/model.ts';
 import { normalizeJourneyModifierIds } from '../src/journey/modifiers.ts';
 import { createPortableJourneyScenario } from '../src/journey/scenario.ts';
 
@@ -45,6 +45,7 @@ assert.deepEqual(
 );
 assert.equal(event(tcp, 'tcp-outage-rto').transportMetrics.timerLabel, 'RTO');
 assert.equal(event(tcp, 'tcp-outage-rto').transportMetrics.timerMs, 1000);
+assert.equal(journeyStateAt(tcp, event(tcp, 'tcp-outage-rto').atMs).transportMetrics?.timerMs, 1000);
 assert.match(event(tcp, 'tcp-outage-rto').detail, /not the duplicate-ACK fast-retransmit story/i);
 assert.ok(event(tcp, 'path-outage-alternate-installed').atMs < event(tcp, 'tcp-outage-retransmit').atMs);
 assertStrict(tcp);
@@ -58,6 +59,7 @@ assert.deepEqual(
 );
 assert.equal(event(quic, 'quic-outage-pto1').transportMetrics.timerLabel, 'PTO');
 assert.equal(event(quic, 'quic-outage-pto1').transportMetrics.timerMs, 89);
+assert.equal(journeyStateAt(quic, event(quic, 'quic-outage-pto1').atMs).transportMetrics?.timerMs, 89);
 assert.ok(event(quic, 'quic-outage-probe').atMs < event(quic, 'path-outage-alternate-installed').atMs);
 assert.ok(event(quic, 'path-outage-alternate-installed').atMs < event(quic, 'quic-outage-retransmit').atMs);
 assert.match(event(quic, 'quic-outage-retransmit').title, /new packet 4216/i);
