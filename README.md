@@ -154,4 +154,4 @@ npm run deploy
 
 The core product architecture and the full curated Lab 07 GOD MODE modifier series are implemented: deterministic routing, packet inspection, protocol theater, topology authoring, Internet-scale policy/physical views, the cross-scale URL Journey, portable scenarios, multi-cause composition, recoverable cross-layer failures, congestion, application/DNS failures, terminal partition state, and BGP policy anomalies all exist as integrated experiences.
 
-Current work is hardening the renderer for the next scale of the project: **production performance budgets, high-density stress scenarios, broader browser/GPU compatibility, and future native/measured data sources for facts browsers cannot legitimately observe**.
+Production performance budgets and deterministic high-density stress profiles now cover the normal product, the 160/220 AS Canvas fixture, Builder at its real 32/96 ceiling, a 2,000-point SIMULATED WebGL fixture, and repeated Journey churn. Current hardening work is **broader browser/GPU compatibility and future native/measured data sources for facts browsers cannot legitimately observe**.

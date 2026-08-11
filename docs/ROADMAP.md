@@ -326,7 +326,7 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] Canvas for dense AS scenes
 - [x] WebGL for physical Internet scale
 - [x] renderer performance budget and profiling harness
-- [ ] high-density stress scenarios
+- [x] high-density stress scenarios
 - [ ] broader browser/GPU compatibility pass
 
 ## Non-goals
