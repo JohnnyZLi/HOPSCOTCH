@@ -293,9 +293,9 @@ profiles.push(
 );
 
 if (compatibility) profiles.push(
-  { id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', '500 Mbps', 'NOT PROMOTED TO LOCAL MEASURED'] },
-  { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', '500 Mbps'], assertMeasuredMobile: true },
-  { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', '500 Mbps'] },
+  { id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', 'NOT PROMOTED TO LOCAL MEASURED'] },
+  { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
+  { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
 );
 
 async function waitForExpression(cdp, expression, timeoutMs = 5000) {
@@ -327,7 +327,15 @@ async function exerciseMeasuredWorkspace(cdp, profile) {
 
   await setFileInput(cdp, '.measured-file-input', measuredFixturePath);
   await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
-  await waitForExpression(cdp, `document.body.innerText.includes('Network Diagnostics Engine') && document.body.innerText.includes('500 Mbps')`, 8000);
+  await waitForExpression(cdp, `document.body.innerText.includes('Network Diagnostics Engine') && document.querySelectorAll('.measured-target-selector button').length > 1`, 8000);
+  const selectedThroughput = await cdp.evaluate(`(()=>{
+    const button=[...document.querySelectorAll('.measured-target-selector button')].find((candidate)=>candidate.textContent?.includes('speed.example.test'));
+    if(!button)return false;
+    button.click();
+    return true;
+  })()`);
+  if (!selectedThroughput) throw new Error(`${profile.id} could not select the transfer target scope.`);
+  await waitForExpression(cdp, `document.body.innerText.includes('500 Mbps')`, 8000);
   const loaded = await cdp.evaluate(`(()=>({
     text:document.body.innerText,
     innerWidth,
@@ -367,10 +375,11 @@ async function exerciseMeasuredWorkspace(cdp, profile) {
 
   await setFileInput(cdp, '.measured-file-input', measuredFixturePath);
   await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
-  await waitForExpression(cdp, `document.body.innerText.includes('500 Mbps')`, 8000);
+  await waitForExpression(cdp, `document.body.innerText.includes('Network Diagnostics Engine')`, 8000);
   return {
     validFactCount: loaded.factCount,
     categoryCount: loaded.categoryCount,
+    targetScopeSelectionVerified: true,
     rejectedReplacementPreserved: true,
     clearReturnedToEmpty: true,
   };

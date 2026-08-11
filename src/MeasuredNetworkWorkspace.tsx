@@ -151,6 +151,7 @@ export function MeasuredNetworkWorkspace({ onExit }: { onExit: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<NativeMeasurementCategory>('interface');
+  const [selectedTargetKey, setSelectedTargetKey] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -170,6 +171,7 @@ export function MeasuredNetworkWorkspace({ onExit }: { onExit: () => void }) {
     [ingestion, selectedCategory],
   );
   const selectedGroups = useMemo(() => groupFacts(selectedFacts), [selectedFacts]);
+  const activeTargetGroup = selectedGroups.find((group) => targetKey(group.target) === selectedTargetKey) ?? selectedGroups[0] ?? null;
   const freshness = ingestion ? measuredFreshnessAt(ingestion.state, nowMs) : null;
   const categoryCopy = CATEGORY_COPY[selectedCategory];
 
@@ -177,6 +179,7 @@ export function MeasuredNetworkWorkspace({ onExit }: { onExit: () => void }) {
     const preferred: NativeMeasurementCategory[] = ['transport', 'route', 'interface', 'dns', 'icmp', 'traceroute', 'packet-capture'];
     const first = preferred.find((category) => measuredFactsByCategory(next.state, category).length > 0);
     setSelectedCategory(first ?? 'interface');
+    setSelectedTargetKey(null);
   };
 
   const importFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -206,6 +209,7 @@ export function MeasuredNetworkWorkspace({ onExit }: { onExit: () => void }) {
     setFileName(null);
     setError(null);
     setSelectedCategory('interface');
+    setSelectedTargetKey(null);
   };
 
   return <motion.section
@@ -263,7 +267,7 @@ export function MeasuredNetworkWorkspace({ onExit }: { onExit: () => void }) {
           <header><span>MEASURED DOMAINS</span><small>SELECT ONE</small></header>
           {CATEGORY_ORDER.map((category) => {
             const count = categoryCounts.get(category) ?? 0;
-            return <button key={category} type="button" className={selectedCategory === category ? 'active' : ''} onClick={() => setSelectedCategory(category)}>
+            return <button key={category} type="button" className={selectedCategory === category ? 'active' : ''} onClick={() => { setSelectedCategory(category); setSelectedTargetKey(null); }}>
               <span><small>{CATEGORY_COPY[category].kicker}</small><strong>{CATEGORY_COPY[category].label}</strong></span><b>{count}</b>
             </button>;
           })}
@@ -275,16 +279,27 @@ export function MeasuredNetworkWorkspace({ onExit }: { onExit: () => void }) {
             <div><span>{categoryCopy.kicker}</span><h2>{categoryCopy.label.toUpperCase()}</h2><p>{categoryCopy.description}</p></div>
             <SemanticGlyph category={selectedCategory} />
           </header>
-          {selectedGroups.length === 0 ? <div className="measured-category-empty"><strong>NO {categoryCopy.label.toUpperCase()} FACTS</strong><span>This report did not provide a whitelisted measurement in this category. HOPSCOTCH will not fill the gap from simulation.</span></div> : <div className="measured-target-groups">
-            {selectedGroups.map((group) => <article key={targetKey(group.target)} className="measured-target-group">
-              <header><div><span>TARGET SCOPE</span><strong>{targetLabel(group.target)}</strong></div><small>{group.facts.length} FACT{group.facts.length === 1 ? '' : 'S'}</small></header>
-              <div className="measured-fact-list">{group.facts.map((fact) => <div key={fact.id} className={`measured-fact state-${fact.availability}`} data-fact-id={fact.id}>
-                <div><span>{fact.subject}</span><small>{fact.availability.toUpperCase()} · {new Date(fact.observedAt).toLocaleTimeString()}</small></div>
-                <strong>{formatValue(fact.value, fact.unit)}</strong>
-                <p>{fact.note}</p>
-              </div>)}</div>
-            </article>)}
-          </div>}
+          <div className="measured-scene-body">
+            {selectedGroups.length > 1 && <nav className="measured-target-selector" aria-label={`${categoryCopy.label} target scopes`}>
+              {selectedGroups.map((group) => {
+                const key = targetKey(group.target);
+                const active = activeTargetGroup !== null && targetKey(activeTargetGroup.target) === key;
+                return <button key={key} type="button" className={active ? 'active' : ''} onClick={() => setSelectedTargetKey(key)}>
+                  <span>{targetLabel(group.target)}</span><b>{group.facts.length}</b>
+                </button>;
+              })}
+            </nav>}
+            {selectedGroups.length === 0 ? <div className="measured-category-empty"><strong>NO {categoryCopy.label.toUpperCase()} FACTS</strong><span>This report did not provide a whitelisted measurement in this category. HOPSCOTCH will not fill the gap from simulation.</span></div> : activeTargetGroup && <div className="measured-target-groups">
+              <article key={targetKey(activeTargetGroup.target)} className="measured-target-group">
+                <header><div><span>TARGET SCOPE</span><strong>{targetLabel(activeTargetGroup.target)}</strong></div><small>{activeTargetGroup.facts.length} FACT{activeTargetGroup.facts.length === 1 ? '' : 'S'}</small></header>
+                <div className="measured-fact-list">{activeTargetGroup.facts.map((fact) => <div key={fact.id} className={`measured-fact state-${fact.availability}`} data-fact-id={fact.id}>
+                  <div><span>{fact.subject}</span><small>{fact.availability.toUpperCase()} · {new Date(fact.observedAt).toLocaleTimeString()}</small></div>
+                  <strong>{formatValue(fact.value, fact.unit)}</strong>
+                  <p>{fact.note}</p>
+                </div>)}</div>
+              </article>
+            </div>}
+          </div>
         </section>
 
         <aside className="measured-provenance-panel">

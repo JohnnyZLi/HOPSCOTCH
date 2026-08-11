@@ -16,6 +16,8 @@ assert.match(workspace, /THE PREVIOUS VALID REPORT REMAINS ACTIVE/, 'invalid rep
 assert.match(workspace, /LOCAL MEASURED · BOUNDED · NOT GLOBAL/, 'workspace must keep its provenance/scope boundary visible');
 assert.match(workspace, /NOT STORED · NOT UPLOADED/, 'workspace must surface its session-only privacy behavior');
 assert.match(workspace, /NO CROSS-TARGET MERGE/, 'workspace must state that target-scoped measurements are not merged globally');
+assert.match(workspace, /measured-target-selector/, 'workspace must expose target-scope selection within multi-target categories');
+assert.match(workspace, /activeTargetGroup/, 'workspace must render one active target group at a time rather than every target ledger simultaneously');
 assert.match(workspace, /will not fill the gap from simulation/i, 'empty measured categories must remain explicitly unfilled');
 assert.match(workspace, /10 \* 1024 \* 1024/, 'workspace must bound browser import size');
 
