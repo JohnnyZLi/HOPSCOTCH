@@ -311,6 +311,7 @@ Current validation layers:
 13. **Worker contracts** — deterministic fixtures exercise browser-facing APIs.
 14. **Exact-artifact browser audit** — GitHub Actions production bundle rendered in Linux Chromium.
 15. **Desktop/mobile/reduced-motion assertions** — overflow, semantic state, navigation, viewport stability, and runtime errors.
+16. **Production performance profile** — a separate Chrome/Chromium CDP workflow exercises the exact built artifact, enforces versioned stable structural/semantic budgets, stress-seeks deterministic state, and uploads a machine-readable report.
 
 ## Performance rules
 
@@ -321,16 +322,21 @@ Current validation layers:
 - keep continuous animation cancellable
 - do not load external data directly into renderers without normalization
 - profile before increasing scene density
+- profile the exact production `dist/` artifact rather than Vite dev mode
+- keep versioned bundle/DOM/heap/overflow/semantic budgets separate from runner-sensitive timing diagnostics
+- treat browser startup retries as bounded CI infrastructure handling, never as a reason to hide a semantic or budget failure
+- keep normal model/type/contract CI independent from whether a developer machine has Chrome installed
 - preserve identical semantic results under reduced motion
 
 ## Architectural direction
 
-The original proof was one routed-link failure/recovery scenario. The architecture now spans packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, deterministic multi-cause GOD MODE composition, cross-layer outage recovery, ECN queue/congestion response, DNS timeout/retry behavior, HTTP service-unavailable retry, terminal network partition behavior, and BGP route-leak policy anomalies that keep reachability separate from policy correctness.
+The original proof was one routed-link failure/recovery scenario. The architecture now spans packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, deterministic multi-cause GOD MODE composition, cross-layer outage recovery, ECN queue/congestion response, DNS timeout/retry behavior, HTTP service-unavailable retry, terminal network partition behavior, BGP route-leak policy anomalies that keep reachability separate from policy correctness, and a production-artifact performance budget that measures renderer cost without making frame timing part of simulation truth.
 
 The next pressure points are:
 
 - loss-based or AQM variants of congestion only where they remain explicitly distinct from the current zero-drop ECN story
 - native/measured data sources for facts browsers cannot legitimately observe
-- renderer/performance budgets for substantially denser scenarios
+- high-density stress scenarios measured against the established production performance budget
+- broader browser/GPU compatibility using the same semantic-state invariants
 
 Those additions should extend the canonical-event/modifier/reducer boundary rather than bypass it.
