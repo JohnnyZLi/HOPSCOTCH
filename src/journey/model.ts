@@ -5,7 +5,7 @@ export type JourneyProvenance = 'SIMULATED' | 'EDGE OBSERVED' | 'PUBLIC COLLECTO
 export type JourneyZoomDirection = 'in' | 'out' | 'hold';
 export type JourneyTransportProfile = 'tcp-h2' | 'quic-h3';
 export type JourneyDnsProfile = 'cache-miss' | 'cache-hit';
-export type JourneyModifierId = 'route-failure' | 'single-loss' | 'latency-spike';
+export type JourneyModifierId = 'route-failure' | 'single-loss' | 'path-outage' | 'latency-spike';
 export type JourneyImpairmentProfile = 'clean' | JourneyModifierId | 'composed';
 export type JourneyDetailLab = 'dns' | 'tcp' | 'tls' | 'http' | 'packet' | 'builder' | 'failure' | 'internet' | 'physical' | 'observed';
 export type JourneyEventKind =
@@ -395,7 +395,10 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
       case 'transport.segment': transport = 'handshake'; break;
       case 'transport.established': transport = 'established'; break;
       case 'transport.loss': impairmentState = 'lost'; break;
-      case 'transport.loss-detected': impairmentState = 'detected'; break;
+      case 'transport.loss-detected':
+        impairmentState = 'detected';
+        transportMetrics = current.transportMetrics ?? transportMetrics;
+        break;
       case 'transport.retransmit': impairmentState = 'recovering'; break;
       case 'transport.recovered': impairmentState = 'recovered'; break;
       case 'transport.latency':

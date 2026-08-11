@@ -45,24 +45,30 @@ It is not a Packet Tracer clone. HOPSCOTCH treats **time, causality, abstraction
 - Three.js/WebGL physical Internet globe backed by public PeeringDB facility coordinates
 - inferred geometric corridors explicitly separated from measured paths
 
-### URL Journey
+### URL Journey + GOD MODE
 
-One canonical time machine can now explain a URL request continuously across application, routing, Internet, transport, and packet scales.
+One canonical time machine can explain a URL request continuously across application, routing, Internet, transport, and packet scales.
 
-The Journey composes three deterministic scenario axes:
+The Journey composes deterministic transport and DNS axes with an ordered GOD MODE modifier set:
 
 - **Transport:** TCP + TLS 1.3 + HTTP/2 or QUIC + integrated TLS 1.3 + HTTP/3
 - **DNS:** cache miss with the full authority walk or cache hit with deterministic TTL state
-- **Impairment:** clean transfer or injected mid-transfer loss with protocol-correct recovery
+- **Modifiers:** packet loss, latency spike, pre-transport route failure, and mid-transfer path outage
 
-TCP loss uses sequence/cumulative-ACK semantics. QUIC loss uses packet numbers, ACK ranges, and STREAM offsets; retransmitted STREAM data is carried in a new QUIC packet number.
+The mid-transfer outage intentionally crosses abstraction boundaries. Routing invalidates the failed path and installs the surviving route while the already-established transport connection reacts independently: TCP waits for its teaching RTO before retransmitting the missing byte range; QUIC can enter PTO/probe recovery sooner and later retransmits the missing STREAM data in a new QUIC packet number once forwarding is restored.
 
-Optional live/public endpoint evidence can decorate the Journey, but never rewrites its simulated forwarding path.
+`ROUTE` and `OUTAGE` remain distinct scenarios. `ROUTE` converges before transport starts; `OUTAGE` breaks an active response transfer. The current two-path teaching topology treats them as mutually exclusive rather than inventing a third recovery path.
+
+Optional live/public endpoint evidence can decorate the Journey, but never rewrites its simulated forwarding path or modifier truth.
 
 ## Architecture
 
 ```text
 scenario / live source
+        ↓
+canonical configuration
+        ↓
+ordered modifier pipeline
         ↓
 canonical events
         ↓
@@ -127,6 +133,6 @@ npm run deploy
 
 ## Project status
 
-HOPSCOTCH is in active development, but the foundational vertical slices are implemented: deterministic routing failure/recovery, packet inspection, protocol theater, topology authoring, Internet-scale views, and the cross-scale URL Journey all exist as integrated experiences.
+HOPSCOTCH is in active development, but the foundational vertical slices are implemented: deterministic routing failure/recovery, packet inspection, protocol theater, topology authoring, Internet-scale views, the cross-scale URL Journey, composable GOD MODE modifiers, and protocol-correct mid-transfer path-outage recovery all exist as integrated experiences.
 
-Current work is moving from proving individual abstractions toward **composable scenarios, richer failure injection, shareable authored stories, and measured/native data sources where browser visibility ends**.
+Current work is moving from proving individual abstractions toward **queue/congestion behavior, richer terminal failure stories, measured/native data sources, and renderer/performance stress work**.

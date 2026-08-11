@@ -209,8 +209,21 @@ GOD MODE impairments are deterministic modifiers over the same canonical Journey
 - [x] permanent pair/triple composition and browser-migration contracts in CI
 - [x] exact production-artifact desktop/mobile/reduced-motion audit
 
+### 07D — mid-transfer path outage + cross-layer recovery
+- [x] distinct `path-outage` modifier rather than overloading pre-transport `route-failure`
+- [x] fail the active R1 → CORE path while response data is already in flight
+- [x] preserve routing causality: failure → invalidation → SPF → cost-52 alternate installation
+- [x] preserve the established transport/TLS connection across route convergence
+- [x] TCP branch uses ACK silence → 1 s teaching RTO → byte-range retransmission
+- [x] QUIC branch exposes PTO/probe behavior while routing is unavailable and retransmits STREAM data in a new packet number after convergence
+- [x] `ROUTE` and `OUTAGE` are mutually exclusive on the current two-path teaching topology rather than inventing a third recovery path
+- [x] LOSS + OUTAGE + LATENCY canonical composition with latency sequenced after the latest transport recovery
+- [x] schema-v1 single-modifier and schema-v2 composed sharing/persistence compatibility
+- [x] GOD MODE OUTAGE selector, route scene reuse, and outage-specific RTO/PTO teaching panel
+- [x] permanent state/model/composition contract wired into `npm run check`
+- [x] exact production-artifact desktop/mobile/reduced-motion audit
+
 ### Later GOD MODE stories
-- [ ] mid-transfer path outage with protocol-correct TCP/QUIC recovery
 - [ ] congestion / queue growth
 - [ ] DNS failure / retry path
 - [ ] server failure
