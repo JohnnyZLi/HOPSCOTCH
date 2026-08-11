@@ -89,4 +89,4 @@ Those environments remain valid future compatibility targets, but they are not i
 
 ## Completion gate
 
-The candidate compatibility behavior has passed the hosted matrix repeatedly. The exact finalized source is now exported from a read-only validation job because GitHub correctly prevents the Actions token from pushing workflow-file changes without `workflows` scope. The remaining gate is committing those exported bytes through the GitHub contents API, removing transient patch/probe helpers, shared ROADMAP/ARCHITECTURE/README synchronization, and one final clean-tree CI + Performance + Compatibility pass.
+The candidate compatibility behavior has passed the hosted matrix repeatedly, and the exact finalized source has also been exported from a read-only validation job. Promotion is split deliberately at GitHub's permission boundary: Actions will push only the validated non-workflow source/package/helper-cleanup commit, while the connector will normalize the two workflow files separately. The remaining gate is that source promotion, shared ROADMAP/ARCHITECTURE/README synchronization, and one final clean-tree CI + Performance + Compatibility pass.
