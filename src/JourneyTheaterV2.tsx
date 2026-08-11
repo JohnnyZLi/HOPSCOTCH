@@ -1,6 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { InternetEvidenceError, InternetEvidenceSnapshot } from './internet/evidence';
+import { JourneyLatencyPanel } from './JourneyLatencyPanel';
 import {
   buildJourneyScenario,
   JOURNEY_SCALE_DEPTH,
@@ -15,6 +16,7 @@ import {
 } from './journey/model';
 import './JourneyTheater.css';
 import './journey-branch.css';
+import './journey-god-mode.css';
 
 const scaleOrder: JourneyScale[] = ['internet', 'routing', 'transport', 'application', 'packet'];
 const PROFILE_KEY = 'hopscotch.journey.transport-profile';
@@ -33,7 +35,8 @@ function initialDnsProfile(): JourneyDnsProfile {
 
 function initialImpairmentProfile(): JourneyImpairmentProfile {
   if (typeof sessionStorage === 'undefined') return 'clean';
-  return sessionStorage.getItem(IMPAIRMENT_PROFILE_KEY) === 'single-loss' ? 'single-loss' : 'clean';
+  const stored = sessionStorage.getItem(IMPAIRMENT_PROFILE_KEY);
+  return stored === 'single-loss' || stored === 'latency-spike' || stored === 'route-failure' ? stored : 'clean';
 }
 
 function formatTime(timeMs: number): string {
@@ -44,6 +47,36 @@ function formatTime(timeMs: number): string {
 
 function provenanceClass(value: string): string {
   return value.toLowerCase().replaceAll(' ', '-');
+}
+
+function isLossEvent(kind: string): boolean {
+  return kind.startsWith('transport.loss') || kind === 'transport.retransmit' || kind === 'transport.recovered';
+}
+
+function isLatencyEvent(kind: string): boolean {
+  return kind === 'transport.latency' || kind === 'transport.rtt-update' || kind === 'transport.latency-cleared';
+}
+
+function isRouteFailureEvent(kind: string): boolean {
+  return kind === 'route.failure' || kind === 'route.invalidated' || kind === 'route.recompute' || kind === 'route.alternate-installed';
+}
+
+function stateToneClass(state: JourneyState): string {
+  if (state.impairmentState === 'lost' || state.impairmentState === 'detected' || state.impairmentState === 'recovering') return 'impairment-active';
+  if (state.impairmentState === 'delayed' || state.impairmentState === 'estimating') return 'latency-active';
+  if (state.impairmentState === 'route-failed') return 'route-failed';
+  if (state.impairmentState === 'route-recomputing') return 'route-recomputing';
+  if (state.impairmentState === 'route-ready') return 'route-ready';
+  return '';
+}
+
+function calloutToneClass(state: JourneyState): string {
+  if (state.impairmentState === 'lost' || state.impairmentState === 'detected' || state.impairmentState === 'recovering') return 'impairment-callout';
+  if (state.impairmentState === 'delayed' || state.impairmentState === 'estimating') return 'latency-callout';
+  if (state.impairmentState === 'route-failed') return 'route-failure-callout';
+  if (state.impairmentState === 'route-recomputing') return 'route-recompute-callout';
+  if (state.impairmentState === 'route-ready') return 'route-ready-callout';
+  return '';
 }
 
 function sceneMode(state: JourneyState): string {
@@ -63,9 +96,34 @@ function InternetScene({ state }: { state: JourneyState }) {
 
 function RoutingScene({ state, address }: { state: JourneyState; address: string }) {
   const ready = state.route === 'gateway-ready' || state.route === 'internet-path-ready';
-  return <div className="journey-scene routing-scene">
-    <div className="route-topology"><div className="route-node endpoint"><span>HOST</span><strong>CLIENT</strong></div><i className="route-link active"/><div className={`route-node ${ready ? 'active' : ''}`}><span>NEXT HOP</span><strong>EDGE</strong></div><i className={`route-link ${ready ? 'active' : ''}`}/><div className={`route-node ${ready ? 'active' : ''}`}><span>ROUTE</span><strong>CORE</strong></div><i className={`route-link ${state.route === 'internet-path-ready' ? 'active' : ''}`}/><div className="route-node endpoint destination"><span>DST</span><strong>{address}</strong></div></div>
-    <div className="route-table"><span>DESTINATION</span><span>NEXT HOP</span><span>STATE</span><strong>{address}/32</strong><strong>{ready ? 'DEFAULT GATEWAY' : 'LOOKUP…'}</strong><strong>{state.route.toUpperCase()}</strong></div>
+  if (state.impairmentProfile !== 'route-failure') {
+    return <div className="journey-scene routing-scene">
+      <div className="route-topology"><div className="route-node endpoint"><span>HOST</span><strong>CLIENT</strong></div><i className="route-link active"/><div className={`route-node ${ready ? 'active' : ''}`}><span>NEXT HOP</span><strong>EDGE</strong></div><i className={`route-link ${ready ? 'active' : ''}`}/><div className={`route-node ${ready ? 'active' : ''}`}><span>ROUTE</span><strong>CORE</strong></div><i className={`route-link ${state.route === 'internet-path-ready' ? 'active' : ''}`}/><div className="route-node endpoint destination"><span>DST</span><strong>{address}</strong></div></div>
+      <div className="route-table"><span>DESTINATION</span><span>NEXT HOP</span><span>STATE</span><strong>{address}/32</strong><strong>{ready ? 'DEFAULT GATEWAY' : 'LOOKUP…'}</strong><strong>{state.route.toUpperCase()}</strong></div>
+    </div>;
+  }
+
+  const failed = state.route === 'failed' || state.route === 'recomputing' || state.route === 'alternate-ready' || (state.route === 'internet-path-ready' && state.routeMetrics?.failedLinkId === 'r1-core');
+  const recomputing = state.route === 'recomputing';
+  const alternateActive = state.route === 'alternate-ready' || (state.route === 'internet-path-ready' && state.routeMetrics?.activePath === 'alternate');
+  const primaryActive = !failed && (state.route === 'gateway-ready' || state.route === 'lookup');
+  const activePath = state.routeMetrics?.activePath ?? (primaryActive ? 'primary' : 'primary');
+  return <div className="journey-scene routing-scene route-god-scene">
+    <div className="route-god-topology">
+      <div className="route-god-node"><span>HOST</span><strong>CLIENT</strong></div>
+      <div className="route-god-node"><span>NEXT HOP</span><strong>EDGE</strong></div>
+      <div className="route-branches">
+        <div className={`route-branch-row primary ${primaryActive ? 'active' : ''} ${failed ? 'failed' : ''}`}><span>R1 → CORE</span><i/><b>COST 22</b></div>
+        <div className={`route-branch-row alternate ${recomputing ? 'recomputing' : ''} ${alternateActive ? 'active' : ''}`}><span>R2 → CORE</span><i/><b>COST 52</b></div>
+      </div>
+      <div className="route-god-node destination"><span>DST</span><strong>{address}</strong></div>
+    </div>
+    <div className="route-god-metrics">
+      <div><span>PRIMARY</span><strong>22</strong></div>
+      <div><span>ALTERNATE</span><strong>52</strong></div>
+      <div className={failed && !alternateActive ? (recomputing ? 'warning' : 'danger') : alternateActive ? 'success' : ''}><span>ACTIVE PATH</span><strong>{activePath.toUpperCase()}</strong></div>
+      <div className={failed ? 'danger' : ''}><span>FAILED LINK</span><strong>{failed ? 'R1 → CORE' : 'NONE'}</strong></div>
+    </div>
   </div>;
 }
 
@@ -81,6 +139,7 @@ function TransportScene({ state }: { state: JourneyState }) {
   return <div className={`journey-scene transport-scene ${quic ? 'quic-transport-scene' : ''} ${detectingLoss ? 'loss-detected-scene' : ''}`}>
     <div className="transport-endpoints"><div><span>{leftLabel}</span><strong>{leftState}</strong></div><div><span>{rightLabel}</span><strong>{rightState}</strong></div></div>
     <div className="transport-wire"><i/><motion.b key={state.activeEvent.id} initial={{ left: state.activeEvent.actor.includes('server') || state.activeEvent.actor.includes('Server') ? '76%' : '18%', opacity: 0 }} animate={{ left: state.activeEvent.actor.includes('server') || state.activeEvent.actor.includes('Server') ? '22%' : '72%', opacity: 1 }} transition={{ duration: .48, ease: [0.16,1,.3,1] }}>{state.phase.toUpperCase()}</motion.b></div>
+    {state.impairmentProfile === 'latency-spike' && (state.activeEvent.kind === 'transport.latency' || state.activeEvent.kind === 'transport.rtt-update') && <JourneyLatencyPanel state={state}/>}
     {detectingLoss ? <div className="loss-transport-panel">
       {quic ? <><div><span>ACK RANGES</span><strong>4105–4107 · 4109–4112</strong></div><div className="loss-gap"><span>MISSING PACKET</span><strong>PN 4108</strong></div><div><span>STREAM GAP</span><strong>4096–5555</strong></div></> : <><div><span>RECEIVE NEXT</span><strong>2461</strong></div><div className="loss-gap"><span>DUPLICATE ACK</span><strong>ACK 2461 × 3</strong></div><div><span>MISSING RANGE</span><strong>SEQ 2461–3920</strong></div></>}
     </div> : <div className="sequence-state"><div><span>TRANSPORT</span><strong>{quic ? 'UDP + QUIC' : 'TCP BYTE STREAM'}</strong></div><div><span>{quic ? 'CRYPTO LEVEL' : 'DELIVERY'}</span><strong>{quic ? (state.tls === 'application-keys' ? '1-RTT' : state.tls === 'handshake-keys' ? 'HANDSHAKE' : 'INITIAL') : complete ? 'CUMULATIVELY ACKED' : established ? 'BYTE STREAM READY' : 'HANDSHAKE'}</strong></div></div>}
@@ -229,29 +288,31 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, onHos
   const enteringScale = state.zoom === 'in' || depthDelta > 0 ? .72 : state.zoom === 'out' || depthDelta < 0 ? 1.28 : .97;
   const profileLabel = profile === 'quic-h3' ? 'QUIC + H3' : 'TCP + H2';
   const dnsLabel = dnsProfile === 'cache-hit' ? 'CACHE HIT' : 'CACHE MISS';
-  const impairmentLabel = impairmentProfile === 'single-loss' ? 'LOSS' : 'CLEAN';
+  const impairmentLabel = impairmentProfile === 'single-loss' ? 'LOSS' : impairmentProfile === 'latency-spike' ? 'LATENCY' : impairmentProfile === 'route-failure' ? 'ROUTE' : 'CLEAN';
   const dnsStateLabel = state.dns === 'cached' && state.dnsTtlSeconds !== null ? `CACHED · ${state.dnsTtlSeconds}s` : state.dns.toUpperCase();
   const transportStateLabel = state.impairmentProfile === 'single-loss' && state.impairmentState !== 'armed' && state.impairmentState !== 'recovered' ? `${state.transport.toUpperCase()} · ${state.impairmentState.toUpperCase()}` : state.transport.toUpperCase();
+  const toneClass = stateToneClass(state);
+  const calloutClass = calloutToneClass(state);
 
   return <motion.section className="journey-workspace" data-profile={profile} data-dns-profile={dnsProfile} data-impairment={impairmentProfile} initial={reduceMotion ? {opacity:1}:{opacity:0,scale:.985}} animate={{opacity:1,scale:1}} exit={{opacity:0}}>
-    <header className="journey-heading"><div><p className="eyebrow">Lab 06D · URL Journey</p><h1>ONE REQUEST.<br/><span>BREAK THE TRANSFER.</span></h1></div><div className="journey-heading-actions"><span>{profileLabel} · {dnsLabel} · {impairmentLabel} · {scenario.events.length} EVENTS</span><button className="lab-mode" type="button" onClick={onExit}>EXIT JOURNEY</button></div></header>
+    <header className="journey-heading"><div><p className="eyebrow">Lab 07 · GOD MODE Journey</p><h1>ONE REQUEST.<br/><span>BREAK THE PATH.</span></h1></div><div className="journey-heading-actions"><span>{profileLabel} · {dnsLabel} · {impairmentLabel} · {scenario.events.length} EVENTS</span><button className="lab-mode" type="button" onClick={onExit}>EXIT JOURNEY</button></div></header>
 
-    <form className="journey-config journey-config-branch journey-config-loss" onSubmit={applyHostname}><label><span>HOSTNAME</span><input value={draftHostname} maxLength={253} spellCheck={false} autoComplete="off" onChange={(event)=>setDraftHostname(event.currentTarget.value)}/></label><button type="submit">APPLY + RESET</button><div className="journey-profile journey-transport-profile" role="group" aria-label="Journey transport profile"><button type="button" className={profile==='tcp-h2'?'active':''} onClick={()=>chooseProfile('tcp-h2')}>TCP + H2</button><button type="button" className={profile==='quic-h3'?'active':''} onClick={()=>chooseProfile('quic-h3')}>QUIC + H3</button></div><div className="journey-profile journey-dns-profile" role="group" aria-label="Journey DNS profile"><button type="button" className={dnsProfile==='cache-miss'?'active':''} onClick={()=>chooseDnsProfile('cache-miss')}>CACHE MISS</button><button type="button" className={dnsProfile==='cache-hit'?'active':''} onClick={()=>chooseDnsProfile('cache-hit')}>CACHE HIT</button></div><div className="journey-profile journey-impairment-profile" role="group" aria-label="Journey impairment profile"><button type="button" className={impairmentProfile==='clean'?'active':''} onClick={()=>chooseImpairmentProfile('clean')}>CLEAN</button><button type="button" className={impairmentProfile==='single-loss'?'active':''} onClick={()=>chooseImpairmentProfile('single-loss')}>INJECT LOSS</button></div><button type="button" className="context-button" onClick={()=>void attachEvidence()} disabled={evidenceLoading}>{evidenceLoading?'ATTACHING…':evidence?'REFRESH CONTEXT':'ATTACH CONTEXT'}</button><p>{hostError ?? evidenceError ?? 'Loss, DNS, and transport choices are simulated configuration. Live/public evidence never rewrites them.'}</p></form>
+    <form className="journey-config journey-config-branch journey-config-loss" onSubmit={applyHostname}><label><span>HOSTNAME</span><input value={draftHostname} maxLength={253} spellCheck={false} autoComplete="off" onChange={(event)=>setDraftHostname(event.currentTarget.value)}/></label><button type="submit">APPLY + RESET</button><div className="journey-profile journey-transport-profile" role="group" aria-label="Journey transport profile"><button type="button" className={profile==='tcp-h2'?'active':''} onClick={()=>chooseProfile('tcp-h2')}>TCP + H2</button><button type="button" className={profile==='quic-h3'?'active':''} onClick={()=>chooseProfile('quic-h3')}>QUIC + H3</button></div><div className="journey-profile journey-dns-profile" role="group" aria-label="Journey DNS profile"><button type="button" className={dnsProfile==='cache-miss'?'active':''} onClick={()=>chooseDnsProfile('cache-miss')}>CACHE MISS</button><button type="button" className={dnsProfile==='cache-hit'?'active':''} onClick={()=>chooseDnsProfile('cache-hit')}>CACHE HIT</button></div><div className="journey-profile journey-impairment-profile" role="group" aria-label="Journey impairment profile"><button type="button" className={impairmentProfile==='clean'?'active':''} onClick={()=>chooseImpairmentProfile('clean')}>CLEAN</button><button type="button" className={impairmentProfile==='single-loss'?'active':''} onClick={()=>chooseImpairmentProfile('single-loss')}>LOSS</button><button type="button" className={impairmentProfile==='latency-spike'?'active':''} onClick={()=>chooseImpairmentProfile('latency-spike')}>LATENCY</button><button type="button" className={impairmentProfile==='route-failure'?'active':''} onClick={()=>chooseImpairmentProfile('route-failure')}>ROUTE</button></div><button type="button" className="context-button" onClick={()=>void attachEvidence()} disabled={evidenceLoading}>{evidenceLoading?'ATTACHING…':evidence?'REFRESH CONTEXT':'ATTACH CONTEXT'}</button><p>{hostError ?? evidenceError ?? 'GOD MODE, DNS, and transport choices are simulated configuration. Live/public evidence never rewrites them.'}</p></form>
 
     <div className="journey-main">
       <section className="journey-stage">
-        <div className="journey-stage-meta"><div><span>TIME</span><strong>{formatTime(timeMs)}</strong></div><div><span>SCALE</span><strong>{state.scale.toUpperCase()}</strong></div><div><span>TRANSPORT</span><strong>{profileLabel}</strong></div><div><span>DNS PATH</span><strong>{dnsLabel}</strong></div><div><span>IMPAIRMENT</span><strong className={state.impairmentState==='lost'||state.impairmentState==='detected'||state.impairmentState==='recovering'?'impairment-active':''}>{state.impairmentState.toUpperCase()}</strong></div><div><span>PROTOCOL</span><strong>{state.protocol}</strong></div><div><span>PROVENANCE</span><strong className={provenanceClass(state.provenance)}>{state.provenance}</strong></div></div>
+        <div className="journey-stage-meta"><div><span>TIME</span><strong>{formatTime(timeMs)}</strong></div><div><span>SCALE</span><strong>{state.scale.toUpperCase()}</strong></div><div><span>TRANSPORT</span><strong>{profileLabel}</strong></div><div><span>DNS PATH</span><strong>{dnsLabel}</strong></div><div><span>IMPAIRMENT</span><strong className={toneClass}>{state.impairmentState.toUpperCase()}</strong></div><div><span>PROTOCOL</span><strong>{state.protocol}</strong></div><div><span>PROVENANCE</span><strong className={provenanceClass(state.provenance)}>{state.provenance}</strong></div></div>
         <div className="journey-camera">
           <nav className="journey-depth" aria-label="Active Journey scale">{scaleOrder.map((scale)=><div key={scale} className={`${scale===state.scale?'active':''} ${JOURNEY_SCALE_DEPTH[scale] < state.scaleDepth?'behind':''}`}><i/><span>{scale.toUpperCase()}</span><small>0{JOURNEY_SCALE_DEPTH[scale]+1}</small></div>)}</nav>
           <div className="journey-scene-shell"><div className="depth-rings" aria-hidden="true"><i/><i/><i/><i/></div><AnimatePresence mode="wait" initial={false}><motion.div key={`${state.scale}:${mode}`} className="journey-scene-transition" initial={reduceMotion ? {opacity:1}:{opacity:0,scale:enteringScale,filter:'blur(12px)'}} animate={{opacity:1,scale:1,filter:'blur(0px)'}} exit={reduceMotion ? {opacity:0}:{opacity:0,scale:state.zoom==='out'?.72:1.24,filter:'blur(10px)'}} transition={reduceMotion ? {duration:0} : {duration:.46,ease:[.16,1,.3,1]}}><SemanticScene state={state} hostname={scenario.hostname} address={scenario.destinationAddress}/></motion.div></AnimatePresence></div>
-          <AnimatePresence mode="wait" initial={false}><motion.article key={state.activeEvent.id} className={`journey-callout ${state.impairmentState==='lost'||state.impairmentState==='detected'||state.impairmentState==='recovering'?'impairment-callout':''}`} initial={reduceMotion?{opacity:1}:{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={reduceMotion ? {duration:0} : {duration:.24}}><div><span>{formatTime(state.activeEvent.atMs)}</span><b className={provenanceClass(state.activeEvent.provenance)}>{state.activeEvent.provenance}</b></div><h2>{state.activeEvent.title}</h2><p>{state.activeEvent.summary}</p><small>{state.activeEvent.detail}</small>{detail&&<button type="button" onClick={()=>{setPlaying(false);onOpenDetail(detail,timeMs)}}>OPEN {detail.toUpperCase()} DETAIL ↗</button>}</motion.article></AnimatePresence>
+          <AnimatePresence mode="wait" initial={false}><motion.article key={state.activeEvent.id} className={`journey-callout ${calloutClass}`} initial={reduceMotion?{opacity:1}:{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={reduceMotion ? {duration:0} : {duration:.24}}><div><span>{formatTime(state.activeEvent.atMs)}</span><b className={provenanceClass(state.activeEvent.provenance)}>{state.activeEvent.provenance}</b></div><h2>{state.activeEvent.title}</h2><p>{state.activeEvent.summary}</p><small>{state.activeEvent.detail}</small>{detail&&<button type="button" onClick={()=>{setPlaying(false);onOpenDetail(detail,timeMs)}}>OPEN {detail.toUpperCase()} DETAIL ↗</button>}</motion.article></AnimatePresence>
         </div>
-        <div className="journey-state-strip"><div><span>DNS</span><strong>{dnsStateLabel}</strong></div><div><span>ROUTE</span><strong>{state.route.toUpperCase()}</strong></div><div><span>{profile==='quic-h3'?'QUIC':'TCP'}</span><strong className={state.impairmentState==='lost'||state.impairmentState==='detected'||state.impairmentState==='recovering'?'impairment-active':''}>{transportStateLabel}</strong></div><div><span>TLS</span><strong>{state.tls.toUpperCase()}</strong></div><div><span>{profile==='quic-h3'?'H3':'H2'}</span><strong>{state.http.toUpperCase()}</strong></div><div><span>PACKET</span><strong>{state.packet.toUpperCase()}</strong></div></div>
+        <div className="journey-state-strip"><div><span>DNS</span><strong>{dnsStateLabel}</strong></div><div><span>ROUTE</span><strong className={state.impairmentProfile==='route-failure'?toneClass:''}>{state.route.toUpperCase()}</strong></div><div><span>{profile==='quic-h3'?'QUIC':'TCP'}</span><strong className={state.impairmentProfile==='single-loss'||state.impairmentProfile==='latency-spike'?toneClass:''}>{transportStateLabel}</strong></div><div><span>TLS</span><strong>{state.tls.toUpperCase()}</strong></div><div><span>{profile==='quic-h3'?'H3':'H2'}</span><strong>{state.http.toUpperCase()}</strong></div><div><span>PACKET</span><strong>{state.packet.toUpperCase()}</strong></div></div>
       </section>
 
-      <aside className="journey-rail"><section className="journey-context"><div className="rail-title"><span>ENDPOINT CONTEXT</span><strong>{evidence?'ATTACHED':'SIMULATION ONLY'}</strong></div>{evidence?<><div className="context-facts"><div><b>EDGE OBSERVED</b><strong>{evidence.edge.asn?`AS${evidence.edge.asn}`:'ASN UNAVAILABLE'}</strong><small>{evidence.edge.colo??'COLO UNAVAILABLE'}</small></div><div><b>PUBLIC COLLECTOR</b><strong>{evidence.routing.originAsns.length?evidence.routing.originAsns.map((asn)=>`AS${asn}`).join(' / '):'ORIGIN UNAVAILABLE'}</strong><small>{evidence.routing.prefix??'PREFIX UNAVAILABLE'}</small></div></div><p><b>DECORATION ONLY.</b> These observations do not choose {profileLabel}, {dnsLabel}, or {impairmentLabel} and do not become the simulated path.</p></>:<p>Attach optional Cloudflare/RIPE context. The selected {profileLabel} · {dnsLabel} · {impairmentLabel} story remains deterministic.</p>}</section><section className="journey-events"><div className="rail-title"><span>CAUSAL CHAIN</span><strong>{String(state.activeEventIndex+1).padStart(2,'0')} / {scenario.events.length}</strong></div><div className="journey-event-list" ref={eventRailRef}>{scenario.events.map((current,index)=>{const complete=current.atMs<=timeMs;const active=current.id===state.activeEvent.id;const impairment=current.kind.startsWith('transport.loss')||current.kind==='transport.retransmit'||current.kind==='transport.recovered';return <button type="button" key={current.id} className={`journey-event ${complete?'complete':''} ${active?'current':''} ${impairment?'impairment-event':''}`} onClick={()=>seek(current.atMs)}><span>{String(index+1).padStart(2,'0')}</span><div><strong>{current.title}</strong><small>{formatTime(current.atMs)} · {current.scale.toUpperCase()} · {current.protocol}</small></div><i className={provenanceClass(current.provenance)}/></button>})}</div></section></aside>
+      <aside className="journey-rail"><section className="journey-context"><div className="rail-title"><span>ENDPOINT CONTEXT</span><strong>{evidence?'ATTACHED':'SIMULATION ONLY'}</strong></div>{evidence?<><div className="context-facts"><div><b>EDGE OBSERVED</b><strong>{evidence.edge.asn?`AS${evidence.edge.asn}`:'ASN UNAVAILABLE'}</strong><small>{evidence.edge.colo??'COLO UNAVAILABLE'}</small></div><div><b>PUBLIC COLLECTOR</b><strong>{evidence.routing.originAsns.length?evidence.routing.originAsns.map((asn)=>`AS${asn}`).join(' / '):'ORIGIN UNAVAILABLE'}</strong><small>{evidence.routing.prefix??'PREFIX UNAVAILABLE'}</small></div></div><p><b>DECORATION ONLY.</b> These observations do not choose {profileLabel}, {dnsLabel}, or {impairmentLabel} and do not become the simulated path.</p></>:<p>Attach optional Cloudflare/RIPE context. The selected {profileLabel} · {dnsLabel} · {impairmentLabel} story remains deterministic.</p>}</section><section className="journey-events"><div className="rail-title"><span>CAUSAL CHAIN</span><strong>{String(state.activeEventIndex+1).padStart(2,'0')} / {scenario.events.length}</strong></div><div className="journey-event-list" ref={eventRailRef}>{scenario.events.map((current,index)=>{const complete=current.atMs<=timeMs;const active=current.id===state.activeEvent.id;const lossEvent=isLossEvent(current.kind);const latencyEvent=isLatencyEvent(current.kind);const routeEvent=isRouteFailureEvent(current.kind);return <button type="button" key={current.id} className={`journey-event ${complete?'complete':''} ${active?'current':''} ${lossEvent?'impairment-event':''} ${latencyEvent?'latency-event':''} ${routeEvent?'route-event':''}`} onClick={()=>seek(current.atMs)}><span>{String(index+1).padStart(2,'0')}</span><div><strong>{current.title}</strong><small>{formatTime(current.atMs)} · {current.scale.toUpperCase()} · {current.protocol}</small></div><i className={provenanceClass(current.provenance)}/></button>})}</div></section></aside>
     </div>
 
-    <footer className="journey-time-machine"><div className="journey-time-controls"><button type="button" onClick={togglePlayback}>{playing?'Ⅱ':'▶'}</button><button type="button" onClick={()=>seek(0)}>↺</button></div><div className="journey-time-readout"><span>GLOBAL TIME MACHINE · {profileLabel} · {dnsLabel} · {impairmentLabel}</span><strong>{formatTime(timeMs)}</strong></div><div className="journey-scrubber"><div>{scenario.events.map((current)=><i key={current.id} className={`${current.atMs<=timeMs?'passed':''} ${current.kind.startsWith('transport.loss')||current.kind==='transport.retransmit'?'impairment-marker':''}`} style={{left:`${current.atMs/scenario.durationMs*100}%`}}/>)}</div><input type="range" min="0" max={scenario.durationMs} step="10" value={Math.round(timeMs)} onChange={(event)=>seek(Number(event.currentTarget.value))}/></div><span className="journey-duration">{formatTime(scenario.durationMs)}</span></footer>
+    <footer className="journey-time-machine"><div className="journey-time-controls"><button type="button" onClick={togglePlayback}>{playing?'Ⅱ':'▶'}</button><button type="button" onClick={()=>seek(0)}>↺</button></div><div className="journey-time-readout"><span>GLOBAL TIME MACHINE · {profileLabel} · {dnsLabel} · {impairmentLabel}</span><strong>{formatTime(timeMs)}</strong></div><div className="journey-scrubber"><div>{scenario.events.map((current)=><i key={current.id} className={`${current.atMs<=timeMs?'passed':''} ${isLossEvent(current.kind)&&current.kind!=='transport.recovered'?'impairment-marker':''} ${isLatencyEvent(current.kind)?'latency-marker':''} ${isRouteFailureEvent(current.kind)?'route-marker':''}`} style={{left:`${current.atMs/scenario.durationMs*100}%`}}/>)}</div><input type="range" min="0" max={scenario.durationMs} step="10" value={Math.round(timeMs)} onChange={(event)=>seek(Number(event.currentTarget.value))}/></div><span className="journey-duration">{formatTime(scenario.durationMs)}</span></footer>
   </motion.section>;
 }

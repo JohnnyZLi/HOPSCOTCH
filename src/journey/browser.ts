@@ -16,7 +16,7 @@ export function readJourneyBrowserConfig(storage: Pick<Storage, 'getItem'> = ses
   return {
     transportProfile: storage.getItem(TRANSPORT_KEY) === 'quic-h3' ? 'quic-h3' : 'tcp-h2',
     dnsProfile: storage.getItem(DNS_KEY) === 'cache-hit' ? 'cache-hit' : 'cache-miss',
-    impairmentProfile: storedImpairment === 'single-loss' || storedImpairment === 'latency-spike' ? storedImpairment : 'clean',
+    impairmentProfile: storedImpairment === 'single-loss' || storedImpairment === 'latency-spike' || storedImpairment === 'route-failure' ? storedImpairment : 'clean',
   };
 }
 

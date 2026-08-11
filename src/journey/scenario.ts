@@ -23,7 +23,7 @@ export interface PortableJourneyScenarioV1 {
 
 const transportProfiles = new Set<JourneyTransportProfile>(['tcp-h2', 'quic-h3']);
 const dnsProfiles = new Set<JourneyDnsProfile>(['cache-miss', 'cache-hit']);
-const impairmentProfiles = new Set<JourneyImpairmentProfile>(['clean', 'single-loss', 'latency-spike']);
+const impairmentProfiles = new Set<JourneyImpairmentProfile>(['clean', 'single-loss', 'latency-spike', 'route-failure']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
