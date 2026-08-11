@@ -20,6 +20,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - run: python3 scripts/patch-performance-cdp-execution.py
       - run: npm run performance:check
       - name: Upload performance profile
         if: always()
