@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -14,126 +14,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: agent/lab-07h-partition-unreachable
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - name: Sync Lab 07H docs
-        shell: bash
-        run: |
-          python3 <<'PY'
-          from pathlib import Path
-
-          def replace_once(path, old, new):
-              file = Path(path)
-              text = file.read_text()
-              if old not in text:
-                  raise SystemExit(f'missing docs anchor in {path}: {old[:120]!r}')
-              file.write_text(text.replace(old, new, 1))
-
-          roadmap = '''### Later GOD MODE stories
-          - [ ] partition / unreachable state
-          - [ ] route leak / policy anomaly teaching scenario'''.replace('          ', '')
-          roadmap_new = '''### 07H — network partition + terminal unreachable
-          - [x] distinct terminal `partition` modifier that runs after recoverable GOD MODE stories
-          - [x] both R1 → CORE and R2 → CORE exits fail across the simulated partition
-          - [x] SPF/recomputation runs with zero surviving route candidates
-          - [x] route state becomes `unreachable` with active path `none` and `recoveryAvailable: false`
-          - [x] established TCP/QUIC state becomes `stalled` rather than being silently closed
-          - [x] TCP stalled scene explicitly says `NO IP PROGRESS`; QUIC can retain 1-RTT crypto state while reachability is separately absent
-          - [x] no alternate-route install, transport recovery, successful retransmission, RTO/PTO recovery, or successful probe is fabricated after the partition
-          - [x] successful `response.ready` / `transfer.complete` / `journey.complete` tail is removed
-          - [x] terminal `journey.failed` exposes `failureReason = network-unreachable`
-          - [x] canonical DNS FAIL → ROUTE → SERVER → LOSS → OUTAGE → LATENCY → CONGESTION → PARTITION composition independent of UI selection order
-          - [x] ROUTE or OUTAGE may recover before a later PARTITION; ROUTE and OUTAGE remain mutually exclusive with each other
-          - [x] schema-v1 single PARTITION and schema-v2 composed sharing/persistence compatibility
-          - [x] ninth GOD MODE selector, dual-failed-route scene, stalled-transport panel, terminal failure scene, rail marker, and scrubber marker
-          - [x] mobile nine-control 3×3 layout remains collision- and overflow-free with viewport-stable playback
-          - [x] permanent partition/model/composition contract wired into `npm run check`
-          - [x] exact production-artifact desktop/mobile/reduced-motion audit
-
-          ### Later GOD MODE stories
-          - [ ] route leak / policy anomaly teaching scenario'''.replace('          ', '')
-          replace_once('docs/ROADMAP.md', roadmap, roadmap_new)
-
-          replace_once('docs/ARCHITECTURE.md',
-              '''                   latency-spike
-                   congestion''',
-              '''                   latency-spike
-                   congestion
-                   partition''')
-          replace_once('docs/ARCHITECTURE.md',
-              '''dns-failure → route-failure → server-failure → single-loss → path-outage → latency-spike → congestion''',
-              '''dns-failure → route-failure → server-failure → single-loss → path-outage → latency-spike → congestion → partition''')
-          replace_once('docs/ARCHITECTURE.md',
-              '''- congestion metrics are independent from RTT/timer metrics so higher delay alone never becomes an implicit congestion declaration
-- DNS FAIL + ROUTE + SERVER + LOSS + LATENCY + CONGESTION therefore composes sequentially without duplicating the base Journey; OUTAGE may replace ROUTE but does not coexist with it on the current topology''',
-              '''- congestion metrics are independent from RTT/timer metrics so higher delay alone never becomes an implicit congestion declaration
-- partition is terminal and runs last: both destination-facing exits fail, SPF returns zero candidates, established transport becomes stalled, and the successful Journey tail is replaced by `journey.failed` rather than an invented recovery
-- DNS FAIL + ROUTE + SERVER + LOSS + LATENCY + CONGESTION + PARTITION therefore composes sequentially without duplicating the base Journey; OUTAGE may replace ROUTE but does not coexist with it on the current topology''')
-          replace_once('docs/ARCHITECTURE.md',
-              '''Existing v1 links/files remain valid and migrate into the canonical internal modifier representation. New single-modifier path-outage, congestion, DNS-failure, and server-failure scenarios also fit this representation without requiring a schema bump.''',
-              '''Existing v1 links/files remain valid and migrate into the canonical internal modifier representation. New single-modifier path-outage, congestion, DNS-failure, server-failure, and partition scenarios also fit this representation without requiring a schema bump.''')
-          replace_once('docs/ARCHITECTURE.md',
-              '''- active path / route cost / partition state
-- selected canonical Journey modifiers''',
-              '''- active path / route cost / partition state, including explicit zero-candidate terminal reachability
-- selected canonical Journey modifiers''')
-          replace_once('docs/ARCHITECTURE.md',
-              '''- bottleneck rate, offered load, queue occupancy/delay, ECN CE count, congestion window, ssthresh, and drop count
-- TLS protection stage''',
-              '''- bottleneck rate, offered load, queue occupancy/delay, ECN CE count, congestion window, ssthresh, and drop count
-- terminal Journey failure state and `network-unreachable` failure reason without erasing earlier DNS/TLS/transport history
-- TLS protection stage''')
-          replace_once('docs/ARCHITECTURE.md',
-              '''- the base congestion story keeps dropped packets at zero while still reducing cwnd
-- composed modifiers retain each component's protocol-specific semantics''',
-              '''- the base congestion story keeps dropped packets at zero while still reducing cwnd
-- a terminal partition can leave established TCP/QUIC protocol state intact while IP forwarding has no route; `stalled` is not silently rewritten to `closed`
-- SPF may legitimately produce zero route candidates; recomputation does not imply a route exists
-- PARTITION removes the successful response/completion tail and emits terminal `journey.failed` rather than fabricating alternate-path, retransmission, probe, RTO, or PTO recovery
-- composed modifiers retain each component's protocol-specific semantics''')
-          replace_once('docs/ARCHITECTURE.md',
-              '''7. **Cross-layer outage contracts** — routing convergence, TCP RTO projection, QUIC PTO/probe behavior, connection continuity, and composed recovery ordering.
-8. **Congestion contracts** — queue growth before ECN, protocol-specific ECN feedback, cwnd reduction, zero-drop/no-retransmission semantics, queue drain, composition, and persistence.
-9. **TypeScript checks** — app + Worker.
-10. **Production build** — Vite output generated in CI.
-11. **Worker contracts** — deterministic fixtures exercise browser-facing APIs.
-12. **Exact-artifact browser audit** — GitHub Actions production bundle rendered in Linux Chromium.
-13. **Desktop/mobile/reduced-motion assertions** — overflow, semantic state, navigation, viewport stability, and runtime errors.''',
-              '''7. **Cross-layer outage contracts** — routing convergence, TCP RTO projection, QUIC PTO/probe behavior, connection continuity, and composed recovery ordering.
-8. **Congestion contracts** — queue growth before ECN, protocol-specific ECN feedback, cwnd reduction, zero-drop/no-retransmission semantics, queue drain, composition, and persistence.
-9. **Partition contracts** — dual-path failure, zero-route SPF state, stalled-not-closed transport, terminal Journey failure, removal of the successful tail, absence of fabricated recovery, composition, and persistence.
-10. **TypeScript checks** — app + Worker.
-11. **Production build** — Vite output generated in CI.
-12. **Worker contracts** — deterministic fixtures exercise browser-facing APIs.
-13. **Exact-artifact browser audit** — GitHub Actions production bundle rendered in Linux Chromium.
-14. **Desktop/mobile/reduced-motion assertions** — overflow, semantic state, navigation, viewport stability, and runtime errors.''')
-          replace_once('docs/ARCHITECTURE.md',
-              '''The original proof was one routed-link failure/recovery scenario. The architecture has now scaled across packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, deterministic multi-cause GOD MODE composition, cross-layer mid-transfer path-outage recovery, ECN-driven queue/congestion response, DNS failure/retry behavior, and HTTP-layer service-unavailable retry behavior that preserves a healthy network connection.
-
-The next pressure points are:
-
-- partition/unreachable stories that terminate rather than always recover a Journey
-- route leak / policy-anomaly stories that preserve the distinction between forwarding reachability and policy correctness''',
-              '''The original proof was one routed-link failure/recovery scenario. The architecture has now scaled across packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, deterministic multi-cause GOD MODE composition, cross-layer mid-transfer path-outage recovery, ECN-driven queue/congestion response, DNS failure/retry behavior, HTTP-layer service-unavailable retry behavior that preserves a healthy network connection, and terminal partition/unreachable state that deliberately does not recover.
-
-The next pressure points are:
-
-- route leak / policy-anomaly stories that preserve the distinction between forwarding reachability and policy correctness''')
-          PY
       - run: npm ci
       - run: npm run check
-      - name: Commit validated Lab 07H docs
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/lab-07h-partition-unreachable'
-        shell: bash
-        run: |
-          git checkout origin/main -- .github/workflows/ci.yml
-          git config user.name "HOPSCOTCH Agent"
-          git config user.email "actions@users.noreply.github.com"
-          git add docs/ROADMAP.md docs/ARCHITECTURE.md .github/workflows/ci.yml
-          git commit -m "Sync HOPSCOTCH docs through Lab 07H"
-          git push origin HEAD:agent/lab-07h-partition-unreachable
+      - name: Upload production build
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 3
