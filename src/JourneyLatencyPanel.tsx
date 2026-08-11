@@ -1,5 +1,4 @@
 import type { JourneyState } from './journey/model.ts';
-import './journey-latency.css';
 
 function metric(value: number | undefined, suffix = ' ms'): string {
   return value === undefined ? 'PENDING' : `${value}${suffix}`;

@@ -123,13 +123,18 @@ export default function App() {
   const openJourneyDetail = (lab: JourneyDetailLab, atMs: number) => {
     const detailLayer: Record<JourneyDetailLab, NetworkLayer> = {
       dns: 'application', tcp: 'transport', tls: 'application', http: 'application', packet: 'packet',
-      builder: 'routing', internet: 'internet', physical: 'internet', observed: 'internet',
+      builder: 'routing', failure: 'routing', internet: 'internet', physical: 'internet', observed: 'internet',
     };
     setPlaying(false);
     setJourneyTimeMs(atMs);
     setJourneyStartPlaying(false);
     setJourneyReturnPending(true);
     setLayer(detailLayer[lab]);
+    if (lab === 'failure') {
+      setTimeMs(1900);
+      setActiveLab('failure');
+      return;
+    }
     setActiveLab(lab);
   };
   const importJourneyScenario = (scenario: PortableJourneyScenarioV1) => {
@@ -175,7 +180,7 @@ export default function App() {
           : { label: 'Open physical Internet', run: openPhysicalInternet };
 
   const buildLabel = activeLab === 'journey'
-    ? 'LAB 06'
+    ? 'LAB 07'
     : activeLab === 'failure'
     ? 'LAB 01'
     : activeLab === 'packet'
@@ -188,7 +193,7 @@ export default function App() {
             ? 'LAB 05'
             : 'LAB 00';
   const buildStatus = activeLab === 'journey'
-    ? 'URL JOURNEY ACTIVE'
+    ? 'GOD MODE JOURNEY ACTIVE'
     : activeLab === 'failure'
     ? labState.statusLabel
     : activeLab === 'packet'

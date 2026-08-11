@@ -5,8 +5,8 @@ export type JourneyProvenance = 'SIMULATED' | 'EDGE OBSERVED' | 'PUBLIC COLLECTO
 export type JourneyZoomDirection = 'in' | 'out' | 'hold';
 export type JourneyTransportProfile = 'tcp-h2' | 'quic-h3';
 export type JourneyDnsProfile = 'cache-miss' | 'cache-hit';
-export type JourneyImpairmentProfile = 'clean' | 'single-loss' | 'latency-spike';
-export type JourneyDetailLab = 'dns' | 'tcp' | 'tls' | 'http' | 'packet' | 'builder' | 'internet' | 'physical' | 'observed';
+export type JourneyImpairmentProfile = 'clean' | 'single-loss' | 'latency-spike' | 'route-failure';
+export type JourneyDetailLab = 'dns' | 'tcp' | 'tls' | 'http' | 'packet' | 'builder' | 'failure' | 'internet' | 'physical' | 'observed';
 export type JourneyEventKind =
   | 'intent.accepted'
   | 'dns.cache-check'
@@ -17,6 +17,10 @@ export type JourneyEventKind =
   | 'dns.cache-store'
   | 'route.lookup'
   | 'route.gateway'
+  | 'route.failure'
+  | 'route.invalidated'
+  | 'route.recompute'
+  | 'route.alternate-installed'
   | 'internet.policy-path'
   | 'internet.physical-context'
   | 'transport.segment'
@@ -65,6 +69,13 @@ export interface JourneyTransportMetrics {
   lossDetected?: boolean;
 }
 
+export interface JourneyRouteMetrics {
+  primaryPathCost: number;
+  alternatePathCost: number;
+  activePath: 'primary' | 'none' | 'alternate';
+  failedLinkId?: string;
+}
+
 export interface JourneyEvent {
   id: string;
   atMs: number;
@@ -82,6 +93,7 @@ export interface JourneyEvent {
   detailLab?: JourneyDetailLab;
   ttlSeconds?: number;
   transportMetrics?: JourneyTransportMetrics;
+  routeMetrics?: JourneyRouteMetrics;
 }
 
 export interface JourneyScenario {
@@ -97,12 +109,12 @@ export interface JourneyScenario {
 }
 
 export type DnsJourneyState = 'idle' | 'cache-miss' | 'resolving' | 'resolved' | 'cached';
-export type RouteJourneyState = 'idle' | 'lookup' | 'gateway-ready' | 'internet-path-ready';
+export type RouteJourneyState = 'idle' | 'lookup' | 'gateway-ready' | 'failed' | 'recomputing' | 'alternate-ready' | 'internet-path-ready';
 export type TransportJourneyState = 'closed' | 'handshake' | 'established' | 'complete';
 export type TlsJourneyState = 'idle' | 'negotiating' | 'validating' | 'handshake-keys' | 'application-keys';
 export type HttpJourneyState = 'idle' | 'control' | 'request-sent' | 'headers' | 'streaming' | 'complete';
 export type PacketJourneyState = 'idle' | 'frame' | 'headers';
-export type JourneyImpairmentState = 'clean' | 'armed' | 'lost' | 'detected' | 'recovering' | 'recovered' | 'delayed' | 'estimating' | 'normalized';
+export type JourneyImpairmentState = 'clean' | 'armed' | 'lost' | 'detected' | 'recovering' | 'recovered' | 'delayed' | 'estimating' | 'normalized' | 'route-failed' | 'route-recomputing' | 'route-ready';
 
 export interface JourneyState {
   timeMs: number;
@@ -114,6 +126,7 @@ export interface JourneyState {
   impairmentProfile: JourneyImpairmentProfile;
   impairmentState: JourneyImpairmentState;
   transportMetrics: JourneyTransportMetrics | null;
+  routeMetrics: JourneyRouteMetrics | null;
   scale: JourneyScale;
   scaleDepth: number;
   previousScale: JourneyScale;
@@ -279,11 +292,13 @@ export function buildJourneyScenario(hostnameInput = 'example.test', config: Par
   const baseTransportEvents = normalizedConfig.transportProfile === 'quic-h3' ? quicH3Events(hostname) : tcpH2Events(hostname);
   const transportEvents = shiftEvents(baseTransportEvents, dnsShiftMs);
   const tailEvents = shiftEvents(sharedTail(hostname, normalizedConfig.transportProfile), dnsShiftMs);
-  const modifierResult = applyJourneyModifiers([...transportEvents, ...tailEvents], normalizedConfig);
-  const events = [
+  const baseEvents = [
     ...sharedPrelude(hostname, destinationAddress, normalizedConfig.dnsProfile),
-    ...modifierResult.events,
+    ...transportEvents,
+    ...tailEvents,
   ];
+  const modifierResult = applyJourneyModifiers(baseEvents, normalizedConfig);
+  const events = modifierResult.events;
 
   return {
     id: `url-journey:${hostname}:${normalizedConfig.transportProfile}:${normalizedConfig.dnsProfile}:${normalizedConfig.impairmentProfile}`,
@@ -325,6 +340,7 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
   let packet: PacketJourneyState = 'idle';
   let impairmentState: JourneyImpairmentState = scenario.impairmentProfile === 'clean' ? 'clean' : 'armed';
   let transportMetrics: JourneyTransportMetrics | null = null;
+  let routeMetrics: JourneyRouteMetrics | null = null;
   let responseReady = false;
   let journeyComplete = false;
 
@@ -347,6 +363,26 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
         break;
       case 'route.lookup': route = 'lookup'; break;
       case 'route.gateway': route = 'gateway-ready'; break;
+      case 'route.failure':
+        route = 'failed';
+        impairmentState = 'route-failed';
+        routeMetrics = current.routeMetrics ?? routeMetrics;
+        break;
+      case 'route.invalidated':
+        route = 'failed';
+        impairmentState = 'route-failed';
+        routeMetrics = current.routeMetrics ?? routeMetrics;
+        break;
+      case 'route.recompute':
+        route = 'recomputing';
+        impairmentState = 'route-recomputing';
+        routeMetrics = current.routeMetrics ?? routeMetrics;
+        break;
+      case 'route.alternate-installed':
+        route = 'alternate-ready';
+        impairmentState = 'route-ready';
+        routeMetrics = current.routeMetrics ?? routeMetrics;
+        break;
       case 'internet.policy-path': route = 'internet-path-ready'; break;
       case 'transport.segment': transport = 'handshake'; break;
       case 'transport.established': transport = 'established'; break;
@@ -395,6 +431,7 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
     impairmentProfile: scenario.impairmentProfile,
     impairmentState,
     transportMetrics,
+    routeMetrics,
     scale: activeEvent.scale,
     scaleDepth: JOURNEY_SCALE_DEPTH[activeEvent.scale],
     previousScale: previousEvent.scale,
