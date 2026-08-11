@@ -89,4 +89,4 @@ Those environments remain valid future compatibility targets, but they are not i
 
 ## Completion gate
 
-The exact validated compatibility source is now permanent: the profiler compatibility mode, Firefox runner, npm commands, and read-only Compatibility workflow are committed, while every transient apply/probe/finalize helper has been removed. The remaining gate is synchronization of ROADMAP/ARCHITECTURE/README and one final clean-tree CI + Performance + Compatibility pass.
+The permanent source, read-only workflows, ROADMAP, ARCHITECTURE, README, and this Lab note are synchronized, and every transient apply/probe/finalize/docs helper has been removed. Lab 08C completion is defined by ordinary clean-tree CI, Performance, and Compatibility workflows all passing on this final branch state.
