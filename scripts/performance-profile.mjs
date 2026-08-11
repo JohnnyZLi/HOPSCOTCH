@@ -8,10 +8,13 @@ import net from 'node:net';
 import { performance } from 'node:perf_hooks';
 
 const enforce = process.argv.includes('--enforce');
+const compatibility = process.argv.includes('--compatibility');
+const gpuMode = process.env.HOPSCOTCH_GPU_MODE?.trim() || 'default';
+if (!['default', 'swiftshader', 'disabled'].includes(gpuMode)) throw new Error(`Unsupported HOPSCOTCH_GPU_MODE: ${gpuMode}`);
 const root = process.cwd();
 const distDir = resolve(root, 'dist');
 const budgetPath = resolve(root, 'config/performance-budget.json');
-const reportPath = resolve(root, 'artifacts/performance-profile.json');
+const reportPath = resolve(root, process.env.HOPSCOTCH_REPORT_PATH?.trim() || 'artifacts/performance-profile.json');
 const budgetDocument = JSON.parse(readFileSync(budgetPath, 'utf8'));
 const budgets = budgetDocument.budgets;
 const stressBudgets = budgetDocument.stressBudgets ?? {};
@@ -91,6 +94,12 @@ async function waitForDevTools(port, timeoutMs = 12000) {
 }
 
 
+function chromeGpuArgs(mode) {
+  if (mode === 'swiftshader') return ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
+  if (mode === 'disabled') return ['--disable-webgl', '--disable-webgl2'];
+  return [];
+}
+
 async function launchChrome(chromePath, maxAttempts = 3) {
   const attempts = [];
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -114,6 +123,7 @@ async function launchChrome(chromePath, maxAttempts = 3) {
       `--user-data-dir=${userDataDir}`,
       'about:blank',
     ];
+    chromeArgs.splice(chromeArgs.length - 1, 0, ...chromeGpuArgs(gpuMode));
     const state = { stderr: '', exitCode: null, exitSignal: null, spawnError: null };
     const chrome = spawn(chromePath, chromeArgs, { stdio: ['ignore', 'ignore', 'pipe'] });
     chrome.stderr.setEncoding('utf8');
@@ -122,7 +132,7 @@ async function launchChrome(chromePath, maxAttempts = 3) {
     chrome.once('error', (error) => { state.spawnError = error instanceof Error ? error.message : String(error); });
     try {
       const version = await waitForDevTools(port, 8000);
-      return { chrome, port, userDataDir, version, state, attempts };
+      return { chrome, port, userDataDir, version, state, attempts, args: chromeArgs };
     } catch (error) {
       await sleep(100);
       if (!chrome.killed) chrome.kill('SIGKILL');
@@ -277,7 +287,7 @@ const profiles = [
 profiles.push(
   { id: 'stress-as-canvas', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'as-density' }), readySelector: '.internet-scale', expected: ['POLICY MAKES', 'SIMULATED WINNER'], stressExpected: { profile: 'as-density', asNodes: 160, asRelationships: 220 } },
   { id: 'stress-builder-ceiling', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'builder-density' }), readySelector: '.builder-workspace', expected: ['32 NODES · 96 LINKS', 'ROUTE INSTALLED'], stressExpected: { profile: 'builder-density', builderNodes: 32, builderLinks: 96 } },
-  { id: 'stress-physical-webgl', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'physical-density' }), readySelector: '.physical-globe', expected: ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA', 'WEBGL 2'], stressExpected: { profile: 'physical-density', physicalPoints: 2000, webgl: true } },
+  { id: 'stress-physical-webgl', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'physical-density' }), readySelector: '.physical-globe', expected: gpuMode === 'disabled' ? ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA', 'FALLBACK', 'WEBGL 2 UNAVAILABLE'] : ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA', 'WEBGL 2'], stressExpected: { profile: 'physical-density', physicalPoints: 2000, webgl: gpuMode !== 'disabled' }, allowExpectedWebglFailure: gpuMode === 'disabled' },
 );
 
 async function waitForExpression(cdp, expression, timeoutMs = 5000) {
@@ -353,7 +363,7 @@ async function loadProfile(cdp, artifact, profile) {
     for (const [key, value] of Object.entries(profile.stressExpected)) {
       if (structural.stress[key] !== value) throw new Error(`${profile.id} stress invariant ${key}=${JSON.stringify(structural.stress[key])}; expected ${JSON.stringify(value)}.`);
     }
-    if ((structural.stress.asNodes > 0 || structural.stress.physicalPoints > 0) && (structural.stress.canvasBackingWidth <= 0 || structural.stress.canvasBackingHeight <= 0)) throw new Error(`${profile.id} renderer canvas has invalid backing dimensions.`);
+    if ((structural.stress.asNodes > 0 || structural.stress.webgl) && (structural.stress.canvasBackingWidth <= 0 || structural.stress.canvasBackingHeight <= 0)) throw new Error(`${profile.id} renderer canvas has invalid backing dimensions.`);
   }
 
   if (profile.assertMobileGrid) {
@@ -374,7 +384,10 @@ async function loadProfile(cdp, artifact, profile) {
     event.method === 'Runtime.exceptionThrown'
     || (event.method === 'Log.entryAdded' && event.params?.entry?.level === 'error')
     || (event.method === 'Runtime.consoleAPICalled' && event.params?.type === 'error'));
-  if (pageErrors.length > 0) throw new Error(`${profile.id} emitted ${pageErrors.length} runtime/console error event(s).`);
+  const unexpectedPageErrors = profile.allowExpectedWebglFailure
+    ? pageErrors.filter((event) => !/(webgl|webglrenderer|context)/i.test(JSON.stringify(event)))
+    : pageErrors;
+  if (unexpectedPageErrors.length > 0) throw new Error(`${profile.id} emitted ${unexpectedPageErrors.length} unexpected runtime/console error event(s).`);
 
   return {
     id: profile.id,
@@ -468,6 +481,8 @@ async function main() {
     version: 1,
     generatedAt: new Date().toISOString(),
     enforce,
+    compatibility,
+    gpuMode,
     budgetDocument,
     browser: { path: chromePath },
     bundle: artifact.bundle,
@@ -481,6 +496,7 @@ async function main() {
     launch = await launchChrome(chromePath);
     report.browser.version = launch.version.Browser ?? null;
     report.browser.launchAttempts = launch.attempts;
+    report.browser.args = launch.args;
     const targets = await fetchJson(`http://127.0.0.1:${launch.port}/json`);
     const page = targets.find((target) => target.type === 'page');
     if (!page?.webSocketDebuggerUrl) throw new Error('Chrome did not expose a page CDP target.');
@@ -492,8 +508,9 @@ async function main() {
     await cdp.call('HeapProfiler.enable');
 
     for (const profile of profiles) report.profiles.push(await loadProfile(cdp, artifact, profile));
-    report.seekStress = await seekStress(cdp, artifact);
-    report.highDensitySeekStress = await seekStress(cdp, artifact, stressBudgets.highDensitySeek?.cycles ?? 12, 'high-density-seek-stress');
+    if (!compatibility) {
+      report.seekStress = await seekStress(cdp, artifact);
+      report.highDensitySeekStress = await seekStress(cdp, artifact, stressBudgets.highDensitySeek?.cycles ?? 12, 'high-density-seek-stress');
 
     addBudgetFailure(report.failures, artifact.bundle.jsGzipBytes <= budgets.maxJsGzipBytes, `JS gzip ${artifact.bundle.jsGzipBytes} exceeds ${budgets.maxJsGzipBytes}.`);
     addBudgetFailure(report.failures, artifact.bundle.cssGzipBytes <= budgets.maxCssGzipBytes, `CSS gzip ${artifact.bundle.cssGzipBytes} exceeds ${budgets.maxCssGzipBytes}.`);
@@ -520,6 +537,7 @@ async function main() {
       addBudgetFailure(report.failures, report.highDensitySeekStress.eventsPerCycle === highDensitySeekBudget.eventsPerCycle, `high-density seek event count ${report.highDensitySeekStress.eventsPerCycle} does not match budget contract ${highDensitySeekBudget.eventsPerCycle}.`);
       addBudgetFailure(report.failures, report.highDensitySeekStress.heapGrowthBytes <= highDensitySeekBudget.maxHeapGrowthBytes, `high-density seek heap growth ${report.highDensitySeekStress.heapGrowthBytes} exceeds stress budget ${highDensitySeekBudget.maxHeapGrowthBytes}.`);
     }
+    }
   } catch (error) {
     if (error && typeof error === 'object' && 'launchAttempts' in error) report.browser.launchAttempts = error.launchAttempts;
     report.fatalError = error instanceof Error ? error.stack ?? error.message : String(error);
@@ -535,7 +553,8 @@ async function main() {
     writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   }
 
-  console.log(`HOPSCOTCH production performance profile (${report.browser.version ?? 'browser unknown'})`);
+  console.log(`HOPSCOTCH production ${compatibility ? 'compatibility' : 'performance'} profile (${report.browser.version ?? 'browser unknown'})`);
+  console.log(`GPU mode: ${gpuMode}`);
   console.log(`Bundle: JS ${report.bundle.jsGzipBytes} gzip bytes · CSS ${report.bundle.cssGzipBytes} gzip bytes`);
   for (const profile of report.profiles) {
     console.log(`${profile.id}: DOM ${profile.elementCount} · heap ${(profile.heapUsedBytes / 1048576).toFixed(2)} MiB · ready ${profile.readyMs.toFixed(0)} ms · events ${profile.eventCount}`);
@@ -555,7 +574,7 @@ async function main() {
     for (const failure of report.failures) console.error(`- ${failure}`);
     if (enforce) process.exitCode = 1;
   } else {
-    console.log('Stable performance and high-density stress budgets passed.');
+    console.log(compatibility ? `Compatibility semantic profile passed for GPU mode ${gpuMode}.` : 'Stable performance and high-density stress budgets passed.');
   }
 }
 

@@ -29,7 +29,9 @@
     "test:journey-server-failure-contract": "node scripts/journey-server-failure-contract-check.mjs",
     "test:journey-partition-contract": "node scripts/journey-partition-contract-check.mjs",
     "test:journey-route-leak-contract": "node scripts/journey-route-leak-contract-check.mjs",
-    "test:high-density-contract": "node scripts/high-density-contract-check.mjs"
+    "test:high-density-contract": "node scripts/high-density-contract-check.mjs",
+    "compatibility:chrome": "node scripts/performance-profile.mjs --compatibility",
+    "compatibility:firefox": "node scripts/firefox-compatibility.mjs"
   },
   "dependencies": {
     "animejs": "4.5.0",

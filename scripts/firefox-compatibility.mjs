@@ -203,6 +203,7 @@ async function main() {
   let driver = null;
   let sessionId = null;
   let bidi = null;
+  let bidiContext = null;
   try {
     driver = spawn(geckodriver, ['--host', '127.0.0.1', '--port', String(port)], { stdio: ['ignore', 'ignore', 'pipe'] });
     driver.stderr.setEncoding('utf8');
@@ -234,6 +235,9 @@ async function main() {
       try {
         bidi = new BidiClient(capabilities.webSocketUrl);
         await bidi.call('session.subscribe', { events: ['log.entryAdded'] });
+        const tree = await bidi.call('browsingContext.getTree');
+        bidiContext = tree.contexts?.[0]?.context ?? null;
+        if (!bidiContext) throw new Error('Firefox BiDi did not expose a top-level browsing context.');
         report.bidiLogCapture = true;
       } catch (error) {
         report.bidiLogCaptureError = error instanceof Error ? error.message : String(error);
@@ -252,6 +256,9 @@ async function main() {
     for (const profile of profiles) {
       bidi?.clearEvents();
       await webdriver('POST', '/window/rect', { width: profile.width, height: profile.height, x: 0, y: 0 });
+      if (bidi && bidiContext) {
+        await bidi.call('browsingContext.setViewport', { context: bidiContext, viewport: { width: profile.width, height: profile.height }, devicePixelRatio: 1 });
+      }
       await webdriver('POST', '/url', { url: `about:blank${profile.query}` });
       await execute("document.open(); document.write(arguments[0]); document.close(); return true;", [artifact.html]);
       await execute("try{sessionStorage.setItem('__hopscotch_firefox__','1');sessionStorage.removeItem('__hopscotch_firefox__')}catch{const values=new Map();Object.defineProperty(window,'sessionStorage',{configurable:true,value:{getItem:key=>values.has(key)?values.get(key):null,setItem:(key,value)=>values.set(key,String(value)),removeItem:key=>values.delete(key),clear:()=>values.clear()}})} return true;");
@@ -287,6 +294,7 @@ async function main() {
         fallbackText: document.querySelector('.globe-fallback')?.innerText ?? null,
       };`);
 
+      if (structural.innerWidth !== profile.width) throw new Error(`${profile.id} viewport width ${structural.innerWidth}; expected ${profile.width}.`);
       if (structural.scrollWidth > structural.innerWidth) throw new Error(`${profile.id} horizontally overflows: ${structural.scrollWidth} > ${structural.innerWidth}.`);
       if (structural.scrollY !== 0) throw new Error(`${profile.id} moved document scrollY to ${structural.scrollY}.`);
       if (!structural.reducedMotion) throw new Error(`${profile.id} did not honor Firefox reduced-motion preference.`);
