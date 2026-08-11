@@ -88,7 +88,7 @@ If only mismatched measured targets exist, the sidecar shows a compact mismatch 
 
 The pure compatibility contract proves normalization/matching behavior and that evidence classification leaves a composed QUIC Journey plus reducer state deep- and byte-identical.
 
-The session/React integration is promoted only after the full TypeScript/model/regression/build suite accepts it. Permanent source/browser contracts and exact production-artifact visual validation are added before merge.
+The session/React integration is promoted only after the full TypeScript/model/regression/build suite accepts it. The temporary promotion run captures TypeScript diagnostics as an artifact on failure so integration errors are fixed against exact compiler output rather than by guesswork. Permanent source/browser contracts and exact production-artifact visual validation are added before merge.
 
 ## Still out of scope
 
