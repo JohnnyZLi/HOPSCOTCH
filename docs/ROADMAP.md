@@ -1,121 +1,68 @@
-# HOPSCOTCH roadmap
+# HOPSCOTCH Roadmap
 
-HOPSCOTCH grows as polished vertical slices. A slice is complete only when its model is deterministic, its truth boundary is explicit, CI is green, and the exact production artifact has been exercised visually.
+## Product thesis
 
-## Lab 00 — Foundation
+HOPSCOTCH is an animated network systems lab for understanding how packets, protocols, routing, Internet-scale policy, and physical infrastructure fit together.
 
-- [x] React / TypeScript / Vite shell
-- [x] Motion + Anime.js as first-class dependencies
-- [x] deterministic event/reducer architecture
-- [x] abstraction-scale navigation
-- [x] Cloudflare Worker + Static Assets runtime
-- [x] production custom-domain deployment
-- [x] lockfile, CI, and production-build artifact
-- [x] reduced-motion baseline
-- [ ] broader cross-browser/performance baseline
+The product remains explanation-first:
 
-## Lab 01 — Failure + recovery
+- canonical state is deterministic
+- animation visualizes state but never determines it
+- provenance is explicit
+- scale changes preserve causality
+- simulated, inferred, observed, public, and measured facts remain distinguishable
 
-- [x] redundant six-node routed topology
-- [x] active application flow
-- [x] link failure injection
-- [x] OSPF-style control-plane propagation
-- [x] deterministic route recomputation
-- [x] traffic failover
-- [x] global pause / scrub / replay
-- [x] causal event inspector
-- [x] Linux Chromium desktop/mobile audit
+## Lab 00 — deterministic packet motion
 
-## Lab 02 — Packet microscope
+- [x] simple routed topology
+- [x] deterministic event timeline
+- [x] packet animation driven by event state
+- [x] play / pause / reset / scrub
+- [x] reduced-motion mode
 
-- [x] Ethernet + IPv4/IPv6 + TCP/UDP deterministic packet model
-- [x] IPv4 header checksum derivation
-- [x] TCP/UDP pseudo-header checksum derivation
-- [x] peelable encapsulation layers
-- [x] raw bytes mapped to selected header fields
-- [x] payload/TTL/protocol mutations update derived lengths/checksums
-- [x] cross-link to the source Lab 01 event
-- [x] Linux Chromium desktop/mobile audit
+## Lab 01 — packet anatomy
 
-## Lab 03 — Protocol theater
+- [x] Ethernet / IPv4 / TCP / payload decomposition
+- [x] byte-level packet inspection
+- [x] contextual field explanations
+- [x] checksum and header-size teaching state
 
-### 03A — TCP
-- [x] three-way handshake + teardown
-- [x] deterministic segment loss
-- [x] duplicate ACKs + fast retransmit
-- [x] congestion-window / ssthresh teaching model
-- [x] packet-microscope cross-link
+## Lab 02 — transport theater
 
-### 03B — DNS
-- [x] recursive client query vs iterative resolver work
-- [x] root → TLD → authoritative referrals
-- [x] cache insertion and deterministic TTL
-- [x] cache-hit replay without upstream DNS work
+- [x] TCP handshake
+- [x] TCP teardown
+- [x] sequence / ACK progression
+- [x] receive-window teaching state
+- [x] transport animation tied to deterministic events
 
-### 03C — TLS 1.3
-- [x] ClientHello / ServerHello negotiation
-- [x] TLS 1.3 encryption boundary
-- [x] symbolic key-schedule stages without fabricated secret bytes
-- [x] certificate / CertificateVerify / Finished progression
-- [x] application-key transition
+## Lab 03 — routing workbench
 
-### 03D — HTTP/2 vs HTTP/3/QUIC
-- [x] synchronized two-resource comparison
-- [x] same logical loss in both lanes
-- [x] TCP connection-level head-of-line blocking
-- [x] QUIC stream-level ordering independence
-- [x] explicit QUIC connection-wide congestion-response caveat
+- [x] link-state topology
+- [x] Dijkstra/SPF route selection
+- [x] link failure
+- [x] deterministic alternate-path convergence
+- [x] route cost editing
+- [x] routing events remain independent from animation frame timing
 
-## Lab 04 — Network Builder
+## Lab 04 — topology builder
 
-### 04A — deterministic builder
-- [x] graph truth separated from draggable layout
+- [x] editable graph
+- [x] custom node/link creation
 - [x] source/destination selection
-- [x] weighted route selection and explanation
-- [x] link cost edits
-- [x] fail/restore links
-- [x] partition detection
-
-### 04B — persistence
-- [x] local save/restore
-- [x] JSON import/export
-- [x] strict scenario validation
-- [x] storage adapter separated from route model
-
-### 04C — topology authoring
-- [x] mutable routers/endpoints/links
-- [x] atomic node deletion
-- [x] arbitrary validated graph persistence
-- [x] schema v2 with v1 migration
+- [x] route recomputation
+- [x] link failure controls
+- [x] deterministic scenario persistence
+- [x] strict authoring limits
 
 ## Lab 05 — Internet scale
 
-### 05A — simulated AS policy theater
-- [x] Canvas renderer
-- [x] documentation-only ASNs
-- [x] peer / provider / customer relationships
-- [x] curated valley-free teaching policy
-- [x] relationship failure and reroute
-- [x] explicit unreachable state
-
-### 05B — observed vs inferred evidence
-- [x] shared provenance model
-- [x] Cloudflare edge-observed request metadata
-- [x] deterministic DNS destination context
-- [x] RIPE public prefix/origin context
-- [x] RIPE collector AS-path observations
-- [x] partial-success/error handling
-- [x] no claim that a collector path is “your route”
-
-### 05C — physical Internet
-
-- [x] Three.js/WebGL globe
-- [x] public PeeringDB facility coordinates
-- [x] bounded Worker adapter + cache policy
-- [x] raycast facility selection
-- [x] inferred great-circle corridor
-- [x] explicit `PUBLIC DATA` vs `INFERRED` boundary
-- [x] WebGL-unavailable fallback
+- [x] simulated AS graph
+- [x] customer/provider and peer relationships
+- [x] valley-free policy-path enumeration
+- [x] teaching LOCAL_PREF behavior
+- [x] public evidence overlay
+- [x] PeeringDB physical facilities
+- [x] physical/inferred/public provenance boundaries
 
 ## Lab 06 — URL Journey
 
@@ -178,85 +125,57 @@ GOD MODE impairments are deterministic modifiers over the same canonical Journey
 - [x] explicit `NO LOSS DETECTED` latency boundary
 - [x] amber latency visual language distinct from red loss and teal recovery
 - [x] schema-v1 sharing/persistence accepts latency
-- [x] latency panel wired into the actual Journey theater
-- [x] exact production-artifact desktop/mobile/reduced-motion audit
 
-### 07B — pre-transport route failure + convergence
-- [x] modifier pipeline expanded over the entire canonical Journey
-- [x] deterministic primary-link failure after gateway selection
-- [x] installed-route invalidation and SPF-style recomputation
-- [x] cost-22 primary → cost-52 alternate route installation
-- [x] convergence guaranteed before TCP SYN / QUIC Initial
-- [x] identical routing projection for TCP/H2 and QUIC/H3
-- [x] cache-miss and cache-hit route timelines
-- [x] no false transport timeout/loss semantics in the pre-transport route modifier
-- [x] direct jump into the detailed Lab 01 failure story and timestamp-preserving return
-- [x] CLEAN / LOSS / LATENCY / ROUTE selector and route semantic scene
-- [x] schema-v1 sharing/persistence accepts route failure
-- [x] permanent 16-scenario GOD MODE CI contract
-- [x] exact production-artifact desktop/mobile/reduced-motion audit
+### 07B — route failure + convergence
+- [x] distinct `route-failure` modifier before transport
+- [x] primary R1 → CORE failure
+- [x] route invalidation / SPF recomputation / alternate R2 → CORE installation
+- [x] no transport packet loss fabricated for the pre-transport route failure
+- [x] route failure can compose with loss and latency
+- [x] ROUTE and LOSS remain visually and semantically distinct
 
-### 07C — modifier sets + causal composition
-- [x] replace the single mutually-exclusive impairment choice with a canonical ordered modifier set
-- [x] preserve schema-v1 zero/single-modifier links and files through migration
-- [x] schema-v2 portable representation for composed modifier sets
-- [x] define deterministic compatibility/sequentialization rules between modifiers
-- [x] prove modifier order does not depend on UI selection order
-- [x] compose ROUTE + LOSS, ROUTE + LATENCY, LOSS + LATENCY, and all three without duplicating the base Journey
-- [x] expose selected causes separately from the current active impairment phase
-- [x] keep route/loss/latency semantic colors independently inspectable in the rail and scrubber
-- [x] browser persistence migrates from the legacy impairment key to canonical modifier sets
-- [x] detail-lab round trips preserve the complete modifier set and timestamp
-- [x] permanent pair/triple composition and browser-migration contracts in CI
-- [x] exact production-artifact desktop/mobile/reduced-motion audit
+### 07C — modifier composition
+- [x] modifier sets replace single impairment selection internally
+- [x] canonical ordering independent of UI click order
+- [x] route-failure → single-loss → latency-spike composition
+- [x] schema v1 compatibility for zero/single modifier
+- [x] schema v2 sharing/persistence for composed modifier sets
+- [x] browser persistence migration
+- [x] permanent composition contract
 
-### 07D — mid-transfer path outage + cross-layer recovery
-- [x] distinct `path-outage` modifier rather than overloading pre-transport `route-failure`
-- [x] fail the active R1 → CORE path while response data is already in flight
-- [x] preserve routing causality: failure → invalidation → SPF → cost-52 alternate installation
-- [x] preserve the established transport/TLS connection across route convergence
-- [x] TCP branch uses ACK silence → 1 s teaching RTO → byte-range retransmission
-- [x] QUIC branch exposes PTO/probe behavior while routing is unavailable and retransmits STREAM data in a new packet number after convergence
-- [x] `ROUTE` and `OUTAGE` are mutually exclusive on the current two-path teaching topology rather than inventing a third recovery path
-- [x] LOSS + OUTAGE + LATENCY canonical composition with latency sequenced after the latest transport recovery
-- [x] schema-v1 single-modifier and schema-v2 composed sharing/persistence compatibility
-- [x] GOD MODE OUTAGE selector, route scene reuse, and outage-specific RTO/PTO teaching panel
-- [x] permanent state/model/composition contract wired into `npm run check`
+### 07D — mid-transfer path outage
+- [x] distinct `path-outage` modifier
+- [x] active R1 → CORE fails after response transfer begins
+- [x] route invalidation / SPF / alternate cost-52 route installation
+- [x] established transport/TLS state survives route convergence
+- [x] TCP ACK silence → teaching RTO → retransmission
+- [x] QUIC PTO/probe → new packet number after route convergence
+- [x] ROUTE and OUTAGE remain mutually exclusive on the two-path topology
+- [x] LOSS + OUTAGE + LATENCY compose sequentially
+- [x] schema v1/v2 support
+- [x] timeout-specific transport panels
+- [x] permanent path-outage contracts
 - [x] exact production-artifact desktop/mobile/reduced-motion audit
 
 ### 07E — congestion + queue growth
-- [x] distinct `congestion` modifier rather than treating high RTT as an implicit congestion declaration
-- [x] deterministic 160 Mb/s offered load against a 100 Mb/s ECN-capable teaching bottleneck
-- [x] explicit queue capacity, occupancy, queue-delay, ECN, cwnd, ssthresh, signal, and drop metrics
-- [x] queue occupancy and delay rise before the transport congestion response
-- [x] TCP branch uses delivered CE marks → ECE feedback → CWR with cwnd/ssthresh reduction
-- [x] QUIC branch uses delivered CE marks → ACK_ECN CE-counter feedback with cwnd reduction
-- [x] congestion-only scenarios preserve contiguous TCP/QUIC delivery with no loss-detection or retransmission event
-- [x] dropped-packet count remains zero in the base ECN story
-- [x] queue drains after offered load falls below bottleneck service rate
-- [x] canonical LOSS → OUTAGE → LATENCY → CONGESTION composition independent of UI selection order
-- [x] schema-v1 single CONGESTION and schema-v2 composed sharing/persistence compatibility
-- [x] sixth GOD MODE selector, congestion panel, ECN packet card, rail marker, and scrubber marker
-- [x] mobile six-control layout remains collision- and overflow-free
-- [x] permanent congestion/model/composition contract wired into `npm run check`
-- [x] exact production-artifact desktop/mobile/reduced-motion audit
+- [x] distinct no-drop congestion modifier
+- [x] queue occupancy and queueing delay rise before feedback
+- [x] ECN CE signal distinct from packet drop
+- [x] TCP/QUIC congestion-controller response reduces cwnd without inventing retransmission
+- [x] queue drains after response
+- [x] loss remains a separate modifier
+- [x] deterministic composition and persistence
+- [x] permanent congestion contract
 
-### 07F — DNS failure + retry path
-- [x] distinct `dns-failure` modifier placed before routing/transport modifiers in canonical order
-- [x] cache-miss recursive query → primary resolver silence → timeout → secondary recursive retry → authority walk
-- [x] timeout represented as absence of a DNS response rather than fabricated NXDOMAIN/SERVFAIL
-- [x] retry uses a new transaction context and adds a deterministic 1.2 s downstream penalty
-- [x] cache-hit path masks the simulated upstream outage without inventing any query, timeout, retry, or retry delay
-- [x] explicit DNS `timeout` / `retrying` states plus masked-outage impairment state
-- [x] timeout/retry state normalizes when authority referrals resume; masked state normalizes when routing begins
-- [x] canonical DNS FAIL → ROUTE → LOSS → OUTAGE → LATENCY → CONGESTION composition independent of UI selection order
-- [x] schema-v1 single DNS FAIL and schema-v2 composed sharing/persistence compatibility
-- [x] seventh GOD MODE selector, timeout/retry/masked DNS scene banners, rail marker, and scrubber marker
-- [x] mobile seven-control 4+3 layout remains collision- and overflow-free
-- [x] permanent DNS failure/model/composition contract wired into `npm run check`
-- [x] exact production-artifact desktop/mobile/reduced-motion audit
+### 07F — DNS failure + retry
+- [x] distinct DNS failure modifier
+- [x] cache-miss timeout/retry semantics
+- [x] cache-hit shielding remains correct
+- [x] transport is never fabricated before successful DNS resolution
+- [x] deterministic composition and persistence
+- [x] permanent DNS-failure contract
 
-### 07G — server service unavailable + safe retry
+### 07G — server failure + safe retry
 - [x] distinct `server-failure` modifier at the HTTP/application boundary
 - [x] canonical GET reaches an established TCP/H2 or QUIC/H3 + TLS connection before failure
 - [x] reachable service returns real HTTP 503 Service Unavailable with `Retry-After: 1`
@@ -314,12 +233,12 @@ GOD MODE impairments are deterministic modifiers over the same canonical Journey
 
 Browser-visible evidence is intentionally limited. A future native measurement source may provide data that browsers cannot legitimately observe, such as local interfaces, route tables, traceroute/ICMP, richer transport telemetry, and packet-level captures.
 
-- [ ] define native measurement provenance contract
+- [x] define native measurement provenance contract
 - [ ] keep measured state separate from simulated Journey state
 - [ ] ingest native/network-diagnostics data without pretending it is globally complete
 - [ ] map measured facts into existing semantic scenes where appropriate
 
-## Performance + rendering — ongoing
+## Performance + rendering — complete hardening baseline
 
 - [x] DOM/CSS for controls and text
 - [x] SVG for focused topology/protocol scenes
