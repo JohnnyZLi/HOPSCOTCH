@@ -84,11 +84,13 @@ At most a few high-priority measured facts are shown. Other-target facts remain 
 
 If only mismatched measured targets exist, the sidecar shows a compact mismatch notice instead of displaying their values as if they support the current Journey.
 
-## Current validation boundary
+## Validation boundary
 
 The pure compatibility contract proves normalization/matching behavior and that evidence classification leaves a composed QUIC Journey plus reducer state deep- and byte-identical.
 
-The session/React integration is promoted only after the full TypeScript/model/regression/build suite accepts it. The temporary promotion run captures TypeScript diagnostics as an artifact on failure so integration errors are fixed against exact compiler output rather than by guesswork. Permanent source/browser contracts and exact production-artifact visual validation are added before merge.
+The promoted session/sidecar source has also passed the full TypeScript, existing model/regression, native-measurement, measured-workspace, measured-scene, session-boundary, and production-build gate. `SemanticScene` remains simulation-only in source while the separate sidecar receives optional measured presentation state.
+
+The production browser candidate extends the existing compatibility-only Chrome profiler with a cross-lab flow: import a real report through Lab 09, exit into Journey, validate routing `LOCAL CONTEXT`, DNS/transport `MATCHED TARGET`, change to a mismatched hostname and require `OTHER TARGET` with measured values hidden, then Clear in Lab 09 and require the Journey sidecar to disappear. That candidate is promoted only after the same full source gate and exact production Chrome interaction both pass.
 
 ## Still out of scope
 
