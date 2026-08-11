@@ -196,14 +196,18 @@ GOD MODE impairments are deterministic modifiers over the same canonical Journey
 - [x] exact production-artifact desktop/mobile/reduced-motion audit
 
 ### 07C — modifier sets + causal composition
-- [ ] replace the single mutually-exclusive impairment choice with an ordered modifier set
-- [ ] preserve schema-v1 single-impairment links/files through migration
-- [ ] define deterministic compatibility/conflict rules between modifiers
-- [ ] prove modifier order does not depend on UI selection order
-- [ ] allow combinations such as ROUTE + LOSS and LATENCY + LOSS without duplicating base Journey builders
-- [ ] expose multiple simultaneous causes clearly in the event rail and state strip
-- [ ] keep every modifier's truth/provenance independently inspectable
-- [ ] expand permanent contracts from a profile matrix to representative composition cases
+- [x] replace the single mutually-exclusive impairment choice with a canonical ordered modifier set
+- [x] preserve schema-v1 zero/single-modifier links and files through migration
+- [x] schema-v2 portable representation for composed modifier sets
+- [x] define deterministic compatibility/sequentialization rules between modifiers
+- [x] prove modifier order does not depend on UI selection order
+- [x] compose ROUTE + LOSS, ROUTE + LATENCY, LOSS + LATENCY, and all three without duplicating the base Journey
+- [x] expose selected causes separately from the current active impairment phase
+- [x] keep route/loss/latency semantic colors independently inspectable in the rail and scrubber
+- [x] browser persistence migrates from the legacy impairment key to canonical modifier sets
+- [x] detail-lab round trips preserve the complete modifier set and timestamp
+- [x] permanent pair/triple composition and browser-migration contracts in CI
+- [x] exact production-artifact desktop/mobile/reduced-motion audit
 
 ### Later GOD MODE stories
 - [ ] mid-transfer path outage with protocol-correct TCP/QUIC recovery

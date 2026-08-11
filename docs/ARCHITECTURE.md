@@ -15,6 +15,10 @@ Frame rate, animation duration, viewport size, and renderer choice must not chan
 ```text
 scenario / measurement / public-data source
                   ↓
+      canonical configuration
+                  ↓
+       ordered modifier pipeline
+                  ↓
            canonical events
                   ↓
       deterministic reducer / replay
@@ -25,6 +29,8 @@ scenario / measurement / public-data source
                   ↓
       Motion / Anime.js choreography
 ```
+
+Modifiers are part of scenario truth. They never live in animation callbacks.
 
 ## 1. Canonical models
 
@@ -37,27 +43,97 @@ Examples currently implemented:
 - TCP/DNS/TLS/HTTP protocol traces
 - autonomous-system relationships and policy candidates
 - Builder scenario schema + migration
-- URL Journey scenario configuration and canonical event stream
+- URL Journey configuration + canonical event stream
+- GOD MODE modifier sets + deterministic composition
 
 The model layer knows nothing about React, Motion, Anime.js, SVG, Canvas, WebGL, or Cloudflare.
 
 ### URL Journey configuration
 
-The Journey currently composes independent typed axes:
+The Journey has independent transport and DNS axes plus a canonical modifier set:
 
 ```text
-transportProfile  = tcp-h2 | quic-h3
-dnsProfile        = cache-miss | cache-hit
-impairmentProfile = clean | single-loss
+transportProfile = tcp-h2 | quic-h3
+dnsProfile       = cache-miss | cache-hit
+modifierIds      = ordered subset of:
+                   route-failure
+                   single-loss
+                   latency-spike
 ```
 
-The scenario builder generates the resulting canonical event sequence. A UI toggle never directly “makes” a packet disappear or a protocol recover.
+Canonical modifier order is model-defined:
 
-## 2. Deterministic time
+```text
+route-failure → single-loss → latency-spike
+```
+
+Input/UI selection order is normalized before scenario identity or events are generated. Duplicate IDs collapse and unknown IDs fail validation.
+
+Legacy `impairmentProfile` remains an input compatibility layer:
+
+- `clean` maps to `[]`
+- a single legacy impairment maps to one modifier
+- multiple modifiers derive `impairmentProfile: composed`
+
+### Modifier composition
+
+Modifiers transform the same clean canonical Journey rather than selecting separate hand-authored builders.
+
+Current rules:
+
+- route failure happens before transport and shifts later causal events naturally
+- single loss keeps its protocol-correct TCP/QUIC recovery trace
+- latency alone changes RTT/timer estimator state without inventing loss
+- when loss and latency coexist, latency begins after loss recovery so the event log remains strictly ordered and causally legible
+- route + loss + latency composes all three in canonical order
+
+Every final Journey log must have unique event IDs, unique timestamps, and strictly increasing event time.
+
+## 2. Portable Journey schemas
+
+Portable scenarios store configuration + timestamp, never reducer snapshots.
+
+### Schema v1
+
+Kept for backward compatibility with clean and single-modifier scenarios.
+
+```text
+schema
+version = 1
+hostname
+transportProfile
+dnsProfile
+impairmentProfile
+timeMs
+name? 
+```
+
+Existing v1 links/files remain valid and migrate into the canonical internal modifier representation.
+
+### Schema v2
+
+Used when two or more modifiers are composed.
+
+```text
+schema
+version = 2
+hostname
+transportProfile
+dnsProfile
+modifiers[]
+timeMs
+name?
+```
+
+Readable shared URLs use `journey=2` and a canonical `mods=` list. Import/export validation rebuilds the deterministic scenario and clamps the restored timestamp to its generated duration.
+
+Browser persistence follows the same boundary: canonical modifier sets are stored explicitly, with fallback to the old single-impairment key for migration.
+
+## 3. Deterministic time
 
 Time is first-class.
 
-Every curated scenario is replayable from its event log. Seeking to a timestamp reconstructs state by applying deterministic events up to that time.
+Every curated scenario is replayable from its canonical event log. Seeking to a timestamp reconstructs state by applying deterministic events up to that time.
 
 This enables:
 
@@ -66,43 +142,40 @@ This enables:
 - event-to-event navigation
 - rewind after failure or recovery
 - detail-lab jumps that return to the same Journey timestamp
+- composed GOD MODE scenarios that remain seekable
 - reduced-motion rendering without changing state semantics
 
 Animation clocks are not simulation clocks.
 
-## 3. Semantic state
+## 4. Semantic state
 
 Reducers expose inspectable concepts rather than renderer instructions.
 
 Examples:
 
 - active path / route cost / partition state
+- selected canonical Journey modifiers
+- current impairment phase independent from selected modifiers
 - packet fields and selected byte ranges
 - DNS cache/TTL state
-- TCP congestion/retransmission state
+- TCP sequence/retransmission and RTT estimator state
+- QUIC packet-number/STREAM recovery and RTT/PTO state
 - TLS protection stage
-- QUIC crypto level
 - HTTP stream progress
 - Journey abstraction scale
-- impairment state: armed / lost / detected / recovering / recovered
 - provenance for observed/public/inferred facts
+
+Selected causes and the active causal phase are intentionally separate. A Journey may have ROUTE + LOSS + LATENCY selected while the current timestamp is still in clean DNS state.
 
 Semantic state is the contract between model and renderer.
 
-## 4. Renderers
+## 5. Renderers
 
 HOPSCOTCH uses the cheapest renderer that preserves clarity.
 
 ### DOM + CSS
 
-Used for:
-
-- controls
-- inspectors
-- event rails
-- timelines
-- text-heavy protocol state
-- compact semantic diagrams
+Used for controls, inspectors, event rails, timelines, text-heavy protocol state, and compact semantic diagrams.
 
 ### SVG
 
@@ -110,7 +183,7 @@ Used for focused network/protocol scenes where individual paths/nodes remain ins
 
 ### Canvas 2D
 
-Used for the autonomous-system theater so denser topology is not represented as dozens or hundreds of React DOM nodes.
+Used for the autonomous-system theater so denser topology is not represented as hundreds of React DOM nodes.
 
 ### WebGL / Three.js
 
@@ -118,31 +191,21 @@ Used for the physical Internet globe and facility point cloud.
 
 Renderer changes must not alter scenario semantics.
 
-## 5. Motion boundary
+## 6. Motion boundary
 
 ### Motion
 
-Owns interface-level transitions:
-
-- layout changes
-- focus shifts
-- cross-scale zoom/morph behavior
-- panels and callouts
-- gestures
-- draggable Builder nodes
-- camera-like scene transitions
+Owns interface-level transitions: layout changes, focus shifts, cross-scale zoom/morph behavior, panels/callouts, gestures, draggable Builder nodes, and camera-like scene transitions.
 
 ### Anime.js
 
 Owns tightly choreographed visualization sequences where timeline control is useful, such as SVG/topology/protocol motion.
 
-The two systems must not fight over the same transform/property on the same element.
+The two systems must not fight over the same transform/property on the same element. Motion is cancellable and cleaned up on unmount. `prefers-reduced-motion` preserves information through synchronous state changes.
 
-Motion is cancellable and cleaned up on unmount. `prefers-reduced-motion` must preserve information with synchronous/instantaneous state transitions.
+## 7. Truth + provenance
 
-## 6. Truth + provenance
-
-HOPSCOTCH does not collapse different evidence classes into one fake “ground truth.”
+HOPSCOTCH does not collapse different evidence classes into one fake ground truth.
 
 Current provenance labels:
 
@@ -150,13 +213,13 @@ Current provenance labels:
 - `EDGE OBSERVED` — facts Cloudflare attaches to the current request
 - `PUBLIC COLLECTOR` — routing state observed from public collector vantage points
 - `PUBLIC DATA` — published infrastructure facts such as facility coordinates
-- `INFERRED` — HOPSCOTCH connects separate facts or draws explanatory geometry without claiming direct measurement
+- `INFERRED` — explanatory connection/geometry not directly measured
 
-A public collector path is not presented as the viewer’s packet path. An inferred great-circle corridor is not presented as a submarine cable or measured route. Optional live evidence can decorate a simulated Journey but cannot silently rewrite its forwarding path.
+A public collector path is not presented as the viewer’s packet path. Optional live evidence can decorate a simulated Journey but cannot silently rewrite its transport, DNS, modifier set, forwarding path, or causal event log.
 
-## 7. Data adapters + Cloudflare Worker
+## 8. Data adapters + Cloudflare Worker
 
-The Worker is now an active adapter layer rather than only a static-file server.
+The Worker is an adapter layer as well as a static-file runtime.
 
 Current responsibilities include:
 
@@ -167,46 +230,57 @@ Current responsibilities include:
 - explicit partial-failure states
 - cache policy for public infrastructure data
 
-Browser-facing contracts intentionally omit request-address identifiers where they are not necessary to the product experience.
+External data is validated, normalized, bounded, and labeled before it reaches React.
 
-External adapters are bounded by validation, timeout, normalization, and provenance rules before data reaches React.
+## 9. Persistence boundaries
 
-## 8. Persistence boundaries
+Persistence never owns model truth.
 
-The Network Builder keeps route computation independent from persistence.
+Network Builder:
 
 - graph + route model: pure TypeScript
 - scenario schema/validation: pure TypeScript
-- localStorage: repository adapter
-- JSON files: portable scenario representation
+- localStorage/JSON: adapters
 
-The same pattern should be used for future shareable Journey scenarios: schema first, storage/URL/cloud adapter second.
+URL Journey:
 
-## 9. Protocol correctness boundaries
+- canonical modifier/config model: pure TypeScript
+- v1/v2 schema + migration: pure TypeScript
+- sessionStorage, JSON files, and share URLs: adapters
 
-Curated teaching traces simplify implementation breadth but must not cross protocol semantics.
+A restored scenario is rebuilt through the canonical builder rather than reviving serialized reducer state.
 
-Examples enforced by contracts:
+## 10. Protocol correctness boundaries
 
-- QUIC Journey branch has no TCP connection underneath it
-- TLS 1.3 state in QUIC is represented through QUIC crypto levels, not a fake TLS-record layer over UDP
+Curated teaching traces simplify breadth but must not cross protocol semantics.
+
+Contracts enforce, among other things:
+
+- QUIC Journey branches have no TCP connection underneath them
+- TLS 1.3 in QUIC is represented through QUIC crypto levels, not a fake TLS-record layer over UDP
 - HTTP/3 runs on QUIC streams
 - TCP loss uses sequence and cumulative-ACK semantics
 - QUIC loss uses packet-number, ACK-range, and STREAM-offset semantics
-- retransmitted QUIC data travels in a **new packet number**; the lost packet number is not reused
+- retransmitted QUIC data uses a new packet number; the lost packet number is never reused
+- higher RTT alone does not become packet loss
+- pre-transport route convergence does not fabricate TCP RTO or QUIC PTO behavior
+- composed modifiers retain each component's protocol-specific semantics
 
-## 10. Validation strategy
+## 11. Validation strategy
 
 A feature is not complete because it renders once.
 
 Current validation layers:
 
 1. **Pure model contracts** — deterministic route/protocol/Journey assertions under Node.
-2. **TypeScript checks** — app + Worker.
-3. **Production build** — Vite output generated in CI.
-4. **Worker contracts** — deterministic fixtures exercise browser-facing APIs.
-5. **Exact-artifact browser audit** — the GitHub Actions production bundle is rendered in Linux Chromium rather than testing only a dev server.
-6. **Desktop/mobile/reduced-motion assertions** — overflow, semantic state, navigation, and runtime errors.
+2. **Regression matrices** — legacy clean/single-modifier scenarios remain exact.
+3. **Composition contracts** — representative modifier pairs/triples, canonical ordering, timing, and persistence migration.
+4. **Schema contracts** — v1 compatibility plus v2 JSON/query round trips and invalid-input handling.
+5. **TypeScript checks** — app + Worker.
+6. **Production build** — Vite output generated in CI.
+7. **Worker contracts** — deterministic fixtures exercise browser-facing APIs.
+8. **Exact-artifact browser audit** — GitHub Actions production bundle rendered in Linux Chromium.
+9. **Desktop/mobile/reduced-motion assertions** — overflow, semantic state, navigation, and runtime errors.
 
 ## Performance rules
 
@@ -221,13 +295,14 @@ Current validation layers:
 
 ## Architectural direction
 
-The original proof was one routed-link failure/recovery scenario. That architecture has now scaled across packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, and a cross-scale URL Journey.
+The original proof was one routed-link failure/recovery scenario. The architecture has now scaled across packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, and deterministic multi-cause GOD MODE composition.
 
-The next architectural pressure points are:
+The next pressure points are:
 
-- a serializable/shareable Journey scenario schema
-- more composable failure and congestion profiles without branch explosion
+- **mid-transfer path outages** that cross the routing/transport boundary and therefore require protocol-correct TCP/QUIC reaction rather than a routing-only story
+- **queue growth/congestion** with explicit separation between delay, loss detection, and congestion control
+- DNS/server/partition failure modifiers that terminate or retry a Journey honestly
 - native/measured data sources for facts browsers cannot legitimately observe
 - renderer/performance budgets for substantially denser scenarios
 
-Those additions should extend the canonical-event/reducer boundary rather than bypass it.
+Those additions should extend the canonical-event/modifier/reducer boundary rather than bypass it.
