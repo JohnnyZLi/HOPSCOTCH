@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -14,27 +14,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: agent/lab-07e-congestion-queue-growth
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - name: Apply Lab 07E patch
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/lab-07e-congestion-queue-growth'
-        shell: bash
-        run: |
-          python3 <<'PY'
-          from pathlib import Path
-          source = Path('.github/workflows/lab07e-agent-apply.yml').read_text().splitlines()
-          start = next(i for i, line in enumerate(source) if line.strip() == "python3 <<'PY'") + 1
-          end = next(i for i in range(start, len(source)) if source[i].strip() == 'PY')
-          block = source[start:end]
-          indent = min(len(line) - len(line.lstrip()) for line in block if line.strip())
-          script = '\n'.join(line[indent:] if line.strip() else '' for line in block)
-          exec(compile(script, 'lab07e-embedded-patch.py', 'exec'))
-          PY
       - run: npm ci
       - run: npm run check
       - name: Upload production build
@@ -45,14 +28,3 @@ jobs:
           path: dist
           if-no-files-found: error
           retention-days: 3
-      - name: Commit validated Lab 07E implementation
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/lab-07e-congestion-queue-growth'
-        shell: bash
-        run: |
-          git checkout origin/main -- .github/workflows/ci.yml
-          rm .github/workflows/lab07e-agent-apply.yml
-          git config user.name "HOPSCOTCH Agent"
-          git config user.email "actions@users.noreply.github.com"
-          git add -A
-          git commit -m "Lab 07E: model congestion and queue growth" -m "Adds ECN-driven queue growth, protocol-specific TCP/QUIC congestion response, explicit queue/cwnd metrics, GOD MODE UI support, persistence compatibility, and permanent contracts. Closes #44."
-          git push origin HEAD:agent/lab-07e-congestion-queue-growth
