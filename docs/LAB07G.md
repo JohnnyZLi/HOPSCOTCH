@@ -56,4 +56,4 @@ The Journey adds an eighth `SERVER` GOD MODE control and an application-layer pa
 
 The permanent `journey-server-failure-contract-check.mjs` contract verifies request → unavailable → 503 → retry wait → ready → GET retry → successful response ordering, exact Retry-After timing, response shifting, connection/TLS reuse, absence of extra transport recovery semantics, safe-retry metrics, canonical composition, schema-v1/v2 portability, and browser persistence.
 
-Exact production-artifact desktop/mobile/reduced-motion inspection remains the final completion gate for this slice.
+The exact GitHub Actions production artifact was exercised in Linux Chromium at desktop, 390 px mobile, and reduced motion. TCP/H2 and QUIC/H3 both retained an established transport connection and TLS application keys through 503/wait/retry; the eight-control mobile layout remained overflow-free with document `scrollY=0`; and no runtime or console errors were observed.
