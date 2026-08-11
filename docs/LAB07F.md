@@ -49,4 +49,4 @@ The Journey adds a seventh `DNS FAIL` GOD MODE control, a dedicated DNS failure/
 
 The permanent `journey-dns-failure-contract-check.mjs` contract verifies query → timeout → retry → root ordering, deterministic downstream delay, unresolved timeout state, retrying state, normalization when referrals resume, cache-hit shielding with zero fabricated upstream traffic, zero transport-loss semantics, canonical composition, schema-v1/v2 portability, and browser persistence.
 
-Exact production-artifact desktop/mobile/reduced-motion inspection remains the final completion gate for this slice.
+The exact GitHub Actions production artifact was exercised in Linux Chromium at desktop, 390 px mobile, and reduced motion. Timeout, retry, cache-hit masking, seven-control layout, overflow, viewport stability, and runtime-error assertions all passed.
