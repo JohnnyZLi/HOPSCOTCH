@@ -1,6 +1,6 @@
 # Lab 07I — BGP route leak and policy anomaly
 
-Lab 07I adds a deterministic `route-leak` GOD MODE modifier that teaches a different failure class from every earlier Lab 07 story: **forwarding can remain reachable while the selected route violates interdomain policy.**
+Lab 07I adds a deterministic `route-leak` GOD MODE modifier that teaches a different failure class from every earlier Lab 07 story: **forwarding can remain reachable while the selected route violates interdomain policy.** This slice completes the curated Lab 07 GOD MODE modifier series.
 
 ## Reuse the Lab 05 policy model
 
