@@ -327,7 +327,7 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] WebGL for physical Internet scale
 - [x] renderer performance budget and profiling harness
 - [x] high-density stress scenarios
-- [ ] broader browser/GPU compatibility pass
+- [x] broader browser/GPU compatibility pass
 
 ## Non-goals
 

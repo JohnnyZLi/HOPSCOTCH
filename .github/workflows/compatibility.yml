@@ -1,0 +1,61 @@
+name: Compatibility
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  chrome-gpu-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        gpu: [default, swiftshader, disabled]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Run production compatibility profile
+        env:
+          HOPSCOTCH_GPU_MODE: ${{ matrix.gpu }}
+          HOPSCOTCH_REPORT_PATH: artifacts/compatibility-${{ matrix.gpu }}.json
+        run: npm run compatibility:chrome
+      - name: Upload compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-compatibility-${{ matrix.gpu }}
+          path: artifacts/compatibility-${{ matrix.gpu }}.json
+          if-no-files-found: error
+          retention-days: 3
+
+  firefox-semantic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Run Firefox production semantic compatibility
+        run: npm run compatibility:firefox
+      - name: Upload Firefox reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-firefox-compatibility
+          path: artifacts/firefox-compatibility.json
+          if-no-files-found: error
+          retention-days: 3
