@@ -29,7 +29,7 @@ interface JourneyModifier {
   apply(events: JourneyEvent[], context: JourneyModifierContext): JourneyModifierResult;
 }
 
-const JOURNEY_MODIFIER_ORDER: readonly JourneyModifierId[] = ['route-failure', 'single-loss', 'path-outage', 'latency-spike', 'congestion'];
+const JOURNEY_MODIFIER_ORDER: readonly JourneyModifierId[] = ['dns-failure', 'route-failure', 'single-loss', 'path-outage', 'latency-spike', 'congestion'];
 const JOURNEY_MODIFIER_SET = new Set<JourneyModifierId>(JOURNEY_MODIFIER_ORDER);
 
 export function normalizeJourneyModifierIds(values: readonly unknown[]): JourneyModifierId[] {
@@ -366,7 +366,96 @@ const congestionModifier: JourneyModifier = {
   },
 };
 
-const modifiers: JourneyModifier[] = [routeFailureModifier, singleLossModifier, pathOutageModifier, latencySpikeModifier, congestionModifier]
+
+
+function dnsFailureMissEvents(recursiveAtMs: number): JourneyEvent[] {
+  return [
+    modifierEvent({
+      id: 'dns-primary-timeout',
+      atMs: recursiveAtMs + 600,
+      kind: 'dns.timeout',
+      scale: 'application',
+      zoom: 'hold',
+      protocol: 'DNS',
+      phase: 'resolver-timeout',
+      title: 'Primary recursive resolver does not answer',
+      summary: 'The first recursive A-query attempt produces no DNS response before the teaching timeout.',
+      detail: 'A timeout is the absence of a response. HOPSCOTCH does not turn silence into NXDOMAIN or SERVFAIL, because neither response was received.',
+      actor: 'primary recursive resolver',
+      target: 'stub resolver',
+      detailLab: 'dns',
+    }),
+    modifierEvent({
+      id: 'dns-secondary-retry',
+      atMs: recursiveAtMs + 900,
+      kind: 'dns.retry',
+      scale: 'application',
+      zoom: 'hold',
+      protocol: 'DNS',
+      phase: 'resolver-retry',
+      title: 'Stub retries through a secondary recursive resolver',
+      summary: 'The same logical A question is sent through the configured secondary recursive path after the primary attempt times out.',
+      detail: 'This curated retry uses a new transaction context and a secondary recursive resolver. It is not a replayed DNS answer and does not imply that every operating system uses identical fallback timing.',
+      actor: 'stub resolver',
+      target: 'secondary recursive resolver',
+      detailLab: 'dns',
+    }),
+  ];
+}
+
+function dnsFailureMaskedEvent(cacheHitAtMs: number): JourneyEvent {
+  return modifierEvent({
+    id: 'dns-outage-masked',
+    atMs: cacheHitAtMs + 180,
+    kind: 'dns.failure-masked',
+    scale: 'application',
+    zoom: 'hold',
+    protocol: 'DNS',
+    phase: 'outage-masked',
+    title: 'Cache hit masks the upstream DNS outage',
+    summary: 'The local cached answer is already usable, so the unavailable upstream resolver path is never consulted.',
+    detail: 'No upstream query is required, so HOPSCOTCH does not fabricate a timeout packet, DNS retry, or resolver delay. The cached TTL continues to age normally.',
+    actor: 'local DNS cache',
+    target: 'application',
+    detailLab: 'dns',
+  });
+}
+
+const dnsFailureModifier: JourneyModifier = {
+  id: 'dns-failure',
+  order: 70,
+  apply(events, context) {
+    if (context.config.dnsProfile === 'cache-hit') {
+      const cacheHit = events.find((current) => current.kind === 'dns.cache-hit');
+      const routeLookup = events.find((current) => current.kind === 'route.lookup');
+      if (!cacheHit || !routeLookup || cacheHit.atMs >= routeLookup.atMs) throw new Error('dns-failure cache-hit path requires cache hit before route lookup.');
+      const masked = dnsFailureMaskedEvent(cacheHit.atMs);
+      if (masked.atMs >= routeLookup.atMs) throw new Error('dns-failure masked event must remain before route lookup.');
+      return {
+        events: [...events, masked].sort((a, b) => a.atMs - b.atMs),
+        addedDurationMs: 0,
+        appliedModifierIds: ['dns-failure'],
+      };
+    }
+
+    const recursive = events.find((current) => current.id === 'dns-recursive');
+    const root = events.find((current) => current.id === 'dns-root');
+    if (!recursive || !root || recursive.atMs >= root.atMs) throw new Error('dns-failure cache-miss path requires recursive query before root referral.');
+    const addedDurationMs = 1200;
+    const shifted = shiftPostAnchor(events, root.atMs, addedDurationMs);
+    const injected = dnsFailureMissEvents(recursive.atMs);
+    if (!(recursive.atMs < injected[0].atMs && injected[0].atMs < injected[1].atMs && injected[1].atMs < root.atMs + addedDurationMs)) {
+      throw new Error('dns-failure must order query < timeout < retry < root referral.');
+    }
+    return {
+      events: [...shifted, ...injected].sort((a, b) => a.atMs - b.atMs),
+      addedDurationMs,
+      appliedModifierIds: ['dns-failure'],
+    };
+  },
+};
+
+const modifiers: JourneyModifier[] = [dnsFailureModifier, routeFailureModifier, singleLossModifier, pathOutageModifier, latencySpikeModifier, congestionModifier]
   .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
 
 export function applyJourneyModifiers(
