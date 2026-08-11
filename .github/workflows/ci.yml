@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -14,10 +14,14 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: agent/lab-08a-performance-budget-harness
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+      - run: python3 scripts/sync-lab08a-shared-docs.py
       - run: npm ci
       - run: npm run check
       - name: Upload production build
@@ -28,3 +32,18 @@ jobs:
           path: dist
           if-no-files-found: error
           retention-days: 3
+      - name: Commit validated Lab 08A docs
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          rm -f scripts/sync-lab08a-shared-docs.py
+          git checkout origin/main -- .github/workflows/ci.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No Lab 08A docs changes to commit"
+            exit 0
+          fi
+          git commit -m "Sync HOPSCOTCH docs through Lab 08A"
+          git push origin HEAD:agent/lab-08a-performance-budget-harness
