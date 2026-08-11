@@ -10,6 +10,10 @@ def replace_once(old: str, new: str) -> None:
     text = text.replace(old, new, 1)
 
 replace_once(
+    "const budgets = budgetDocument.budgets;\nconst stressConfig = budgetDocument.stress;",
+    "const budgets = budgetDocument.budgets;\nconst stressBudgets = budgetDocument.stressBudgets ?? {};\nconst stressConfig = budgetDocument.stress;",
+)
+replace_once(
     "];\n\nasync function waitForExpression(cdp, expression, timeoutMs = 5000) {",
     "];\n\nprofiles.push(\n  { id: 'stress-as-canvas', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'as-density' }), readySelector: '.internet-scale', expected: ['POLICY MAKES', 'SIMULATED WINNER'], stressExpected: { profile: 'as-density', asNodes: 160, asRelationships: 220 } },\n  { id: 'stress-builder-ceiling', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'builder-density' }), readySelector: '.builder-workspace', expected: ['32 NODES · 96 LINKS', 'ROUTE INSTALLED'], stressExpected: { profile: 'builder-density', builderNodes: 32, builderLinks: 96 } },\n  { id: 'stress-physical-webgl', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'physical-density' }), readySelector: '.physical-globe', expected: ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA', 'WEBGL 2'], stressExpected: { profile: 'physical-density', physicalPoints: 2000, webgl: true } },\n);\n\nasync function waitForExpression(cdp, expression, timeoutMs = 5000) {",
 )
@@ -42,16 +46,28 @@ replace_once(
     "    cycles,",
 )
 replace_once(
+    "    seekStress: null,\n    failures: [],",
+    "    seekStress: null,\n    highDensitySeekStress: null,\n    failures: [],",
+)
+replace_once(
     "    report.seekStress = await seekStress(cdp, artifact);",
-    "    report.seekStress = await seekStress(cdp, artifact);\n    report.highDensitySeekStress = await seekStress(cdp, artifact, 12, 'high-density-seek-stress');",
+    "    report.seekStress = await seekStress(cdp, artifact);\n    report.highDensitySeekStress = await seekStress(cdp, artifact, stressBudgets.highDensitySeek?.cycles ?? 12, 'high-density-seek-stress');",
 )
 replace_once(
     "    for (const profile of report.profiles) {\n      addBudgetFailure(report.failures, profile.elementCount <= budgets.maxDomElements, `${profile.id} DOM ${profile.elementCount} exceeds ${budgets.maxDomElements}.`);\n      addBudgetFailure(report.failures, profile.heapUsedBytes <= budgets.maxHeapUsedBytes, `${profile.id} heap ${profile.heapUsedBytes} exceeds ${budgets.maxHeapUsedBytes}.`);\n    }",
-    "    for (const profile of report.profiles) {\n      if (profile.stress?.profile) continue;\n      addBudgetFailure(report.failures, profile.elementCount <= budgets.maxDomElements, `${profile.id} DOM ${profile.elementCount} exceeds ${budgets.maxDomElements}.`);\n      addBudgetFailure(report.failures, profile.heapUsedBytes <= budgets.maxHeapUsedBytes, `${profile.id} heap ${profile.heapUsedBytes} exceeds ${budgets.maxHeapUsedBytes}.`);\n    }",
+    "    for (const profile of report.profiles) {\n      const stressProfileId = profile.stress?.profile;\n      if (stressProfileId) {\n        const stressBudget = stressBudgets[stressProfileId];\n        addBudgetFailure(report.failures, Boolean(stressBudget), `${profile.id} is missing a versioned stress budget.`);\n        if (stressBudget) {\n          addBudgetFailure(report.failures, profile.elementCount <= stressBudget.maxDomElements, `${profile.id} DOM ${profile.elementCount} exceeds stress budget ${stressBudget.maxDomElements}.`);\n          addBudgetFailure(report.failures, profile.heapUsedBytes <= stressBudget.maxHeapUsedBytes, `${profile.id} heap ${profile.heapUsedBytes} exceeds stress budget ${stressBudget.maxHeapUsedBytes}.`);\n        }\n        continue;\n      }\n      addBudgetFailure(report.failures, profile.elementCount <= budgets.maxDomElements, `${profile.id} DOM ${profile.elementCount} exceeds ${budgets.maxDomElements}.`);\n      addBudgetFailure(report.failures, profile.heapUsedBytes <= budgets.maxHeapUsedBytes, `${profile.id} heap ${profile.heapUsedBytes} exceeds ${budgets.maxHeapUsedBytes}.`);\n    }",
+)
+replace_once(
+    "    addBudgetFailure(report.failures, report.seekStress.heapGrowthBytes <= budgets.maxHeapGrowthBytes, `seek stress heap growth ${report.seekStress.heapGrowthBytes} exceeds ${budgets.maxHeapGrowthBytes}.`);",
+    "    addBudgetFailure(report.failures, report.seekStress.heapGrowthBytes <= budgets.maxHeapGrowthBytes, `seek stress heap growth ${report.seekStress.heapGrowthBytes} exceeds ${budgets.maxHeapGrowthBytes}.`);\n    const highDensitySeekBudget = stressBudgets.highDensitySeek;\n    addBudgetFailure(report.failures, Boolean(highDensitySeekBudget), 'High-density seek stress is missing a versioned stress budget.');\n    if (highDensitySeekBudget) {\n      addBudgetFailure(report.failures, report.highDensitySeekStress.cycles === highDensitySeekBudget.cycles, `high-density seek cycles ${report.highDensitySeekStress.cycles} do not match budget contract ${highDensitySeekBudget.cycles}.`);\n      addBudgetFailure(report.failures, report.highDensitySeekStress.eventsPerCycle === highDensitySeekBudget.eventsPerCycle, `high-density seek event count ${report.highDensitySeekStress.eventsPerCycle} does not match budget contract ${highDensitySeekBudget.eventsPerCycle}.`);\n      addBudgetFailure(report.failures, report.highDensitySeekStress.heapGrowthBytes <= highDensitySeekBudget.maxHeapGrowthBytes, `high-density seek heap growth ${report.highDensitySeekStress.heapGrowthBytes} exceeds stress budget ${highDensitySeekBudget.maxHeapGrowthBytes}.`);\n    }",
 )
 replace_once(
     "  if (report.seekStress) {\n    console.log(`seek stress: ${report.seekStress.cycles} × ${report.seekStress.eventsPerCycle} events · heap growth ${(report.seekStress.heapGrowthBytes / 1048576).toFixed(2)} MiB · ${report.seekStress.elapsedMs.toFixed(0)} ms diagnostic`);\n  }",
     "  if (report.seekStress) {\n    console.log(`seek stress: ${report.seekStress.cycles} × ${report.seekStress.eventsPerCycle} events · heap growth ${(report.seekStress.heapGrowthBytes / 1048576).toFixed(2)} MiB · ${report.seekStress.elapsedMs.toFixed(0)} ms diagnostic`);\n  }\n  if (report.highDensitySeekStress) {\n    console.log(`high-density seek stress: ${report.highDensitySeekStress.cycles} × ${report.highDensitySeekStress.eventsPerCycle} events · heap growth ${(report.highDensitySeekStress.heapGrowthBytes / 1048576).toFixed(2)} MiB · ${report.highDensitySeekStress.elapsedMs.toFixed(0)} ms diagnostic`);\n  }",
+)
+replace_once(
+    "    console.log('Stable performance budgets passed.');",
+    "    console.log('Stable performance and high-density stress budgets passed.');",
 )
 
 path.write_text(text)
