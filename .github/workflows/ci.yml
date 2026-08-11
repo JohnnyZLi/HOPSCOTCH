@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -14,16 +14,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: agent/lab-08b-high-density-stress
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run check
-      - run: npm run performance:check
       - name: Upload production build
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
@@ -32,57 +28,3 @@ jobs:
           path: dist
           if-no-files-found: error
           retention-days: 3
-      - name: Commit validated Lab 08B source
-        if: github.event_name == 'pull_request'
-        shell: bash
-        run: |
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          delete pkg.scripts.pretypecheck;
-          fs.writeFileSync('package.json', `${JSON.stringify(pkg, null, 2)}\n`);
-          NODE
-          rm -f scripts/apply-lab08b.py scripts/fix-lab08b-physical-types.py scripts/apply-lab08b-performance.py
-          git checkout origin/main -- .github/workflows/ci.yml
-          cat > .github/workflows/performance.yml <<'YAML'
-          name: Performance
-
-          on:
-            push:
-              branches: [main]
-            pull_request:
-
-          permissions:
-            contents: read
-
-          jobs:
-            production-profile:
-              runs-on: ubuntu-latest
-              timeout-minutes: 10
-              steps:
-                - uses: actions/checkout@v6
-                - uses: actions/setup-node@v4
-                  with:
-                    node-version: 24
-                    cache: npm
-                - run: npm ci
-                - run: npm run build
-                - run: npm run performance:check
-                - name: Upload performance profile
-                  if: always()
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: hopscotch-performance-profile
-                    path: artifacts/performance-profile.json
-                    if-no-files-found: error
-                    retention-days: 3
-          YAML
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No Lab 08B promotion changes to commit"
-            exit 0
-          fi
-          git commit -m "Lab 08B: add deterministic high-density stress profiles"
-          git push origin HEAD:agent/lab-08b-high-density-stress
