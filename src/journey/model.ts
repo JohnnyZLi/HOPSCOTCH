@@ -5,7 +5,7 @@ export type JourneyProvenance = 'SIMULATED' | 'EDGE OBSERVED' | 'PUBLIC COLLECTO
 export type JourneyZoomDirection = 'in' | 'out' | 'hold';
 export type JourneyTransportProfile = 'tcp-h2' | 'quic-h3';
 export type JourneyDnsProfile = 'cache-miss' | 'cache-hit';
-export type JourneyModifierId = 'route-failure' | 'single-loss' | 'path-outage' | 'latency-spike' | 'congestion';
+export type JourneyModifierId = 'dns-failure' | 'route-failure' | 'single-loss' | 'path-outage' | 'latency-spike' | 'congestion';
 export type JourneyImpairmentProfile = 'clean' | JourneyModifierId | 'composed';
 export type JourneyDetailLab = 'dns' | 'tcp' | 'tls' | 'http' | 'packet' | 'builder' | 'failure' | 'internet' | 'physical' | 'observed';
 export type JourneyEventKind =
@@ -16,6 +16,9 @@ export type JourneyEventKind =
   | 'dns.referral'
   | 'dns.answer'
   | 'dns.cache-store'
+  | 'dns.timeout'
+  | 'dns.retry'
+  | 'dns.failure-masked'
   | 'route.lookup'
   | 'route.gateway'
   | 'route.failure'
@@ -129,13 +132,13 @@ export interface JourneyScenario {
   events: JourneyEvent[];
 }
 
-export type DnsJourneyState = 'idle' | 'cache-miss' | 'resolving' | 'resolved' | 'cached';
+export type DnsJourneyState = 'idle' | 'cache-miss' | 'resolving' | 'timeout' | 'retrying' | 'resolved' | 'cached';
 export type RouteJourneyState = 'idle' | 'lookup' | 'gateway-ready' | 'failed' | 'recomputing' | 'alternate-ready' | 'internet-path-ready';
 export type TransportJourneyState = 'closed' | 'handshake' | 'established' | 'complete';
 export type TlsJourneyState = 'idle' | 'negotiating' | 'validating' | 'handshake-keys' | 'application-keys';
 export type HttpJourneyState = 'idle' | 'control' | 'request-sent' | 'headers' | 'streaming' | 'complete';
 export type PacketJourneyState = 'idle' | 'frame' | 'headers';
-export type JourneyImpairmentState = 'clean' | 'armed' | 'lost' | 'detected' | 'recovering' | 'recovered' | 'delayed' | 'estimating' | 'normalized' | 'queueing' | 'ecn-signaled' | 'congestion-responding' | 'route-failed' | 'route-recomputing' | 'route-ready';
+export type JourneyImpairmentState = 'clean' | 'armed' | 'dns-failed' | 'dns-retrying' | 'dns-masked' | 'lost' | 'detected' | 'recovering' | 'recovered' | 'delayed' | 'estimating' | 'normalized' | 'queueing' | 'ecn-signaled' | 'congestion-responding' | 'route-failed' | 'route-recomputing' | 'route-ready';
 
 export interface JourneyState {
   timeMs: number;
@@ -381,15 +384,32 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
         dnsTtlBase = current.ttlSeconds ?? null;
         dnsCachedAtMs = current.atMs;
         break;
-      case 'dns.query':
-      case 'dns.referral': dns = 'resolving'; break;
+      case 'dns.query': dns = 'resolving'; break;
+      case 'dns.timeout':
+        dns = 'timeout';
+        impairmentState = 'dns-failed';
+        break;
+      case 'dns.retry':
+        dns = 'retrying';
+        impairmentState = 'dns-retrying';
+        break;
+      case 'dns.failure-masked':
+        impairmentState = 'dns-masked';
+        break;
+      case 'dns.referral':
+        dns = 'resolving';
+        if (impairmentState === 'dns-failed' || impairmentState === 'dns-retrying') impairmentState = 'normalized';
+        break;
       case 'dns.answer': dns = 'resolved'; resolvedAddress = scenario.destinationAddress; break;
       case 'dns.cache-store':
         dns = 'cached';
         dnsTtlBase = current.ttlSeconds ?? null;
         dnsCachedAtMs = current.atMs;
         break;
-      case 'route.lookup': route = 'lookup'; break;
+      case 'route.lookup':
+        route = 'lookup';
+        if (impairmentState === 'dns-masked') impairmentState = 'normalized';
+        break;
       case 'route.gateway': route = 'gateway-ready'; break;
       case 'route.failure':
         route = 'failed';
