@@ -5,7 +5,7 @@ export type JourneyProvenance = 'SIMULATED' | 'EDGE OBSERVED' | 'PUBLIC COLLECTO
 export type JourneyZoomDirection = 'in' | 'out' | 'hold';
 export type JourneyTransportProfile = 'tcp-h2' | 'quic-h3';
 export type JourneyDnsProfile = 'cache-miss' | 'cache-hit';
-export type JourneyModifierId = 'dns-failure' | 'route-failure' | 'server-failure' | 'single-loss' | 'path-outage' | 'latency-spike' | 'congestion' | 'partition';
+export type JourneyModifierId = 'dns-failure' | 'route-failure' | 'route-leak' | 'server-failure' | 'single-loss' | 'path-outage' | 'latency-spike' | 'congestion' | 'partition';
 export type JourneyImpairmentProfile = 'clean' | JourneyModifierId | 'composed';
 export type JourneyDetailLab = 'dns' | 'tcp' | 'tls' | 'http' | 'packet' | 'builder' | 'failure' | 'internet' | 'physical' | 'observed';
 export type JourneyEventKind =
@@ -29,6 +29,11 @@ export type JourneyEventKind =
   | 'route.partition-recompute'
   | 'route.unreachable'
   | 'internet.policy-path'
+  | 'internet.route-leak-advertised'
+  | 'internet.route-leak-selected'
+  | 'internet.policy-anomaly'
+  | 'internet.route-leak-withdrawn'
+  | 'internet.policy-restored'
   | 'internet.physical-context'
   | 'transport.segment'
   | 'transport.established'
@@ -110,6 +115,25 @@ export interface JourneyServerMetrics {
   transportReused: boolean;
 }
 
+export interface JourneyPolicyMetrics {
+  legitimatePathAsns: number[];
+  leakedPathAsns: number[];
+  activePathAsns: number[];
+  legitimateTraversal: Array<'up' | 'peer' | 'down'>;
+  leakedTraversal: Array<'up' | 'peer' | 'down'>;
+  legitimateLocalPreference: number;
+  leakedLocalPreference: number;
+  activeLocalPreference: number;
+  leakSourceAsn: number;
+  decisionAsn: number;
+  destinationAsn: number;
+  learnedFrom: 'peer';
+  exportedTo: 'provider';
+  selectedPathPolicyCompliant: boolean;
+  exportPolicyCompliant: boolean;
+  reachable: boolean;
+}
+
 export interface JourneyRouteMetrics {
   primaryPathCost: number;
   alternatePathCost: number;
@@ -139,6 +163,7 @@ export interface JourneyEvent {
   transportMetrics?: JourneyTransportMetrics;
   congestionMetrics?: JourneyCongestionMetrics;
   serverMetrics?: JourneyServerMetrics;
+  policyMetrics?: JourneyPolicyMetrics;
   routeMetrics?: JourneyRouteMetrics;
 }
 
@@ -161,8 +186,9 @@ export type TransportJourneyState = 'closed' | 'handshake' | 'established' | 'st
 export type TlsJourneyState = 'idle' | 'negotiating' | 'validating' | 'handshake-keys' | 'application-keys';
 export type HttpJourneyState = 'idle' | 'control' | 'request-sent' | 'service-unavailable' | 'retry-wait' | 'headers' | 'streaming' | 'stalled' | 'complete';
 export type ServerJourneyState = 'healthy' | 'unavailable' | 'waiting' | 'ready';
+export type PolicyJourneyState = 'normal' | 'leak-advertised' | 'leaked' | 'anomaly' | 'restored';
 export type PacketJourneyState = 'idle' | 'frame' | 'headers';
-export type JourneyImpairmentState = 'clean' | 'armed' | 'dns-failed' | 'dns-retrying' | 'dns-masked' | 'server-unavailable' | 'server-waiting' | 'server-ready' | 'lost' | 'detected' | 'recovering' | 'recovered' | 'delayed' | 'estimating' | 'normalized' | 'queueing' | 'ecn-signaled' | 'congestion-responding' | 'route-failed' | 'route-recomputing' | 'route-ready' | 'partitioned' | 'partition-recomputing' | 'unreachable';
+export type JourneyImpairmentState = 'clean' | 'armed' | 'dns-failed' | 'dns-retrying' | 'dns-masked' | 'server-unavailable' | 'server-waiting' | 'server-ready' | 'lost' | 'detected' | 'recovering' | 'recovered' | 'delayed' | 'estimating' | 'normalized' | 'queueing' | 'ecn-signaled' | 'congestion-responding' | 'route-failed' | 'route-recomputing' | 'route-ready' | 'policy-leak' | 'policy-anomaly' | 'policy-restored' | 'partitioned' | 'partition-recomputing' | 'unreachable';
 
 export interface JourneyState {
   timeMs: number;
@@ -177,6 +203,7 @@ export interface JourneyState {
   transportMetrics: JourneyTransportMetrics | null;
   congestionMetrics: JourneyCongestionMetrics | null;
   serverMetrics: JourneyServerMetrics | null;
+  policyMetrics: JourneyPolicyMetrics | null;
   routeMetrics: JourneyRouteMetrics | null;
   scale: JourneyScale;
   scaleDepth: number;
@@ -193,6 +220,7 @@ export interface JourneyState {
   tls: TlsJourneyState;
   http: HttpJourneyState;
   server: ServerJourneyState;
+  policy: PolicyJourneyState;
   packet: PacketJourneyState;
   responseReady: boolean;
   journeyComplete: boolean;
@@ -396,11 +424,13 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
   let tls: TlsJourneyState = 'idle';
   let http: HttpJourneyState = 'idle';
   let server: ServerJourneyState = 'healthy';
+  let policy: PolicyJourneyState = 'normal';
   let packet: PacketJourneyState = 'idle';
   let impairmentState: JourneyImpairmentState = scenario.modifierIds.length === 0 ? 'clean' : 'armed';
   let transportMetrics: JourneyTransportMetrics | null = null;
   let congestionMetrics: JourneyCongestionMetrics | null = null;
   let serverMetrics: JourneyServerMetrics | null = null;
+  let policyMetrics: JourneyPolicyMetrics | null = null;
   let routeMetrics: JourneyRouteMetrics | null = null;
   let responseReady = false;
   let journeyComplete = false;
@@ -478,7 +508,35 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
         impairmentState = 'unreachable';
         routeMetrics = current.routeMetrics ?? routeMetrics;
         break;
-      case 'internet.policy-path': route = 'internet-path-ready'; break;
+      case 'internet.policy-path': route = 'internet-path-ready'; policy = 'normal'; break;
+      case 'internet.route-leak-advertised':
+        policy = 'leak-advertised';
+        impairmentState = 'policy-leak';
+        policyMetrics = current.policyMetrics ?? policyMetrics;
+        break;
+      case 'internet.route-leak-selected':
+        policy = 'leaked';
+        impairmentState = 'policy-leak';
+        policyMetrics = current.policyMetrics ?? policyMetrics;
+        break;
+      case 'internet.policy-anomaly':
+        policy = 'anomaly';
+        impairmentState = 'policy-anomaly';
+        policyMetrics = current.policyMetrics ?? policyMetrics;
+        break;
+      case 'internet.route-leak-withdrawn':
+        policy = 'anomaly';
+        impairmentState = 'policy-anomaly';
+        policyMetrics = current.policyMetrics ?? policyMetrics;
+        break;
+      case 'internet.policy-restored':
+        policy = 'restored';
+        impairmentState = 'policy-restored';
+        policyMetrics = current.policyMetrics ?? policyMetrics;
+        break;
+      case 'internet.physical-context':
+        if (impairmentState === 'policy-restored') impairmentState = 'normalized';
+        break;
       case 'transport.segment': transport = 'handshake'; break;
       case 'transport.established': transport = 'established'; break;
       case 'transport.loss': impairmentState = 'lost'; break;
@@ -599,6 +657,7 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
     transportMetrics,
     congestionMetrics,
     serverMetrics,
+    policyMetrics,
     routeMetrics,
     scale: activeEvent.scale,
     scaleDepth: JOURNEY_SCALE_DEPTH[activeEvent.scale],
@@ -615,6 +674,7 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
     tls,
     http,
     server,
+    policy,
     packet,
     responseReady,
     journeyComplete,

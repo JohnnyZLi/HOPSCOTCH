@@ -57,6 +57,7 @@ dnsProfile       = cache-miss | cache-hit
 modifierIds      = ordered subset of:
                    dns-failure
                    route-failure
+                   route-leak
                    server-failure
                    single-loss
                    path-outage
@@ -70,6 +71,7 @@ Canonical modifier order is model-defined:
 ```text
 dns-failure
 → route-failure
+→ route-leak
 → server-failure
 → single-loss
 → path-outage
@@ -98,6 +100,7 @@ Current rules:
 - On a cache miss, resolver silence produces a timeout and secondary recursive retry; later causal events shift by the deterministic retry penalty.
 - On a cache hit, the same simulated upstream outage is masked by local state; no query, timeout, retry, or delay is fabricated.
 - Pre-transport route failure invalidates the primary route, runs SPF, installs the alternate, and converges before transport starts.
+- Route leak is an interdomain policy anomaly built from the existing Lab 05 AS graph. AS64500 incorrectly exports a peer-learned route to provider AS64504; teaching LOCAL_PREF 300 temporarily beats the legitimate peer-learned 200 route even though the selected `down → peer` path violates the normal valley-free policy. Reachability stays true and policy correctness becomes false until the bad advertisement is withdrawn.
 - Server failure occurs after the canonical HTTP request but before successful response headers. A reachable service returns HTTP 503 + Retry-After, and the idempotent `GET /` retries on the same transport/TLS state.
 - Single loss retains protocol-correct TCP sequence/ACK or QUIC packet-number/STREAM recovery semantics.
 - Mid-transfer path outage crosses routing and transport without recreating the connection. Routing restores reachability; transport then repairs missing data.
@@ -126,7 +129,7 @@ timeMs
 name?
 ```
 
-Existing v1 links/files remain valid. New single-modifier path-outage, congestion, DNS-failure, server-failure, and partition scenarios also fit v1 without a schema bump.
+Existing v1 links/files remain valid. New single-modifier path-outage, congestion, DNS-failure, server-failure, route-leak, and partition scenarios also fit v1 without a schema bump.
 
 ### Schema v2
 
@@ -171,6 +174,7 @@ Examples include:
 - selected canonical modifiers versus current active impairment phase
 - DNS cache/TTL, timeout, retry, and masked-outage state
 - application-service state and HTTP 503 / Retry-After / idempotency / connection-reuse facts
+- interdomain policy state: legitimate/leaked ASN paths, relationship traversals, LOCAL_PREF, leak source/decision AS, export-policy compliance, selected-path compliance, and reachability as an independent boolean
 - TCP sequence/retransmission plus RTT/RTO state
 - QUIC packet-number/STREAM recovery plus RTT/PTO state
 - queue occupancy/delay, ECN CE count, cwnd, ssthresh, signal, and drop count
@@ -277,6 +281,8 @@ Curated teaching traces simplify breadth but must not cross protocol semantics. 
 - QUIC loss uses packet-number, ACK-range, and STREAM-offset semantics; retransmitted data uses a new packet number.
 - Higher RTT alone is not loss or an implicit congestion signal.
 - Pre-transport route convergence does not fabricate RTO/PTO behavior.
+- A BGP route leak can remain forwarding-reachable while violating policy. The Journey reuses the Lab 05 valley-free model and never turns policy noncompliance into a fabricated local route failure or transport loss.
+- The curated leak demonstrates one teaching preference rule (customer 300 > peer 200 > provider 100); it is not presented as universal BGP best-path behavior.
 - Mid-transfer outage does not silently tear down an established connection.
 - TCP outage recovery uses ACK silence + teaching RTO; QUIC may expose PTO/probe behavior, but probes cannot manufacture IP reachability.
 - ECN CE marks are delivered congestion signals, not drops; the base congestion story keeps dropped packets at zero.
@@ -299,11 +305,12 @@ Current validation layers:
 7. **Cross-layer outage contracts** — routing convergence, TCP RTO projection, QUIC PTO/probe behavior, connection continuity, and composed recovery ordering.
 8. **Congestion contracts** — queue growth before ECN, protocol-specific feedback, cwnd reduction, zero-drop/no-retransmission semantics, queue drain, composition, and persistence.
 9. **Partition contracts** — dual-link failure, zero SPF candidates, stalled-not-closed transport, successful-tail removal, terminal failure state, composition, and persistence.
-10. **TypeScript checks** — app + Worker.
-11. **Production build** — Vite output generated in CI.
-12. **Worker contracts** — deterministic fixtures exercise browser-facing APIs.
-13. **Exact-artifact browser audit** — GitHub Actions production bundle rendered in Linux Chromium.
-14. **Desktop/mobile/reduced-motion assertions** — overflow, semantic state, navigation, viewport stability, and runtime errors.
+10. **Route-leak contracts** — direct reuse of the Lab 05 AS graph/enumerator, legitimate peer→down acceptance, leaked down→peer rejection, 200→300 teaching preference, reachable-but-policy-invalid reducer state, restoration before transport, composition, and persistence.
+11. **TypeScript checks** — app + Worker.
+12. **Production build** — Vite output generated in CI.
+13. **Worker contracts** — deterministic fixtures exercise browser-facing APIs.
+14. **Exact-artifact browser audit** — GitHub Actions production bundle rendered in Linux Chromium.
+15. **Desktop/mobile/reduced-motion assertions** — overflow, semantic state, navigation, viewport stability, and runtime errors.
 
 ## Performance rules
 
@@ -318,11 +325,10 @@ Current validation layers:
 
 ## Architectural direction
 
-The original proof was one routed-link failure/recovery scenario. The architecture now spans packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, deterministic multi-cause GOD MODE composition, cross-layer outage recovery, ECN queue/congestion response, DNS timeout/retry behavior, HTTP service-unavailable retry, and terminal network partition behavior.
+The original proof was one routed-link failure/recovery scenario. The architecture now spans packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, deterministic multi-cause GOD MODE composition, cross-layer outage recovery, ECN queue/congestion response, DNS timeout/retry behavior, HTTP service-unavailable retry, terminal network partition behavior, and BGP route-leak policy anomalies that keep reachability separate from policy correctness.
 
 The next pressure points are:
 
-- route leak / policy-anomaly stories that preserve the distinction between **reachability** and **policy correctness**
 - loss-based or AQM variants of congestion only where they remain explicitly distinct from the current zero-drop ECN story
 - native/measured data sources for facts browsers cannot legitimately observe
 - renderer/performance budgets for substantially denser scenarios

@@ -43,7 +43,7 @@ export function readJourneyBrowserConfig(storage: Pick<Storage, 'getItem'> = ses
   return {
     transportProfile,
     dnsProfile,
-    impairmentProfile: storedImpairment === 'dns-failure' || storedImpairment === 'server-failure' || storedImpairment === 'single-loss' || storedImpairment === 'latency-spike' || storedImpairment === 'route-failure' || storedImpairment === 'path-outage' || storedImpairment === 'congestion' || storedImpairment === 'partition' ? storedImpairment : 'clean',
+    impairmentProfile: storedImpairment === 'dns-failure' || storedImpairment === 'route-leak' || storedImpairment === 'server-failure' || storedImpairment === 'single-loss' || storedImpairment === 'latency-spike' || storedImpairment === 'route-failure' || storedImpairment === 'path-outage' || storedImpairment === 'congestion' || storedImpairment === 'partition' ? storedImpairment : 'clean',
   };
 }
 

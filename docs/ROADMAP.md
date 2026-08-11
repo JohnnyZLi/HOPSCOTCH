@@ -290,8 +290,25 @@ GOD MODE impairments are deterministic modifiers over the same canonical Journey
 - [x] permanent partition/model/composition contract wired into `npm run check`
 - [x] exact GitHub Actions production-artifact desktop/mobile/reduced-motion audit
 
-### Later GOD MODE stories
-- [ ] route leak / policy anomaly teaching scenario
+### 07I — BGP route leak + policy anomaly
+- [x] distinct `route-leak` modifier at the interdomain/BGP policy boundary
+- [x] reuse the existing Lab 05 documentation-AS graph and valley-free policy enumerator instead of inventing a second BGP model
+- [x] legitimate AS64504 → AS65540 → AS65538 path remains `peer → down` with teaching LOCAL_PREF 200
+- [x] AS64500 leaks a peer-learned AS65538 route upward to provider AS64504
+- [x] leaked AS64504 → AS64500 → AS65538 path is physically connected but `down → peer` and rejected by the normal valley-free enumerator
+- [x] deterministic teaching LOCAL_PREF changes 200 → 300 while the leaked customer advertisement is selected
+- [x] explicit policy metrics keep forwarding reachability separate from selected-path/export-policy compliance
+- [x] UI simultaneously shows `REACHABLE = YES` and `POLICY COMPLIANT = NO`
+- [x] anomaly containment withdraws the leak and restores the legitimate peer path before transport begins
+- [x] LEAK-only scenarios fabricate no local route failure, partition, transport loss/recovery, RTO/PTO, TLS failure, or server failure
+- [x] canonical DNS FAIL → ROUTE → LEAK → SERVER → LOSS → OUTAGE → LATENCY → CONGESTION → PARTITION composition is independent of UI selection order
+- [x] schema-v1 single LEAK and schema-v2 composed sharing/persistence compatibility
+- [x] tenth GOD MODE selector, Internet policy panel, distinct rail marker, and scrubber marker
+- [x] mobile ten-control 4 + 4 + 2 layout remains collision- and overflow-free with viewport-stable playback
+- [x] permanent route-leak/Lab-05-model/composition contract wired into `npm run check`
+- [x] exact GitHub Actions production-artifact desktop/mobile/reduced-motion audit with zero runtime/console errors
+
+**Lab 07 GOD MODE modifier series complete.** Reachability, policy correctness, routing reachability, transport recovery, latency, congestion, DNS availability, and application-service availability remain separate semantic dimensions.
 
 ## Measured/native mode — future
 
