@@ -180,7 +180,7 @@ export default function App() {
           : { label: 'Open physical Internet', run: openPhysicalInternet };
 
   const buildLabel = activeLab === 'journey'
-    ? 'LAB 06'
+    ? 'LAB 07'
     : activeLab === 'failure'
     ? 'LAB 01'
     : activeLab === 'packet'
@@ -193,7 +193,7 @@ export default function App() {
             ? 'LAB 05'
             : 'LAB 00';
   const buildStatus = activeLab === 'journey'
-    ? 'URL JOURNEY ACTIVE'
+    ? 'GOD MODE JOURNEY ACTIVE'
     : activeLab === 'failure'
     ? labState.statusLabel
     : activeLab === 'packet'
