@@ -234,8 +234,11 @@ Current provenance labels:
 - `PUBLIC COLLECTOR` — routing state observed from public collector vantage points
 - `PUBLIC DATA` — published infrastructure facts such as facility coordinates
 - `INFERRED` — explanatory connection/geometry not directly measured
+- `LOCAL MEASURED` — a native/local observation bounded to one host vantage, declared target, adapter/tool identity, and capture interval
 
 A public collector path is not the viewer's packet path. Optional live evidence can decorate a simulated Journey but cannot silently rewrite transport, DNS, modifiers, forwarding path, or the causal event log.
+
+`LOCAL MEASURED` is observational, not global truth. Native measurement schema v1 requires `vantage = local-host`, `completeness = bounded`, `globalComplete = false`, explicit limitations, adapter/tool identity, a bounded capture interval, and per-fact timestamps/targets. Arbitrary nested model objects are rejected as measured values so a native adapter cannot launder Journey events, modifiers, inferred topology, or other canonical state into the measured evidence channel.
 
 ## 8. Data adapters + Cloudflare Worker
 
@@ -314,6 +317,7 @@ Current validation layers:
 16. **Production performance profile** — a separate Chrome/Chromium CDP workflow exercises the exact built artifact, enforces versioned stable structural/semantic budgets, stress-seeks deterministic state, and uploads a machine-readable report.
 17. **High-density renderer contracts** — query-only deterministic fixtures exercise AS Canvas at 160/220, Builder at its real 32/96 authoring ceiling, the physical WebGL buffer at 2,000 SIMULATED points, and a 12×54 seek churn pass with separate hosted-baseline stress ceilings.
 18. **Browser/GPU compatibility matrix** — the exact production artifact runs in hosted Chrome default, explicit SwiftShader, and WebGL-disabled modes plus a real Firefox/Gecko WebDriver + BiDi semantic pass. Renderer capability may select WebGL or the explicit fallback, but canonical network state must remain identical.
+19. **Native measurement provenance contract** — schema-v1 parsing/round trips and negative fixtures prove `LOCAL MEASURED` facts remain local-vantage, time-bounded, target-explicit, source-attributed, non-global, and structurally unable to embed canonical Journey/model objects as measured truth.
 
 ## Performance rules
 
@@ -338,11 +342,12 @@ Current validation layers:
 
 ## Architectural direction
 
-The original proof was one routed-link failure/recovery scenario. The architecture now spans packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, deterministic multi-cause GOD MODE composition, cross-layer outage recovery, ECN queue/congestion response, DNS timeout/retry behavior, HTTP service-unavailable retry, terminal network partition behavior, BGP route-leak policy anomalies that keep reachability separate from policy correctness, a production-artifact performance budget that measures renderer cost without making frame timing part of simulation truth, deterministic high-density stress fixtures that exercise the real Canvas/DOM-SVG/WebGL boundaries without changing default scenes, and a Chrome/Firefox compatibility matrix that proves renderer/GPU fallback does not change semantic truth.
+The original proof was one routed-link failure/recovery scenario. The architecture now spans packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, deterministic multi-cause GOD MODE composition, cross-layer outage recovery, ECN queue/congestion response, DNS timeout/retry behavior, HTTP service-unavailable retry, terminal network partition behavior, BGP route-leak policy anomalies that keep reachability separate from policy correctness, a production-artifact performance budget that measures renderer cost without making frame timing part of simulation truth, deterministic high-density stress fixtures that exercise the real Canvas/DOM-SVG/WebGL boundaries without changing default scenes, a Chrome/Firefox compatibility matrix that proves renderer/GPU fallback does not change semantic truth, and a fail-closed native provenance contract established before any local measurement adapter is connected.
 
 The next pressure points are:
 
 - loss-based or AQM variants of congestion only where they remain explicitly distinct from the current zero-drop ECN story
-- native/measured data sources for facts browsers cannot legitimately observe
+- native adapter/bridge integration that emits only validated `LOCAL MEASURED` snapshots
+- projection of measured facts into semantic scenes without mutating simulated Journey truth
 
 Those additions should extend the canonical-event/modifier/reducer boundary rather than bypass it.
