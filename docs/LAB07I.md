@@ -67,4 +67,4 @@ The Journey adds a tenth `LEAK` GOD MODE control and an Internet-scale policy pa
 
 The permanent `journey-route-leak-contract-check.mjs` cross-checks the Journey against the actual Lab 05 `simulatedAsGraph`, `traversalFor()`, and `enumeratePolicyPaths()` implementation. It verifies the legitimate path is accepted, the leaked `down → peer` path is rejected by normal policy enumeration, reachability remains true through the anomaly, policy restoration occurs before transport, composition stays canonical, and v1/v2/browser persistence round-trip correctly.
 
-The model/contract/build gate has passed. Exact production-artifact desktop/mobile/reduced-motion inspection remains the final completion gate before the slice is marked complete.
+The validated transformation has been promoted into the permanent branch source. The transient patch helper has been removed and the normal read-only CI workflow restored. Exact production-artifact desktop/mobile/reduced-motion inspection remains the final completion gate before the slice is marked complete.
