@@ -23,6 +23,28 @@ jobs:
       - name: Apply Lab 09E session sidecar candidate
         run: python3 scripts/apply-lab09e-session-sidecars.py
       - run: npm ci
+      - name: Capture Lab 09E typecheck diagnostics
+        id: typecheck
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          set +e
+          npm run typecheck > artifacts/lab09e-typecheck.log 2>&1
+          code=$?
+          cat artifacts/lab09e-typecheck.log
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Upload Lab 09E typecheck diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab09e-typecheck
+          path: artifacts/lab09e-typecheck.log
+          if-no-files-found: error
+          retention-days: 3
+      - name: Fail on Lab 09E typecheck errors
+        if: steps.typecheck.outputs.exit_code != '0'
+        run: exit 1
       - run: npm run check
       - name: Commit validated Lab 09E session sidecars
         run: |
