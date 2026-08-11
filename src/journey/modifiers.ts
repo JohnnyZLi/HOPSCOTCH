@@ -5,6 +5,7 @@ import type {
   JourneyCongestionMetrics,
   JourneyModifierId,
   JourneyProvenance,
+  JourneyPolicyMetrics,
   JourneyRouteMetrics,
   JourneyServerMetrics,
   JourneyScale,
@@ -13,6 +14,7 @@ import type {
   JourneyTransportProfile,
   JourneyZoomDirection,
 } from './model.ts';
+import { enumeratePolicyPaths, simulatedAsGraph, traversalFor } from '../internet/asModel.ts';
 
 export interface JourneyModifierContext {
   config: JourneyScenarioConfig;
@@ -30,7 +32,7 @@ interface JourneyModifier {
   apply(events: JourneyEvent[], context: JourneyModifierContext): JourneyModifierResult;
 }
 
-const JOURNEY_MODIFIER_ORDER: readonly JourneyModifierId[] = ['dns-failure', 'route-failure', 'server-failure', 'single-loss', 'path-outage', 'latency-spike', 'congestion', 'partition'];
+const JOURNEY_MODIFIER_ORDER: readonly JourneyModifierId[] = ['dns-failure', 'route-failure', 'route-leak', 'server-failure', 'single-loss', 'path-outage', 'latency-spike', 'congestion', 'partition'];
 const JOURNEY_MODIFIER_SET = new Set<JourneyModifierId>(JOURNEY_MODIFIER_ORDER);
 
 export function normalizeJourneyModifierIds(values: readonly unknown[]): JourneyModifierId[] {
@@ -79,6 +81,7 @@ function modifierEvent(input: {
   transportMetrics?: JourneyTransportMetrics;
   congestionMetrics?: JourneyCongestionMetrics;
   serverMetrics?: JourneyServerMetrics;
+  policyMetrics?: JourneyPolicyMetrics;
   routeMetrics?: JourneyRouteMetrics;
 }): JourneyEvent {
   const { provenance = 'SIMULATED', ...eventInput } = input;
@@ -558,6 +561,176 @@ function serverFailureEvents(requestAtMs: number, transportProfile: JourneyTrans
   ];
 }
 
+
+function routeLeakTraversal(asns: number[]): Array<'up' | 'peer' | 'down'> {
+  const traversals: Array<'up' | 'peer' | 'down'> = [];
+  for (let index = 0; index < asns.length - 1; index += 1) {
+    const from = asns[index];
+    const to = asns[index + 1];
+    const relationship = simulatedAsGraph.relationships.find((candidate) => traversalFor(candidate, from, to) !== null);
+    if (!relationship) throw new Error(`route-leak teaching path is missing AS${from} → AS${to} from the Lab 05 graph.`);
+    const traversal = traversalFor(relationship, from, to);
+    if (!traversal) throw new Error(`route-leak cannot derive traversal AS${from} → AS${to}.`);
+    traversals.push(traversal);
+  }
+  return traversals;
+}
+
+function routeLeakMetricStates() {
+  const legitimatePathAsns = [64504, 65540, 65538];
+  const leakedPathAsns = [64504, 64500, 65538];
+  const legitimate = enumeratePolicyPaths(simulatedAsGraph, 64504, 65538)
+    .find((candidate) => candidate.asns.join(',') === legitimatePathAsns.join(','));
+  if (!legitimate) throw new Error('route-leak requires the existing policy-compliant AS64504 → AS65540 → AS65538 candidate.');
+  const legitimateTraversal = routeLeakTraversal(legitimatePathAsns);
+  const leakedTraversal = routeLeakTraversal(leakedPathAsns);
+  if (legitimateTraversal.join(',') !== 'peer,down') throw new Error('route-leak legitimate path no longer matches the Lab 05 peer → down teaching policy.');
+  if (leakedTraversal.join(',') !== 'down,peer') throw new Error('route-leak leaked path must expose the down → peer valley violation.');
+  if (enumeratePolicyPaths(simulatedAsGraph, 64504, 65538).some((candidate) => candidate.asns.join(',') === leakedPathAsns.join(','))) {
+    throw new Error('route-leak leaked path unexpectedly passed the normal valley-free enumerator.');
+  }
+  const common = {
+    legitimatePathAsns,
+    leakedPathAsns,
+    legitimateTraversal,
+    leakedTraversal,
+    legitimateLocalPreference: legitimate.localPreference,
+    leakedLocalPreference: 300,
+    leakSourceAsn: 64500,
+    decisionAsn: 64504,
+    destinationAsn: 65538,
+    learnedFrom: 'peer' as const,
+    exportedTo: 'provider' as const,
+    reachable: true,
+  };
+  const normal: JourneyPolicyMetrics = {
+    ...common,
+    activePathAsns: legitimatePathAsns,
+    activeLocalPreference: legitimate.localPreference,
+    selectedPathPolicyCompliant: true,
+    exportPolicyCompliant: true,
+  };
+  const advertised: JourneyPolicyMetrics = {
+    ...normal,
+    exportPolicyCompliant: false,
+  };
+  const leaked: JourneyPolicyMetrics = {
+    ...common,
+    activePathAsns: leakedPathAsns,
+    activeLocalPreference: 300,
+    selectedPathPolicyCompliant: false,
+    exportPolicyCompliant: false,
+  };
+  return { normal, advertised, leaked, restored: normal };
+}
+
+function routeLeakEvents(asPathAtMs: number): JourneyEvent[] {
+  const metrics = routeLeakMetricStates();
+  return [
+    modifierEvent({
+      id: 'route-leak-advertised',
+      atMs: asPathAtMs + 180,
+      kind: 'internet.route-leak-advertised',
+      scale: 'internet',
+      zoom: 'hold',
+      protocol: 'BGP policy model',
+      phase: 'route-leak-advertised',
+      title: 'AS64500 leaks a peer-learned route to its provider',
+      summary: 'A route learned from peer AS65538 is incorrectly exported upward to provider AS64504.',
+      detail: 'The export itself violates the curated valley-free teaching policy. Forwarding has not failed: the legitimate AS64504 → AS65540 → AS65538 path is still selected at this instant.',
+      actor: 'AS64500',
+      target: 'AS64504',
+      detailLab: 'internet',
+      policyMetrics: metrics.advertised,
+    }),
+    modifierEvent({
+      id: 'route-leak-selected',
+      atMs: asPathAtMs + 460,
+      kind: 'internet.route-leak-selected',
+      scale: 'internet',
+      zoom: 'hold',
+      protocol: 'BGP policy model',
+      phase: 'route-leak-selected',
+      title: 'AS64504 selects the leaked customer advertisement',
+      summary: 'The deterministic teaching LOCAL_PREF changes from peer-learned 200 to customer-learned 300.',
+      detail: 'AS64504 now forwards through AS64500 → AS65538. This is a curated policy demonstration, not a claim that every network implements identical BGP preference rules.',
+      actor: 'AS64504 decision process',
+      target: 'AS64500',
+      detailLab: 'internet',
+      policyMetrics: metrics.leaked,
+    }),
+    modifierEvent({
+      id: 'route-leak-anomaly',
+      atMs: asPathAtMs + 760,
+      kind: 'internet.policy-anomaly',
+      scale: 'internet',
+      zoom: 'hold',
+      protocol: 'BGP policy model',
+      phase: 'policy-anomaly',
+      title: 'Reachable path violates the valley-free export policy',
+      summary: 'The selected path is AS64504 → AS64500 → AS65538: physically connected, but its down → peer relationship sequence is policy-invalid.',
+      detail: 'This is the core lesson: reachability and policy correctness are separate dimensions. HOPSCOTCH keeps REACHABLE = YES while POLICY COMPLIANT = NO.',
+      actor: 'policy monitor',
+      target: 'selected AS path',
+      detailLab: 'internet',
+      policyMetrics: metrics.leaked,
+    }),
+    modifierEvent({
+      id: 'route-leak-withdrawn',
+      atMs: asPathAtMs + 1080,
+      kind: 'internet.route-leak-withdrawn',
+      scale: 'internet',
+      zoom: 'hold',
+      protocol: 'BGP policy model',
+      phase: 'route-leak-withdrawn',
+      title: 'The leaked advertisement is filtered and withdrawn',
+      summary: 'AS64504 stops accepting the bad customer advertisement after the policy anomaly is contained.',
+      detail: 'Containment removes the policy-invalid route; it does not require a local OSPF failure, packet retransmission, or transport reset.',
+      actor: 'AS64504 policy filter',
+      target: 'AS64500 advertisement',
+      detailLab: 'internet',
+      policyMetrics: metrics.leaked,
+    }),
+    modifierEvent({
+      id: 'route-leak-restored',
+      atMs: asPathAtMs + 1320,
+      kind: 'internet.policy-restored',
+      scale: 'internet',
+      zoom: 'hold',
+      protocol: 'BGP policy model',
+      phase: 'policy-restored',
+      title: 'Policy-compliant peer path is selected again',
+      summary: 'AS64504 returns to AS64504 → AS65540 → AS65538 with teaching LOCAL_PREF 200.',
+      detail: 'Reachability existed throughout the episode. What changed was which advertisement was considered policy-acceptable and therefore selected.',
+      actor: 'AS64504 decision process',
+      target: 'AS65540 peer route',
+      detailLab: 'internet',
+      policyMetrics: metrics.restored,
+    }),
+  ];
+}
+
+const routeLeakModifier: JourneyModifier = {
+  id: 'route-leak',
+  order: 92,
+  apply(events) {
+    const { asPath, transportStart } = requireRouteAnchors(events, 'route-leak');
+    const physical = events.find((current) => current.id === 'physical-context');
+    if (!physical || asPath.atMs >= physical.atMs || physical.atMs >= transportStart.atMs) {
+      throw new Error('route-leak requires AS path < physical context < transport start.');
+    }
+    const addedDurationMs = 1600;
+    const shifted = shiftPostAnchor(events, physical.atMs, addedDurationMs);
+    const injected = routeLeakEvents(asPath.atMs);
+    const nextEvents = [...shifted, ...injected].sort((a, b) => a.atMs - b.atMs);
+    const restored = nextEvents.find((current) => current.kind === 'internet.policy-restored');
+    const firstTransport = nextEvents.find((current) => current.kind === 'transport.segment');
+    if (!restored || !firstTransport || restored.atMs >= firstTransport.atMs) throw new Error('route-leak must restore policy before transport begins.');
+    if (firstTransport.atMs !== transportStart.atMs + addedDurationMs) throw new Error('route-leak shifted transport by an unexpected amount.');
+    return { events: nextEvents, addedDurationMs, appliedModifierIds: ['route-leak'] };
+  },
+};
+
 const serverFailureModifier: JourneyModifier = {
   id: 'server-failure',
   order: 95,
@@ -714,7 +887,7 @@ const partitionModifier: JourneyModifier = {
   },
 };
 
-const modifiers: JourneyModifier[] = [dnsFailureModifier, routeFailureModifier, serverFailureModifier, singleLossModifier, pathOutageModifier, latencySpikeModifier, congestionModifier, partitionModifier]
+const modifiers: JourneyModifier[] = [dnsFailureModifier, routeFailureModifier, routeLeakModifier, serverFailureModifier, singleLossModifier, pathOutageModifier, latencySpikeModifier, congestionModifier, partitionModifier]
   .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
 
 export function applyJourneyModifiers(
