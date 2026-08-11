@@ -58,6 +58,8 @@ The first successful GitHub-hosted Chrome 150 profile measured:
 - maximum composed settled heap: **5.13 MiB**
 - three-pass 54-event seek stress heap growth: **+1.54 MiB**
 
+A later hardened run on hosted Chrome 151 reproduced the same structural envelope: 558 maximum DOM elements, about 5.13 MiB maximum settled heap, and about +1.51 MiB after three complete 54-event seek cycles. Chrome started on the first attempt in that run, so the retry mechanism was present but not needed.
+
 Those hosted values remain inside the original budgets, so the limits were not widened after seeing CI results.
 
 ## Enforced stable budgets
