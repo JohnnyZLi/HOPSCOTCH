@@ -242,7 +242,7 @@ assert.equal(factById('selected-interface-link-speed')?.value, 866_000_000);
 assert.equal(factById('selected-interface-link-speed')?.unit, 'bits-per-second');
 assert.equal(factById('selected-interface-source-address')?.value, '192.168.1.20');
 assert.deepEqual(factById('deep-interface-0-en0-unicastaddresses')?.value, ['192.168.1.20', '2001:db8::20']);
-assert.equal(factById('route-0-0-0-0-0-gateway')?.value, '192.168.1.1');
+assert.equal(factById('route-0-0-0-0-0-0-gateway')?.value, '192.168.1.1');
 assert.equal(factById('gateway-ping-median-ms')?.value, 1.5);
 assert.equal(factById('internet-ping-loss-percent')?.value, 20);
 assert.equal(factById('internet-ping-median-ms')?.availability, 'partial', 'partial ping delivery must remain partial');
@@ -256,7 +256,7 @@ assert.equal(factById('local-link-download')?.value, 930_000_000);
 assert.equal(factById('dual-ipv4-tcp-connect')?.value, 17);
 assert.equal(factById('dual-ipv6-ping-median'), undefined, 'missing optional timing must remain absent');
 
-assert.deepEqual(factById('route-0-0-0-0-0-family')?.target, { kind: 'prefix', value: '0.0.0.0/0' });
+assert.deepEqual(factById('route-0-0-0-0-0-0-family')?.target, { kind: 'prefix', value: '0.0.0.0/0' });
 assert.deepEqual(factById('service-0-https-target-reachable')?.target, { kind: 'service', value: 'example.test' });
 assert.deepEqual(factById('internet-download-mbps')?.target, { kind: 'service', value: 'https://speed.example.test' });
 assert.deepEqual(factById('dual-ipv4-tcp-connect')?.target, { kind: 'ip', value: '198.51.100.80' });
@@ -289,10 +289,14 @@ for (const privateId of [
   'deep-interface-0-en0-unicastaddresses',
   'deep-interface-0-en0-gateways',
   'deep-interface-0-en0-dnsservers',
-  'route-0-0-0-0-0-gateway',
+  'route-0-0-0-0-0-0-gateway',
+  'route-0-0-0-0-0-0-family',
   'trace-hop-1-address',
   'trace-hop-1-hostname',
 ]) assert.equal(privacyIds.has(privateId), false, `${privateId} must be suppressed when local addresses are not permitted`);
+assert.equal(privacyIds.has('route-0-family'), true, 'route semantics remain inspectable with the destination prefix withheld');
+assert.equal(factById('local-link-download')?.target?.value, 'nas.local:5201');
+assert.equal(privacySnapshot.facts.find((candidate) => candidate.id === 'local-link-download')?.target, null, 'LAN target identity must be withheld with local addresses');
 assert.equal(privacyIds.has('gateway-ping-median-ms'), true, 'gateway timing remains useful even when gateway address is withheld');
 assert.equal(privacySnapshot.warnings.some((line) => line.includes('Local address-valued facts are withheld')), true);
 
@@ -344,6 +348,6 @@ assert.equal(JSON.stringify({ journey: journeyAfter, state: reducerAfter }), jou
 
 const adapterSource = readFileSync(new URL('../src/measurement/networkDiagnosticsAdapter.ts', import.meta.url), 'utf8');
 assert.doesNotMatch(adapterSource, /from ['"][^'"]*journey/i, 'Network Diagnostics adapter must not import Journey model code');
-assert.doesNotMatch(adapterSource, /browserEvidence[^\n]*LOCAL MEASURED|findings[^\n]*LOCAL MEASURED/i, 'excluded evidence classes must not have a direct measured mapping');
+assert.doesNotMatch(adapterSource, /facts\.push\([^\n]*(browserEvidence|findings)|map[A-Za-z]+\([^\n]*root\.(browserEvidence|findings)/i, 'excluded evidence classes must not feed a measured mapping');
 
 console.log(`Network Diagnostics ingestion contract passed: ${snapshot.facts.length} whitelisted LOCAL MEASURED facts, excluded public/derived/browser/unknown sections, and preserved Journey truth.`);

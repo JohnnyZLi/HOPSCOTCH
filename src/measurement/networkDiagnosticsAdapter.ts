@@ -340,13 +340,15 @@ function mapRouting(facts: NativeMeasurementFact[], deep: Record<string, unknown
   entries.forEach((entry, index) => {
     const route = requiredRecord(entry, `deepDiagnostics.routing.entries[${index}]`);
     const destination = requiredString(route.destination, `deepDiagnostics.routing.entries[${index}].destination`);
-    const routeTarget = target('prefix', destination);
-    const prefix = `route-${index}-${safeIdPart(destination)}`;
-    pushString(facts, `${prefix}-family`, 'route', `route ${destination} address family`, observedAt, route.addressFamily, 'Source-reported local route address family.', routeTarget);
-    pushBoolean(facts, `${prefix}-default`, 'route', `route ${destination} is default`, observedAt, route.isDefault, 'Source-reported default-route flag.', routeTarget);
-    pushNumber(facts, `${prefix}-metric`, 'route', `route ${destination} metric`, observedAt, route.metric, 'count', 'Source-reported local route metric; no cross-platform metric equivalence is implied.', routeTarget);
-    pushString(facts, `${prefix}-interface`, 'route', `route ${destination} interface`, observedAt, route.interfaceName, 'Source-reported egress interface for this local route.', routeTarget);
-    if (allowAddresses) pushString(facts, `${prefix}-gateway`, 'route', `route ${destination} gateway`, observedAt, route.gateway, 'Local gateway address included only because the report explicitly permits local addresses.', routeTarget);
+    const disclosedDestination = allowAddresses ? destination : null;
+    const routeLabel = disclosedDestination ?? `entry ${index + 1}`;
+    const routeTarget = target('prefix', disclosedDestination);
+    const prefix = allowAddresses ? `route-${index}-${safeIdPart(destination)}` : `route-${index}`;
+    pushString(facts, `${prefix}-family`, 'route', `route ${routeLabel} address family`, observedAt, route.addressFamily, 'Source-reported local route address family.', routeTarget);
+    pushBoolean(facts, `${prefix}-default`, 'route', `route ${routeLabel} is default`, observedAt, route.isDefault, 'Source-reported default-route flag.', routeTarget);
+    pushNumber(facts, `${prefix}-metric`, 'route', `route ${routeLabel} metric`, observedAt, route.metric, 'count', 'Source-reported local route metric; no cross-platform metric equivalence is implied.', routeTarget);
+    pushString(facts, `${prefix}-interface`, 'route', `route ${routeLabel} interface`, observedAt, route.interfaceName, 'Source-reported egress interface for this local route.', routeTarget);
+    if (allowAddresses) pushString(facts, `${prefix}-gateway`, 'route', `route ${routeLabel} gateway`, observedAt, route.gateway, 'Local gateway address included only because the report explicitly permits local addresses.', routeTarget);
   });
 }
 
@@ -465,12 +467,12 @@ function mapInternetTransfer(facts: NativeMeasurementFact[], value: unknown, obs
   pushNumber(facts, 'internet-data-used', 'transport', 'Internet transfer data used', observedAt, transfer.dataUsedBytes, 'bytes', 'Source-reported total data usage for the transfer run.', transferTarget);
 }
 
-function mapLocalLink(facts: NativeMeasurementFact[], value: unknown, observedAt: string): void {
+function mapLocalLink(facts: NativeMeasurementFact[], value: unknown, observedAt: string, allowAddresses: boolean): void {
   if (value === undefined || value === null) return;
   const link = requiredRecord(value, 'localLink');
   const targetName = requiredString(link.target, 'localLink.target');
   const port = optionalFiniteNumber(link.port, 'localLink.port');
-  const linkTarget = target('service', port === null ? targetName : `${targetName}:${port}`);
+  const linkTarget = allowAddresses ? target('service', port === null ? targetName : `${targetName}:${port}`) : null;
   mapLatencyStatistics(facts, 'local-link-latency', 'transport', link.latency, observedAt, linkTarget, 'Local-link latency');
   pushMbps(facts, 'local-link-download', 'transport', 'local-link download throughput', observedAt, link.downloadMbps, 'Exact conversion from source-reported Mbps.', linkTarget);
   pushNumber(facts, 'local-link-download-bytes', 'transport', 'local-link download bytes', observedAt, link.downloadBytes, 'bytes', 'Source-reported local-link download bytes.', linkTarget);
@@ -558,7 +560,7 @@ export function adaptNetworkDiagnosticsReportV2(value: unknown): NativeMeasureme
   mapDns(facts, deep, observedAt, allowLocalAddresses);
   mapServices(facts, deep, observedAt);
   mapInternetTransfer(facts, report.root.internetTransfer, observedAt);
-  mapLocalLink(facts, report.root.localLink, observedAt);
+  mapLocalLink(facts, report.root.localLink, observedAt, allowLocalAddresses);
   mapDualStack(facts, report.root.dualStack, observedAt);
 
   const producerVersion = report.producer === null ? null : optionalString(report.producer.version, 'producer.version');
