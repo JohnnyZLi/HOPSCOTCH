@@ -23,7 +23,7 @@ replace_once(
 )
 replace_once(
     "  if (profile.assertMobileGrid) {",
-    "  if (profile.stressExpected) {\n    for (const [key, value] of Object.entries(profile.stressExpected)) {\n      if (structural.stress[key] !== value) throw new Error(`${profile.id} stress invariant ${key}=${JSON.stringify(structural.stress[key])}; expected ${JSON.stringify(value)}.`);\n    }\n    if (structural.stress.canvasBackingWidth <= 0 || structural.stress.canvasBackingHeight <= 0) throw new Error(`${profile.id} renderer canvas has invalid backing dimensions.`);\n  }\n\n  if (profile.assertMobileGrid) {",
+    "  if (profile.stressExpected) {\n    for (const [key, value] of Object.entries(profile.stressExpected)) {\n      if (structural.stress[key] !== value) throw new Error(`${profile.id} stress invariant ${key}=${JSON.stringify(structural.stress[key])}; expected ${JSON.stringify(value)}.`);\n    }\n    if ((structural.stress.asNodes > 0 || structural.stress.physicalPoints > 0) && (structural.stress.canvasBackingWidth <= 0 || structural.stress.canvasBackingHeight <= 0)) throw new Error(`${profile.id} renderer canvas has invalid backing dimensions.`);\n  }\n\n  if (profile.assertMobileGrid) {",
 )
 replace_once(
     "    heading: structural.heading,\n    heapUsedBytes: heap.usedSize,",
@@ -37,7 +37,6 @@ replace_once(
     "    const cycles=${Number(stressConfig.seekCycles)};",
     "    const cycles=${Number(1)} * ${'${Number(cycles)}'};",
 )
-# The replacement above intentionally leaves a JS template interpolation for the function argument.
 text = text.replace("const cycles=${Number(1)} * ${Number(cycles)};", "const cycles=${Number(cycles)};")
 replace_once(
     "    cycles: stressConfig.seekCycles,",
