@@ -1,0 +1,66 @@
+name: Lab 07D audit fix
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.pull_request.head.ref == 'agent/lab-07d-mid-transfer-path-outage'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/lab-07d-mid-transfer-path-outage
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Project loss-detection timer metrics into Journey state
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          model = Path('src/journey/model.ts')
+          text = model.read_text()
+          old = "      case 'transport.loss-detected': impairmentState = 'detected'; break;"
+          new = "      case 'transport.loss-detected':\n        impairmentState = 'detected';\n        transportMetrics = current.transportMetrics ?? transportMetrics;\n        break;"
+          if old not in text:
+              raise SystemExit('model reducer anchor missing')
+          model.write_text(text.replace(old, new))
+
+          test = Path('scripts/journey-path-outage-contract-check.mjs')
+          text = test.read_text()
+          old = "import { buildJourneyScenario } from '../src/journey/model.ts';"
+          new = "import { buildJourneyScenario, journeyStateAt } from '../src/journey/model.ts';"
+          if old not in text:
+              raise SystemExit('test import anchor missing')
+          text = text.replace(old, new)
+          old = "assert.equal(event(tcp, 'tcp-outage-rto').transportMetrics.timerMs, 1000);"
+          new = "assert.equal(event(tcp, 'tcp-outage-rto').transportMetrics.timerMs, 1000);\nassert.equal(journeyStateAt(tcp, event(tcp, 'tcp-outage-rto').atMs).transportMetrics?.timerMs, 1000);"
+          if old not in text:
+              raise SystemExit('TCP test anchor missing')
+          text = text.replace(old, new)
+          old = "assert.equal(event(quic, 'quic-outage-pto1').transportMetrics.timerMs, 89);"
+          new = "assert.equal(event(quic, 'quic-outage-pto1').transportMetrics.timerMs, 89);\nassert.equal(journeyStateAt(quic, event(quic, 'quic-outage-pto1').atMs).transportMetrics?.timerMs, 89);"
+          if old not in text:
+              raise SystemExit('QUIC test anchor missing')
+          test.write_text(text.replace(old, new))
+          PY
+      - run: npm ci
+      - run: npm run check
+      - name: Commit validated audit fix
+        shell: bash
+        run: |
+          rm .github/workflows/lab07d-audit-fix.yml
+          git config user.name "HOPSCOTCH Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/journey/model.ts scripts/journey-path-outage-contract-check.mjs .github/workflows/lab07d-audit-fix.yml
+          git commit -m "Fix Lab 07D timeout metric projection"
+          git push origin HEAD:agent/lab-07d-mid-transfer-path-outage
