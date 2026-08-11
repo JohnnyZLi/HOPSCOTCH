@@ -6,49 +6,6 @@ on:
   pull_request:
 
 permissions:
-  contents: write
-
-jobs:
-  production-profile:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: agent/lab-08a-performance-budget-harness
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - run: python3 scripts/patch-performance-cdp-execution.py
-      - run: python3 scripts/patch-performance-startup-retry.py
-      - run: npm run performance:check
-      - name: Upload performance profile
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: hopscotch-performance-profile
-          path: artifacts/performance-profile.json
-          if-no-files-found: error
-          retention-days: 3
-      - name: Commit validated performance harness
-        if: github.event_name == 'pull_request'
-        shell: bash
-        run: |
-          rm -f scripts/patch-performance-cdp-execution.py scripts/patch-performance-startup-retry.py
-          python3 - <<'PY'
-          from pathlib import Path
-          Path('.github/workflows/performance.yml').write_text('''name: Performance
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-
-permissions:
   contents: read
 
 jobs:
@@ -72,14 +29,3 @@ jobs:
           path: artifacts/performance-profile.json
           if-no-files-found: error
           retention-days: 3
-''')
-          PY
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No performance harness changes to commit"
-            exit 0
-          fi
-          git commit -m "Lab 08A: harden production performance profiler"
-          git push origin HEAD:agent/lab-08a-performance-budget-harness
