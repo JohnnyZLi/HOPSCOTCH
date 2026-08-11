@@ -58,16 +58,17 @@ dnsProfile       = cache-miss | cache-hit
 modifierIds      = ordered subset of:
                    route-failure
                    single-loss
+                   path-outage
                    latency-spike
 ```
 
 Canonical modifier order is model-defined:
 
 ```text
-route-failure → single-loss → latency-spike
+route-failure → single-loss → path-outage → latency-spike
 ```
 
-Input/UI selection order is normalized before scenario identity or events are generated. Duplicate IDs collapse and unknown IDs fail validation.
+Input/UI selection order is normalized before scenario identity or events are generated. Duplicate IDs collapse and unknown IDs fail validation. `route-failure` and `path-outage` are intentionally incompatible on the current two-path teaching topology: the former consumes the alternate path before transport begins, so composing both would require inventing a third recovery path.
 
 Legacy `impairmentProfile` remains an input compatibility layer:
 
@@ -83,9 +84,12 @@ Current rules:
 
 - route failure happens before transport and shifts later causal events naturally
 - single loss keeps its protocol-correct TCP/QUIC recovery trace
+- path outage happens after response data begins and crosses the routing/transport boundary without recreating the connection
+- TCP path-outage recovery waits for the teaching RTO after ACK silence; QUIC may enter PTO/probe recovery while routing is still unavailable
+- routing convergence restores reachability, but transport separately repairs data lost during the outage
 - latency alone changes RTT/timer estimator state without inventing loss
-- when loss and latency coexist, latency begins after loss recovery so the event log remains strictly ordered and causally legible
-- route + loss + latency composes all three in canonical order
+- when recovery modifiers and latency coexist, latency begins after the latest transport recovery so the event log remains strictly ordered and causally legible
+- LOSS + OUTAGE + LATENCY therefore composes sequentially without duplicating the base Journey
 
 Every final Journey log must have unique event IDs, unique timestamps, and strictly increasing event time.
 
@@ -108,7 +112,7 @@ timeMs
 name? 
 ```
 
-Existing v1 links/files remain valid and migrate into the canonical internal modifier representation.
+Existing v1 links/files remain valid and migrate into the canonical internal modifier representation. New single-modifier path-outage scenarios also fit this representation without requiring a schema bump.
 
 ### Schema v2
 
@@ -158,14 +162,14 @@ Examples:
 - current impairment phase independent from selected modifiers
 - packet fields and selected byte ranges
 - DNS cache/TTL state
-- TCP sequence/retransmission and RTT estimator state
+- TCP sequence/retransmission and RTT/RTO estimator state
 - QUIC packet-number/STREAM recovery and RTT/PTO state
 - TLS protection stage
 - HTTP stream progress
 - Journey abstraction scale
 - provenance for observed/public/inferred facts
 
-Selected causes and the active causal phase are intentionally separate. A Journey may have ROUTE + LOSS + LATENCY selected while the current timestamp is still in clean DNS state.
+Selected causes and the active causal phase are intentionally separate. A Journey may have LOSS + OUTAGE + LATENCY selected while the current timestamp is still in clean DNS state; later the same scenario may be in routing convergence while the established transport and TLS state remain intact.
 
 Semantic state is the contract between model and renderer.
 
@@ -202,6 +206,8 @@ Owns interface-level transitions: layout changes, focus shifts, cross-scale zoom
 Owns tightly choreographed visualization sequences where timeline control is useful, such as SVG/topology/protocol motion.
 
 The two systems must not fight over the same transform/property on the same element. Motion is cancellable and cleaned up on unmount. `prefers-reduced-motion` preserves information through synchronous state changes.
+
+Event-rail auto-follow is also bounded as UI behavior: it scrolls the rail container itself and must never move the document viewport as canonical time advances.
 
 ## 7. Truth + provenance
 
@@ -264,6 +270,10 @@ Contracts enforce, among other things:
 - retransmitted QUIC data uses a new packet number; the lost packet number is never reused
 - higher RTT alone does not become packet loss
 - pre-transport route convergence does not fabricate TCP RTO or QUIC PTO behavior
+- a mid-transfer path outage does not silently tear down an established TCP/QUIC/TLS connection
+- TCP outage recovery uses ACK silence and the teaching RTO rather than pretending duplicate ACKs survived a dead path
+- QUIC outage recovery can expose PTO/probe behavior before routing recovers, but probe traffic cannot repair missing IP reachability
+- QUIC STREAM repair after convergence uses a new packet number
 - composed modifiers retain each component's protocol-specific semantics
 
 ## 11. Validation strategy
@@ -276,11 +286,12 @@ Current validation layers:
 2. **Regression matrices** — legacy clean/single-modifier scenarios remain exact.
 3. **Composition contracts** — representative modifier pairs/triples, canonical ordering, timing, and persistence migration.
 4. **Schema contracts** — v1 compatibility plus v2 JSON/query round trips and invalid-input handling.
-5. **TypeScript checks** — app + Worker.
-6. **Production build** — Vite output generated in CI.
-7. **Worker contracts** — deterministic fixtures exercise browser-facing APIs.
-8. **Exact-artifact browser audit** — GitHub Actions production bundle rendered in Linux Chromium.
-9. **Desktop/mobile/reduced-motion assertions** — overflow, semantic state, navigation, and runtime errors.
+5. **Cross-layer outage contracts** — routing convergence, TCP RTO projection, QUIC PTO/probe behavior, connection continuity, and composed recovery ordering.
+6. **TypeScript checks** — app + Worker.
+7. **Production build** — Vite output generated in CI.
+8. **Worker contracts** — deterministic fixtures exercise browser-facing APIs.
+9. **Exact-artifact browser audit** — GitHub Actions production bundle rendered in Linux Chromium.
+10. **Desktop/mobile/reduced-motion assertions** — overflow, semantic state, navigation, viewport stability, and runtime errors.
 
 ## Performance rules
 
@@ -295,13 +306,13 @@ Current validation layers:
 
 ## Architectural direction
 
-The original proof was one routed-link failure/recovery scenario. The architecture has now scaled across packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, and deterministic multi-cause GOD MODE composition.
+The original proof was one routed-link failure/recovery scenario. The architecture has now scaled across packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, deterministic multi-cause GOD MODE composition, and cross-layer mid-transfer path-outage recovery.
 
 The next pressure points are:
 
-- **mid-transfer path outages** that cross the routing/transport boundary and therefore require protocol-correct TCP/QUIC reaction rather than a routing-only story
-- **queue growth/congestion** with explicit separation between delay, loss detection, and congestion control
+- **queue growth/congestion** with explicit separation between delay, loss detection, congestion signals, and sender control response
 - DNS/server/partition failure modifiers that terminate or retry a Journey honestly
+- route leak / policy-anomaly stories that preserve the distinction between forwarding reachability and policy correctness
 - native/measured data sources for facts browsers cannot legitimately observe
 - renderer/performance budgets for substantially denser scenarios
 
