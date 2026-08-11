@@ -1,6 +1,11 @@
 {
   "schema": "hopscotch.performance-budget",
   "version": 1,
+  "policy": {
+    "enforcedMetrics": "stable-structural-and-semantic",
+    "timingMetrics": "diagnostic-only",
+    "browserLaunchAttempts": 3
+  },
   "baseline": {
     "commit": "8058e9ee0c0d70b626f0f5343cf176207d65a6d0",
     "jsGzipBytes": 316819,
