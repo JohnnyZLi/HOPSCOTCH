@@ -244,6 +244,8 @@ Validated native snapshots project into a separate `hopscotch.measured-state` mo
 
 Network Diagnostics Suite report-v2 ingestion follows the same boundary. The adapter accepts the existing combined report shape, whitelists known direct/local scalar measurements, emits a schema-v1 `LOCAL MEASURED` snapshot, revalidates that snapshot through the native parser, and only then projects measured state. Browser/edge evidence, public-network context, derived findings/localization, annotations, unsupported host-resource values, and unknown report extensions are explicitly skipped rather than relabeled as local truth. Combined reports keep snapshot target `null` because they are multi-target; target scope remains per fact. Local-address disclosure flags also gate local prefixes, gateways, resolver/hop addresses, interface addresses, and LAN target identity.
 
+The Lab 09 measured workspace is a presentation layer over that validated measured-state object, not a second adapter. Import is explicit and session-only: a user-selected JSON file is read in browser memory, passed through the permanent 09C ingestion function, and displayed only after validation/projection succeeds. The workspace does not persist report bytes/facts, upload them, poll localhost, or import Journey code. Invalid replacement imports leave the last valid measured state active. Category renderers group facts by their explicit target and refuse to visually concatenate separate targets into one observed end-to-end path.
+
 ## 8. Data adapters + Cloudflare Worker
 
 The Worker is an adapter layer and static-file runtime. Current responsibilities include:
@@ -325,6 +327,7 @@ Current validation layers:
 19. **Native measurement provenance contract** — schema-v1 parsing/round trips and negative fixtures prove `LOCAL MEASURED` facts remain local-vantage, time-bounded, target-explicit, source-attributed, non-global, and structurally unable to embed canonical Journey/model objects as measured truth.
 20. **Measured-state separation contract** — projection/indexing, target isolation, partial/unavailable preservation, explicit-time freshness, zero Journey imports/types, and byte/deep-equal Journey reconstruction before/after measured snapshot replacement prove observational state cannot rewrite simulated truth.
 21. **Network Diagnostics ingestion contract** — a realistic report-v2 fixture proves whitelist-only local measurement mapping, per-fact multi-target scope, exact throughput conversion, explicit-time bounding, local-address privacy suppression, absence-without-fabrication, public/browser/derived/unknown exclusion, 09A/09B validation, malformed-report rejection, and unchanged Journey construction/reducer state.
+22. **Measured workspace contract + production browser audit** — source checks prohibit persistence/upload/Journey coupling while compatibility-only Chrome profiles attach real valid/invalid JSON files to the actual input, prove previous-valid preservation and Clear behavior, verify target/provenance/value rendering, and enforce desktop/mobile/reduced-motion overflow/runtime invariants across default/SwiftShader/WebGL-disabled modes.
 
 ## Performance rules
 
@@ -349,12 +352,12 @@ Current validation layers:
 
 ## Architectural direction
 
-The original proof was one routed-link failure/recovery scenario. The architecture now spans packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, deterministic multi-cause GOD MODE composition, cross-layer outage recovery, ECN queue/congestion response, DNS timeout/retry behavior, HTTP service-unavailable retry, terminal network partition behavior, BGP route-leak policy anomalies that keep reachability separate from policy correctness, a production-artifact performance budget that measures renderer cost without making frame timing part of simulation truth, deterministic high-density stress fixtures that exercise the real Canvas/DOM-SVG/WebGL boundaries without changing default scenes, a Chrome/Firefox compatibility matrix that proves renderer/GPU fallback does not change semantic truth, and a native-measurement architecture with fail-closed provenance validation, a separate measured-state projection, and whitelist-only Network Diagnostics Suite report-v2 ingestion that cannot rewrite Journey truth.
+The original proof was one routed-link failure/recovery scenario. The architecture now spans packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, deterministic multi-cause GOD MODE composition, cross-layer outage recovery, ECN queue/congestion response, DNS timeout/retry behavior, HTTP service-unavailable retry, terminal network partition behavior, BGP route-leak policy anomalies that keep reachability separate from policy correctness, a production-artifact performance budget that measures renderer cost without making frame timing part of simulation truth, deterministic high-density stress fixtures that exercise the real Canvas/DOM-SVG/WebGL boundaries without changing default scenes, a Chrome/Firefox compatibility matrix that proves renderer/GPU fallback does not change semantic truth, and a native-measurement architecture with fail-closed provenance validation, a separate measured-state projection, whitelist-only Network Diagnostics Suite report-v2 ingestion, and an explicit session-only measured workspace that cannot rewrite Journey truth.
 
 The next pressure points are:
 
 - loss-based or AQM variants of congestion only where they remain explicitly distinct from the current zero-drop ECN story
-- native transport/discovery and report-import UX that feed only the validated Network Diagnostics adapter path
-- measured-mode semantic scenes that consume the separate measured-state model without mutating simulated Journey truth
+- native transport/discovery that feeds only the validated Network Diagnostics adapter path; explicit report-file import already exists
+- measured facts reused inside existing routing/DNS/transport semantic scenes where useful, without mutating simulated Journey truth or implying one continuous measured route
 
 Those additions should extend the canonical-event/modifier/reducer boundary rather than bypass it.
