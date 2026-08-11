@@ -24,6 +24,8 @@ The harness profiles `dist/`, never Vite dev mode.
 
 This avoids depending on localhost serving behavior, proxy policy, or a Vite dev server. The explicit CDP JS execution path also avoids browser-version differences in whether a module script inserted through `Page.setDocumentContent` is evaluated; GitHub's Chrome 150 exposed that difference during the first workflow run. `CHROME_PATH` can override browser discovery; Linux and macOS Chrome/Chromium paths are discovered automatically when possible.
 
+Hosted Chrome startup is also treated as infrastructure rather than product truth. A GitHub rerun showed one runner failing to expose its chosen CDP port while an identical rerun succeeded with the same code and budgets. The final harness therefore uses a bounded three-attempt startup policy with fresh ports/user-data directories, `--disable-dev-shm-usage`, and per-attempt diagnostics. If all attempts fail, the profile still fails closed instead of hiding the infrastructure error.
+
 ## Representative profiles
 
 The initial profile matrix covers:
@@ -47,6 +49,16 @@ Measured baseline values:
 - largest representative DOM: **557 elements**
 - largest representative settled heap: about **2.85 MiB**
 - two-pass 54-event seek stress after forced GC: about **+1.48 MiB**
+
+The first successful GitHub-hosted Chrome 150 profile measured:
+
+- JS gzip: **317,805 bytes**
+- CSS gzip: **25,068 bytes**
+- maximum composed DOM: **558 elements**
+- maximum composed settled heap: **5.13 MiB**
+- three-pass 54-event seek stress heap growth: **+1.54 MiB**
+
+Those hosted values remain inside the original budgets, so the limits were not widened after seeing CI results.
 
 ## Enforced stable budgets
 
