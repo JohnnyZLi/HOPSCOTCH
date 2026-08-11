@@ -5,7 +5,7 @@ export type JourneyProvenance = 'SIMULATED' | 'EDGE OBSERVED' | 'PUBLIC COLLECTO
 export type JourneyZoomDirection = 'in' | 'out' | 'hold';
 export type JourneyTransportProfile = 'tcp-h2' | 'quic-h3';
 export type JourneyDnsProfile = 'cache-miss' | 'cache-hit';
-export type JourneyModifierId = 'dns-failure' | 'route-failure' | 'single-loss' | 'path-outage' | 'latency-spike' | 'congestion';
+export type JourneyModifierId = 'dns-failure' | 'route-failure' | 'server-failure' | 'single-loss' | 'path-outage' | 'latency-spike' | 'congestion';
 export type JourneyImpairmentProfile = 'clean' | JourneyModifierId | 'composed';
 export type JourneyDetailLab = 'dns' | 'tcp' | 'tls' | 'http' | 'packet' | 'builder' | 'failure' | 'internet' | 'physical' | 'observed';
 export type JourneyEventKind =
@@ -45,6 +45,11 @@ export type JourneyEventKind =
   | 'tls.keys'
   | 'http.control'
   | 'http.request'
+  | 'server.unavailable'
+  | 'http.service-unavailable'
+  | 'http.retry-wait'
+  | 'server.recovered'
+  | 'http.retry'
   | 'http.response'
   | 'http.data'
   | 'packet.inspect'
@@ -91,6 +96,15 @@ export interface JourneyCongestionMetrics {
   droppedPackets: number;
 }
 
+export interface JourneyServerMetrics {
+  statusCode?: 503;
+  retryAfterMs: number;
+  requestMethod: 'GET';
+  idempotent: boolean;
+  retrySafe: boolean;
+  transportReused: boolean;
+}
+
 export interface JourneyRouteMetrics {
   primaryPathCost: number;
   alternatePathCost: number;
@@ -116,6 +130,7 @@ export interface JourneyEvent {
   ttlSeconds?: number;
   transportMetrics?: JourneyTransportMetrics;
   congestionMetrics?: JourneyCongestionMetrics;
+  serverMetrics?: JourneyServerMetrics;
   routeMetrics?: JourneyRouteMetrics;
 }
 
@@ -136,9 +151,10 @@ export type DnsJourneyState = 'idle' | 'cache-miss' | 'resolving' | 'timeout' | 
 export type RouteJourneyState = 'idle' | 'lookup' | 'gateway-ready' | 'failed' | 'recomputing' | 'alternate-ready' | 'internet-path-ready';
 export type TransportJourneyState = 'closed' | 'handshake' | 'established' | 'complete';
 export type TlsJourneyState = 'idle' | 'negotiating' | 'validating' | 'handshake-keys' | 'application-keys';
-export type HttpJourneyState = 'idle' | 'control' | 'request-sent' | 'headers' | 'streaming' | 'complete';
+export type HttpJourneyState = 'idle' | 'control' | 'request-sent' | 'service-unavailable' | 'retry-wait' | 'headers' | 'streaming' | 'complete';
+export type ServerJourneyState = 'healthy' | 'unavailable' | 'waiting' | 'ready';
 export type PacketJourneyState = 'idle' | 'frame' | 'headers';
-export type JourneyImpairmentState = 'clean' | 'armed' | 'dns-failed' | 'dns-retrying' | 'dns-masked' | 'lost' | 'detected' | 'recovering' | 'recovered' | 'delayed' | 'estimating' | 'normalized' | 'queueing' | 'ecn-signaled' | 'congestion-responding' | 'route-failed' | 'route-recomputing' | 'route-ready';
+export type JourneyImpairmentState = 'clean' | 'armed' | 'dns-failed' | 'dns-retrying' | 'dns-masked' | 'server-unavailable' | 'server-waiting' | 'server-ready' | 'lost' | 'detected' | 'recovering' | 'recovered' | 'delayed' | 'estimating' | 'normalized' | 'queueing' | 'ecn-signaled' | 'congestion-responding' | 'route-failed' | 'route-recomputing' | 'route-ready';
 
 export interface JourneyState {
   timeMs: number;
@@ -152,6 +168,7 @@ export interface JourneyState {
   impairmentState: JourneyImpairmentState;
   transportMetrics: JourneyTransportMetrics | null;
   congestionMetrics: JourneyCongestionMetrics | null;
+  serverMetrics: JourneyServerMetrics | null;
   routeMetrics: JourneyRouteMetrics | null;
   scale: JourneyScale;
   scaleDepth: number;
@@ -167,6 +184,7 @@ export interface JourneyState {
   transport: TransportJourneyState;
   tls: TlsJourneyState;
   http: HttpJourneyState;
+  server: ServerJourneyState;
   packet: PacketJourneyState;
   responseReady: boolean;
   journeyComplete: boolean;
@@ -367,10 +385,12 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
   let transport: TransportJourneyState = 'closed';
   let tls: TlsJourneyState = 'idle';
   let http: HttpJourneyState = 'idle';
+  let server: ServerJourneyState = 'healthy';
   let packet: PacketJourneyState = 'idle';
   let impairmentState: JourneyImpairmentState = scenario.modifierIds.length === 0 ? 'clean' : 'armed';
   let transportMetrics: JourneyTransportMetrics | null = null;
   let congestionMetrics: JourneyCongestionMetrics | null = null;
+  let serverMetrics: JourneyServerMetrics | null = null;
   let routeMetrics: JourneyRouteMetrics | null = null;
   let responseReady = false;
   let journeyComplete = false;
@@ -478,7 +498,38 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
       case 'tls.keys': tls = current.phase === 'application-keys' ? 'application-keys' : 'handshake-keys'; break;
       case 'http.control': http = 'control'; break;
       case 'http.request': http = 'request-sent'; break;
-      case 'http.response': http = 'headers'; break;
+      case 'server.unavailable':
+        server = 'unavailable';
+        impairmentState = 'server-unavailable';
+        serverMetrics = current.serverMetrics ?? serverMetrics;
+        break;
+      case 'http.service-unavailable':
+        server = 'unavailable';
+        http = 'service-unavailable';
+        impairmentState = 'server-unavailable';
+        serverMetrics = current.serverMetrics ?? serverMetrics;
+        break;
+      case 'http.retry-wait':
+        server = 'waiting';
+        http = 'retry-wait';
+        impairmentState = 'server-waiting';
+        serverMetrics = current.serverMetrics ?? serverMetrics;
+        break;
+      case 'server.recovered':
+        server = 'ready';
+        impairmentState = 'server-ready';
+        serverMetrics = current.serverMetrics ?? serverMetrics;
+        break;
+      case 'http.retry':
+        server = 'ready';
+        http = 'request-sent';
+        impairmentState = 'server-ready';
+        serverMetrics = current.serverMetrics ?? serverMetrics;
+        break;
+      case 'http.response':
+        http = 'headers';
+        if (impairmentState === 'server-ready') { server = 'healthy'; impairmentState = 'normalized'; }
+        break;
       case 'http.data': http = 'streaming'; break;
       case 'packet.inspect': packet = current.phase === 'headers' ? 'headers' : 'frame'; break;
       case 'transfer.complete': transport = 'complete'; http = 'complete'; break;
@@ -504,6 +555,7 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
     impairmentState,
     transportMetrics,
     congestionMetrics,
+    serverMetrics,
     routeMetrics,
     scale: activeEvent.scale,
     scaleDepth: JOURNEY_SCALE_DEPTH[activeEvent.scale],
@@ -519,6 +571,7 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
     transport,
     tls,
     http,
+    server,
     packet,
     responseReady,
     journeyComplete,

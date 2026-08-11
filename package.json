@@ -14,7 +14,7 @@
     "test:worker-contract": "node scripts/worker-contract-check.mjs",
     "test:journey-contract": "node scripts/journey-contract-check.mjs",
     "test:journey-sharing-contract": "node scripts/journey-sharing-contract-check.mjs",
-    "check": "npm run typecheck && npm run test:builder-contract && npm run test:worker-contract && npm run test:journey-contract && npm run test:journey-sharing-contract && npm run test:journey-god-mode-contract && npm run test:journey-composition-contract && npm run test:journey-path-outage-contract && npm run test:journey-congestion-contract && npm run test:journey-dns-failure-contract && npm run build",
+    "check": "npm run typecheck && npm run test:builder-contract && npm run test:worker-contract && npm run test:journey-contract && npm run test:journey-sharing-contract && npm run test:journey-god-mode-contract && npm run test:journey-composition-contract && npm run test:journey-path-outage-contract && npm run test:journey-congestion-contract && npm run test:journey-dns-failure-contract && npm run test:journey-server-failure-contract && npm run build",
     "preview": "vite preview",
     "cf:dev": "wrangler dev",
     "deploy": "npm run build && wrangler deploy",
@@ -23,7 +23,8 @@
     "test:journey-composition-contract": "node scripts/journey-composition-contract-check.mjs",
     "test:journey-path-outage-contract": "node scripts/journey-path-outage-contract-check.mjs",
     "test:journey-congestion-contract": "node scripts/journey-congestion-contract-check.mjs",
-    "test:journey-dns-failure-contract": "node scripts/journey-dns-failure-contract-check.mjs"
+    "test:journey-dns-failure-contract": "node scripts/journey-dns-failure-contract-check.mjs",
+    "test:journey-server-failure-contract": "node scripts/journey-server-failure-contract-check.mjs"
   },
   "dependencies": {
     "animejs": "4.5.0",

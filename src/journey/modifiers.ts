@@ -6,6 +6,7 @@ import type {
   JourneyModifierId,
   JourneyProvenance,
   JourneyRouteMetrics,
+  JourneyServerMetrics,
   JourneyScale,
   JourneyScenarioConfig,
   JourneyTransportMetrics,
@@ -29,7 +30,7 @@ interface JourneyModifier {
   apply(events: JourneyEvent[], context: JourneyModifierContext): JourneyModifierResult;
 }
 
-const JOURNEY_MODIFIER_ORDER: readonly JourneyModifierId[] = ['dns-failure', 'route-failure', 'single-loss', 'path-outage', 'latency-spike', 'congestion'];
+const JOURNEY_MODIFIER_ORDER: readonly JourneyModifierId[] = ['dns-failure', 'route-failure', 'server-failure', 'single-loss', 'path-outage', 'latency-spike', 'congestion'];
 const JOURNEY_MODIFIER_SET = new Set<JourneyModifierId>(JOURNEY_MODIFIER_ORDER);
 
 export function normalizeJourneyModifierIds(values: readonly unknown[]): JourneyModifierId[] {
@@ -77,6 +78,7 @@ function modifierEvent(input: {
   provenance?: JourneyProvenance;
   transportMetrics?: JourneyTransportMetrics;
   congestionMetrics?: JourneyCongestionMetrics;
+  serverMetrics?: JourneyServerMetrics;
   routeMetrics?: JourneyRouteMetrics;
 }): JourneyEvent {
   const { provenance = 'SIMULATED', ...eventInput } = input;
@@ -455,7 +457,128 @@ const dnsFailureModifier: JourneyModifier = {
   },
 };
 
-const modifiers: JourneyModifier[] = [dnsFailureModifier, routeFailureModifier, singleLossModifier, pathOutageModifier, latencySpikeModifier, congestionModifier]
+
+
+function serverMetrics(input: Partial<JourneyServerMetrics> = {}): JourneyServerMetrics {
+  return {
+    statusCode: 503,
+    retryAfterMs: 1000,
+    requestMethod: 'GET',
+    idempotent: true,
+    retrySafe: true,
+    transportReused: true,
+    ...input,
+  };
+}
+
+function serverFailureEvents(requestAtMs: number, transportProfile: JourneyTransportProfile): JourneyEvent[] {
+  const protocol = transportProfile === 'quic-h3' ? 'HTTP/3' : 'HTTP/2';
+  const detailLab = 'http' as const;
+  return [
+    modifierEvent({
+      id: 'server-service-unavailable',
+      atMs: requestAtMs + 180,
+      kind: 'server.unavailable',
+      scale: 'application',
+      zoom: 'hold',
+      protocol,
+      phase: 'service-unavailable',
+      title: 'The application service becomes temporarily unavailable',
+      summary: 'The request reached a healthy network endpoint, but the application service cannot produce the successful representation yet.',
+      detail: 'DNS, IP routing, the established transport connection, and TLS keys remain valid. This failure lives at the HTTP/application boundary.',
+      actor: 'application service',
+      target: 'HTTP request',
+      detailLab,
+      serverMetrics: serverMetrics(),
+    }),
+    modifierEvent({
+      id: 'server-http-503',
+      atMs: requestAtMs + 340,
+      kind: 'http.service-unavailable',
+      scale: 'application',
+      zoom: 'hold',
+      protocol,
+      phase: 'http-503',
+      title: 'HTTP 503 Service Unavailable returns',
+      summary: 'The reachable server returns a real HTTP 503 response with Retry-After: 1.',
+      detail: 'Unlike DNS timeout silence, this is an application-layer response. The server is reachable enough to return status and retry guidance on the existing connection.',
+      actor: 'HTTP server',
+      target: 'browser',
+      detailLab,
+      serverMetrics: serverMetrics(),
+    }),
+    modifierEvent({
+      id: 'server-retry-wait',
+      atMs: requestAtMs + 520,
+      kind: 'http.retry-wait',
+      scale: 'application',
+      zoom: 'hold',
+      protocol,
+      phase: 'retry-wait',
+      title: 'Client honors Retry-After before replaying the GET',
+      summary: 'The teaching client waits one second instead of hammering the unavailable service.',
+      detail: 'The connection remains established during the wait. Retry safety comes from this canonical GET being idempotent; arbitrary requests must not be assumed safe to replay.',
+      actor: 'browser',
+      target: 'HTTP server',
+      detailLab,
+      serverMetrics: serverMetrics(),
+    }),
+    modifierEvent({
+      id: 'server-service-ready',
+      atMs: requestAtMs + 1240,
+      kind: 'server.recovered',
+      scale: 'application',
+      zoom: 'hold',
+      protocol,
+      phase: 'service-ready',
+      title: 'The application service becomes ready again',
+      summary: 'Server-side availability recovers while the original client transport and TLS session remain usable.',
+      detail: 'No DNS lookup, route change, TCP/QUIC handshake, or TLS handshake is needed to represent this service recovery.',
+      actor: 'application service',
+      target: 'HTTP endpoint',
+      detailLab,
+      serverMetrics: serverMetrics({ statusCode: undefined }),
+    }),
+    modifierEvent({
+      id: 'server-get-retry',
+      atMs: requestAtMs + 1340,
+      kind: 'http.retry',
+      scale: 'application',
+      zoom: 'hold',
+      protocol,
+      phase: 'safe-get-retry',
+      title: 'The idempotent GET is retried on the same connection',
+      summary: 'Exactly one second after the 503, the canonical GET / is replayed using the already-established transport and TLS state.',
+      detail: 'This teaching retry is safe because GET is idempotent. HOPSCOTCH does not imply arbitrary requests, especially non-idempotent writes, can always be retried automatically.',
+      actor: 'browser',
+      target: 'HTTP server',
+      detailLab,
+      serverMetrics: serverMetrics({ statusCode: undefined }),
+    }),
+  ];
+}
+
+const serverFailureModifier: JourneyModifier = {
+  id: 'server-failure',
+  order: 95,
+  apply(events, context) {
+    const request = events.find((current) => current.kind === 'http.request');
+    const response = events.find((current) => current.kind === 'http.response');
+    if (!request || !response || request.atMs >= response.atMs) throw new Error('server-failure requires an HTTP request before the successful response.');
+    const addedDurationMs = 1700;
+    const shifted = shiftPostAnchor(events, response.atMs, addedDurationMs);
+    const injected = serverFailureEvents(request.atMs, context.config.transportProfile);
+    const retry = injected.find((current) => current.kind === 'http.retry');
+    if (!retry || retry.atMs >= response.atMs + addedDurationMs) throw new Error('server-failure retry must finish before successful response headers.');
+    return {
+      events: [...shifted, ...injected].sort((a, b) => a.atMs - b.atMs),
+      addedDurationMs,
+      appliedModifierIds: ['server-failure'],
+    };
+  },
+};
+
+const modifiers: JourneyModifier[] = [dnsFailureModifier, routeFailureModifier, serverFailureModifier, singleLossModifier, pathOutageModifier, latencySpikeModifier, congestionModifier]
   .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
 
 export function applyJourneyModifiers(

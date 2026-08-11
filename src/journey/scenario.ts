@@ -42,7 +42,7 @@ export type PortableJourneyScenario = PortableJourneyScenarioV1 | PortableJourne
 
 const transportProfiles = new Set<JourneyTransportProfile>(['tcp-h2', 'quic-h3']);
 const dnsProfiles = new Set<JourneyDnsProfile>(['cache-miss', 'cache-hit']);
-const impairmentProfiles = new Set<JourneyLegacyImpairmentProfile>(['clean', 'dns-failure', 'single-loss', 'latency-spike', 'route-failure', 'path-outage', 'congestion']);
+const impairmentProfiles = new Set<JourneyLegacyImpairmentProfile>(['clean', 'dns-failure', 'server-failure', 'single-loss', 'latency-spike', 'route-failure', 'path-outage', 'congestion']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
