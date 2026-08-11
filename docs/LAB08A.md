@@ -119,3 +119,5 @@ Normal `npm run check` remains independent from Chrome availability.
 4. upload `hopscotch-performance-profile` for three days
 
 The performance workflow is expected to fail when a stable budget or semantic browser invariant regresses, while still uploading the report when possible for diagnosis.
+
+The Chrome 150 execution change and bounded startup retry logic are now part of the permanent `scripts/performance-profile.mjs`; no validation patcher or write-enabled workflow remains on the branch. The final completion gate is ordinary read-only CI plus the ordinary read-only Performance workflow running this permanent source unchanged.
