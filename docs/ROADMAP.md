@@ -108,6 +108,7 @@ HOPSCOTCH grows as polished vertical slices. A slice is complete only when its m
 - [x] no claim that a collector path is “your route”
 
 ### 05C — physical Internet
+
 - [x] Three.js/WebGL globe
 - [x] public PeeringDB facility coordinates
 - [x] bounded Worker adapter + cache policy
@@ -255,8 +256,24 @@ GOD MODE impairments are deterministic modifiers over the same canonical Journey
 - [x] permanent DNS failure/model/composition contract wired into `npm run check`
 - [x] exact production-artifact desktop/mobile/reduced-motion audit
 
+### 07G — server service unavailable + safe retry
+- [x] distinct `server-failure` modifier at the HTTP/application boundary
+- [x] canonical GET reaches an established TCP/H2 or QUIC/H3 + TLS connection before failure
+- [x] reachable service returns real HTTP 503 Service Unavailable with `Retry-After: 1`
+- [x] client waits exactly one teaching second on the same established connection
+- [x] service becomes ready and the canonical idempotent GET is retried without a new transport/TLS handshake
+- [x] explicit server metrics record status, retry interval, GET/idempotency, retry safety, and connection reuse
+- [x] successful response/data and later response-path modifiers shift by a deterministic 1.7 s episode
+- [x] server-failure-only scenarios add no loss detection, retransmission, RTO/PTO, or transport/TLS handshake
+- [x] TCP/H2 and QUIC/H3 preserve the same HTTP-layer failure/retry semantics
+- [x] canonical DNS FAIL → ROUTE → SERVER → LOSS → OUTAGE → LATENCY → CONGESTION composition independent of UI selection order
+- [x] schema-v1 single SERVER and schema-v2 composed sharing/persistence compatibility
+- [x] eighth GOD MODE selector, server service-state panel, rail marker, and scrubber marker
+- [x] mobile eight-control 4×2 layout remains collision- and overflow-free with viewport-stable playback
+- [x] permanent server failure/model/composition contract wired into `npm run check`
+- [x] exact production-artifact desktop/mobile/reduced-motion audit
+
 ### Later GOD MODE stories
-- [ ] server failure
 - [ ] partition / unreachable state
 - [ ] route leak / policy anomaly teaching scenario
 
