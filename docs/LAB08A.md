@@ -14,15 +14,15 @@ The harness profiles `dist/`, never Vite dev mode.
 
 1. reads `dist/index.html`
 2. resolves the generated Vite JS/CSS assets
-3. inlines those exact bytes into one document
-4. launches an installed Chrome/Chromium through the Chrome DevTools Protocol
-5. navigates to `about:blank` with a canonical Journey query
-6. injects the production document with `Page.setDocumentContent`
+3. injects the exact production HTML/CSS into one CDP-controlled document
+4. executes the exact self-contained built JS bytes through CDP `Runtime.evaluate`
+5. launches an installed Chrome/Chromium through the Chrome DevTools Protocol
+6. navigates to `about:blank` with a canonical Journey query and injects the production document with `Page.setDocumentContent`
 7. exercises representative desktop/mobile/reduced-motion states
 8. forces GC around a repeated event-seek stress pass
 9. writes `artifacts/performance-profile.json`
 
-Inlining avoids depending on localhost serving behavior, proxy policy, or a dev server. `CHROME_PATH` can override browser discovery; Linux and macOS Chrome/Chromium paths are discovered automatically when possible.
+This avoids depending on localhost serving behavior, proxy policy, or a Vite dev server. The explicit CDP JS execution path also avoids browser-version differences in whether a module script inserted through `Page.setDocumentContent` is evaluated; GitHub's Chrome 150 exposed that difference during the first workflow run. `CHROME_PATH` can override browser discovery; Linux and macOS Chrome/Chromium paths are discovered automatically when possible.
 
 ## Representative profiles
 
