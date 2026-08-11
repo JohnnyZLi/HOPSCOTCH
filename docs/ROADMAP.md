@@ -223,8 +223,24 @@ GOD MODE impairments are deterministic modifiers over the same canonical Journey
 - [x] permanent state/model/composition contract wired into `npm run check`
 - [x] exact production-artifact desktop/mobile/reduced-motion audit
 
+### 07E — congestion + queue growth
+- [x] distinct `congestion` modifier rather than treating high RTT as an implicit congestion declaration
+- [x] deterministic 160 Mb/s offered load against a 100 Mb/s ECN-capable teaching bottleneck
+- [x] explicit queue capacity, occupancy, queue-delay, ECN, cwnd, ssthresh, signal, and drop metrics
+- [x] queue occupancy and delay rise before the transport congestion response
+- [x] TCP branch uses delivered CE marks → ECE feedback → CWR with cwnd/ssthresh reduction
+- [x] QUIC branch uses delivered CE marks → ACK_ECN CE-counter feedback with cwnd reduction
+- [x] congestion-only scenarios preserve contiguous TCP/QUIC delivery with no loss-detection or retransmission event
+- [x] dropped-packet count remains zero in the base ECN story
+- [x] queue drains after offered load falls below bottleneck service rate
+- [x] canonical LOSS → OUTAGE → LATENCY → CONGESTION composition independent of UI selection order
+- [x] schema-v1 single CONGESTION and schema-v2 composed sharing/persistence compatibility
+- [x] sixth GOD MODE selector, congestion panel, ECN packet card, rail marker, and scrubber marker
+- [x] mobile six-control layout remains collision- and overflow-free
+- [x] permanent congestion/model/composition contract wired into `npm run check`
+- [x] exact production-artifact desktop/mobile/reduced-motion audit
+
 ### Later GOD MODE stories
-- [ ] congestion / queue growth
 - [ ] DNS failure / retry path
 - [ ] server failure
 - [ ] partition / unreachable state
