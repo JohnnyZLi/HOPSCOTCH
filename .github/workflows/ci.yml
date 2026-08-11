@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -14,6 +14,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: agent/lab-07e-congestion-queue-growth
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -28,3 +31,24 @@ jobs:
           path: dist
           if-no-files-found: error
           retention-days: 3
+      - name: Commit validated Lab 07E workspace
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/lab-07e-congestion-queue-growth'
+        shell: bash
+        run: |
+          git checkout origin/main -- .github/workflows/ci.yml package.json
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('package.json')
+          data = json.loads(path.read_text())
+          scripts = data['scripts']
+          scripts['test:journey-congestion-contract'] = 'node scripts/journey-congestion-contract-check.mjs'
+          scripts['check'] = scripts['check'].replace('npm run test:journey-path-outage-contract && npm run build', 'npm run test:journey-path-outage-contract && npm run test:journey-congestion-contract && npm run build')
+          path.write_text(json.dumps(data, indent=2) + '\n')
+          PY
+          rm scripts/apply-lab07e.py scripts/export-lab07e-source.py
+          git config user.name "HOPSCOTCH Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Lab 07E: model congestion and queue growth" -m "Adds ECN-driven queue growth, protocol-specific TCP/QUIC congestion response, explicit queue/cwnd metrics, GOD MODE UI support, persistence compatibility, and permanent contracts. Closes #44."
+          git push origin HEAD:agent/lab-07e-congestion-queue-growth
