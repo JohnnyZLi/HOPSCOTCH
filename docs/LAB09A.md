@@ -124,3 +124,7 @@ Lab 09A does **not** add:
 - packet capture or traceroute collection
 
 Those are later slices. 09A only defines and permanently tests the trust boundary they must obey.
+
+## Validation state
+
+The permanent source contract is wired into `npm run check` and has already passed the full existing TypeScript, model-contract, regression, and production-build gate. Shared ARCHITECTURE/README synchronization is applied only after that source gate; final completion still requires the normal clean-tree CI, Performance, and Compatibility workflows to remain green.
