@@ -47,19 +47,27 @@ It is not a Packet Tracer clone. HOPSCOTCH treats **time, causality, abstraction
 
 ### URL Journey + GOD MODE
 
-One canonical time machine can explain a URL request continuously across application, routing, Internet, transport, and packet scales.
+One canonical time machine explains a URL request continuously across application, routing, Internet, transport, and packet scales.
 
-The Journey composes deterministic transport and DNS axes with an ordered GOD MODE modifier set:
+The Journey composes independent transport and DNS axes with a deterministic ordered GOD MODE modifier set:
 
 - **Transport:** TCP + TLS 1.3 + HTTP/2 or QUIC + integrated TLS 1.3 + HTTP/3
 - **DNS:** cache miss with the full authority walk or cache hit with deterministic TTL state
-- **Modifiers:** packet loss, latency spike, pre-transport route failure, and mid-transfer path outage
+- **GOD MODE:** DNS failure/retry, pre-transport route failure, BGP route leak, HTTP 503 service failure/retry, packet loss, mid-transfer path outage, latency spike, ECN congestion/queue growth, and terminal network partition
 
-The mid-transfer outage intentionally crosses abstraction boundaries. Routing invalidates the failed path and installs the surviving route while the already-established transport connection reacts independently: TCP waits for its teaching RTO before retransmitting the missing byte range; QUIC can enter PTO/probe recovery sooner and later retransmits the missing STREAM data in a new QUIC packet number once forwarding is restored.
+The modifiers deliberately preserve different failure boundaries instead of collapsing everything into “the network is down”:
 
-`ROUTE` and `OUTAGE` remain distinct scenarios. `ROUTE` converges before transport starts; `OUTAGE` breaks an active response transfer. The current two-path teaching topology treats them as mutually exclusive rather than inventing a third recovery path.
+- DNS timeout is absence of a DNS response; a cache hit can shield the upstream outage entirely.
+- ROUTE converges before transport begins; OUTAGE breaks an active response transfer while preserving the established transport/TLS connection.
+- TCP and QUIC recover loss/outage with their own sequence/ACK versus packet-number/STREAM/timer semantics.
+- CONGESTION is a zero-drop ECN teaching story: queue growth and congestion response occur without inventing packet loss.
+- SERVER is a real HTTP 503 + `Retry-After` episode on the same healthy transport/TLS connection; replay is explicitly justified only for the curated idempotent `GET /`.
+- LEAK reuses the existing Lab 05 AS-policy graph to show that **reachability and policy correctness are separate dimensions**.
+- PARTITION is terminal: both routed exits disappear, SPF finds zero candidates, transport becomes stalled rather than magically closed, and the Journey ends `network-unreachable` instead of inventing recovery.
 
-Optional live/public endpoint evidence can decorate the Journey, but never rewrites its simulated forwarding path or modifier truth.
+`ROUTE` and `OUTAGE` remain mutually exclusive on the current two-path teaching topology rather than inventing a third recovery path. Other compatible modifiers compose in canonical causal order, independent of UI selection order.
+
+Optional live/public endpoint evidence can decorate the Journey, but never rewrites its simulated forwarding path, protocol state, modifier set, or causal event log.
 
 ## Architecture
 
@@ -118,6 +126,17 @@ Full contract/type/build validation:
 npm run check
 ```
 
+Production renderer profiling is intentionally separate from the normal correctness gate. Build first, then run the Chrome/Chromium CDP profiler:
+
+```bash
+npm run build
+npm run performance:profile
+# Enforce the versioned stable budgets:
+npm run performance:check
+```
+
+Use `CHROME_PATH=/path/to/chrome` when browser auto-discovery is not appropriate. Timing counters are diagnostic; stable bundle/DOM/heap/overflow/semantic budgets are enforced by the dedicated Performance workflow.
+
 Cloudflare local runtime:
 
 ```bash
@@ -133,6 +152,6 @@ npm run deploy
 
 ## Project status
 
-HOPSCOTCH is in active development, but the foundational vertical slices are implemented: deterministic routing failure/recovery, packet inspection, protocol theater, topology authoring, Internet-scale views, the cross-scale URL Journey, composable GOD MODE modifiers, and protocol-correct mid-transfer path-outage recovery all exist as integrated experiences.
+The core product architecture and the full curated Lab 07 GOD MODE modifier series are implemented: deterministic routing, packet inspection, protocol theater, topology authoring, Internet-scale policy/physical views, the cross-scale URL Journey, portable scenarios, multi-cause composition, recoverable cross-layer failures, congestion, application/DNS failures, terminal partition state, and BGP policy anomalies all exist as integrated experiences.
 
-Current work is moving from proving individual abstractions toward **queue/congestion behavior, richer terminal failure stories, measured/native data sources, and renderer/performance stress work**.
+Current work is hardening the renderer for the next scale of the project: **production performance budgets, high-density stress scenarios, broader browser/GPU compatibility, and future native/measured data sources for facts browsers cannot legitimately observe**.
