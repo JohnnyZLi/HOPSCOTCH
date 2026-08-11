@@ -3,6 +3,7 @@ import type {
   JourneyEventKind,
   JourneyImpairmentProfile,
   JourneyProvenance,
+  JourneyRouteMetrics,
   JourneyScale,
   JourneyScenarioConfig,
   JourneyTransportMetrics,
@@ -43,9 +44,19 @@ function modifierEvent(input: {
   detailLab?: JourneyEvent['detailLab'];
   provenance?: JourneyProvenance;
   transportMetrics?: JourneyTransportMetrics;
+  routeMetrics?: JourneyRouteMetrics;
 }): JourneyEvent {
   const { provenance = 'SIMULATED', ...eventInput } = input;
   return { ...eventInput, provenance };
+}
+
+function requireRouteAnchors(events: JourneyEvent[], modifierId: string) {
+  const gateway = events.find((current) => current.kind === 'route.gateway');
+  const asPath = events.find((current) => current.id === 'as-path');
+  const transportStart = events.find((current) => current.kind === 'transport.segment');
+  if (!gateway || !asPath || !transportStart) throw new Error(`${modifierId} requires gateway, AS-path, and transport-start events.`);
+  if (!(gateway.atMs < asPath.atMs && asPath.atMs < transportStart.atMs)) throw new Error(`${modifierId} requires gateway < AS path < transport start.`);
+  return { gateway, asPath, transportStart };
 }
 
 function requireResponseAnchors(events: JourneyEvent[], modifierId: string) {
@@ -93,6 +104,38 @@ const singleLossModifier: JourneyModifier = {
       addedDurationMs,
       appliedModifierIds: ['single-loss'],
     };
+  },
+};
+
+
+const PRIMARY_ROUTE: JourneyRouteMetrics = { primaryPathCost: 22, alternatePathCost: 52, activePath: 'primary' };
+const BROKEN_ROUTE: JourneyRouteMetrics = { primaryPathCost: 22, alternatePathCost: 52, activePath: 'none', failedLinkId: 'r1-core' };
+const ALTERNATE_ROUTE: JourneyRouteMetrics = { primaryPathCost: 22, alternatePathCost: 52, activePath: 'alternate', failedLinkId: 'r1-core' };
+
+function routeFailureEvents(gatewayAtMs: number): JourneyEvent[] {
+  return [
+    modifierEvent({ id: 'route-primary-fails', atMs: gatewayAtMs + 160, kind: 'route.failure', scale: 'routing', zoom: 'hold', protocol: 'OSPF teaching model', phase: 'route-failure', title: 'Primary R1 → CORE link fails', summary: 'The selected cost-22 route breaks after the gateway has already been chosen.', detail: 'This failure occurs before TCP SYN or QUIC Initial. HOPSCOTCH isolates routing convergence here instead of inventing transport timeout behavior.', actor: 'R1', target: 'CORE', detailLab: 'failure', routeMetrics: BROKEN_ROUTE }),
+    modifierEvent({ id: 'route-primary-invalidated', atMs: gatewayAtMs + 440, kind: 'route.invalidated', scale: 'routing', zoom: 'hold', protocol: 'OSPF teaching model', phase: 'route-invalidated', title: 'Installed primary route is invalidated', summary: 'Forwarding through the failed R1 → CORE edge is no longer viable.', detail: 'The physical failure is immediate; a replacement path is not installed until the control plane recomputes the surviving graph.', actor: 'edge router', target: 'routing table', detailLab: 'failure', routeMetrics: BROKEN_ROUTE }),
+    modifierEvent({ id: 'route-spf-recompute', atMs: gatewayAtMs + 820, kind: 'route.recompute', scale: 'routing', zoom: 'hold', protocol: 'OSPF teaching model', phase: 'route-recompute', title: 'SPF evaluates the surviving graph', summary: 'The cost-52 route through R2 becomes the lowest-cost viable path.', detail: 'The primary route cost was 22. Once its failed edge is removed, EDGE → R2 → CORE is more expensive but reachable.', actor: 'edge router', target: 'SPF engine', detailLab: 'failure', routeMetrics: BROKEN_ROUTE }),
+    modifierEvent({ id: 'route-alternate-installed', atMs: gatewayAtMs + 1180, kind: 'route.alternate-installed', scale: 'routing', zoom: 'hold', protocol: 'OSPF teaching model', phase: 'route-alternate-ready', title: 'Alternate cost-52 route installed', summary: 'Forwarding can continue through R2 before the transport handshake begins.', detail: 'Recovery comes from routing around the failed link. The failed R1 → CORE edge remains down.', actor: 'routing table', target: 'R2 next hop', detailLab: 'failure', routeMetrics: ALTERNATE_ROUTE }),
+  ];
+}
+
+const routeFailureModifier: JourneyModifier = {
+  id: 'route-failure',
+  order: 90,
+  appliesTo: (profile) => profile === 'route-failure',
+  apply(events) {
+    const { gateway, asPath, transportStart } = requireRouteAnchors(events, 'route-failure');
+    const addedDurationMs = 1400;
+    const shifted = shiftPostAnchor(events, asPath.atMs, addedDurationMs);
+    const injected = routeFailureEvents(gateway.atMs);
+    const nextEvents = [...shifted, ...injected].sort((a, b) => a.atMs - b.atMs);
+    const firstTransport = nextEvents.find((current) => current.kind === 'transport.segment');
+    const alternate = nextEvents.find((current) => current.kind === 'route.alternate-installed');
+    if (!firstTransport || !alternate || alternate.atMs >= firstTransport.atMs) throw new Error('route-failure must converge before transport begins.');
+    if (transportStart.atMs + addedDurationMs !== firstTransport.atMs) throw new Error('route-failure shifted transport by an unexpected amount.');
+    return { events: nextEvents, addedDurationMs, appliedModifierIds: ['route-failure'] };
   },
 };
 
@@ -171,7 +214,7 @@ const latencySpikeModifier: JourneyModifier = {
   },
 };
 
-const modifiers: JourneyModifier[] = [singleLossModifier, latencySpikeModifier]
+const modifiers: JourneyModifier[] = [routeFailureModifier, singleLossModifier, latencySpikeModifier]
   .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
 
 export function applyJourneyModifiers(
