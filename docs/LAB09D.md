@@ -96,7 +96,7 @@ Each domain displays a fact count. Empty domains say that this report did not su
 
 ### Target-aware facts
 
-Facts inside the selected domain are grouped by their explicit target scope.
+Facts inside the selected domain are grouped by their explicit target scope. When a domain has multiple targets, a compact target selector shows one target group at a time rather than rendering every target as one long ledger.
 
 Examples include:
 
@@ -145,7 +145,7 @@ The 09C snapshot remains the source of truth. Formatting never feeds back into t
 The global header reports:
 
 - `LAB 09`
-- `LOCAL MEASUREMENT WORKSPACE ACTIVE`
+- `LOCAL MEASURED ACTIVE`
 
 The overview exposes `Inspect measured report` after the primary URL Journey action. Exit uses the normal lab return behavior.
 
@@ -180,7 +180,7 @@ For desktop, mobile, and reduced-motion profiles the browser:
 2. opens `Inspect measured report`
 3. attaches a real Network Diagnostics v2 JSON file to the actual hidden file input through CDP
 4. waits for the real React import handler and 09C ingestion path
-5. verifies source/provenance/value text and non-empty measured facts
+5. verifies source/provenance text, selects the explicit transfer target scope, and verifies the expected measured value
 6. verifies intentionally excluded fixture marker values are absent from the measured workspace
 7. attaches an invalid replacement report
 8. verifies `IMPORT REJECTED` while the previous valid report remains active

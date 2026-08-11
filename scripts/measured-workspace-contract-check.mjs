@@ -36,7 +36,7 @@ for (const forbidden of [
 assert.match(app, /'measured'/, 'App active-lab model must include the measured workspace');
 assert.match(app, /Inspect measured report/, 'overview must expose the measured workspace without replacing the URL Journey primary action');
 assert.match(app, /LAB 09/, 'top bar must identify the measured workspace as Lab 09');
-assert.match(app, /LOCAL MEASUREMENT WORKSPACE ACTIVE/, 'top bar must identify measured workspace state');
+assert.match(app, /LOCAL MEASURED ACTIVE/, 'top bar must identify measured workspace state concisely');
 assert.match(app, /<MeasuredNetworkWorkspace[^>]*onExit=/, 'App must render the measured workspace with normal lab exit behavior');
 assert.match(app, /Play URL journey/, 'URL Journey must remain present as the primary product entry');
 

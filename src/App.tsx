@@ -197,7 +197,7 @@ export default function App() {
             ? 'LAB 05'
             : 'LAB 00';
   const buildStatus = activeLab === 'measured'
-    ? 'LOCAL MEASUREMENT WORKSPACE ACTIVE'
+    ? 'LOCAL MEASURED ACTIVE'
     : activeLab === 'journey'
     ? 'GOD MODE JOURNEY ACTIVE'
     : activeLab === 'failure'
