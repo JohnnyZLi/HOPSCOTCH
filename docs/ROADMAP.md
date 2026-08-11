@@ -240,8 +240,22 @@ GOD MODE impairments are deterministic modifiers over the same canonical Journey
 - [x] permanent congestion/model/composition contract wired into `npm run check`
 - [x] exact production-artifact desktop/mobile/reduced-motion audit
 
+### 07F — DNS failure + retry path
+- [x] distinct `dns-failure` modifier placed before routing/transport modifiers in canonical order
+- [x] cache-miss recursive query → primary resolver silence → timeout → secondary recursive retry → authority walk
+- [x] timeout represented as absence of a DNS response rather than fabricated NXDOMAIN/SERVFAIL
+- [x] retry uses a new transaction context and adds a deterministic 1.2 s downstream penalty
+- [x] cache-hit path masks the simulated upstream outage without inventing any query, timeout, retry, or retry delay
+- [x] explicit DNS `timeout` / `retrying` states plus masked-outage impairment state
+- [x] timeout/retry state normalizes when authority referrals resume; masked state normalizes when routing begins
+- [x] canonical DNS FAIL → ROUTE → LOSS → OUTAGE → LATENCY → CONGESTION composition independent of UI selection order
+- [x] schema-v1 single DNS FAIL and schema-v2 composed sharing/persistence compatibility
+- [x] seventh GOD MODE selector, timeout/retry/masked DNS scene banners, rail marker, and scrubber marker
+- [x] mobile seven-control 4+3 layout remains collision- and overflow-free
+- [x] permanent DNS failure/model/composition contract wired into `npm run check`
+- [x] exact production-artifact desktop/mobile/reduced-motion audit
+
 ### Later GOD MODE stories
-- [ ] DNS failure / retry path
 - [ ] server failure
 - [ ] partition / unreachable state
 - [ ] route leak / policy anomaly teaching scenario
