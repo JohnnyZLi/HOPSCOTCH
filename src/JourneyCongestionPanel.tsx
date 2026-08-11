@@ -1,5 +1,6 @@
 import type { JourneyState } from './journey/model.ts';
 
+// Lab 07E keeps queue/congestion truth separate from RTT estimator truth.
 export function JourneyCongestionPanel({ state }: { state: JourneyState }) {
   const metrics = state.congestionMetrics;
   if (!metrics) return null;
