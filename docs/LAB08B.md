@@ -131,4 +131,4 @@ The final budget-validation runs passed with both Lab 08A and Lab 08B budgets en
 - no horizontal-overflow or document-scroll regressions
 - no runtime/console failures
 
-The renderer injection, deterministic fixtures, high-density contract, profiler extensions, and stress budgets have now been promoted into the permanent branch source. All transient apply helpers and `pretypecheck` have been removed, both workflows are back to their normal read-only forms, and ordinary CI plus ordinary Performance have passed on that permanent tree. The remaining completion step is synchronization of the shared ROADMAP/ARCHITECTURE/README state through the same validated gate.
+The renderer injection, deterministic fixtures, high-density contract, profiler extensions, and stress budgets are permanent source. All transient helpers and `pretypecheck` are gone, both workflows are their normal read-only forms, ROADMAP/ARCHITECTURE/README are synchronized through the validated documentation gate, and the final clean-tree CI + Performance run is the only remaining merge gate.
