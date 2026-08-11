@@ -40,21 +40,28 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-  firefox-capability:
+  firefox-semantic:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
+      - run: npm ci
       - name: Probe hosted Firefox automation capability
         run: node scripts/firefox-capability-probe.mjs
-      - name: Upload Firefox capability report
+      - run: npm run build
+      - name: Run Firefox production semantic compatibility
+        run: node scripts/firefox-compatibility.mjs
+      - name: Upload Firefox reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: hopscotch-firefox-capability
-          path: artifacts/firefox-capability.json
+          name: hopscotch-firefox-compatibility
+          path: |
+            artifacts/firefox-capability.json
+            artifacts/firefox-compatibility.json
           if-no-files-found: error
           retention-days: 3
