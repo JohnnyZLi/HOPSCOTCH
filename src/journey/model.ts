@@ -5,7 +5,7 @@ export type JourneyProvenance = 'SIMULATED' | 'EDGE OBSERVED' | 'PUBLIC COLLECTO
 export type JourneyZoomDirection = 'in' | 'out' | 'hold';
 export type JourneyTransportProfile = 'tcp-h2' | 'quic-h3';
 export type JourneyDnsProfile = 'cache-miss' | 'cache-hit';
-export type JourneyModifierId = 'route-failure' | 'single-loss' | 'path-outage' | 'latency-spike';
+export type JourneyModifierId = 'route-failure' | 'single-loss' | 'path-outage' | 'latency-spike' | 'congestion';
 export type JourneyImpairmentProfile = 'clean' | JourneyModifierId | 'composed';
 export type JourneyDetailLab = 'dns' | 'tcp' | 'tls' | 'http' | 'packet' | 'builder' | 'failure' | 'internet' | 'physical' | 'observed';
 export type JourneyEventKind =
@@ -33,6 +33,10 @@ export type JourneyEventKind =
   | 'transport.latency'
   | 'transport.rtt-update'
   | 'transport.latency-cleared'
+  | 'transport.queue-growth'
+  | 'transport.ecn-mark'
+  | 'transport.congestion-response'
+  | 'transport.congestion-cleared'
   | 'tls.message'
   | 'tls.validation'
   | 'tls.keys'
@@ -71,6 +75,19 @@ export interface JourneyTransportMetrics {
   lossDetected?: boolean;
 }
 
+export interface JourneyCongestionMetrics {
+  bottleneckRateMbps: number;
+  offeredRateMbps: number;
+  queueCapacityPackets: number;
+  queueOccupancyPackets: number;
+  queueDelayMs: number;
+  ecnCeMarks: number;
+  congestionWindowPackets: number;
+  slowStartThresholdPackets?: number;
+  signal: 'NONE' | 'CE' | 'ECE/CWR' | 'ACK_ECN';
+  droppedPackets: number;
+}
+
 export interface JourneyRouteMetrics {
   primaryPathCost: number;
   alternatePathCost: number;
@@ -95,6 +112,7 @@ export interface JourneyEvent {
   detailLab?: JourneyDetailLab;
   ttlSeconds?: number;
   transportMetrics?: JourneyTransportMetrics;
+  congestionMetrics?: JourneyCongestionMetrics;
   routeMetrics?: JourneyRouteMetrics;
 }
 
@@ -117,7 +135,7 @@ export type TransportJourneyState = 'closed' | 'handshake' | 'established' | 'co
 export type TlsJourneyState = 'idle' | 'negotiating' | 'validating' | 'handshake-keys' | 'application-keys';
 export type HttpJourneyState = 'idle' | 'control' | 'request-sent' | 'headers' | 'streaming' | 'complete';
 export type PacketJourneyState = 'idle' | 'frame' | 'headers';
-export type JourneyImpairmentState = 'clean' | 'armed' | 'lost' | 'detected' | 'recovering' | 'recovered' | 'delayed' | 'estimating' | 'normalized' | 'route-failed' | 'route-recomputing' | 'route-ready';
+export type JourneyImpairmentState = 'clean' | 'armed' | 'lost' | 'detected' | 'recovering' | 'recovered' | 'delayed' | 'estimating' | 'normalized' | 'queueing' | 'ecn-signaled' | 'congestion-responding' | 'route-failed' | 'route-recomputing' | 'route-ready';
 
 export interface JourneyState {
   timeMs: number;
@@ -130,6 +148,7 @@ export interface JourneyState {
   modifierIds: JourneyModifierId[];
   impairmentState: JourneyImpairmentState;
   transportMetrics: JourneyTransportMetrics | null;
+  congestionMetrics: JourneyCongestionMetrics | null;
   routeMetrics: JourneyRouteMetrics | null;
   scale: JourneyScale;
   scaleDepth: number;
@@ -348,6 +367,7 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
   let packet: PacketJourneyState = 'idle';
   let impairmentState: JourneyImpairmentState = scenario.modifierIds.length === 0 ? 'clean' : 'armed';
   let transportMetrics: JourneyTransportMetrics | null = null;
+  let congestionMetrics: JourneyCongestionMetrics | null = null;
   let routeMetrics: JourneyRouteMetrics | null = null;
   let responseReady = false;
   let journeyComplete = false;
@@ -413,6 +433,26 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
         impairmentState = 'normalized';
         transportMetrics = current.transportMetrics ?? transportMetrics;
         break;
+      case 'transport.queue-growth':
+        impairmentState = 'queueing';
+        transportMetrics = current.transportMetrics ?? transportMetrics;
+        congestionMetrics = current.congestionMetrics ?? congestionMetrics;
+        break;
+      case 'transport.ecn-mark':
+        impairmentState = 'ecn-signaled';
+        transportMetrics = current.transportMetrics ?? transportMetrics;
+        congestionMetrics = current.congestionMetrics ?? congestionMetrics;
+        break;
+      case 'transport.congestion-response':
+        impairmentState = 'congestion-responding';
+        transportMetrics = current.transportMetrics ?? transportMetrics;
+        congestionMetrics = current.congestionMetrics ?? congestionMetrics;
+        break;
+      case 'transport.congestion-cleared':
+        impairmentState = 'normalized';
+        transportMetrics = current.transportMetrics ?? transportMetrics;
+        congestionMetrics = current.congestionMetrics ?? congestionMetrics;
+        break;
       case 'tls.message': tls = 'negotiating'; break;
       case 'tls.validation': tls = 'validating'; break;
       case 'tls.keys': tls = current.phase === 'application-keys' ? 'application-keys' : 'handshake-keys'; break;
@@ -443,6 +483,7 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
     modifierIds: scenario.modifierIds,
     impairmentState,
     transportMetrics,
+    congestionMetrics,
     routeMetrics,
     scale: activeEvent.scale,
     scaleDepth: JOURNEY_SCALE_DEPTH[activeEvent.scale],

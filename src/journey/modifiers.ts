@@ -2,6 +2,7 @@ import type {
   JourneyEvent,
   JourneyEventKind,
   JourneyImpairmentProfile,
+  JourneyCongestionMetrics,
   JourneyModifierId,
   JourneyProvenance,
   JourneyRouteMetrics,
@@ -28,7 +29,7 @@ interface JourneyModifier {
   apply(events: JourneyEvent[], context: JourneyModifierContext): JourneyModifierResult;
 }
 
-const JOURNEY_MODIFIER_ORDER: readonly JourneyModifierId[] = ['route-failure', 'single-loss', 'path-outage', 'latency-spike'];
+const JOURNEY_MODIFIER_ORDER: readonly JourneyModifierId[] = ['route-failure', 'single-loss', 'path-outage', 'latency-spike', 'congestion'];
 const JOURNEY_MODIFIER_SET = new Set<JourneyModifierId>(JOURNEY_MODIFIER_ORDER);
 
 export function normalizeJourneyModifierIds(values: readonly unknown[]): JourneyModifierId[] {
@@ -75,6 +76,7 @@ function modifierEvent(input: {
   detailLab?: JourneyEvent['detailLab'];
   provenance?: JourneyProvenance;
   transportMetrics?: JourneyTransportMetrics;
+  congestionMetrics?: JourneyCongestionMetrics;
   routeMetrics?: JourneyRouteMetrics;
 }): JourneyEvent {
   const { provenance = 'SIMULATED', ...eventInput } = input;
@@ -300,7 +302,71 @@ const latencySpikeModifier: JourneyModifier = {
   },
 };
 
-const modifiers: JourneyModifier[] = [routeFailureModifier, singleLossModifier, pathOutageModifier, latencySpikeModifier]
+
+
+function latestTransportEpisodeEnd(events: JourneyEvent[]): JourneyEvent | undefined {
+  return events
+    .filter((current) => current.kind === 'transport.recovered' || current.kind === 'transport.latency-cleared')
+    .sort((a, b) => b.atMs - a.atMs)[0];
+}
+
+function congestionMetrics(input: Partial<JourneyCongestionMetrics> = {}): JourneyCongestionMetrics {
+  return {
+    bottleneckRateMbps: 100,
+    offeredRateMbps: 160,
+    queueCapacityPackets: 32,
+    queueOccupancyPackets: 8,
+    queueDelayMs: 24,
+    ecnCeMarks: 0,
+    congestionWindowPackets: 12,
+    slowStartThresholdPackets: 24,
+    signal: 'NONE',
+    droppedPackets: 0,
+    ...input,
+  };
+}
+
+function tcpCongestionEvents(baseAtMs: number): JourneyEvent[] {
+  return [
+    modifierEvent({ id: 'tcp-congestion-queue-start', atMs: baseAtMs + 160, kind: 'transport.queue-growth', scale: 'transport', zoom: 'out', protocol: 'TCP', phase: 'queue-growth', title: 'A bottleneck queue starts to build', summary: 'The sender offers about 160 Mb/s to a 100 Mb/s bottleneck, so packets begin waiting instead of disappearing.', detail: 'Queueing raises delay before it creates a transport loss signal. TCP still has a contiguous sequence space and no retransmission is justified.', actor: 'bottleneck queue', target: 'TCP flow', detailLab: 'tcp', transportMetrics: { baselineRttMs: 32, latestRttMs: 56, lossDetected: false }, congestionMetrics: congestionMetrics() }),
+    modifierEvent({ id: 'tcp-congestion-queue-high', atMs: baseAtMs + 420, kind: 'transport.queue-growth', scale: 'transport', zoom: 'hold', protocol: 'TCP', phase: 'queue-high', title: 'Queueing delay grows before any drop', summary: 'The queue reaches 24 of 32 packets and contributes roughly 96 ms of delay.', detail: 'This is a congestion precursor, not packet loss. The receiver can still acknowledge a complete TCP byte stream.', actor: 'bottleneck queue', target: 'TCP ACK clock', detailLab: 'tcp', transportMetrics: { baselineRttMs: 32, latestRttMs: 128, lossDetected: false }, congestionMetrics: congestionMetrics({ queueOccupancyPackets: 24, queueDelayMs: 96 }) }),
+    modifierEvent({ id: 'tcp-congestion-ecn', atMs: baseAtMs + 680, kind: 'transport.ecn-mark', scale: 'packet', zoom: 'in', protocol: 'IP ECN', phase: 'ecn-ce', title: 'ECN marks congestion without dropping the packet', summary: 'Three packets arrive with the IP CE codepoint while the queue approaches capacity.', detail: 'The curated bottleneck is ECN-capable: CE is an explicit congestion signal carried on delivered packets, not a missing TCP sequence range.', actor: 'ECN-capable bottleneck', target: 'TCP receiver', detailLab: 'packet', transportMetrics: { baselineRttMs: 32, latestRttMs: 136, lossDetected: false }, congestionMetrics: congestionMetrics({ queueOccupancyPackets: 26, queueDelayMs: 104, ecnCeMarks: 3, signal: 'CE' }) }),
+    modifierEvent({ id: 'tcp-congestion-response', atMs: baseAtMs + 900, kind: 'transport.congestion-response', scale: 'transport', zoom: 'out', protocol: 'TCP ECN', phase: 'ecn-response', title: 'TCP ECE feedback cuts the congestion window', summary: 'ECE feedback causes the teaching cwnd to fall from 12 to 6 packets; the sender answers with CWR.', detail: 'There is no TCP sequence gap and no retransmission. Congestion control reduces sending pressure because ECN reported congestion before a drop was needed.', actor: 'TCP sender', target: 'bottleneck queue', detailLab: 'tcp', transportMetrics: { baselineRttMs: 32, latestRttMs: 104, lossDetected: false }, congestionMetrics: congestionMetrics({ offeredRateMbps: 78, queueOccupancyPackets: 20, queueDelayMs: 72, ecnCeMarks: 3, congestionWindowPackets: 6, slowStartThresholdPackets: 6, signal: 'ECE/CWR' }) }),
+    modifierEvent({ id: 'tcp-congestion-cleared', atMs: baseAtMs + 1320, kind: 'transport.congestion-cleared', scale: 'application', zoom: 'out', protocol: 'HTTP/2', phase: 'queue-drained', title: 'The queue drains after TCP backs off', summary: 'With offered load below the bottleneck rate, occupancy falls to four packets and response pacing steadies.', detail: 'HTTP/2 continues on the same TCP/TLS connection. No packet was dropped and no repair transmission was required in this ECN episode.', actor: 'bottleneck queue', target: 'HTTP/2', detailLab: 'http', transportMetrics: { baselineRttMs: 32, latestRttMs: 44, lossDetected: false }, congestionMetrics: congestionMetrics({ offeredRateMbps: 78, queueOccupancyPackets: 4, queueDelayMs: 12, ecnCeMarks: 3, congestionWindowPackets: 6, slowStartThresholdPackets: 6, signal: 'NONE' }) }),
+  ];
+}
+
+function quicCongestionEvents(baseAtMs: number): JourneyEvent[] {
+  return [
+    modifierEvent({ id: 'quic-congestion-queue-start', atMs: baseAtMs + 160, kind: 'transport.queue-growth', scale: 'transport', zoom: 'out', protocol: 'QUIC', phase: 'queue-growth', title: 'A bottleneck queue starts to build', summary: 'The QUIC sender offers about 160 Mb/s to a 100 Mb/s bottleneck, so packets spend longer waiting in the queue.', detail: 'Queueing changes ACK timing first. There is no packet-number gap, PTO recovery, or STREAM retransmission in this congestion-only episode.', actor: 'bottleneck queue', target: 'QUIC flow', detailLab: 'http', transportMetrics: { baselineRttMs: 32, latestRttMs: 56, ackDelayMs: 25, lossDetected: false }, congestionMetrics: congestionMetrics({ slowStartThresholdPackets: undefined }) }),
+    modifierEvent({ id: 'quic-congestion-queue-high', atMs: baseAtMs + 420, kind: 'transport.queue-growth', scale: 'transport', zoom: 'hold', protocol: 'QUIC', phase: 'queue-high', title: 'Queueing delay grows before any drop', summary: 'The queue reaches 24 of 32 packets and latest_rtt rises as feedback spends longer in the path.', detail: 'The QUIC packet-number space remains contiguous from the receiver perspective. Higher RTT by itself is not a QUIC loss declaration.', actor: 'bottleneck queue', target: 'QUIC ACK timing', detailLab: 'http', transportMetrics: { baselineRttMs: 32, latestRttMs: 128, ackDelayMs: 25, lossDetected: false }, congestionMetrics: congestionMetrics({ queueOccupancyPackets: 24, queueDelayMs: 96, slowStartThresholdPackets: undefined }) }),
+    modifierEvent({ id: 'quic-congestion-ecn', atMs: baseAtMs + 680, kind: 'transport.ecn-mark', scale: 'packet', zoom: 'in', protocol: 'IP ECN', phase: 'ecn-ce', title: 'ECN marks QUIC packets instead of dropping them', summary: 'The receiver observes three additional CE-marked packets while all packet numbers still arrive.', detail: 'The packet remains delivered. ACK_ECN can report increasing CE counters without inventing a packet-number gap or STREAM loss.', actor: 'ECN-capable bottleneck', target: 'QUIC receiver', detailLab: 'packet', transportMetrics: { baselineRttMs: 32, latestRttMs: 136, ackDelayMs: 25, lossDetected: false }, congestionMetrics: congestionMetrics({ queueOccupancyPackets: 26, queueDelayMs: 104, ecnCeMarks: 3, signal: 'CE', slowStartThresholdPackets: undefined }) }),
+    modifierEvent({ id: 'quic-congestion-response', atMs: baseAtMs + 900, kind: 'transport.congestion-response', scale: 'transport', zoom: 'out', protocol: 'QUIC ACK_ECN', phase: 'ecn-response', title: 'ACK_ECN feedback reduces the QUIC congestion window', summary: 'Validated CE-counter growth causes the teaching congestion window to fall from 12 to 6 packets.', detail: 'There is no QUIC packet-number gap, retransmission, or PTO recovery here. The sender reduces in-flight pressure because ACK_ECN explicitly reported congestion.', actor: 'QUIC sender', target: 'bottleneck queue', detailLab: 'http', transportMetrics: { baselineRttMs: 32, latestRttMs: 104, ackDelayMs: 25, lossDetected: false }, congestionMetrics: congestionMetrics({ offeredRateMbps: 78, queueOccupancyPackets: 20, queueDelayMs: 72, ecnCeMarks: 3, congestionWindowPackets: 6, slowStartThresholdPackets: undefined, signal: 'ACK_ECN' }) }),
+    modifierEvent({ id: 'quic-congestion-cleared', atMs: baseAtMs + 1320, kind: 'transport.congestion-cleared', scale: 'application', zoom: 'out', protocol: 'HTTP/3', phase: 'queue-drained', title: 'The queue drains after QUIC backs off', summary: 'Offered load falls below the bottleneck rate, occupancy returns to four packets, and request-stream pacing steadies.', detail: 'HTTP/3 continues on the same QUIC/TLS state. No packet or STREAM data was lost, so there is nothing to retransmit.', actor: 'bottleneck queue', target: 'HTTP/3', detailLab: 'http', transportMetrics: { baselineRttMs: 32, latestRttMs: 44, ackDelayMs: 25, lossDetected: false }, congestionMetrics: congestionMetrics({ offeredRateMbps: 78, queueOccupancyPackets: 4, queueDelayMs: 12, ecnCeMarks: 3, congestionWindowPackets: 6, slowStartThresholdPackets: undefined, signal: 'NONE' }) }),
+  ];
+}
+
+const congestionModifier: JourneyModifier = {
+  id: 'congestion',
+  order: 120,
+  apply(events, context) {
+    const { data, packetFrame } = requireResponseAnchors(events, 'congestion');
+    const priorEpisode = latestTransportEpisodeEnd(events);
+    const baseAtMs = priorEpisode?.atMs ?? data.atMs;
+    const addedDurationMs = 1700;
+    const shifted = shiftPostAnchor(events, packetFrame.atMs, addedDurationMs);
+    const injected = context.config.transportProfile === 'tcp-h2'
+      ? tcpCongestionEvents(baseAtMs)
+      : quicCongestionEvents(baseAtMs);
+    return {
+      events: [...shifted, ...injected].sort((a, b) => a.atMs - b.atMs),
+      addedDurationMs,
+      appliedModifierIds: ['congestion'],
+    };
+  },
+};
+
+const modifiers: JourneyModifier[] = [routeFailureModifier, singleLossModifier, pathOutageModifier, latencySpikeModifier, congestionModifier]
   .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
 
 export function applyJourneyModifiers(
