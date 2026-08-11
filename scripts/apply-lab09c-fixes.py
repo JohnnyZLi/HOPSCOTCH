@@ -79,4 +79,9 @@ assert.equal(privacySnapshot.warnings.some((line) => line.includes('Local addres
 if old_after_privacy not in text:
     raise SystemExit('privacy post-anchor missing')
 text = text.replace(old_after_privacy, new_after_privacy, 1)
+old_source_assert = "assert.doesNotMatch(adapterSource, /browserEvidence[^\\n]*LOCAL MEASURED|findings[^\\n]*LOCAL MEASURED/i, 'excluded evidence classes must not have a direct measured mapping');"
+new_source_assert = "assert.doesNotMatch(adapterSource, /facts\\.push\\([^\\n]*(browserEvidence|findings)|map[A-Za-z]+\\([^\\n]*root\\.(browserEvidence|findings)/i, 'excluded evidence classes must not feed a measured mapping');"
+if old_source_assert not in text:
+    raise SystemExit('source assertion anchor missing')
+text = text.replace(old_source_assert, new_source_assert, 1)
 contract.write_text(text)
