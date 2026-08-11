@@ -60,6 +60,8 @@ The first successful GitHub-hosted Chrome 150 profile measured:
 
 A later hardened run on hosted Chrome 151 reproduced the same structural envelope: 558 maximum DOM elements, about 5.13 MiB maximum settled heap, and about +1.51 MiB after three complete 54-event seek cycles. Chrome started on the first attempt in that run, so the retry mechanism was present but not needed.
 
+The final read-only Performance run on the permanent branch source used hosted Chrome 150. Its first Chrome process announced a DevTools socket but the HTTP discovery endpoint did not become reachable inside the bounded startup window; the profiler recorded that failed attempt, started a fresh Chrome instance, and completed successfully on attempt two. The final profile again measured 558 maximum DOM elements, about 5.13 MiB maximum settled heap, and about +1.51 MiB heap growth after three complete 54-event seek cycles, with zero stable-budget or semantic failures.
+
 Those hosted values remain inside the original budgets, so the limits were not widened after seeing CI results.
 
 ## Enforced stable budgets
@@ -120,4 +122,4 @@ Normal `npm run check` remains independent from Chrome availability.
 
 The performance workflow is expected to fail when a stable budget or semantic browser invariant regresses, while still uploading the report when possible for diagnosis.
 
-The Chrome 150 execution change and bounded startup retry logic are now part of the permanent `scripts/performance-profile.mjs`; no validation patcher or write-enabled workflow remains on the branch. The final completion gate is ordinary read-only CI plus the ordinary read-only Performance workflow running this permanent source unchanged.
+The Chrome 150 execution change and bounded startup retry logic are part of the permanent `scripts/performance-profile.mjs`; no validation patcher or write-enabled workflow remains in the product diff. Ordinary read-only CI and the ordinary read-only Performance workflow both pass on that permanent source unchanged.
