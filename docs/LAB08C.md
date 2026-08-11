@@ -41,7 +41,7 @@ Default and SwiftShader require an actual Physical WebGL canvas. Disabled mode r
 - the deterministic 2,000-point fixture remains inspectable as data
 - HOPSCOTCH does not substitute a fake 3D renderer
 
-The first complete hosted matrix passed in all three modes. The deliberate WebGL-disabled run reached the real fallback while Journey, Canvas, Builder, overflow, viewport-stability, and semantic assertions remained intact.
+The complete hosted matrix passed in all three modes. The deliberate WebGL-disabled run reached the real fallback while Journey, Canvas, Builder, overflow, viewport-stability, and semantic assertions remained intact.
 
 ## Firefox as a real second engine
 
@@ -89,4 +89,4 @@ Those environments remain valid future compatibility targets, but they are not i
 
 ## Completion gate
 
-The candidate compatibility behavior has passed the hosted matrix repeatedly, and the exact finalized source has also been exported from a read-only validation job. Promotion is split deliberately at GitHub's permission boundary: Actions will push only the validated non-workflow source/package/helper-cleanup commit, while the connector will normalize the two workflow files separately. The remaining gate is that source promotion, shared ROADMAP/ARCHITECTURE/README synchronization, and one final clean-tree CI + Performance + Compatibility pass.
+The exact validated compatibility source is now permanent: the profiler compatibility mode, Firefox runner, npm commands, and read-only Compatibility workflow are committed, while every transient apply/probe/finalize helper has been removed. The remaining gate is synchronization of ROADMAP/ARCHITECTURE/README and one final clean-tree CI + Performance + Compatibility pass.
