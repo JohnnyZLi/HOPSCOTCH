@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.app.json --noEmit && vite build",
-    "pretypecheck": "python3 scripts/apply-lab08b.py && python3 scripts/apply-lab08b-performance.py",
+    "pretypecheck": "python3 scripts/apply-lab08b.py && python3 scripts/fix-lab08b-physical-types.py && python3 scripts/apply-lab08b-performance.py",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.worker.json --noEmit",
     "test:builder-contract": "node scripts/builder-contract-check.mjs",
     "test:worker-contract": "node scripts/worker-contract-check.mjs",
