@@ -15,6 +15,8 @@ const root = process.cwd();
 const distDir = resolve(root, 'dist');
 const budgetPath = resolve(root, 'config/performance-budget.json');
 const reportPath = resolve(root, process.env.HOPSCOTCH_REPORT_PATH?.trim() || 'artifacts/performance-profile.json');
+const measuredFixturePath = resolve(root, 'scripts/fixtures/measured-workspace-v2.json');
+const measuredInvalidFixturePath = resolve(root, 'scripts/fixtures/measured-workspace-invalid.json');
 const budgetDocument = JSON.parse(readFileSync(budgetPath, 'utf8'));
 const budgets = budgetDocument.budgets;
 const stressBudgets = budgetDocument.stressBudgets ?? {};
@@ -290,6 +292,12 @@ profiles.push(
   { id: 'stress-physical-webgl', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'physical-density' }), readySelector: '.physical-globe', expected: gpuMode === 'disabled' ? ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA', 'FALLBACK', 'WEBGL 2 UNAVAILABLE'] : ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA', 'WEBGL 2'], stressExpected: { profile: 'physical-density', physicalPoints: 2000, webgl: gpuMode !== 'disabled' }, allowExpectedWebglFailure: gpuMode === 'disabled' },
 );
 
+if (compatibility) profiles.push(
+  { id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', 'NOT PROMOTED TO LOCAL MEASURED'] },
+  { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
+  { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
+);
+
 async function waitForExpression(cdp, expression, timeoutMs = 5000) {
   const deadline = performance.now() + timeoutMs;
   while (performance.now() < deadline) {
@@ -297,6 +305,84 @@ async function waitForExpression(cdp, expression, timeoutMs = 5000) {
     await sleep(25);
   }
   throw new Error(`Timed out waiting for browser expression: ${expression}`);
+}
+
+async function setFileInput(cdp, selector, filePath) {
+  const document = await cdp.call('DOM.getDocument', { depth: 1 });
+  const result = await cdp.call('DOM.querySelector', { nodeId: document.root.nodeId, selector });
+  if (!result.nodeId) throw new Error(`Unable to find file input ${selector}.`);
+  await cdp.call('DOM.setFileInputFiles', { nodeId: result.nodeId, files: [filePath] });
+}
+
+async function exerciseMeasuredWorkspace(cdp, profile) {
+  const opened = await cdp.evaluate(`(()=>{
+    const button=[...document.querySelectorAll('button')].find((candidate)=>candidate.textContent?.trim()==='Inspect measured report');
+    if(!button)return false;
+    button.click();
+    return true;
+  })()`);
+  if (!opened) throw new Error(`${profile.id} could not find the measured workspace entry point.`);
+  await waitForExpression(cdp, `Boolean(document.querySelector('.measured-workspace'))`);
+  await waitForExpression(cdp, `document.body.innerText.includes('NO LOCAL MEASUREMENT LOADED')`);
+
+  await setFileInput(cdp, '.measured-file-input', measuredFixturePath);
+  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
+  await waitForExpression(cdp, `document.body.innerText.includes('Network Diagnostics Engine') && document.querySelectorAll('.measured-target-selector button').length > 1`, 8000);
+  const selectedThroughput = await cdp.evaluate(`(()=>{
+    const button=[...document.querySelectorAll('.measured-target-selector button')].find((candidate)=>candidate.textContent?.includes('speed.example.test'));
+    if(!button)return false;
+    button.click();
+    return true;
+  })()`);
+  if (!selectedThroughput) throw new Error(`${profile.id} could not select the transfer target scope.`);
+  await waitForExpression(cdp, `document.body.innerText.includes('500 Mbps')`, 8000);
+  const loaded = await cdp.evaluate(`(()=>({
+    text:document.body.innerText,
+    innerWidth,
+    scrollWidth:document.documentElement.scrollWidth,
+    scrollY,
+    factCount:document.querySelectorAll('.measured-fact').length,
+    categoryCount:document.querySelectorAll('.measured-categories button').length,
+    loaded:document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded'),
+  }))()`);
+  if (loaded.scrollWidth > loaded.innerWidth) throw new Error(`${profile.id} measured workspace overflows after valid import: ${loaded.scrollWidth} > ${loaded.innerWidth}.`);
+  if (loaded.scrollY !== 0) throw new Error(`${profile.id} measured workspace moved document scrollY to ${loaded.scrollY}.`);
+  if (loaded.categoryCount !== 7) throw new Error(`${profile.id} expected 7 measured categories, found ${loaded.categoryCount}.`);
+  if (loaded.factCount <= 0) throw new Error(`${profile.id} rendered no measured facts after valid import.`);
+  for (const forbidden of ['DERIVED FINDING MUST NOT BECOME A FACT','BROWSER EDGE MUST NOT BECOME A FACT','UNKNOWN FIELD MUST NOT BECOME A FACT']) {
+    if (loaded.text.includes(forbidden)) throw new Error(`${profile.id} leaked excluded report content into the visible measured workspace: ${forbidden}`);
+  }
+
+  await setFileInput(cdp, '.measured-file-input', measuredInvalidFixturePath);
+  await waitForExpression(cdp, `document.body.innerText.includes('IMPORT REJECTED')`, 8000);
+  const rejected = await cdp.evaluate(`(()=>({
+    loaded:document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded'),
+    text:document.body.innerText,
+  }))()`);
+  if (rejected.loaded !== 'true') throw new Error(`${profile.id} invalid replacement cleared the previous valid measured state.`);
+  if (!rejected.text.includes('THE PREVIOUS VALID REPORT REMAINS ACTIVE.')) throw new Error(`${profile.id} did not preserve/restate previous-valid-report behavior.`);
+  if (!rejected.text.includes('Network Diagnostics Engine')) throw new Error(`${profile.id} lost the previous valid report after a rejected replacement.`);
+
+  const cleared = await cdp.evaluate(`(()=>{
+    const button=document.querySelector('.measured-clear');
+    if(!button)return false;
+    button.click();
+    return true;
+  })()`);
+  if (!cleared) throw new Error(`${profile.id} could not find the measured Clear action.`);
+  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='false'`);
+  await waitForExpression(cdp, `document.body.innerText.includes('NO LOCAL MEASUREMENT LOADED')`);
+
+  await setFileInput(cdp, '.measured-file-input', measuredFixturePath);
+  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
+  await waitForExpression(cdp, `document.body.innerText.includes('Network Diagnostics Engine')`, 8000);
+  return {
+    validFactCount: loaded.factCount,
+    categoryCount: loaded.categoryCount,
+    targetScopeSelectionVerified: true,
+    rejectedReplacementPreserved: true,
+    clearReturnedToEmpty: true,
+  };
 }
 
 async function loadProfile(cdp, artifact, profile) {
@@ -320,6 +406,7 @@ async function loadProfile(cdp, artifact, profile) {
   await cdp.evaluate(artifact.scriptText);
   await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(profile.readySelector ?? '.journey-workspace')}))`);
   await sleep(550);
+  const measuredInteraction = profile.measuredWorkspace ? await exerciseMeasuredWorkspace(cdp, profile) : null;
   const readyMs = performance.now() - startedAt;
   const bodyText = await cdp.evaluate('document.body.innerText');
   for (const expected of profile.expected) {
@@ -342,6 +429,11 @@ async function loadProfile(cdp, artifact, profile) {
       scrollY,
       modifierControls: controls,
       heading: document.querySelector('.journey-heading-actions > span')?.innerText ?? null,
+      measured: {
+        loaded: document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded') ?? null,
+        categoryButtons: document.querySelectorAll('.measured-categories button').length,
+        visibleFacts: document.querySelectorAll('.measured-fact').length,
+      },
       stress: {
         profile: document.querySelector('[data-stress-profile]')?.getAttribute('data-stress-profile') ?? null,
         asNodes: Number(document.querySelector('.internet-scale')?.getAttribute('data-node-count') ?? 0),
@@ -364,6 +456,12 @@ async function loadProfile(cdp, artifact, profile) {
       if (structural.stress[key] !== value) throw new Error(`${profile.id} stress invariant ${key}=${JSON.stringify(structural.stress[key])}; expected ${JSON.stringify(value)}.`);
     }
     if ((structural.stress.asNodes > 0 || structural.stress.webgl) && (structural.stress.canvasBackingWidth <= 0 || structural.stress.canvasBackingHeight <= 0)) throw new Error(`${profile.id} renderer canvas has invalid backing dimensions.`);
+  }
+
+  if (profile.assertMeasuredMobile) {
+    if (structural.measured.loaded !== 'true') throw new Error(`${profile.id} mobile measured workspace did not remain loaded.`);
+    if (structural.measured.categoryButtons !== 7) throw new Error(`${profile.id} mobile measured category count ${structural.measured.categoryButtons}; expected 7.`);
+    if (structural.measured.visibleFacts <= 0) throw new Error(`${profile.id} mobile measured workspace rendered no facts.`);
   }
 
   if (profile.assertMobileGrid) {
@@ -402,6 +500,7 @@ async function loadProfile(cdp, artifact, profile) {
     modifierControls: structural.modifierControls.length,
     heading: structural.heading,
     stress: structural.stress,
+    measured: measuredInteraction,
     heapUsedBytes: heap.usedSize,
     diagnostic: {
       scriptDurationSeconds: performanceMetrics.ScriptDuration ?? null,
@@ -502,6 +601,7 @@ async function main() {
     if (!page?.webSocketDebuggerUrl) throw new Error('Chrome did not expose a page CDP target.');
     cdp = new CdpClient(page.webSocketDebuggerUrl);
     await cdp.call('Page.enable');
+    await cdp.call('DOM.enable');
     await cdp.call('Runtime.enable');
     await cdp.call('Log.enable');
     await cdp.call('Performance.enable');

@@ -317,6 +317,7 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] define native measurement provenance contract
 - [x] keep measured state separate from simulated Journey state
 - [x] ingest native/network-diagnostics data without pretending it is globally complete
+- [x] explicit session-only Network Diagnostics report import + provenance-first measured workspace
 - [ ] map measured facts into existing semantic scenes where appropriate
 
 ## Performance + rendering — ongoing

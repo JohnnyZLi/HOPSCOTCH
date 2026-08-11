@@ -1,0 +1,217 @@
+{
+  "schemaVersion": "2.0",
+  "generatedAt": "2026-08-11T22:30:05.000Z",
+  "producer": {
+    "application": "desktop",
+    "version": "0.9.0",
+    "engine": "Network Diagnostics Engine"
+  },
+  "run": {
+    "id": "lab09d-browser-fixture",
+    "platform": "Linux x64",
+    "architecture": "x64",
+    "profile": "extended",
+    "transferMethod": "compare",
+    "startedAt": "2026-08-11T22:30:00.000Z",
+    "completedAt": "2026-08-11T22:30:04.000Z",
+    "includesLocalAddresses": true
+  },
+  "measurement": {
+    "contractVersion": "2.0",
+    "engine": "native-v2",
+    "engineVersion": "2.0.0",
+    "capabilities": ["interface-selection"],
+    "selectedInterface": {
+      "id": "eth0",
+      "name": "Ethernet",
+      "description": "Fixture interface",
+      "type": "ethernet",
+      "linkSpeedMbps": 1000,
+      "bindingScope": "explicit",
+      "sourceAddress": "192.168.50.20"
+    },
+    "network": {
+      "edge": "SJC",
+      "network": "PUBLIC CONTEXT MUST STAY EXCLUDED",
+      "asn": 64500,
+      "protocol": "HTTP/3"
+    }
+  },
+  "deepDiagnostics": {
+    "schemaVersion": "1.2",
+    "generatedAt": "2026-08-11T22:30:04.000Z",
+    "target": "example.test",
+    "operatingSystem": "Linux",
+    "architecture": "x64",
+    "includesLocalAddresses": true,
+    "interfaces": [
+      {
+        "name": "eth0",
+        "description": "Fixture interface",
+        "type": "ethernet",
+        "linkSpeedMbps": 1000,
+        "ipv4Mtu": 1500,
+        "supportsIpv4": true,
+        "supportsIpv6": true,
+        "unicastAddresses": ["192.168.50.20"],
+        "gateways": ["192.168.50.1"],
+        "dnsServers": ["192.168.50.1"]
+      }
+    ],
+    "gatewayPing": {
+      "label": "Default gateway",
+      "address": "192.168.50.1",
+      "statistics": {
+        "sent": 4,
+        "received": 4,
+        "lost": 0,
+        "lossPercent": 0,
+        "minimumMs": 1.1,
+        "maximumMs": 2.2,
+        "meanMs": 1.6,
+        "medianMs": 1.5,
+        "p95Ms": 2.1,
+        "jitterMs": 0.3,
+        "samples": [1.1, 1.4, 1.7, 2.2]
+      }
+    },
+    "internetPing": {
+      "label": "Internet target",
+      "address": "1.1.1.1",
+      "statistics": {
+        "sent": 5,
+        "received": 4,
+        "lost": 1,
+        "lossPercent": 20,
+        "minimumMs": 18,
+        "maximumMs": 31,
+        "meanMs": 23,
+        "medianMs": 22,
+        "p95Ms": 30,
+        "jitterMs": 4,
+        "samples": [18, 21, null, 22, 31]
+      }
+    },
+    "traceRoute": {
+      "target": "example.test",
+      "resolvedAddress": "198.51.100.80",
+      "maximumHops": 20,
+      "reachedDestination": true,
+      "hops": [
+        {
+          "hop": 1,
+          "address": "192.168.50.1",
+          "hostname": "gateway.lan",
+          "roundTripsMs": [1.2, 1.4, 1.3],
+          "reachedDestination": false
+        },
+        {
+          "hop": 2,
+          "address": "198.51.100.80",
+          "hostname": "example.test",
+          "roundTripsMs": [22.1, 22.4, 22.2],
+          "reachedDestination": true
+        }
+      ]
+    },
+    "dnsResolvers": [
+      {
+        "name": "Local resolver",
+        "address": "192.168.50.1",
+        "attempts": 3,
+        "successful": 2,
+        "minimumMs": 4,
+        "medianMs": 5,
+        "p95Ms": 7,
+        "maximumMs": 7
+      }
+    ],
+    "serviceEndpoints": [
+      {
+        "name": "HTTPS target",
+        "host": "example.test",
+        "reachable": true,
+        "dnsMs": 8,
+        "tcpMs": 17,
+        "tlsMs": 24,
+        "tlsProtocol": "TLS 1.3",
+        "applicationProtocol": "h2"
+      }
+    ],
+    "routing": {
+      "status": "available",
+      "entries": [
+        {
+          "destination": "0.0.0.0/0",
+          "gateway": "192.168.50.1",
+          "interfaceName": "eth0",
+          "metric": 10,
+          "addressFamily": "IPv4",
+          "isDefault": true
+        }
+      ]
+    }
+  },
+  "internetTransfer": {
+    "origin": "https://speed.example.test",
+    "idleLatency": {
+      "sent": 5,
+      "received": 5,
+      "lost": 0,
+      "lossPercent": 0,
+      "minimumMs": 20,
+      "maximumMs": 26,
+      "meanMs": 23,
+      "medianMs": 23,
+      "p95Ms": 25,
+      "jitterMs": 2,
+      "samples": [20, 22, 23, 24, 26]
+    },
+    "download": {
+      "mbps": 500,
+      "steadyMbps": 470,
+      "bytes": 125000000,
+      "durationMs": 2000,
+      "peakMbps": 540,
+      "stabilityPercent": 94,
+      "capReached": false,
+      "qualification": "qualified"
+    },
+    "upload": {
+      "mbps": 120,
+      "steadyMbps": 115,
+      "bytes": 30000000,
+      "durationMs": 2000,
+      "peakMbps": 128,
+      "stabilityPercent": 91,
+      "capReached": false,
+      "qualification": "qualified"
+    },
+    "flowMeasurements": [],
+    "downloadScaling": [],
+    "dataUsedBytes": 155000000
+  },
+  "findings": [
+    {
+      "id": "excluded-finding",
+      "category": "latency",
+      "severity": "warning",
+      "confidence": "high",
+      "title": "DERIVED FINDING MUST NOT BECOME A FACT",
+      "summary": "Fixture exclusion marker",
+      "evidence": [],
+      "recommendations": []
+    }
+  ],
+  "browserEvidence": {
+    "edge": {
+      "edge": "SJC",
+      "network": "BROWSER EDGE MUST NOT BECOME A FACT",
+      "asn": 64501
+    },
+    "serviceChecks": []
+  },
+  "customUiFixtureExtension": {
+    "marker": "UNKNOWN FIELD MUST NOT BECOME A FACT"
+  }
+}
