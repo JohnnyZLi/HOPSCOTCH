@@ -273,8 +273,24 @@ GOD MODE impairments are deterministic modifiers over the same canonical Journey
 - [x] permanent server failure/model/composition contract wired into `npm run check`
 - [x] exact production-artifact desktop/mobile/reduced-motion audit
 
+### 07H — partition + terminal unreachable state
+- [x] distinct terminal `partition` modifier that runs after recoverable response-path modifiers
+- [x] fail both R1 → CORE and R2 → CORE exits rather than inventing a third recovery path
+- [x] SPF/recomputation runs with zero candidate routes and no alternate installation
+- [x] route state becomes `unreachable` with active path `none`
+- [x] existing TCP/QUIC state becomes `stalled`, not magically closed
+- [x] TCP scene explicitly shows `NO IP PROGRESS`; QUIC may retain 1-RTT crypto state separately from reachability
+- [x] terminal state exposes `journeyFailed = true` and `failureReason = network-unreachable`
+- [x] remove successful `response.ready`, `transfer.complete`, and `journey.complete` tail after partition
+- [x] no fabricated RTO/PTO recovery, successful retransmission, successful probe, or post-partition route installation
+- [x] partition composes last after earlier recoverable modifiers while ROUTE/OUTAGE remain mutually exclusive with each other
+- [x] schema-v1 single PARTITION and schema-v2 composed sharing/persistence compatibility
+- [x] ninth GOD MODE selector, dual-link failure routing scene, stalled transport state, terminal NO ROUTE scene, rail marker, and scrubber marker
+- [x] mobile nine-control 3×3 layout remains collision- and overflow-free with viewport-stable playback
+- [x] permanent partition/model/composition contract wired into `npm run check`
+- [x] exact GitHub Actions production-artifact desktop/mobile/reduced-motion audit
+
 ### Later GOD MODE stories
-- [ ] partition / unreachable state
 - [ ] route leak / policy anomaly teaching scenario
 
 ## Measured/native mode — future

@@ -30,7 +30,7 @@ interface JourneyModifier {
   apply(events: JourneyEvent[], context: JourneyModifierContext): JourneyModifierResult;
 }
 
-const JOURNEY_MODIFIER_ORDER: readonly JourneyModifierId[] = ['dns-failure', 'route-failure', 'server-failure', 'single-loss', 'path-outage', 'latency-spike', 'congestion'];
+const JOURNEY_MODIFIER_ORDER: readonly JourneyModifierId[] = ['dns-failure', 'route-failure', 'server-failure', 'single-loss', 'path-outage', 'latency-spike', 'congestion', 'partition'];
 const JOURNEY_MODIFIER_SET = new Set<JourneyModifierId>(JOURNEY_MODIFIER_ORDER);
 
 export function normalizeJourneyModifierIds(values: readonly unknown[]): JourneyModifierId[] {
@@ -578,7 +578,143 @@ const serverFailureModifier: JourneyModifier = {
   },
 };
 
-const modifiers: JourneyModifier[] = [dnsFailureModifier, routeFailureModifier, serverFailureModifier, singleLossModifier, pathOutageModifier, latencySpikeModifier, congestionModifier]
+
+
+function latestPartitionTrigger(events: JourneyEvent[]): JourneyEvent {
+  const preferredKinds = new Set<JourneyEventKind>([
+    'http.data',
+    'transport.recovered',
+    'transport.latency-cleared',
+    'transport.congestion-cleared',
+  ]);
+  const candidates = events.filter((current) => preferredKinds.has(current.kind)).sort((a, b) => b.atMs - a.atMs);
+  if (!candidates[0]) throw new Error('partition requires response-path activity before terminalizing the Journey.');
+  return candidates[0];
+}
+
+function partitionRouteMetrics(): JourneyRouteMetrics {
+  return {
+    primaryPathCost: 22,
+    alternatePathCost: 52,
+    activePath: 'none',
+    failedLinkId: 'r1-core',
+    failedLinkIds: ['r1-core', 'r2-core'],
+    candidateRouteCount: 0,
+    recoveryAvailable: false,
+  };
+}
+
+function partitionEvents(triggerAtMs: number, terminalAtMs: number, transportProfile: JourneyTransportProfile): JourneyEvent[] {
+  const metrics = partitionRouteMetrics();
+  const transportProtocol = transportProfile === 'quic-h3' ? 'QUIC' : 'TCP';
+  const stalledDetail = transportProfile === 'quic-h3'
+    ? 'The QUIC connection had valid 1-RTT state before the cut. With no IP route, probes cannot create reachability; stalled does not mean the connection is already closed.'
+    : 'The TCP connection was established before the cut. With no IP route, bytes cannot make progress; stalled does not mean the connection is already closed.';
+  const injected = [
+    modifierEvent({
+      id: 'partition-cut',
+      atMs: triggerAtMs + 220,
+      kind: 'route.partition',
+      scale: 'routing',
+      zoom: 'out',
+      protocol: 'IP',
+      phase: 'partition-cut',
+      title: 'Both routed exits disappear across the partition',
+      summary: 'R1 → CORE and R2 → CORE are both unavailable, so the installed forwarding path is no longer usable.',
+      detail: 'This is not the recoverable ROUTE or OUTAGE story. The teaching topology has lost both of its destination-facing exits at once.',
+      actor: 'network partition',
+      target: 'R1 / R2 uplinks',
+      detailLab: 'failure',
+      routeMetrics: metrics,
+    }),
+    modifierEvent({
+      id: 'partition-recompute',
+      atMs: triggerAtMs + 520,
+      kind: 'route.partition-recompute',
+      scale: 'routing',
+      zoom: 'hold',
+      protocol: 'OSPF-style SPF',
+      phase: 'partition-recompute',
+      title: 'SPF runs with zero surviving candidates',
+      summary: 'The route calculation sees no primary or alternate path capable of reaching the destination.',
+      detail: 'Recomputation is still meaningful even when it cannot produce a route. Candidate route count is explicitly zero.',
+      actor: 'routing process',
+      target: 'forwarding table',
+      detailLab: 'failure',
+      routeMetrics: metrics,
+    }),
+    modifierEvent({
+      id: 'partition-unreachable',
+      atMs: triggerAtMs + 820,
+      kind: 'route.unreachable',
+      scale: 'routing',
+      zoom: 'hold',
+      protocol: 'IP',
+      phase: 'unreachable',
+      title: 'Destination is unreachable: no route is installed',
+      summary: 'Active path becomes NONE and forwarding cannot choose a next hop toward the destination.',
+      detail: 'The terminal truth is routing reachability. HOPSCOTCH does not invent a third path or silently restore one of the failed links.',
+      actor: 'forwarding table',
+      target: 'destination prefix',
+      detailLab: 'failure',
+      routeMetrics: metrics,
+    }),
+    modifierEvent({
+      id: 'partition-transport-stalled',
+      atMs: triggerAtMs + 1080,
+      kind: 'transport.stalled',
+      scale: 'transport',
+      zoom: 'in',
+      protocol: transportProtocol,
+      phase: 'transport-stalled',
+      title: `${transportProtocol} state remains, but IP progress stops`,
+      summary: 'The existing transport state is stalled because there is no forwarding path on which packets can travel.',
+      detail: stalledDetail,
+      actor: `${transportProtocol} sender`,
+      target: 'unreachable IP path',
+      detailLab: transportProfile === 'quic-h3' ? 'http' : 'tcp',
+      routeMetrics: metrics,
+    }),
+    modifierEvent({
+      id: 'partition-terminal',
+      atMs: terminalAtMs,
+      kind: 'journey.failed',
+      scale: 'application',
+      zoom: 'out',
+      protocol: 'URL',
+      phase: 'network-unreachable',
+      title: 'Journey ends without a route to the destination',
+      summary: 'The request cannot reach response-ready because the simulated network remains partitioned.',
+      detail: 'No route exists and no recovery event follows. Earlier DNS, TLS, HTTP, and transport history remains inspectable when the time machine is rewound.',
+      actor: 'network stack',
+      target: 'browser',
+      detailLab: 'failure',
+      routeMetrics: metrics,
+    }),
+  ];
+  if (injected[injected.length - 2].atMs >= terminalAtMs) throw new Error('partition terminal boundary must follow routing and transport stall events.');
+  return injected;
+}
+
+const partitionModifier: JourneyModifier = {
+  id: 'partition',
+  order: 130,
+  apply(events, context) {
+    const trigger = latestPartitionTrigger(events);
+    const complete = events.find((current) => current.kind === 'journey.complete');
+    if (!complete) throw new Error('partition requires the pre-terminal Journey completion boundary.');
+    const injected = partitionEvents(trigger.atMs, complete.atMs, context.config.transportProfile);
+    const cutAtMs = injected[0].atMs;
+    const kept = events.filter((current) => current.atMs < cutAtMs);
+    return {
+      events: [...kept, ...injected].sort((a, b) => a.atMs - b.atMs),
+      addedDurationMs: 0,
+      appliedModifierIds: ['partition'],
+    };
+  },
+};
+
+const modifiers: JourneyModifier[] = [dnsFailureModifier, routeFailureModifier, serverFailureModifier, singleLossModifier, pathOutageModifier, latencySpikeModifier, congestionModifier, partitionModifier]
   .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
 
 export function applyJourneyModifiers(

@@ -5,7 +5,7 @@ export type JourneyProvenance = 'SIMULATED' | 'EDGE OBSERVED' | 'PUBLIC COLLECTO
 export type JourneyZoomDirection = 'in' | 'out' | 'hold';
 export type JourneyTransportProfile = 'tcp-h2' | 'quic-h3';
 export type JourneyDnsProfile = 'cache-miss' | 'cache-hit';
-export type JourneyModifierId = 'dns-failure' | 'route-failure' | 'server-failure' | 'single-loss' | 'path-outage' | 'latency-spike' | 'congestion';
+export type JourneyModifierId = 'dns-failure' | 'route-failure' | 'server-failure' | 'single-loss' | 'path-outage' | 'latency-spike' | 'congestion' | 'partition';
 export type JourneyImpairmentProfile = 'clean' | JourneyModifierId | 'composed';
 export type JourneyDetailLab = 'dns' | 'tcp' | 'tls' | 'http' | 'packet' | 'builder' | 'failure' | 'internet' | 'physical' | 'observed';
 export type JourneyEventKind =
@@ -25,6 +25,9 @@ export type JourneyEventKind =
   | 'route.invalidated'
   | 'route.recompute'
   | 'route.alternate-installed'
+  | 'route.partition'
+  | 'route.partition-recompute'
+  | 'route.unreachable'
   | 'internet.policy-path'
   | 'internet.physical-context'
   | 'transport.segment'
@@ -40,6 +43,7 @@ export type JourneyEventKind =
   | 'transport.ecn-mark'
   | 'transport.congestion-response'
   | 'transport.congestion-cleared'
+  | 'transport.stalled'
   | 'tls.message'
   | 'tls.validation'
   | 'tls.keys'
@@ -56,7 +60,8 @@ export type JourneyEventKind =
   | 'transfer.complete'
   | 'response.ready'
   | 'camera.pullback'
-  | 'journey.complete';
+  | 'journey.complete'
+  | 'journey.failed';
 
 export interface JourneyScenarioConfig {
   transportProfile: JourneyTransportProfile;
@@ -110,6 +115,9 @@ export interface JourneyRouteMetrics {
   alternatePathCost: number;
   activePath: 'primary' | 'none' | 'alternate';
   failedLinkId?: string;
+  failedLinkIds?: string[];
+  candidateRouteCount?: number;
+  recoveryAvailable?: boolean;
 }
 
 export interface JourneyEvent {
@@ -148,13 +156,13 @@ export interface JourneyScenario {
 }
 
 export type DnsJourneyState = 'idle' | 'cache-miss' | 'resolving' | 'timeout' | 'retrying' | 'resolved' | 'cached';
-export type RouteJourneyState = 'idle' | 'lookup' | 'gateway-ready' | 'failed' | 'recomputing' | 'alternate-ready' | 'internet-path-ready';
-export type TransportJourneyState = 'closed' | 'handshake' | 'established' | 'complete';
+export type RouteJourneyState = 'idle' | 'lookup' | 'gateway-ready' | 'failed' | 'recomputing' | 'alternate-ready' | 'internet-path-ready' | 'unreachable';
+export type TransportJourneyState = 'closed' | 'handshake' | 'established' | 'stalled' | 'complete';
 export type TlsJourneyState = 'idle' | 'negotiating' | 'validating' | 'handshake-keys' | 'application-keys';
-export type HttpJourneyState = 'idle' | 'control' | 'request-sent' | 'service-unavailable' | 'retry-wait' | 'headers' | 'streaming' | 'complete';
+export type HttpJourneyState = 'idle' | 'control' | 'request-sent' | 'service-unavailable' | 'retry-wait' | 'headers' | 'streaming' | 'stalled' | 'complete';
 export type ServerJourneyState = 'healthy' | 'unavailable' | 'waiting' | 'ready';
 export type PacketJourneyState = 'idle' | 'frame' | 'headers';
-export type JourneyImpairmentState = 'clean' | 'armed' | 'dns-failed' | 'dns-retrying' | 'dns-masked' | 'server-unavailable' | 'server-waiting' | 'server-ready' | 'lost' | 'detected' | 'recovering' | 'recovered' | 'delayed' | 'estimating' | 'normalized' | 'queueing' | 'ecn-signaled' | 'congestion-responding' | 'route-failed' | 'route-recomputing' | 'route-ready';
+export type JourneyImpairmentState = 'clean' | 'armed' | 'dns-failed' | 'dns-retrying' | 'dns-masked' | 'server-unavailable' | 'server-waiting' | 'server-ready' | 'lost' | 'detected' | 'recovering' | 'recovered' | 'delayed' | 'estimating' | 'normalized' | 'queueing' | 'ecn-signaled' | 'congestion-responding' | 'route-failed' | 'route-recomputing' | 'route-ready' | 'partitioned' | 'partition-recomputing' | 'unreachable';
 
 export interface JourneyState {
   timeMs: number;
@@ -188,6 +196,8 @@ export interface JourneyState {
   packet: PacketJourneyState;
   responseReady: boolean;
   journeyComplete: boolean;
+  journeyFailed: boolean;
+  failureReason: 'network-unreachable' | null;
 }
 
 export const JOURNEY_SCALE_DEPTH: Record<JourneyScale, number> = {
@@ -394,6 +404,8 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
   let routeMetrics: JourneyRouteMetrics | null = null;
   let responseReady = false;
   let journeyComplete = false;
+  let journeyFailed = false;
+  let failureReason: 'network-unreachable' | null = null;
 
   for (const current of completed) {
     switch (current.kind) {
@@ -451,6 +463,21 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
         impairmentState = 'route-ready';
         routeMetrics = current.routeMetrics ?? routeMetrics;
         break;
+      case 'route.partition':
+        route = 'failed';
+        impairmentState = 'partitioned';
+        routeMetrics = current.routeMetrics ?? routeMetrics;
+        break;
+      case 'route.partition-recompute':
+        route = 'recomputing';
+        impairmentState = 'partition-recomputing';
+        routeMetrics = current.routeMetrics ?? routeMetrics;
+        break;
+      case 'route.unreachable':
+        route = 'unreachable';
+        impairmentState = 'unreachable';
+        routeMetrics = current.routeMetrics ?? routeMetrics;
+        break;
       case 'internet.policy-path': route = 'internet-path-ready'; break;
       case 'transport.segment': transport = 'handshake'; break;
       case 'transport.established': transport = 'established'; break;
@@ -493,6 +520,11 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
         transportMetrics = current.transportMetrics ?? transportMetrics;
         congestionMetrics = current.congestionMetrics ?? congestionMetrics;
         break;
+      case 'transport.stalled':
+        transport = 'stalled';
+        impairmentState = 'unreachable';
+        routeMetrics = current.routeMetrics ?? routeMetrics;
+        break;
       case 'tls.message': tls = 'negotiating'; break;
       case 'tls.validation': tls = 'validating'; break;
       case 'tls.keys': tls = current.phase === 'application-keys' ? 'application-keys' : 'handshake-keys'; break;
@@ -534,7 +566,18 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
       case 'packet.inspect': packet = current.phase === 'headers' ? 'headers' : 'frame'; break;
       case 'transfer.complete': transport = 'complete'; http = 'complete'; break;
       case 'response.ready': responseReady = true; break;
-      case 'journey.complete': responseReady = true; journeyComplete = true; break;
+      case 'journey.complete': journeyComplete = true; break;
+      case 'journey.failed':
+        route = 'unreachable';
+        transport = 'stalled';
+        http = 'stalled';
+        responseReady = false;
+        journeyComplete = false;
+        journeyFailed = true;
+        failureReason = 'network-unreachable';
+        impairmentState = 'unreachable';
+        routeMetrics = current.routeMetrics ?? routeMetrics;
+        break;
       default: break;
     }
   }
@@ -575,5 +618,7 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
     packet,
     responseReady,
     journeyComplete,
+    journeyFailed,
+    failureReason,
   };
 }
