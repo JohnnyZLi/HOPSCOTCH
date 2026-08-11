@@ -18,6 +18,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - run: python3 scripts/sync-lab08a-shared-docs.py
       - run: npm ci
       - run: npm run build
       - run: npm run performance:check
@@ -29,3 +30,13 @@ jobs:
           path: artifacts/performance-profile.json
           if-no-files-found: error
           retention-days: 3
+      - name: Upload validated Lab 08A docs
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-lab08a-docs
+          path: |
+            docs/ROADMAP.md
+            docs/ARCHITECTURE.md
+          if-no-files-found: error
+          retention-days: 1
