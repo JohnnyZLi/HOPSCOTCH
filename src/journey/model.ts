@@ -1,11 +1,12 @@
-import { applyJourneyModifiers } from './modifiers.ts';
+import { applyJourneyModifiers, impairmentProfileForModifiers } from './modifiers.ts';
 
 export type JourneyScale = 'internet' | 'routing' | 'transport' | 'application' | 'packet';
 export type JourneyProvenance = 'SIMULATED' | 'EDGE OBSERVED' | 'PUBLIC COLLECTOR' | 'PUBLIC DATA' | 'INFERRED';
 export type JourneyZoomDirection = 'in' | 'out' | 'hold';
 export type JourneyTransportProfile = 'tcp-h2' | 'quic-h3';
 export type JourneyDnsProfile = 'cache-miss' | 'cache-hit';
-export type JourneyImpairmentProfile = 'clean' | 'single-loss' | 'latency-spike' | 'route-failure';
+export type JourneyModifierId = 'route-failure' | 'single-loss' | 'latency-spike';
+export type JourneyImpairmentProfile = 'clean' | JourneyModifierId | 'composed';
 export type JourneyDetailLab = 'dns' | 'tcp' | 'tls' | 'http' | 'packet' | 'builder' | 'failure' | 'internet' | 'physical' | 'observed';
 export type JourneyEventKind =
   | 'intent.accepted'
@@ -49,6 +50,7 @@ export interface JourneyScenarioConfig {
   transportProfile: JourneyTransportProfile;
   dnsProfile: JourneyDnsProfile;
   impairmentProfile: JourneyImpairmentProfile;
+  modifierIds?: JourneyModifierId[];
 }
 
 export const DEFAULT_JOURNEY_CONFIG: JourneyScenarioConfig = {
@@ -103,7 +105,8 @@ export interface JourneyScenario {
   transportProfile: JourneyTransportProfile;
   dnsProfile: JourneyDnsProfile;
   impairmentProfile: JourneyImpairmentProfile;
-  appliedModifierIds: string[];
+  modifierIds: JourneyModifierId[];
+  appliedModifierIds: JourneyModifierId[];
   durationMs: number;
   events: JourneyEvent[];
 }
@@ -124,6 +127,7 @@ export interface JourneyState {
   transportProfile: JourneyTransportProfile;
   dnsProfile: JourneyDnsProfile;
   impairmentProfile: JourneyImpairmentProfile;
+  modifierIds: JourneyModifierId[];
   impairmentState: JourneyImpairmentState;
   transportMetrics: JourneyTransportMetrics | null;
   routeMetrics: JourneyRouteMetrics | null;
@@ -299,15 +303,19 @@ export function buildJourneyScenario(hostnameInput = 'example.test', config: Par
   ];
   const modifierResult = applyJourneyModifiers(baseEvents, normalizedConfig);
   const events = modifierResult.events;
+  const modifierIds = modifierResult.appliedModifierIds;
+  const impairmentProfile = impairmentProfileForModifiers(modifierIds);
+  const impairmentKey = impairmentProfile === 'composed' ? modifierIds.join('+') : impairmentProfile;
 
   return {
-    id: `url-journey:${hostname}:${normalizedConfig.transportProfile}:${normalizedConfig.dnsProfile}:${normalizedConfig.impairmentProfile}`,
+    id: `url-journey:${hostname}:${normalizedConfig.transportProfile}:${normalizedConfig.dnsProfile}:${impairmentKey}`,
     hostname,
     destinationAddress,
     transportProfile: normalizedConfig.transportProfile,
     dnsProfile: normalizedConfig.dnsProfile,
-    impairmentProfile: normalizedConfig.impairmentProfile,
-    appliedModifierIds: modifierResult.appliedModifierIds,
+    impairmentProfile,
+    modifierIds,
+    appliedModifierIds: modifierIds,
     durationMs: 15000 + dnsShiftMs + modifierResult.addedDurationMs,
     events,
   };
@@ -338,7 +346,7 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
   let tls: TlsJourneyState = 'idle';
   let http: HttpJourneyState = 'idle';
   let packet: PacketJourneyState = 'idle';
-  let impairmentState: JourneyImpairmentState = scenario.impairmentProfile === 'clean' ? 'clean' : 'armed';
+  let impairmentState: JourneyImpairmentState = scenario.modifierIds.length === 0 ? 'clean' : 'armed';
   let transportMetrics: JourneyTransportMetrics | null = null;
   let routeMetrics: JourneyRouteMetrics | null = null;
   let responseReady = false;
@@ -429,6 +437,7 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
     transportProfile: scenario.transportProfile,
     dnsProfile: scenario.dnsProfile,
     impairmentProfile: scenario.impairmentProfile,
+    modifierIds: scenario.modifierIds,
     impairmentState,
     transportMetrics,
     routeMetrics,

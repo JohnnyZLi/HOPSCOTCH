@@ -8,7 +8,7 @@ import { InternetScaleTheater } from './InternetScaleTheater';
 import type { InternetEvidenceSnapshot } from './internet/evidence';
 import { bootstrapJourneyFromSearch, seedJourneyBrowserScenario } from './journey/browser.ts';
 import type { JourneyDetailLab } from './journey/model';
-import type { PortableJourneyScenarioV1 } from './journey/scenario.ts';
+import type { PortableJourneyScenario } from './journey/scenario.ts';
 import { LabNetworkField } from './LabNetworkField';
 import { NetworkBuilder } from './NetworkBuilder';
 import { NetworkField } from './NetworkField';
@@ -137,7 +137,7 @@ export default function App() {
     }
     setActiveLab(lab);
   };
-  const importJourneyScenario = (scenario: PortableJourneyScenarioV1) => {
+  const importJourneyScenario = (scenario: PortableJourneyScenario) => {
     seedJourneyBrowserScenario(scenario);
     setPlaying(false);
     setJourneyHostname(scenario.hostname);

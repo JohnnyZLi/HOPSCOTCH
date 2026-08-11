@@ -2,6 +2,7 @@ import type {
   JourneyEvent,
   JourneyEventKind,
   JourneyImpairmentProfile,
+  JourneyModifierId,
   JourneyProvenance,
   JourneyRouteMetrics,
   JourneyScale,
@@ -18,14 +19,41 @@ export interface JourneyModifierContext {
 export interface JourneyModifierResult {
   events: JourneyEvent[];
   addedDurationMs: number;
-  appliedModifierIds: string[];
+  appliedModifierIds: JourneyModifierId[];
 }
 
 interface JourneyModifier {
-  id: string;
+  id: JourneyModifierId;
   order: number;
-  appliesTo(profile: JourneyImpairmentProfile): boolean;
   apply(events: JourneyEvent[], context: JourneyModifierContext): JourneyModifierResult;
+}
+
+const JOURNEY_MODIFIER_ORDER: readonly JourneyModifierId[] = ['route-failure', 'single-loss', 'latency-spike'];
+const JOURNEY_MODIFIER_SET = new Set<JourneyModifierId>(JOURNEY_MODIFIER_ORDER);
+
+export function normalizeJourneyModifierIds(values: readonly unknown[]): JourneyModifierId[] {
+  const selected = new Set<JourneyModifierId>();
+  for (const value of values) {
+    if (typeof value !== 'string' || !JOURNEY_MODIFIER_SET.has(value as JourneyModifierId)) {
+      throw new Error(`Unknown Journey modifier: ${String(value)}.`);
+    }
+    selected.add(value as JourneyModifierId);
+  }
+  return JOURNEY_MODIFIER_ORDER.filter((id) => selected.has(id));
+}
+
+export function resolveJourneyModifierIds(config: JourneyScenarioConfig): JourneyModifierId[] {
+  if (config.modifierIds !== undefined) return normalizeJourneyModifierIds(config.modifierIds);
+  if (config.impairmentProfile === 'clean') return [];
+  if (config.impairmentProfile === 'composed') throw new Error('Composed Journey config requires modifierIds.');
+  return normalizeJourneyModifierIds([config.impairmentProfile]);
+}
+
+export function impairmentProfileForModifiers(modifierIds: readonly JourneyModifierId[]): JourneyImpairmentProfile {
+  const normalized = normalizeJourneyModifierIds(modifierIds);
+  if (normalized.length === 0) return 'clean';
+  if (normalized.length === 1) return normalized[0];
+  return 'composed';
 }
 
 function modifierEvent(input: {
@@ -91,7 +119,6 @@ function quicLossEvents(dataAtMs: number): JourneyEvent[] {
 const singleLossModifier: JourneyModifier = {
   id: 'single-loss',
   order: 100,
-  appliesTo: (profile) => profile === 'single-loss',
   apply(events, context) {
     const { data, packetFrame } = requireResponseAnchors(events, 'single-loss');
     const addedDurationMs = 1600;
@@ -124,7 +151,6 @@ function routeFailureEvents(gatewayAtMs: number): JourneyEvent[] {
 const routeFailureModifier: JourneyModifier = {
   id: 'route-failure',
   order: 90,
-  appliesTo: (profile) => profile === 'route-failure',
   apply(events) {
     const { gateway, asPath, transportStart } = requireRouteAnchors(events, 'route-failure');
     const addedDurationMs = 1400;
@@ -201,13 +227,14 @@ function latencyEvents(transportProfile: JourneyTransportProfile, dataAtMs: numb
 const latencySpikeModifier: JourneyModifier = {
   id: 'latency-spike',
   order: 110,
-  appliesTo: (profile) => profile === 'latency-spike',
   apply(events, context) {
     const { data, packetFrame } = requireResponseAnchors(events, 'latency-spike');
+    const recovered = events.find((current) => current.kind === 'transport.recovered');
+    const latencyBaseAtMs = recovered?.atMs ?? data.atMs;
     const addedDurationMs = 1200;
     const shifted = shiftPostAnchor(events, packetFrame.atMs, addedDurationMs);
     return {
-      events: [...shifted, ...latencyEvents(context.config.transportProfile, data.atMs)].sort((a, b) => a.atMs - b.atMs),
+      events: [...shifted, ...latencyEvents(context.config.transportProfile, latencyBaseAtMs)].sort((a, b) => a.atMs - b.atMs),
       addedDurationMs,
       appliedModifierIds: ['latency-spike'],
     };
@@ -223,15 +250,20 @@ export function applyJourneyModifiers(
 ): JourneyModifierResult {
   let events = baseEvents.map((current) => ({ ...current }));
   let addedDurationMs = 0;
-  const appliedModifierIds: string[] = [];
+  const appliedModifierIds: JourneyModifierId[] = [];
+  const selectedModifierIds = new Set(resolveJourneyModifierIds(config));
 
   for (const modifier of modifiers) {
-    if (!modifier.appliesTo(config.impairmentProfile)) continue;
+    if (!selectedModifierIds.has(modifier.id)) continue;
     const result = modifier.apply(events, { config });
     events = result.events;
     addedDurationMs += result.addedDurationMs;
     appliedModifierIds.push(...result.appliedModifierIds);
   }
+
+  if (new Set(events.map((event) => event.id)).size !== events.length) throw new Error('Journey modifiers produced duplicate event IDs.');
+  if (new Set(events.map((event) => event.atMs)).size !== events.length) throw new Error('Journey modifiers produced duplicate event timestamps.');
+  if (!events.every((event, index) => index === 0 || event.atMs > events[index - 1].atMs)) throw new Error('Journey modifier events must remain strictly ordered.');
 
   return { events, addedDurationMs, appliedModifierIds };
 }
