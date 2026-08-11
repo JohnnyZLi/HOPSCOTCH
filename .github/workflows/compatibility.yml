@@ -23,14 +23,12 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Apply Lab 08C profiler candidate
-        run: python3 scripts/apply-lab08c.py
       - run: npm run build
       - name: Run production compatibility profile
         env:
           HOPSCOTCH_GPU_MODE: ${{ matrix.gpu }}
           HOPSCOTCH_REPORT_PATH: artifacts/compatibility-${{ matrix.gpu }}.json
-        run: node scripts/performance-profile.mjs --compatibility
+        run: npm run compatibility:chrome
       - name: Upload compatibility report
         if: always()
         uses: actions/upload-artifact@v4
@@ -50,20 +48,14 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Probe hosted Firefox automation capability
-        run: node scripts/firefox-capability-probe.mjs
       - run: npm run build
-      - name: Apply Firefox BiDi viewport candidate
-        run: python3 scripts/apply-lab08c-firefox.py
       - name: Run Firefox production semantic compatibility
-        run: node scripts/firefox-compatibility.mjs
+        run: npm run compatibility:firefox
       - name: Upload Firefox reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: hopscotch-firefox-compatibility
-          path: |
-            artifacts/firefox-capability.json
-            artifacts/firefox-compatibility.json
+          path: artifacts/firefox-compatibility.json
           if-no-files-found: error
           retention-days: 3
