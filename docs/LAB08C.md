@@ -89,4 +89,4 @@ Those environments remain valid future compatibility targets, but they are not i
 
 ## Completion gate
 
-The candidate compatibility behavior has passed the hosted matrix. The remaining gate is promotion of the exact validated profiler/Firefox runner changes into permanent source, removal of transient patch/probe helpers, restoration of read-only workflows, shared ROADMAP/ARCHITECTURE/README synchronization, and a final clean-tree CI + Performance + Compatibility pass.
+The candidate compatibility behavior has passed the hosted matrix repeatedly. The exact finalized source is now exported from a read-only validation job because GitHub correctly prevents the Actions token from pushing workflow-file changes without `workflows` scope. The remaining gate is committing those exported bytes through the GitHub contents API, removing transient patch/probe helpers, shared ROADMAP/ARCHITECTURE/README synchronization, and one final clean-tree CI + Performance + Compatibility pass.
