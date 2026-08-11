@@ -41,3 +41,11 @@ for old, new in replacements:
         raise SystemExit(f'Lab 09D App anchor missing: {old[:180]!r}')
     text = text.replace(old, new, 1)
 path.write_text(text)
+
+workspace = Path('src/MeasuredNetworkWorkspace.tsx')
+workspace_text = workspace.read_text()
+old = "{Array.from({ length: dots }, (_, index) => <i key={index} style={{ left: `${dots === 1 ? 50 : 8 + (index / (dots - 1)) * 84}%` }} />)}"
+new = "{Array.from({ length: dots }, (_, index) => <i key={index} style={{ left: `${8 + (index / (dots - 1)) * 84}%` }} />)}"
+if old not in workspace_text:
+    raise SystemExit('Lab 09D semantic glyph anchor missing')
+workspace.write_text(workspace_text.replace(old, new, 1))
