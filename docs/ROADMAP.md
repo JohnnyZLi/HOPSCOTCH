@@ -325,7 +325,7 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] SVG for focused topology/protocol scenes
 - [x] Canvas for dense AS scenes
 - [x] WebGL for physical Internet scale
-- [ ] renderer performance budget and profiling harness
+- [x] renderer performance budget and profiling harness
 - [ ] high-density stress scenarios
 - [ ] broader browser/GPU compatibility pass
 

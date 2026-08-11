@@ -1,0 +1,31 @@
+name: Performance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  production-profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run performance:check
+      - name: Upload performance profile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-performance-profile
+          path: artifacts/performance-profile.json
+          if-no-files-found: error
+          retention-days: 3

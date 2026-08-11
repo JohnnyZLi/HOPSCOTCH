@@ -15,6 +15,8 @@
     "test:journey-contract": "node scripts/journey-contract-check.mjs",
     "test:journey-sharing-contract": "node scripts/journey-sharing-contract-check.mjs",
     "check": "npm run typecheck && npm run test:builder-contract && npm run test:worker-contract && npm run test:journey-contract && npm run test:journey-sharing-contract && npm run test:journey-god-mode-contract && npm run test:journey-composition-contract && npm run test:journey-path-outage-contract && npm run test:journey-congestion-contract && npm run test:journey-dns-failure-contract && npm run test:journey-server-failure-contract && npm run test:journey-partition-contract && npm run test:journey-route-leak-contract && npm run build",
+    "performance:profile": "node scripts/performance-profile.mjs",
+    "performance:check": "node scripts/performance-profile.mjs --enforce",
     "preview": "vite preview",
     "cf:dev": "wrangler dev",
     "deploy": "npm run build && wrangler deploy",

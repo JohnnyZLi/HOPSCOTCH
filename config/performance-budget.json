@@ -1,0 +1,28 @@
+{
+  "schema": "hopscotch.performance-budget",
+  "version": 1,
+  "policy": {
+    "enforcedMetrics": "stable-structural-and-semantic",
+    "timingMetrics": "diagnostic-only",
+    "browserLaunchAttempts": 3
+  },
+  "baseline": {
+    "commit": "8058e9ee0c0d70b626f0f5343cf176207d65a6d0",
+    "jsGzipBytes": 316819,
+    "cssGzipBytes": 25096,
+    "maxRepresentativeDomElements": 557,
+    "maxRepresentativeHeapUsedBytes": 2988442,
+    "twoPassSeekHeapGrowthBytes": 1551892
+  },
+  "budgets": {
+    "maxJsGzipBytes": 380000,
+    "maxCssGzipBytes": 32000,
+    "maxDomElements": 700,
+    "maxHeapUsedBytes": 7340032,
+    "maxHeapGrowthBytes": 6291456
+  },
+  "stress": {
+    "seekCycles": 3,
+    "settleMs": 700
+  }
+}
