@@ -8,11 +8,17 @@ import type {
 } from './internet/infrastructure';
 import './PhysicalInternetGlobe.css';
 
+export interface PhysicalStressFacility {
+  id: number; name: string; city: string | null; country: string | null; latitude: number; longitude: number; networkCount: number | null; exchangeCount: number | null;
+}
+
+type RenderFacility = PublicInfrastructureFacility | PhysicalStressFacility;
+
 const DENSITY_LEVELS = [80, 150, 250] as const;
 
 type DensityLevel = (typeof DENSITY_LEVELS)[number];
 
-function facilityLocation(facility: PublicInfrastructureFacility): string {
+function facilityLocation(facility: Pick<PublicInfrastructureFacility, 'city' | 'country'>): string {
   return [facility.city, facility.country].filter((value): value is string => Boolean(value)).join(' · ') || 'LOCATION UNAVAILABLE';
 }
 
@@ -70,7 +76,7 @@ function createStars(): THREE.Points {
   return new THREE.Points(geometry, new THREE.PointsMaterial({ color: 0x7f9baa, size: 0.018, transparent: true, opacity: 0.5, sizeAttenuation: true }));
 }
 
-function corridorPoints(a: PublicInfrastructureFacility, b: PublicInfrastructureFacility): THREE.Vector3[] {
+function corridorPoints(a: RenderFacility, b: RenderFacility): THREE.Vector3[] {
   const start = latLonVector(a.latitude, a.longitude, 1).normalize();
   const end = latLonVector(b.latitude, b.longitude, 1).normalize();
   const dot = THREE.MathUtils.clamp(start.dot(end), -1, 1);
@@ -97,10 +103,14 @@ export function PhysicalInternetGlobe({
   onExit,
   onOpenSimulated,
   onOpenObserved,
+  stressFacilities,
+  stressPointLimit = 2000,
 }: {
   onExit: () => void;
   onOpenSimulated: () => void;
   onOpenObserved: () => void;
+  stressFacilities?: PhysicalStressFacility[];
+  stressPointLimit?: number;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<THREE.Group | null>(null);
@@ -108,7 +118,7 @@ export function PhysicalInternetGlobe({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const facilityPointsRef = useRef<THREE.Points | null>(null);
-  const facilityRecordsRef = useRef<PublicInfrastructureFacility[]>([]);
+  const facilityRecordsRef = useRef<RenderFacility[]>([]);
   const selectionMarkerRef = useRef<THREE.Mesh | null>(null);
   const corridorRef = useRef<THREE.Line | null>(null);
   const corridorPulseRef = useRef<THREE.Mesh | null>(null);
@@ -126,15 +136,21 @@ export function PhysicalInternetGlobe({
   const [density, setDensity] = useState<DensityLevel>(150);
   const [zoom, setZoom] = useState(3.15);
 
+  const stressMode = stressFacilities !== undefined;
+  const allFacilities = useMemo(() => stressFacilities ?? snapshot?.facilities ?? [], [snapshot, stressFacilities]);
   const visibleFacilities = useMemo(() => {
-    const facilities = snapshot?.facilities ?? [];
-    return facilities.slice(0, Math.min(density, facilities.length));
-  }, [density, snapshot]);
-  const selectedFacility = useMemo(() => snapshot?.facilities.find((facility) => facility.id === selectedId) ?? null, [selectedId, snapshot]);
-  const corridorA = useMemo(() => snapshot?.facilities.find((facility) => facility.id === corridorAId) ?? null, [corridorAId, snapshot]);
-  const corridorB = useMemo(() => snapshot?.facilities.find((facility) => facility.id === corridorBId) ?? null, [corridorBId, snapshot]);
+    const limit = stressMode ? stressPointLimit : density;
+    return allFacilities.slice(0, Math.min(limit, allFacilities.length));
+  }, [allFacilities, density, stressMode, stressPointLimit]);
+  const selectedFacility = useMemo(() => allFacilities.find((facility) => facility.id === selectedId) ?? null, [allFacilities, selectedId]);
+  const corridorA = useMemo(() => allFacilities.find((facility) => facility.id === corridorAId) ?? null, [allFacilities, corridorAId]);
+  const corridorB = useMemo(() => allFacilities.find((facility) => facility.id === corridorBId) ?? null, [allFacilities, corridorBId]);
 
   useEffect(() => {
+    if (stressFacilities) {
+      setLoading(false); setDataError(null); setSnapshot(null); setSelectedId(stressFacilities[0]?.id ?? null);
+      return;
+    }
     const controller = new AbortController();
     const load = async () => {
       setLoading(true);
@@ -154,7 +170,7 @@ export function PhysicalInternetGlobe({
     };
     void load();
     return () => controller.abort();
-  }, []);
+  }, [stressFacilities]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -418,19 +434,19 @@ export function PhysicalInternetGlobe({
   };
 
   return (
-    <motion.section className="physical-globe" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.985 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
+    <motion.section className="physical-globe" data-stress-mode={stressMode ? "true" : "false"} data-point-count={visibleFacilities.length} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.985 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
       <header className="physical-heading">
         <div><p className="eyebrow">Lab 05C · Physical Internet atlas</p><h1>THE INTERNET<br/><span>HAS A BODY.</span></h1></div>
-        <div className="physical-heading-actions"><span>PUBLIC DATA · PEERINGDB</span><button className="lab-mode" type="button" onClick={onOpenSimulated}>AS POLICY ↗</button><button className="lab-mode" type="button" onClick={onOpenObserved}>EVIDENCE ↗</button><button className="lab-mode" type="button" onClick={onExit}>EXIT LAB</button></div>
+        <div className="physical-heading-actions"><span>{stressMode ? "SIMULATED · STRESS FIXTURE" : "PUBLIC DATA · PEERINGDB"}</span><button className="lab-mode" type="button" onClick={onOpenSimulated}>AS POLICY ↗</button><button className="lab-mode" type="button" onClick={onOpenObserved}>EVIDENCE ↗</button><button className="lab-mode" type="button" onClick={onExit}>EXIT LAB</button></div>
       </header>
 
       <div className="physical-main">
         <section className="physical-stage">
-          <div className="physical-stage-meta"><div><span>RENDERER</span><strong>{webglError ? 'FALLBACK' : 'WEBGL 2'}</strong></div><div><span>PUBLIC FACILITIES</span><strong>{loading ? 'LOADING' : snapshot?.facilities.length ?? 'UNAVAILABLE'}</strong></div><div><span>VISIBLE POINTS</span><strong>{visibleFacilities.length}</strong></div><div><span>CORRIDOR</span><strong>{corridorA && corridorB ? 'INFERRED' : 'OFF'}</strong></div></div>
+          <div className="physical-stage-meta"><div><span>RENDERER</span><strong>{webglError ? 'FALLBACK' : 'WEBGL 2'}</strong></div><div><span>{stressMode ? 'STRESS POINTS' : 'PUBLIC FACILITIES'}</span><strong>{loading ? 'LOADING' : allFacilities.length || 'UNAVAILABLE'}</strong></div><div><span>VISIBLE POINTS</span><strong>{visibleFacilities.length}</strong></div><div><span>CORRIDOR</span><strong>{corridorA && corridorB ? 'INFERRED' : 'OFF'}</strong></div></div>
           <div className="globe-viewport">
             <div ref={hostRef} className="globe-render-host" aria-label="Interactive WebGL globe of public Internet interconnection facilities" />
             <div className="globe-reticle" aria-hidden="true"><i/><i/></div>
-            <div className="globe-watermark"><strong>PHYSICAL INFRASTRUCTURE ≠ FORWARDING PATH</strong><span>DRAG TO ROTATE · SCROLL TO ZOOM · CLICK A FACILITY</span></div>
+            <div className="globe-watermark"><strong>{stressMode ? 'SIMULATED STRESS POINTS · NOT PUBLIC DATA' : 'PHYSICAL INFRASTRUCTURE ≠ FORWARDING PATH'}</strong><span>DRAG TO ROTATE · SCROLL TO ZOOM · CLICK A FACILITY</span></div>
             {loading && <div className="globe-loading"><i/><strong>QUERYING PUBLIC INFRASTRUCTURE</strong><span>ONE BOUNDED PEERINGDB REQUEST</span></div>}
             {webglError && <div className="globe-fallback"><strong>WEBGL 2 UNAVAILABLE</strong><span>{webglError}</span><p>Public facility records remain inspectable in the list; HOPSCOTCH will not substitute a fake 3D renderer.</p></div>}
             {dataError && <div className="globe-data-error"><strong>PUBLIC DATA UNAVAILABLE</strong><span>{dataError}</span></div>}
@@ -439,10 +455,10 @@ export function PhysicalInternetGlobe({
         </section>
 
         <aside className="physical-panel">
-          <section className="facility-inspector"><div className="physical-panel-title"><span>PUBLIC DATA</span><strong>FACILITY INSPECTOR</strong></div>{selectedFacility ? <><h2>{selectedFacility.name}</h2><p>{facilityLocation(selectedFacility)}</p><dl><div><dt>PEERINGDB ID</dt><dd>{selectedFacility.id}</dd></div><div><dt>COORDINATES</dt><dd>{selectedFacility.latitude.toFixed(4)}, {selectedFacility.longitude.toFixed(4)}</dd></div><div><dt>NETWORKS</dt><dd>{selectedFacility.networkCount ?? '—'}</dd></div><div><dt>EXCHANGES</dt><dd>{selectedFacility.exchangeCount ?? '—'}</dd></div></dl><div className="physical-buttons"><button type="button" className={corridorAId === selectedFacility.id ? 'active' : ''} onClick={() => setCorridorAId(selectedFacility.id)}>SET CORRIDOR A</button><button type="button" className={corridorBId === selectedFacility.id ? 'active' : ''} onClick={() => setCorridorBId(selectedFacility.id)}>SET CORRIDOR B</button></div></> : <p className="physical-empty-copy">Click one of the facility points on the globe.</p>}</section>
+          <section className="facility-inspector"><div className="physical-panel-title"><span>{stressMode ? 'SIMULATED STRESS' : 'PUBLIC DATA'}</span><strong>FACILITY INSPECTOR</strong></div>{selectedFacility ? <><h2>{selectedFacility.name}</h2><p>{facilityLocation(selectedFacility)}</p><dl><div><dt>PEERINGDB ID</dt><dd>{selectedFacility.id}</dd></div><div><dt>COORDINATES</dt><dd>{selectedFacility.latitude.toFixed(4)}, {selectedFacility.longitude.toFixed(4)}</dd></div><div><dt>NETWORKS</dt><dd>{selectedFacility.networkCount ?? '—'}</dd></div><div><dt>EXCHANGES</dt><dd>{selectedFacility.exchangeCount ?? '—'}</dd></div></dl><div className="physical-buttons"><button type="button" className={corridorAId === selectedFacility.id ? 'active' : ''} onClick={() => setCorridorAId(selectedFacility.id)}>SET CORRIDOR A</button><button type="button" className={corridorBId === selectedFacility.id ? 'active' : ''} onClick={() => setCorridorBId(selectedFacility.id)}>SET CORRIDOR B</button></div></> : <p className="physical-empty-copy">Click one of the facility points on the globe.</p>}</section>
           <section><div className="physical-panel-title"><span>VIEW</span><strong>SCENE DENSITY</strong></div><button className="density-button" type="button" onClick={cycleDensity}><span>VISIBLE PUBLIC POINTS</span><strong>{density}</strong><i>{density === 80 ? 'FOCUS' : density === 150 ? 'BALANCED' : 'DENSE'}</i></button><label>CAMERA DISTANCE<input type="range" min="2.15" max="4.6" step="0.05" value={zoom} onChange={(event) => updateZoom(Number(event.currentTarget.value))}/></label></section>
-          <section><div className="physical-panel-title"><span>FACILITIES</span><strong>{visibleFacilities.length} / {snapshot?.facilities.length ?? 0}</strong></div><div className="facility-list">{visibleFacilities.slice(0, 30).map((facility) => <button type="button" key={facility.id} className={facility.id === selectedId ? 'active' : ''} onClick={() => setSelectedId(facility.id)}><span>{facility.name}</span><small>{facilityLocation(facility)}</small></button>)}</div></section>
-          <section className="physical-provenance"><div className="physical-panel-title"><span>PROVENANCE</span><strong>TRUTH BOUNDARY</strong></div><p><b>PUBLIC DATA</b> points are PeeringDB facility locations. The yellow corridor is <b>INFERRED</b> geometry only. No submarine cable, IX relationship, or packet path is claimed by this scene.</p><small>{snapshot?.note ?? 'Waiting for public infrastructure data.'}</small></section>
+          <section><div className="physical-panel-title"><span>{stressMode ? 'STRESS POINTS' : 'FACILITIES'}</span><strong>{visibleFacilities.length} / {allFacilities.length}</strong></div><div className="facility-list">{visibleFacilities.slice(0, 30).map((facility) => <button type="button" key={facility.id} className={facility.id === selectedId ? 'active' : ''} onClick={() => setSelectedId(facility.id)}><span>{facility.name}</span><small>{facilityLocation(facility)}</small></button>)}</div></section>
+          <section className="physical-provenance"><div className="physical-panel-title"><span>PROVENANCE</span><strong>TRUTH BOUNDARY</strong></div><p>{stressMode ? <><b>SIMULATED</b> points exist only to load-test the real WebGL renderer. They are not PeeringDB records, facilities, routes, or measured infrastructure.</> : <><b>PUBLIC DATA</b> points are PeeringDB facility locations. The yellow corridor is <b>INFERRED</b> geometry only. No submarine cable, IX relationship, or packet path is claimed by this scene.</>}</p><small>{stressMode ? 'LAB 08B · deterministic renderer fixture' : snapshot?.note ?? 'Waiting for public infrastructure data.'}</small></section>
         </aside>
       </div>
     </motion.section>

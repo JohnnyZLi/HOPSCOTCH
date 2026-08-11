@@ -14,6 +14,7 @@ const budgetPath = resolve(root, 'config/performance-budget.json');
 const reportPath = resolve(root, 'artifacts/performance-profile.json');
 const budgetDocument = JSON.parse(readFileSync(budgetPath, 'utf8'));
 const budgets = budgetDocument.budgets;
+const stressBudgets = budgetDocument.stressBudgets ?? {};
 const stressConfig = budgetDocument.stress;
 
 const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
@@ -273,6 +274,12 @@ const profiles = [
   },
 ];
 
+profiles.push(
+  { id: 'stress-as-canvas', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'as-density' }), readySelector: '.internet-scale', expected: ['POLICY MAKES', 'SIMULATED WINNER'], stressExpected: { profile: 'as-density', asNodes: 160, asRelationships: 220 } },
+  { id: 'stress-builder-ceiling', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'builder-density' }), readySelector: '.builder-workspace', expected: ['32 NODES · 96 LINKS', 'ROUTE INSTALLED'], stressExpected: { profile: 'builder-density', builderNodes: 32, builderLinks: 96 } },
+  { id: 'stress-physical-webgl', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'physical-density' }), readySelector: '.physical-globe', expected: ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA', 'WEBGL 2'], stressExpected: { profile: 'physical-density', physicalPoints: 2000, webgl: true } },
+);
+
 async function waitForExpression(cdp, expression, timeoutMs = 5000) {
   const deadline = performance.now() + timeoutMs;
   while (performance.now() < deadline) {
@@ -301,7 +308,7 @@ async function loadProfile(cdp, artifact, profile) {
   await cdp.call('Page.setDocumentContent', { frameId, html: artifact.html });
   await cdp.evaluate(`(()=>{try{sessionStorage.setItem('__hopscotch_perf__','1');sessionStorage.removeItem('__hopscotch_perf__')}catch{const values=new Map();Object.defineProperty(window,'sessionStorage',{configurable:true,value:{getItem:key=>values.has(key)?values.get(key):null,setItem:(key,value)=>values.set(key,String(value)),removeItem:key=>values.delete(key),clear:()=>values.clear()}})}})()`);
   await cdp.evaluate(artifact.scriptText);
-  await waitForExpression(cdp, 'Boolean(document.querySelector(".journey-workspace"))');
+  await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(profile.readySelector ?? '.journey-workspace')}))`);
   await sleep(550);
   const readyMs = performance.now() - startedAt;
   const bodyText = await cdp.evaluate('document.body.innerText');
@@ -325,11 +332,29 @@ async function loadProfile(cdp, artifact, profile) {
       scrollY,
       modifierControls: controls,
       heading: document.querySelector('.journey-heading-actions > span')?.innerText ?? null,
+      stress: {
+        profile: document.querySelector('[data-stress-profile]')?.getAttribute('data-stress-profile') ?? null,
+        asNodes: Number(document.querySelector('.internet-scale')?.getAttribute('data-node-count') ?? 0),
+        asRelationships: Number(document.querySelector('.internet-scale')?.getAttribute('data-relationship-count') ?? 0),
+        builderNodes: Number(document.querySelector('.builder-workspace')?.getAttribute('data-node-count') ?? 0),
+        builderLinks: Number(document.querySelector('.builder-workspace')?.getAttribute('data-link-count') ?? 0),
+        physicalPoints: Number(document.querySelector('.physical-globe')?.getAttribute('data-point-count') ?? 0),
+        webgl: Boolean(document.querySelector('.globe-render-host canvas')),
+        canvasBackingWidth: document.querySelector('.internet-scale canvas,.globe-render-host canvas')?.width ?? 0,
+        canvasBackingHeight: document.querySelector('.internet-scale canvas,.globe-render-host canvas')?.height ?? 0,
+      },
     };
   })()`);
 
   if (structural.scrollWidth > structural.innerWidth) throw new Error(`${profile.id} horizontally overflows: ${structural.scrollWidth} > ${structural.innerWidth}`);
   if (structural.scrollY !== 0) throw new Error(`${profile.id} unexpectedly moved document scrollY to ${structural.scrollY}.`);
+
+  if (profile.stressExpected) {
+    for (const [key, value] of Object.entries(profile.stressExpected)) {
+      if (structural.stress[key] !== value) throw new Error(`${profile.id} stress invariant ${key}=${JSON.stringify(structural.stress[key])}; expected ${JSON.stringify(value)}.`);
+    }
+    if ((structural.stress.asNodes > 0 || structural.stress.physicalPoints > 0) && (structural.stress.canvasBackingWidth <= 0 || structural.stress.canvasBackingHeight <= 0)) throw new Error(`${profile.id} renderer canvas has invalid backing dimensions.`);
+  }
 
   if (profile.assertMobileGrid) {
     if (structural.modifierControls.length !== 10) throw new Error(`Expected 10 GOD MODE controls, found ${structural.modifierControls.length}.`);
@@ -363,6 +388,7 @@ async function loadProfile(cdp, artifact, profile) {
     scrollY: structural.scrollY,
     modifierControls: structural.modifierControls.length,
     heading: structural.heading,
+    stress: structural.stress,
     heapUsedBytes: heap.usedSize,
     diagnostic: {
       scriptDurationSeconds: performanceMetrics.ScriptDuration ?? null,
@@ -373,9 +399,9 @@ async function loadProfile(cdp, artifact, profile) {
   };
 }
 
-async function seekStress(cdp, artifact) {
+async function seekStress(cdp, artifact, cycles = stressConfig.seekCycles, id = 'max-composed-seek-stress') {
   const profile = {
-    id: 'max-composed-seek-stress',
+    id,
     width: 1440,
     height: 1000,
     reducedMotion: false,
@@ -393,7 +419,7 @@ async function seekStress(cdp, artifact) {
   }))()`);
   const startedAt = performance.now();
   const stressResult = await cdp.evaluate(`(async()=>{
-    const cycles=${Number(stressConfig.seekCycles)};
+    const cycles=${Number(cycles)};
     const buttons=[...document.querySelectorAll('.journey-event')];
     for(let cycle=0;cycle<cycles;cycle+=1){
       for(const button of buttons){
@@ -416,7 +442,7 @@ async function seekStress(cdp, artifact) {
   if (stressResult.heading !== beforeState.heading) throw new Error('Seek stress mutated canonical scenario identity/heading.');
   if (stressResult.scrollY !== 0) throw new Error(`Seek stress moved document scrollY to ${stressResult.scrollY}.`);
   return {
-    cycles: stressConfig.seekCycles,
+    cycles,
     eventsPerCycle: beforeState.eventCount,
     elapsedMs: Number(elapsedMs.toFixed(2)),
     beforeHeapUsedBytes: before.usedSize,
@@ -447,6 +473,7 @@ async function main() {
     bundle: artifact.bundle,
     profiles: [],
     seekStress: null,
+    highDensitySeekStress: null,
     failures: [],
   };
 
@@ -466,15 +493,33 @@ async function main() {
 
     for (const profile of profiles) report.profiles.push(await loadProfile(cdp, artifact, profile));
     report.seekStress = await seekStress(cdp, artifact);
+    report.highDensitySeekStress = await seekStress(cdp, artifact, stressBudgets.highDensitySeek?.cycles ?? 12, 'high-density-seek-stress');
 
     addBudgetFailure(report.failures, artifact.bundle.jsGzipBytes <= budgets.maxJsGzipBytes, `JS gzip ${artifact.bundle.jsGzipBytes} exceeds ${budgets.maxJsGzipBytes}.`);
     addBudgetFailure(report.failures, artifact.bundle.cssGzipBytes <= budgets.maxCssGzipBytes, `CSS gzip ${artifact.bundle.cssGzipBytes} exceeds ${budgets.maxCssGzipBytes}.`);
     for (const profile of report.profiles) {
+      const stressProfileId = profile.stress?.profile;
+      if (stressProfileId) {
+        const stressBudget = stressBudgets[stressProfileId];
+        addBudgetFailure(report.failures, Boolean(stressBudget), `${profile.id} is missing a versioned stress budget.`);
+        if (stressBudget) {
+          addBudgetFailure(report.failures, profile.elementCount <= stressBudget.maxDomElements, `${profile.id} DOM ${profile.elementCount} exceeds stress budget ${stressBudget.maxDomElements}.`);
+          addBudgetFailure(report.failures, profile.heapUsedBytes <= stressBudget.maxHeapUsedBytes, `${profile.id} heap ${profile.heapUsedBytes} exceeds stress budget ${stressBudget.maxHeapUsedBytes}.`);
+        }
+        continue;
+      }
       addBudgetFailure(report.failures, profile.elementCount <= budgets.maxDomElements, `${profile.id} DOM ${profile.elementCount} exceeds ${budgets.maxDomElements}.`);
       addBudgetFailure(report.failures, profile.heapUsedBytes <= budgets.maxHeapUsedBytes, `${profile.id} heap ${profile.heapUsedBytes} exceeds ${budgets.maxHeapUsedBytes}.`);
     }
     addBudgetFailure(report.failures, report.seekStress.finalElementCount <= budgets.maxDomElements, `seek stress DOM ${report.seekStress.finalElementCount} exceeds ${budgets.maxDomElements}.`);
     addBudgetFailure(report.failures, report.seekStress.heapGrowthBytes <= budgets.maxHeapGrowthBytes, `seek stress heap growth ${report.seekStress.heapGrowthBytes} exceeds ${budgets.maxHeapGrowthBytes}.`);
+    const highDensitySeekBudget = stressBudgets.highDensitySeek;
+    addBudgetFailure(report.failures, Boolean(highDensitySeekBudget), 'High-density seek stress is missing a versioned stress budget.');
+    if (highDensitySeekBudget) {
+      addBudgetFailure(report.failures, report.highDensitySeekStress.cycles === highDensitySeekBudget.cycles, `high-density seek cycles ${report.highDensitySeekStress.cycles} do not match budget contract ${highDensitySeekBudget.cycles}.`);
+      addBudgetFailure(report.failures, report.highDensitySeekStress.eventsPerCycle === highDensitySeekBudget.eventsPerCycle, `high-density seek event count ${report.highDensitySeekStress.eventsPerCycle} does not match budget contract ${highDensitySeekBudget.eventsPerCycle}.`);
+      addBudgetFailure(report.failures, report.highDensitySeekStress.heapGrowthBytes <= highDensitySeekBudget.maxHeapGrowthBytes, `high-density seek heap growth ${report.highDensitySeekStress.heapGrowthBytes} exceeds stress budget ${highDensitySeekBudget.maxHeapGrowthBytes}.`);
+    }
   } catch (error) {
     if (error && typeof error === 'object' && 'launchAttempts' in error) report.browser.launchAttempts = error.launchAttempts;
     report.fatalError = error instanceof Error ? error.stack ?? error.message : String(error);
@@ -498,6 +543,9 @@ async function main() {
   if (report.seekStress) {
     console.log(`seek stress: ${report.seekStress.cycles} × ${report.seekStress.eventsPerCycle} events · heap growth ${(report.seekStress.heapGrowthBytes / 1048576).toFixed(2)} MiB · ${report.seekStress.elapsedMs.toFixed(0)} ms diagnostic`);
   }
+  if (report.highDensitySeekStress) {
+    console.log(`high-density seek stress: ${report.highDensitySeekStress.cycles} × ${report.highDensitySeekStress.eventsPerCycle} events · heap growth ${(report.highDensitySeekStress.heapGrowthBytes / 1048576).toFixed(2)} MiB · ${report.highDensitySeekStress.elapsedMs.toFixed(0)} ms diagnostic`);
+  }
   console.log(`Report: ${reportPath}`);
   if (report.fatalError) {
     console.error(report.fatalError);
@@ -507,7 +555,7 @@ async function main() {
     for (const failure of report.failures) console.error(`- ${failure}`);
     if (enforce) process.exitCode = 1;
   } else {
-    console.log('Stable performance budgets passed.');
+    console.log('Stable performance and high-density stress budgets passed.');
   }
 }
 

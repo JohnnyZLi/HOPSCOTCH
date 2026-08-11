@@ -35,16 +35,16 @@ function chooseValidNode(graph: BuilderGraph, preferred: string, avoid?: string)
   return graph.nodes.find((node) => node.id !== avoid)?.id ?? '';
 }
 
-export function NetworkBuilder({ onExit, onOpenFailureStory }: { onExit: () => void; onOpenFailureStory: () => void }) {
+export function NetworkBuilder({ onExit, onOpenFailureStory, initialGraph = defaultBuilderGraph, initialLayout = defaultBuilderLayout, initialSourceId = 'client', initialDestinationId = 'app', stressLabel }: { onExit: () => void; onOpenFailureStory: () => void; initialGraph?: BuilderGraph; initialLayout?: BuilderLayout; initialSourceId?: string; initialDestinationId?: string; stressLabel?: string }) {
   const reduceMotion = useReducedMotion();
   const canvasRef = useRef<HTMLDivElement>(null);
-  const [graph, setGraph] = useState<BuilderGraph>(() => cloneBuilderGraph(defaultBuilderGraph));
-  const [layout, setLayout] = useState<BuilderLayout>(() => cloneBuilderLayout(defaultBuilderLayout));
-  const [sourceId, setSourceId] = useState('client');
-  const [destinationId, setDestinationId] = useState('app');
-  const [selectedLinkId, setSelectedLinkId] = useState('r1-core');
-  const [newLinkA, setNewLinkA] = useState('edge');
-  const [newLinkB, setNewLinkB] = useState('core');
+  const [graph, setGraph] = useState<BuilderGraph>(() => cloneBuilderGraph(initialGraph));
+  const [layout, setLayout] = useState<BuilderLayout>(() => cloneBuilderLayout(initialLayout));
+  const [sourceId, setSourceId] = useState(initialSourceId);
+  const [destinationId, setDestinationId] = useState(initialDestinationId);
+  const [selectedLinkId, setSelectedLinkId] = useState(() => initialGraph.links[0]?.id ?? '');
+  const [newLinkA, setNewLinkA] = useState(() => initialGraph.nodes[0]?.id ?? '');
+  const [newLinkB, setNewLinkB] = useState(() => initialGraph.nodes[1]?.id ?? initialGraph.nodes[0]?.id ?? '');
   const [newLinkCost, setNewLinkCost] = useState(5);
   const [scenarioName, setScenarioName] = useState('My topology');
   const [saved, setSaved] = useState<BuilderScenarioV2[]>(() => listStoredBuilderScenarios());
@@ -107,13 +107,13 @@ export function NetworkBuilder({ onExit, onOpenFailureStory }: { onExit: () => v
   };
 
   const resetTopology = () => {
-    setGraph(cloneBuilderGraph(defaultBuilderGraph));
-    setSourceId('client'); setDestinationId('app'); setSelectedLinkId('r1-core'); setNewLinkA('edge'); setNewLinkB('core'); setNewLinkCost(5);
+    setGraph(cloneBuilderGraph(initialGraph));
+    setSourceId(initialSourceId); setDestinationId(initialDestinationId); setSelectedLinkId(initialGraph.links[0]?.id ?? ''); setNewLinkA(initialGraph.nodes[0]?.id ?? ''); setNewLinkB(initialGraph.nodes[1]?.id ?? initialGraph.nodes[0]?.id ?? ''); setNewLinkCost(5);
     setMessage('Topology truth reset. Layout was left untouched.');
   };
 
   const resetLayout = () => {
-    const next = cloneBuilderLayout(defaultBuilderLayout);
+    const next = cloneBuilderLayout(initialLayout);
     graph.nodes.forEach((node, index) => { if (!next[node.id]) next[node.id] = deterministicNewNodePoint(index - defaultBuilderGraph.nodes.length); });
     setLayout(next);
     setMessage('Visual layout reset without changing graph truth.');
@@ -163,7 +163,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory }: { onExit: () => v
   };
 
   return (
-    <motion.section className="builder-workspace" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: .985 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
+    <motion.section className="builder-workspace" data-stress-label={stressLabel} data-node-count={graph.nodes.length} data-link-count={graph.links.length} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: .985 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
       <header className="builder-heading">
         <div><p className="eyebrow">Lab 04 · Network builder</p><h1>DRAW THE GRAPH.<br/><span>CHANGE THE ROUTE.</span></h1></div>
         <div className="builder-heading-actions"><button className="lab-mode" type="button" onClick={onOpenFailureStory}>FAILURE STORY ↗</button><button className="lab-mode" type="button" onClick={onExit}>EXIT LAB</button></div>

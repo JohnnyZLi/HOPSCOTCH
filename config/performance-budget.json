@@ -4,7 +4,9 @@
   "policy": {
     "enforcedMetrics": "stable-structural-and-semantic",
     "timingMetrics": "diagnostic-only",
-    "browserLaunchAttempts": 3
+    "browserLaunchAttempts": 3,
+    "stressFixtures": "query-only-production-renderers",
+    "stressBudgets": "hosted-baseline-enforced"
   },
   "baseline": {
     "commit": "8058e9ee0c0d70b626f0f5343cf176207d65a6d0",
@@ -20,6 +22,37 @@
     "maxDomElements": 700,
     "maxHeapUsedBytes": 7340032,
     "maxHeapGrowthBytes": 6291456
+  },
+  "stressBudgets": {
+    "as-density": {
+      "baselineDomElements": 403,
+      "baselineHeapUsedBytes": 5326761,
+      "maxDomElements": 500,
+      "maxHeapUsedBytes": 7340032,
+      "nodeCount": 160,
+      "relationshipCount": 220
+    },
+    "builder-density": {
+      "baselineDomElements": 762,
+      "baselineHeapUsedBytes": 5723854,
+      "maxDomElements": 900,
+      "maxHeapUsedBytes": 7340032,
+      "nodeCount": 32,
+      "linkCount": 96
+    },
+    "physical-density": {
+      "baselineDomElements": 188,
+      "baselineHeapUsedBytes": 6438257,
+      "maxDomElements": 250,
+      "maxHeapUsedBytes": 8388608,
+      "pointCount": 2000
+    },
+    "highDensitySeek": {
+      "cycles": 12,
+      "eventsPerCycle": 54,
+      "baselineHeapGrowthBytes": 2306867,
+      "maxHeapGrowthBytes": 4194304
+    }
   },
   "stress": {
     "seekCycles": 3,
