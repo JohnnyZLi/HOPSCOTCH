@@ -254,8 +254,17 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, onHos
   }, [playing, scenario.id, scenario.durationMs]);
 
   useEffect(() => {
-    const current = eventRailRef.current?.querySelector<HTMLElement>('.journey-event.current');
-    current?.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+    const rail = eventRailRef.current;
+    const current = rail?.querySelector<HTMLElement>('.journey-event.current');
+    if (!rail || !current) return;
+    const railRect = rail.getBoundingClientRect();
+    const currentRect = current.getBoundingClientRect();
+    const behavior: ScrollBehavior = reduceMotion ? 'auto' : 'smooth';
+    if (currentRect.top < railRect.top) {
+      rail.scrollBy({ top: currentRect.top - railRect.top, behavior });
+    } else if (currentRect.bottom > railRect.bottom) {
+      rail.scrollBy({ top: currentRect.bottom - railRect.bottom, behavior });
+    }
   }, [reduceMotion, state.activeEvent.id]);
 
   const applyHostname = (event: FormEvent) => {
