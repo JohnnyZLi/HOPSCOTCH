@@ -88,9 +88,24 @@ If only mismatched measured targets exist, the sidecar shows a compact mismatch 
 
 The pure compatibility contract proves normalization/matching behavior and that evidence classification leaves a composed QUIC Journey plus reducer state deep- and byte-identical.
 
-The promoted session/sidecar source has also passed the full TypeScript, existing model/regression, native-measurement, measured-workspace, measured-scene, session-boundary, and production-build gate. `SemanticScene` remains simulation-only in source while the separate sidecar receives optional measured presentation state.
+The permanent session/sidecar source passes the full TypeScript, existing model/regression, native-measurement, measured-workspace, measured-scene, session-boundary, and production-build gate. `SemanticScene` remains simulation-only in source while the separate sidecar receives optional measured presentation state.
 
-The production browser candidate extends the existing compatibility-only Chrome profiler with a cross-lab flow: import a real report through Lab 09, exit into Journey, validate routing `LOCAL CONTEXT`, DNS/transport `MATCHED TARGET`, change to a mismatched hostname and require `OTHER TARGET` with measured values hidden, then Clear in Lab 09 and require the Journey sidecar to disappear. That candidate is promoted only after the same full source gate and exact production Chrome interaction both pass.
+The permanent compatibility-only Chrome profiler now exercises a cross-lab flow: import a real report through Lab 09, exit into Journey, validate routing `LOCAL CONTEXT`, DNS/transport `MATCHED TARGET`, change to a mismatched hostname and require `OTHER TARGET` with measured values hidden, then Clear in Lab 09 and require the Journey sidecar to disappear. The same flow enforces horizontal-overflow and document-scroll invariants on desktop, exact 390 px mobile, and reduced motion under Chrome default, SwiftShader, and WebGL-disabled modes. Firefox/Gecko remains green through the existing semantic compatibility runner.
+
+### Exact production-artifact audit
+
+Clean source head `9511bea` produced CI artifact `hopscotch-dist` with digest `sha256:937dda6fc056df0a7fbdb4e22a71780d03abd0eef392452c8fa42163d7d4fc87`.
+
+The exact built Vite HTML/CSS/JS bytes were audited directly in Linux Chromium rather than through a dev server:
+
+- desktop 1440: routing sidecar = `LOCAL CONTEXT`; DNS/transport = `MATCHED TARGET`; mismatched transport = `OTHER TARGET`; zero horizontal overflow and runtime errors
+- exact 390 px mobile: sidecar stacks below the semantic scene without horizontal overflow; matched values remain readable; mismatch exposes no measured values
+- reduced-motion 1280: the same local/matched/mismatch classifications render synchronously with `scrollWidth === innerWidth`, `scrollY === 0`, and zero runtime errors
+- the measured speed-test target remains hidden from the `example.test` Journey transport sidecar
+- mismatch language explicitly says the measured facts remain separate from the active hostname
+- `SIMULATED STORY UNCHANGED` remains visible in all three compatibility states
+
+The local Playwright screenshot driver may scroll the document when it must bring an off-screen mobile causal-rail button into view before clicking it; that driver-induced scroll is not product auto-follow. The permanent CDP compatibility runner clicks events without browser scroll-into-view and independently enforces `scrollY === 0` for routing, DNS, transport, mismatch, and cleared-Journey states.
 
 ## Still out of scope
 
@@ -99,3 +114,5 @@ The production browser candidate extends the existing compatibility-only Chrome 
 - measured facts inserted into canonical Journey events
 - drawing a continuous measured route from separate diagnostic targets
 - declaring measured/public/simulated sources globally agree or disagree
+
+Shared ROADMAP/ARCHITECTURE/README synchronization and one final clean-tree CI + Performance + Compatibility pass remain the merge gate.
