@@ -30,23 +30,22 @@ scenario / measurement / public-data source
       Motion / Anime.js choreography
 ```
 
-Modifiers are part of scenario truth. They never live in animation callbacks.
+Modifiers are scenario truth. They never live in animation callbacks.
 
 ## 1. Canonical models
 
-Pure TypeScript owns topology, packet, protocol, Journey, and scenario state.
+Pure TypeScript owns topology, packet, protocol, Journey, and scenario state. The model layer knows nothing about React, Motion, Anime.js, SVG, Canvas, WebGL, or Cloudflare.
 
-Examples currently implemented:
+Current canonical domains include:
 
-- routed graph + link state + installed route
+- routed graph + link state + installed routes
 - packet/header fields and derived checksums
-- TCP/DNS/TLS/HTTP protocol traces
+- TCP, DNS, TLS, HTTP/2, HTTP/3, and QUIC teaching traces
 - autonomous-system relationships and policy candidates
-- Builder scenario schema + migration
+- Builder schema + migration
 - URL Journey configuration + canonical event stream
-- GOD MODE modifier sets + deterministic composition
-
-The model layer knows nothing about React, Motion, Anime.js, SVG, Canvas, WebGL, or Cloudflare.
+- deterministic GOD MODE modifier composition
+- terminal Journey failure state
 
 ### URL Journey configuration
 
@@ -63,20 +62,30 @@ modifierIds      = ordered subset of:
                    path-outage
                    latency-spike
                    congestion
+                   partition
 ```
 
 Canonical modifier order is model-defined:
 
 ```text
-dns-failure → route-failure → server-failure → single-loss → path-outage → latency-spike → congestion
+dns-failure
+→ route-failure
+→ server-failure
+→ single-loss
+→ path-outage
+→ latency-spike
+→ congestion
+→ partition
 ```
 
-Input/UI selection order is normalized before scenario identity or events are generated. Duplicate IDs collapse and unknown IDs fail validation. `route-failure` and `path-outage` are intentionally incompatible on the current two-path teaching topology: the former consumes the alternate path before transport begins, so composing both would require inventing a third recovery path.
+Input/UI selection order is normalized before scenario identity or events are generated. Duplicate IDs collapse and unknown IDs fail validation.
+
+`route-failure` and `path-outage` remain intentionally incompatible on the current two-path teaching topology: pre-transport ROUTE consumes the alternate path, so composing both would require inventing a third recovery path. `partition` is different: it runs last and may follow either earlier recoverable route story because it removes all remaining reachability rather than requiring another recovery path.
 
 Legacy `impairmentProfile` remains an input compatibility layer:
 
 - `clean` maps to `[]`
-- a single legacy impairment maps to one modifier
+- a single modifier maps to that modifier ID
 - multiple modifiers derive `impairmentProfile: composed`
 
 ### Modifier composition
@@ -85,20 +94,16 @@ Modifiers transform the same clean canonical Journey rather than selecting separ
 
 Current rules:
 
-- DNS failure is the earliest modifier because it can delay resolution before any route or transport state exists
-- on a cache miss, resolver silence produces a DNS timeout, then a secondary recursive retry; the successful authority walk and every later causal event shift by the deterministic retry penalty
-- on a cache hit, the same simulated upstream outage is masked by local state; no query, timeout, retry, or timing penalty is fabricated
-- route failure happens before transport and shifts later causal events naturally
-- server failure happens after the canonical HTTP request but before successful response headers; a reachable service returns HTTP 503 + Retry-After, the idempotent GET waits/retries on the same established transport/TLS state, and the successful response plus later response-path modifiers shift naturally
-- single loss keeps its protocol-correct TCP/QUIC recovery trace on the eventual successful response
-- path outage happens after response data begins and crosses the routing/transport boundary without recreating the connection
-- TCP path-outage recovery waits for the teaching RTO after ACK silence; QUIC may enter PTO/probe recovery while routing is still unavailable
-- routing convergence restores reachability, but transport separately repairs data lost during the outage
-- latency alone changes RTT/timer estimator state without inventing loss
-- when recovery modifiers and latency coexist, latency begins after the latest transport recovery so the event log remains strictly ordered and causally legible
-- congestion is a later ECN-capable queue episode: queue occupancy/delay rise, delivered packets receive CE marks, the sender reduces its congestion window, and the queue drains without requiring a packet drop
-- congestion metrics are independent from RTT/timer metrics so higher delay alone never becomes an implicit congestion declaration
-- DNS FAIL + ROUTE + SERVER + LOSS + LATENCY + CONGESTION therefore composes sequentially without duplicating the base Journey; OUTAGE may replace ROUTE but does not coexist with it on the current topology
+- DNS failure is earliest because resolution can fail before route or transport state exists.
+- On a cache miss, resolver silence produces a timeout and secondary recursive retry; later causal events shift by the deterministic retry penalty.
+- On a cache hit, the same simulated upstream outage is masked by local state; no query, timeout, retry, or delay is fabricated.
+- Pre-transport route failure invalidates the primary route, runs SPF, installs the alternate, and converges before transport starts.
+- Server failure occurs after the canonical HTTP request but before successful response headers. A reachable service returns HTTP 503 + Retry-After, and the idempotent `GET /` retries on the same transport/TLS state.
+- Single loss retains protocol-correct TCP sequence/ACK or QUIC packet-number/STREAM recovery semantics.
+- Mid-transfer path outage crosses routing and transport without recreating the connection. Routing restores reachability; transport then repairs missing data.
+- Latency changes RTT/timer estimator state without inventing loss.
+- Congestion is a zero-drop ECN teaching episode: queue occupancy/delay rise, CE feedback reaches the sender, cwnd falls, and the queue drains.
+- Partition runs last. It removes both routed exits, produces zero SPF candidates, stalls the existing transport, removes the successful Journey tail, and terminates with `journey.failed / network-unreachable` rather than inventing recovery.
 
 Every final Journey log must have unique event IDs, unique timestamps, and strictly increasing event time.
 
@@ -108,7 +113,7 @@ Portable scenarios store configuration + timestamp, never reducer snapshots.
 
 ### Schema v1
 
-Kept for backward compatibility with clean and single-modifier scenarios.
+Kept for clean and single-modifier scenarios:
 
 ```text
 schema
@@ -121,11 +126,11 @@ timeMs
 name?
 ```
 
-Existing v1 links/files remain valid and migrate into the canonical internal modifier representation. New single-modifier path-outage, congestion, DNS-failure, and server-failure scenarios also fit this representation without requiring a schema bump.
+Existing v1 links/files remain valid. New single-modifier path-outage, congestion, DNS-failure, server-failure, and partition scenarios also fit v1 without a schema bump.
 
 ### Schema v2
 
-Used when two or more modifiers are composed.
+Used when two or more modifiers are composed:
 
 ```text
 schema
@@ -138,25 +143,21 @@ timeMs
 name?
 ```
 
-Readable shared URLs use `journey=2` and a canonical `mods=` list. Import/export validation rebuilds the deterministic scenario and clamps the restored timestamp to its generated duration.
-
-Browser persistence follows the same boundary: canonical modifier sets are stored explicitly, with fallback to the old single-impairment key for migration.
+Readable shared URLs use `journey=2` and a canonical `mods=` list. Import/export validation rebuilds the deterministic scenario and clamps restored time to generated duration. Browser persistence follows the same boundary, with fallback to the old single-impairment key for migration.
 
 ## 3. Deterministic time
 
-Time is first-class.
-
-Every curated scenario is replayable from its canonical event log. Seeking to a timestamp reconstructs state by applying deterministic events up to that time.
+Time is first-class. Every curated scenario is replayable from its canonical event log, and seeking reconstructs state by reducing events up to the requested timestamp.
 
 This enables:
 
 - pause / play / reset
 - arbitrary timeline seeking
 - event-to-event navigation
-- rewind after failure or recovery
+- rewind through failure, recovery, or terminal failure
 - detail-lab jumps that return to the same Journey timestamp
 - composed GOD MODE scenarios that remain seekable
-- reduced-motion rendering without changing state semantics
+- reduced-motion rendering without semantic changes
 
 Animation clocks are not simulation clocks.
 
@@ -164,24 +165,21 @@ Animation clocks are not simulation clocks.
 
 Reducers expose inspectable concepts rather than renderer instructions.
 
-Examples:
+Examples include:
 
-- active path / route cost / partition state
-- selected canonical Journey modifiers
-- current impairment phase independent from selected modifiers
-- packet fields and selected byte ranges
-- DNS cache/TTL state plus timeout/retrying state and masked-upstream-outage phase
-- application-service state (`healthy`, `unavailable`, `waiting`, `ready`) and HTTP retry metadata
-- explicit HTTP 503 / Retry-After / GET idempotency / retry-safety / transport-reuse facts
-- TCP sequence/retransmission and RTT/RTO estimator state
-- QUIC packet-number/STREAM recovery and RTT/PTO state
-- bottleneck rate, offered load, queue occupancy/delay, ECN CE count, congestion window, ssthresh, and drop count
+- active path, route costs, failed links, candidate route count, and recovery availability
+- selected canonical modifiers versus current active impairment phase
+- DNS cache/TTL, timeout, retry, and masked-outage state
+- application-service state and HTTP 503 / Retry-After / idempotency / connection-reuse facts
+- TCP sequence/retransmission plus RTT/RTO state
+- QUIC packet-number/STREAM recovery plus RTT/PTO state
+- queue occupancy/delay, ECN CE count, cwnd, ssthresh, signal, and drop count
 - TLS protection stage
 - HTTP stream progress
-- Journey abstraction scale
-- provenance for observed/public/inferred facts
+- terminal reachability state: route `unreachable`, transport `stalled`, HTTP `stalled`, `journeyFailed = true`, and `failureReason = network-unreachable`
+- Journey abstraction scale and provenance
 
-Selected causes and the active causal phase are intentionally separate. A Journey may have DNS FAIL + SERVER + LOSS + LATENCY + CONGESTION selected while the current timestamp is still at application intent; later the same scenario may be in DNS retry, HTTP Retry-After wait, transport repair, RTT normalization, or an ECN response while the rest of the selected modifier set remains scenario truth.
+Selected causes and active causal phase remain separate. A scenario may have many modifiers selected while the current timestamp is still before any of them. A later timestamp may be in DNS retry, HTTP Retry-After wait, transport recovery, congestion response, or terminal partition state while the selected modifier set remains unchanged scenario truth.
 
 Semantic state is the contract between model and renderer.
 
@@ -191,19 +189,19 @@ HOPSCOTCH uses the cheapest renderer that preserves clarity.
 
 ### DOM + CSS
 
-Used for controls, inspectors, event rails, timelines, text-heavy protocol state, and compact semantic diagrams.
+Controls, inspectors, event rails, timelines, text-heavy protocol state, and compact semantic diagrams.
 
 ### SVG
 
-Used for focused network/protocol scenes where individual paths/nodes remain inspectable.
+Focused network/protocol scenes where individual paths and nodes remain inspectable.
 
 ### Canvas 2D
 
-Used for the autonomous-system theater so denser topology is not represented as hundreds of React DOM nodes.
+Autonomous-system theater and denser topology where hundreds of React DOM nodes would be wasteful.
 
 ### WebGL / Three.js
 
-Used for the physical Internet globe and facility point cloud.
+Physical Internet globe and facility point cloud.
 
 Renderer changes must not alter scenario semantics.
 
@@ -217,9 +215,9 @@ Owns interface-level transitions: layout changes, focus shifts, cross-scale zoom
 
 Owns tightly choreographed visualization sequences where timeline control is useful, such as SVG/topology/protocol motion.
 
-The two systems must not fight over the same transform/property on the same element. Motion is cancellable and cleaned up on unmount. `prefers-reduced-motion` preserves information through synchronous state changes.
+The two systems must not fight over the same property on the same element. Motion is cancellable and cleaned up on unmount. `prefers-reduced-motion` preserves information through synchronous state changes.
 
-Event-rail auto-follow is also bounded as UI behavior: it scrolls the rail container itself and must never move the document viewport as canonical time advances.
+Event-rail auto-follow is also bounded UI behavior: it scrolls the rail container itself and must never move the document viewport as canonical time advances.
 
 ## 7. Truth + provenance
 
@@ -233,13 +231,11 @@ Current provenance labels:
 - `PUBLIC DATA` — published infrastructure facts such as facility coordinates
 - `INFERRED` — explanatory connection/geometry not directly measured
 
-A public collector path is not presented as the viewer’s packet path. Optional live evidence can decorate a simulated Journey but cannot silently rewrite its transport, DNS, modifier set, forwarding path, or causal event log.
+A public collector path is not the viewer's packet path. Optional live evidence can decorate a simulated Journey but cannot silently rewrite transport, DNS, modifiers, forwarding path, or the causal event log.
 
 ## 8. Data adapters + Cloudflare Worker
 
-The Worker is an adapter layer as well as a static-file runtime.
-
-Current responsibilities include:
+The Worker is an adapter layer and static-file runtime. Current responsibilities include:
 
 - static production assets
 - edge-observation API contracts
@@ -270,33 +266,23 @@ A restored scenario is rebuilt through the canonical builder rather than revivin
 
 ## 10. Protocol correctness boundaries
 
-Curated teaching traces simplify breadth but must not cross protocol semantics.
+Curated teaching traces simplify breadth but must not cross protocol semantics. Contracts currently enforce, among other things:
 
-Contracts enforce, among other things:
-
-- DNS timeout means absence of a response; it is not an answer/referral and does not silently become NXDOMAIN or SERVFAIL
-- a DNS retry can move the same logical lookup to a secondary recursive resolver using a new transaction context without claiming every OS/resolver uses identical fallback timing
-- a cache hit that masks an upstream DNS outage creates no query, timeout, retry, or retry-delay traffic because the upstream dependency is not exercised
-- HTTP 503 Service Unavailable is a real application-layer response and must not be rendered as DNS silence, packet loss, or path failure
-- the canonical server-failure retry stays on the already-established TCP/QUIC + TLS state; no new transport or TLS handshake is fabricated
-- automatic replay is justified only for the curated idempotent `GET /`; arbitrary/non-idempotent requests are not declared safe to retry
-- QUIC Journey branches have no TCP connection underneath them
-- TLS 1.3 in QUIC is represented through QUIC crypto levels, not a fake TLS-record layer over UDP
-- HTTP/3 runs on QUIC streams
-- TCP loss uses sequence and cumulative-ACK semantics
-- QUIC loss uses packet-number, ACK-range, and STREAM-offset semantics
-- retransmitted QUIC data uses a new packet number; the lost packet number is never reused
-- higher RTT alone does not become packet loss or an implicit congestion-control signal
-- pre-transport route convergence does not fabricate TCP RTO or QUIC PTO behavior
-- a mid-transfer path outage does not silently tear down an established TCP/QUIC/TLS connection
-- TCP outage recovery uses ACK silence and the teaching RTO rather than pretending duplicate ACKs survived a dead path
-- QUIC outage recovery can expose PTO/probe behavior before routing recovers, but probe traffic cannot repair missing IP reachability
-- QUIC STREAM repair after convergence uses a new packet number
-- ECN CE marks are delivered congestion signals, not packet drops
-- TCP ECN response uses ECE/CWR teaching semantics without inventing a sequence gap or retransmission
-- QUIC ECN response uses ACK_ECN CE-counter feedback without inventing a packet-number gap, PTO recovery, or STREAM retransmission
-- the base congestion story keeps dropped packets at zero while still reducing cwnd
-- composed modifiers retain each component's protocol-specific semantics
+- DNS timeout means absence of a response, not an answer/referral and not fabricated NXDOMAIN/SERVFAIL.
+- Cache-hit DNS shielding creates no upstream query/retry traffic.
+- HTTP 503 is a real application-layer response, not DNS silence, packet loss, or path failure.
+- The server-failure retry stays on the established TCP/QUIC + TLS state and is justified only for the curated idempotent `GET /`.
+- QUIC branches have no TCP connection underneath them; TLS 1.3 is represented through QUIC crypto levels.
+- TCP loss uses sequence and cumulative-ACK semantics.
+- QUIC loss uses packet-number, ACK-range, and STREAM-offset semantics; retransmitted data uses a new packet number.
+- Higher RTT alone is not loss or an implicit congestion signal.
+- Pre-transport route convergence does not fabricate RTO/PTO behavior.
+- Mid-transfer outage does not silently tear down an established connection.
+- TCP outage recovery uses ACK silence + teaching RTO; QUIC may expose PTO/probe behavior, but probes cannot manufacture IP reachability.
+- ECN CE marks are delivered congestion signals, not drops; the base congestion story keeps dropped packets at zero.
+- Partition removes routing reachability without pretending the established transport object instantly disappears. TCP shows `NO IP PROGRESS`; QUIC may retain 1-RTT crypto state while the separate route state is `NONE`.
+- Terminal partition does not fabricate alternate installation, successful retransmission, successful probe, `response.ready`, `transfer.complete`, or `journey.complete` after the cut.
+- Composed modifiers retain each component's protocol-specific semantics.
 
 ## 11. Validation strategy
 
@@ -306,17 +292,18 @@ Current validation layers:
 
 1. **Pure model contracts** — deterministic route/protocol/Journey assertions under Node.
 2. **Regression matrices** — legacy clean/single-modifier scenarios remain exact.
-3. **Composition contracts** — representative modifier pairs/triples, canonical ordering, timing, and persistence migration.
+3. **Composition contracts** — representative modifier combinations, canonical ordering, timing, and persistence migration.
 4. **Schema contracts** — v1 compatibility plus v2 JSON/query round trips and invalid-input handling.
-5. **DNS failure contracts** — query/timeout/retry/referral ordering, unresolved timeout state, cache-hit shielding, deterministic miss delay, zero transport-loss semantics, composition, and persistence.
-6. **Server failure contracts** — HTTP 503/Retry-After ordering, exact wait timing, same transport/TLS state, idempotent GET retry safety, absence of extra recovery handshakes/loss semantics, composition, and persistence.
+5. **DNS failure contracts** — timeout/retry ordering, unresolved state, cache shielding, and persistence.
+6. **Server failure contracts** — HTTP 503/Retry-After, same transport/TLS state, idempotent retry safety, and persistence.
 7. **Cross-layer outage contracts** — routing convergence, TCP RTO projection, QUIC PTO/probe behavior, connection continuity, and composed recovery ordering.
-8. **Congestion contracts** — queue growth before ECN, protocol-specific ECN feedback, cwnd reduction, zero-drop/no-retransmission semantics, queue drain, composition, and persistence.
-9. **TypeScript checks** — app + Worker.
-10. **Production build** — Vite output generated in CI.
-11. **Worker contracts** — deterministic fixtures exercise browser-facing APIs.
-12. **Exact-artifact browser audit** — GitHub Actions production bundle rendered in Linux Chromium.
-13. **Desktop/mobile/reduced-motion assertions** — overflow, semantic state, navigation, viewport stability, and runtime errors.
+8. **Congestion contracts** — queue growth before ECN, protocol-specific feedback, cwnd reduction, zero-drop/no-retransmission semantics, queue drain, composition, and persistence.
+9. **Partition contracts** — dual-link failure, zero SPF candidates, stalled-not-closed transport, successful-tail removal, terminal failure state, composition, and persistence.
+10. **TypeScript checks** — app + Worker.
+11. **Production build** — Vite output generated in CI.
+12. **Worker contracts** — deterministic fixtures exercise browser-facing APIs.
+13. **Exact-artifact browser audit** — GitHub Actions production bundle rendered in Linux Chromium.
+14. **Desktop/mobile/reduced-motion assertions** — overflow, semantic state, navigation, viewport stability, and runtime errors.
 
 ## Performance rules
 
@@ -327,17 +314,16 @@ Current validation layers:
 - keep continuous animation cancellable
 - do not load external data directly into renderers without normalization
 - profile before increasing scene density
-- preserve the exact same semantic result under reduced motion
+- preserve identical semantic results under reduced motion
 
 ## Architectural direction
 
-The original proof was one routed-link failure/recovery scenario. The architecture has now scaled across packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, deterministic multi-cause GOD MODE composition, cross-layer mid-transfer path-outage recovery, ECN-driven queue/congestion response, DNS failure/retry behavior, and HTTP-layer service-unavailable retry behavior that preserves a healthy network connection.
+The original proof was one routed-link failure/recovery scenario. The architecture now spans packets, protocol theater, topology authoring, Internet-scale renderers, public evidence adapters, a cross-scale URL Journey, portable scenarios, deterministic multi-cause GOD MODE composition, cross-layer outage recovery, ECN queue/congestion response, DNS timeout/retry behavior, HTTP service-unavailable retry, and terminal network partition behavior.
 
 The next pressure points are:
 
-- partition/unreachable stories that terminate rather than always recover a Journey
-- route leak / policy-anomaly stories that preserve the distinction between forwarding reachability and policy correctness
-- loss-based or AQM variants of congestion only where they remain explicitly distinct from the current zero-drop ECN teaching story
+- route leak / policy-anomaly stories that preserve the distinction between **reachability** and **policy correctness**
+- loss-based or AQM variants of congestion only where they remain explicitly distinct from the current zero-drop ECN story
 - native/measured data sources for facts browsers cannot legitimately observe
 - renderer/performance budgets for substantially denser scenarios
 
