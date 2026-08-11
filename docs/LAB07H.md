@@ -24,6 +24,8 @@ Partition is a routing/reachability truth, not an immediate transport close.
 - HOPSCOTCH therefore models transport as `stalled`, not automatically `closed`.
 - The terminal story does not invent duplicate ACKs, successful retransmission, RTO/PTO recovery, a successful path probe, or a third route.
 
+The transport scene preserves retained protocol state without implying forward delivery: TCP explicitly reads `NO IP PROGRESS`, while QUIC may still show its retained `1-RTT` crypto level alongside the separate no-route stall panel.
+
 Rewinding the global time machine reconstructs the earlier DNS, TLS, HTTP, and transport history normally.
 
 ## Routing state
