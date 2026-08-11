@@ -127,4 +127,4 @@ Those are later slices. 09A only defines and permanently tests the trust boundar
 
 ## Validation state
 
-The permanent source contract is wired into `npm run check` and has already passed the full existing TypeScript, model-contract, regression, and production-build gate. Shared ARCHITECTURE/README synchronization is applied only after that source gate; final completion still requires the normal clean-tree CI, Performance, and Compatibility workflows to remain green.
+The permanent source contract is wired into `npm run check` and has already passed the full existing TypeScript, model-contract, regression, and production-build gate. Shared ARCHITECTURE/README synchronization is applied only after that source gate. A final hygiene repair restores ROADMAP from authoritative `main` and flips only the native-provenance checkbox, preventing unrelated roadmap history from changing in this PR. Final completion still requires normal clean-tree CI, Performance, and Compatibility to remain green.
