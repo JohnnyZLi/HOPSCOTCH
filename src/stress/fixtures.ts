@@ -1,5 +1,5 @@
-import { BUILDER_LIMITS, findShortestPath, type BuilderGraph, type BuilderLayout } from '../builder/model';
-import type { AsRelationship, AsRole, SimulatedAsGraph } from '../internet/asModel';
+import { BUILDER_LIMITS, findShortestPath, type BuilderGraph, type BuilderLayout } from '../builder/model.ts';
+import type { AsRelationship, AsRole, SimulatedAsGraph } from '../internet/asModel.ts';
 
 export const STRESS_AS_NODE_COUNT = 160;
 export const STRESS_AS_RELATIONSHIP_COUNT = 220;
