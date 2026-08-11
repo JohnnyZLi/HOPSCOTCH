@@ -1,0 +1,309 @@
+name: Lab 07D implementation patch
+
+on:
+  push:
+    branches:
+      - agent/lab-07d-mid-transfer-path-outage
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    if: github.event.head_commit.message == 'Install Lab 07D implementation patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/lab-07d-mid-transfer-path-outage
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Apply Lab 07D changes
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'missing patch anchor in {path}: {old[:100]!r}')
+              p.write_text(text.replace(old, new))
+
+          # Canonical model: path-outage is a first-class GOD MODE modifier.
+          replace(
+              'src/journey/model.ts',
+              "export type JourneyModifierId = 'route-failure' | 'single-loss' | 'latency-spike';",
+              "export type JourneyModifierId = 'route-failure' | 'single-loss' | 'path-outage' | 'latency-spike';",
+          )
+
+          # Portable schema-v1 remains valid for any single modifier.
+          replace(
+              'src/journey/scenario.ts',
+              "const impairmentProfiles = new Set<JourneyLegacyImpairmentProfile>(['clean', 'single-loss', 'latency-spike', 'route-failure']);",
+              "const impairmentProfiles = new Set<JourneyLegacyImpairmentProfile>(['clean', 'single-loss', 'latency-spike', 'route-failure', 'path-outage']);",
+          )
+
+          # Legacy browser persistence accepts the new single-modifier profile.
+          replace(
+              'src/journey/browser.ts',
+              "impairmentProfile: storedImpairment === 'single-loss' || storedImpairment === 'latency-spike' || storedImpairment === 'route-failure' ? storedImpairment : 'clean',",
+              "impairmentProfile: storedImpairment === 'single-loss' || storedImpairment === 'latency-spike' || storedImpairment === 'route-failure' || storedImpairment === 'path-outage' ? storedImpairment : 'clean',",
+          )
+
+          # Modifier ordering + compatibility.
+          replace(
+              'src/journey/modifiers.ts',
+              "const JOURNEY_MODIFIER_ORDER: readonly JourneyModifierId[] = ['route-failure', 'single-loss', 'latency-spike'];",
+              "const JOURNEY_MODIFIER_ORDER: readonly JourneyModifierId[] = ['route-failure', 'single-loss', 'path-outage', 'latency-spike'];",
+          )
+          replace(
+              'src/journey/modifiers.ts',
+              "  return JOURNEY_MODIFIER_ORDER.filter((id) => selected.has(id));\n}",
+              "  if (selected.has('route-failure') && selected.has('path-outage')) {\n    throw new Error('Journey modifiers route-failure and path-outage are mutually exclusive.');\n  }\n  return JOURNEY_MODIFIER_ORDER.filter((id) => selected.has(id));\n}",
+          )
+
+          path_outage_block = r'''
+function latestTransportRecovery(events: JourneyEvent[]): JourneyEvent | undefined {
+  return events
+    .filter((current) => current.kind === 'transport.recovered')
+    .sort((a, b) => b.atMs - a.atMs)[0];
+}
+
+function pathOutageRouteEvents(baseAtMs: number): JourneyEvent[] {
+  return [
+    modifierEvent({ id: 'path-outage-primary-fails', atMs: baseAtMs + 160, kind: 'route.failure', scale: 'routing', zoom: 'out', protocol: 'OSPF teaching model', phase: 'path-outage', title: 'The active path fails mid-transfer', summary: 'R1 → CORE disappears while response bytes are already in flight.', detail: 'Unlike the pre-transport ROUTE modifier, this failure crosses an established transport flow. In-flight delivery can be lost before the control plane installs the alternate path.', actor: 'R1', target: 'CORE', detailLab: 'failure', routeMetrics: BROKEN_ROUTE }),
+    modifierEvent({ id: 'path-outage-inflight-loss', atMs: baseAtMs + 200, kind: 'transport.loss', scale: 'packet', zoom: 'in', protocol: 'IP forwarding', phase: 'outage-loss', title: 'In-flight response data loses its forwarding path', summary: 'One response flight disappears with the failed next hop.', detail: 'Routing failure is the cause; transport loss is the consequence. HOPSCOTCH keeps those two causal layers separate in the event log.', actor: 'failed network path', target: 'transport receiver', detailLab: 'packet', routeMetrics: BROKEN_ROUTE }),
+    modifierEvent({ id: 'path-outage-route-invalidated', atMs: baseAtMs + 360, kind: 'route.invalidated', scale: 'routing', zoom: 'out', protocol: 'OSPF teaching model', phase: 'outage-invalidated', title: 'The installed primary route is invalidated', summary: 'Forwarding through R1 → CORE is no longer viable.', detail: 'Transport remains established, but the forwarding table currently has no usable path for the affected destination.', actor: 'edge router', target: 'routing table', detailLab: 'failure', routeMetrics: BROKEN_ROUTE }),
+    modifierEvent({ id: 'path-outage-spf-recompute', atMs: baseAtMs + 620, kind: 'route.recompute', scale: 'routing', zoom: 'hold', protocol: 'OSPF teaching model', phase: 'outage-recompute', title: 'SPF recomputes around the failed link', summary: 'The surviving cost-52 path through R2 becomes the best reachable route.', detail: 'The transport connection is not recreated. Routing is repairing reachability underneath the still-existing connection.', actor: 'edge router', target: 'SPF engine', detailLab: 'failure', routeMetrics: BROKEN_ROUTE }),
+    modifierEvent({ id: 'path-outage-alternate-installed', atMs: baseAtMs + 900, kind: 'route.alternate-installed', scale: 'routing', zoom: 'hold', protocol: 'OSPF teaching model', phase: 'outage-route-ready', title: 'Alternate path installed under the live connection', summary: 'R2 → CORE restores forwarding at cost 52.', detail: 'Routing convergence restores reachability, but it does not repair data already lost during the outage. The transport protocol still has to detect and recover that missing delivery.', actor: 'routing table', target: 'R2 next hop', detailLab: 'failure', routeMetrics: ALTERNATE_ROUTE }),
+  ];
+}
+
+function tcpPathOutageEvents(baseAtMs: number): JourneyEvent[] {
+  return [
+    modifierEvent({ id: 'tcp-outage-rto', atMs: baseAtMs + 1160, kind: 'transport.loss-detected', scale: 'transport', zoom: 'in', protocol: 'TCP', phase: 'outage-rto', title: 'ACK silence reaches the TCP retransmission timeout', summary: 'No cumulative ACK advances for the missing response bytes; the teaching RTO reaches its 1 s minimum.', detail: 'This is not the duplicate-ACK fast-retransmit story used by the single-loss modifier. The path outage suppresses useful feedback long enough that the sender relies on its retransmission timer.', actor: 'TCP retransmission timer', target: 'TCP sender', detailLab: 'tcp', transportMetrics: { baselineRttMs: 32, timerLabel: 'RTO', timerMs: 1000, lossDetected: true } }),
+    modifierEvent({ id: 'tcp-outage-retransmit', atMs: baseAtMs + 1380, kind: 'transport.retransmit', scale: 'packet', zoom: 'in', protocol: 'TCP', phase: 'outage-retransmit', title: 'TCP retransmits the missing byte range over R2', summary: 'SEQ 2461–3920 is sent again after the alternate route exists.', detail: 'The TCP sequence space does not change just because IP forwarding changed underneath it. The same missing byte range is retransmitted over the newly available route.', actor: 'TCP sender', target: 'TCP receiver', detailLab: 'tcp', routeMetrics: ALTERNATE_ROUTE }),
+    modifierEvent({ id: 'tcp-outage-recovered', atMs: baseAtMs + 1740, kind: 'transport.recovered', scale: 'application', zoom: 'out', protocol: 'HTTP/2', phase: 'outage-recovered', title: 'HTTP/2 delivery resumes on the surviving route', summary: 'The retransmitted TCP bytes close the gap and cumulative delivery advances again.', detail: 'The HTTP/2 connection survives because TCP recovered after IP reachability returned; no new TCP or TLS handshake was required.', actor: 'TCP receiver', target: 'HTTP/2', detailLab: 'http', routeMetrics: ALTERNATE_ROUTE }),
+  ];
+}
+
+function quicPathOutageEvents(baseAtMs: number): JourneyEvent[] {
+  return [
+    modifierEvent({ id: 'quic-outage-pto1', atMs: baseAtMs + 300, kind: 'transport.loss-detected', scale: 'transport', zoom: 'in', protocol: 'QUIC', phase: 'outage-pto', title: 'QUIC PTO fires before routing has recovered', summary: 'ACK progress stops and QUIC reaches a probe timeout while the primary route is still unusable.', detail: 'QUIC reacts earlier than the TCP 1 s teaching RTO, but a transport timer cannot repair missing IP reachability.', actor: 'QUIC PTO timer', target: 'QUIC sender', detailLab: 'http', transportMetrics: { baselineRttMs: 32, smoothedRttMs: 32, rttVarMs: 8, ackDelayMs: 25, timerLabel: 'PTO', timerMs: 89, lossDetected: true } }),
+    modifierEvent({ id: 'quic-outage-probe', atMs: baseAtMs + 470, kind: 'transport.retransmit', scale: 'packet', zoom: 'in', protocol: 'QUIC', phase: 'outage-probe', title: 'A QUIC probe cannot make forward progress', summary: 'Probe traffic is generated, but the forwarding path is still broken.', detail: 'This probe does not prove recovery. HOPSCOTCH keeps the route at NONE until SPF installs the alternate path.', actor: 'QUIC sender', target: 'failed network path', detailLab: 'http', routeMetrics: BROKEN_ROUTE }),
+    modifierEvent({ id: 'quic-outage-pto2', atMs: baseAtMs + 760, kind: 'transport.loss-detected', scale: 'transport', zoom: 'out', protocol: 'QUIC', phase: 'outage-pto-backoff', title: 'QUIC remains in PTO backoff during convergence', summary: 'The connection still has no ACK progress while SPF is finishing the alternate route.', detail: 'Probe timeout backoff is transport state; route recomputation is control-plane state. They advance independently until reachability returns.', actor: 'QUIC loss detector', target: 'QUIC sender', detailLab: 'http', transportMetrics: { baselineRttMs: 32, smoothedRttMs: 32, rttVarMs: 8, ackDelayMs: 25, timerLabel: 'PTO', timerMs: 178, lossDetected: true } }),
+    modifierEvent({ id: 'quic-outage-retransmit', atMs: baseAtMs + 1080, kind: 'transport.retransmit', scale: 'packet', zoom: 'in', protocol: 'QUIC', phase: 'outage-retransmit', title: 'Missing STREAM data is sent in new packet 4216', summary: 'STREAM offset 4096–5555 is retransmitted after R2 becomes active.', detail: 'QUIC does not reuse the lost packet number. The STREAM data moves in a new QUIC packet number over the restored IP path.', actor: 'QUIC sender', target: 'QUIC receiver', detailLab: 'http', routeMetrics: ALTERNATE_ROUTE }),
+    modifierEvent({ id: 'quic-outage-recovered', atMs: baseAtMs + 1320, kind: 'transport.recovered', scale: 'application', zoom: 'out', protocol: 'HTTP/3', phase: 'outage-recovered', title: 'HTTP/3 stream resumes over the alternate path', summary: 'The new QUIC packet closes the missing STREAM range and request-stream delivery advances.', detail: 'The QUIC connection and TLS 1.3 state survive the routing outage; neither a TCP connection nor a new TLS handshake is introduced.', actor: 'QUIC receiver', target: 'HTTP/3', detailLab: 'http', routeMetrics: ALTERNATE_ROUTE }),
+  ];
+}
+
+const pathOutageModifier: JourneyModifier = {
+  id: 'path-outage',
+  order: 105,
+  apply(events, context) {
+    const { data, packetFrame } = requireResponseAnchors(events, 'path-outage');
+    const priorRecovery = latestTransportRecovery(events);
+    const baseAtMs = priorRecovery?.atMs ?? data.atMs;
+    const addedDurationMs = 2200;
+    const shifted = shiftPostAnchor(events, packetFrame.atMs, addedDurationMs);
+    const injected = [
+      ...pathOutageRouteEvents(baseAtMs),
+      ...(context.config.transportProfile === 'tcp-h2' ? tcpPathOutageEvents(baseAtMs) : quicPathOutageEvents(baseAtMs)),
+    ];
+    return {
+      events: [...shifted, ...injected].sort((a, b) => a.atMs - b.atMs),
+      addedDurationMs,
+      appliedModifierIds: ['path-outage'],
+    };
+  },
+};
+
+'''
+          replace(
+              'src/journey/modifiers.ts',
+              "function round1(value: number): number {",
+              path_outage_block + "function round1(value: number): number {",
+          )
+
+          # Latency must begin after the latest recovery when LOSS + OUTAGE compose.
+          replace(
+              'src/journey/modifiers.ts',
+              "    const recovered = events.find((current) => current.kind === 'transport.recovered');\n    const latencyBaseAtMs = recovered?.atMs ?? data.atMs;",
+              "    const recovered = latestTransportRecovery(events);\n    const latencyBaseAtMs = recovered?.atMs ?? data.atMs;",
+          )
+          replace(
+              'src/journey/modifiers.ts',
+              "const modifiers: JourneyModifier[] = [routeFailureModifier, singleLossModifier, latencySpikeModifier]",
+              "const modifiers: JourneyModifier[] = [routeFailureModifier, singleLossModifier, pathOutageModifier, latencySpikeModifier]",
+          )
+
+          # UI labels, mutual exclusion, routing scene, selector, and outage-specific timer panel.
+          replace(
+              'src/JourneyTheaterV2.tsx',
+              "  return modifierIds.map((id) => id === 'route-failure' ? 'ROUTE' : id === 'single-loss' ? 'LOSS' : 'LATENCY').join(' + ');",
+              "  return modifierIds.map((id) => id === 'route-failure' ? 'ROUTE' : id === 'single-loss' ? 'LOSS' : id === 'latency-spike' ? 'LATENCY' : 'OUTAGE').join(' + ');",
+          )
+          replace(
+              'src/JourneyTheaterV2.tsx',
+              "  const routeSelected = state.modifierIds.includes('route-failure');",
+              "  const routeSelected = state.modifierIds.includes('route-failure') || state.modifierIds.includes('path-outage');",
+          )
+          replace(
+              'src/JourneyTheaterV2.tsx',
+              "  const detectingLoss = state.activeEvent.kind === 'transport.loss-detected';\n  const latencySelected = state.modifierIds.includes('latency-spike');",
+              "  const detectingLoss = state.activeEvent.kind === 'transport.loss-detected';\n  const outageDetection = detectingLoss && state.activeEvent.id.includes('outage');\n  const latencySelected = state.modifierIds.includes('latency-spike');",
+          )
+          old_panel = '''    {detectingLoss ? <div className="loss-transport-panel">
+      {quic ? <><div><span>ACK RANGES</span><strong>4105–4107 · 4109–4112</strong></div><div className="loss-gap"><span>MISSING PACKET</span><strong>PN 4108</strong></div><div><span>STREAM GAP</span><strong>4096–5555</strong></div></> : <><div><span>RECEIVE NEXT</span><strong>2461</strong></div><div className="loss-gap"><span>DUPLICATE ACK</span><strong>ACK 2461 × 3</strong></div><div><span>MISSING RANGE</span><strong>SEQ 2461–3920</strong></div></>}
+    </div> : <div className="sequence-state">'''
+          new_panel = '''    {detectingLoss ? <div className="loss-transport-panel">
+      {outageDetection ? (quic ? <><div><span>ACK PROGRESS</span><strong>STALLED</strong></div><div className="loss-gap"><span>PTO</span><strong>{state.transportMetrics?.timerMs ?? '—'} ms</strong></div><div><span>ROUTE</span><strong>{state.routeMetrics?.activePath?.toUpperCase() ?? 'NONE'}</strong></div></> : <><div><span>ACK PROGRESS</span><strong>SILENT</strong></div><div className="loss-gap"><span>RTO</span><strong>{state.transportMetrics?.timerMs ?? '—'} ms</strong></div><div><span>RECOVERY</span><strong>RETRANSMIT AFTER ROUTE</strong></div></>) : quic ? <><div><span>ACK RANGES</span><strong>4105–4107 · 4109–4112</strong></div><div className="loss-gap"><span>MISSING PACKET</span><strong>PN 4108</strong></div><div><span>STREAM GAP</span><strong>4096–5555</strong></div></> : <><div><span>RECEIVE NEXT</span><strong>2461</strong></div><div className="loss-gap"><span>DUPLICATE ACK</span><strong>ACK 2461 × 3</strong></div><div><span>MISSING RANGE</span><strong>SEQ 2461–3920</strong></div></>}
+    </div> : <div className="sequence-state">'''
+          replace('src/JourneyTheaterV2.tsx', old_panel, new_panel)
+
+          replace(
+              'src/JourneyTheaterV2.tsx',
+              "    setModifierIds((current) => current.includes(modifierId) ? current.filter((id) => id !== modifierId) : [...current, modifierId]);",
+              "    setModifierIds((current) => {\n      if (current.includes(modifierId)) return current.filter((id) => id !== modifierId);\n      const incompatible = modifierId === 'route-failure' ? 'path-outage' : modifierId === 'path-outage' ? 'route-failure' : null;\n      return [...current.filter((id) => id !== incompatible), modifierId];\n    });",
+          )
+          replace(
+              'src/JourneyTheaterV2.tsx',
+              "  const routeSelected = selectedModifiers.includes('route-failure');\n  const lossSelected = selectedModifiers.includes('single-loss');\n  const latencySelected = selectedModifiers.includes('latency-spike');",
+              "  const preRouteSelected = selectedModifiers.includes('route-failure');\n  const outageSelected = selectedModifiers.includes('path-outage');\n  const routeSelected = preRouteSelected || outageSelected;\n  const lossSelected = selectedModifiers.includes('single-loss');\n  const latencySelected = selectedModifiers.includes('latency-spike');",
+          )
+          old_buttons = '''<div className="journey-profile journey-impairment-profile journey-modifier-profile" role="group" aria-label="GOD MODE modifiers"><button type="button" className={selectedModifiers.length===0?'active':''} aria-pressed={selectedModifiers.length===0} onClick={clearModifiers}>CLEAN</button><button type="button" className={lossSelected?'active':''} aria-pressed={lossSelected} onClick={()=>toggleModifier('single-loss')}>LOSS</button><button type="button" className={latencySelected?'active':''} aria-pressed={latencySelected} onClick={()=>toggleModifier('latency-spike')}>LATENCY</button><button type="button" className={routeSelected?'active':''} aria-pressed={routeSelected} onClick={()=>toggleModifier('route-failure')}>ROUTE</button></div>'''
+          new_buttons = '''<div className="journey-profile journey-impairment-profile journey-modifier-profile" role="group" aria-label="GOD MODE modifiers"><button type="button" className={selectedModifiers.length===0?'active':''} aria-pressed={selectedModifiers.length===0} onClick={clearModifiers}>CLEAN</button><button type="button" className={lossSelected?'active':''} aria-pressed={lossSelected} onClick={()=>toggleModifier('single-loss')}>LOSS</button><button type="button" className={latencySelected?'active':''} aria-pressed={latencySelected} onClick={()=>toggleModifier('latency-spike')}>LATENCY</button><button type="button" className={preRouteSelected?'active':''} aria-pressed={preRouteSelected} onClick={()=>toggleModifier('route-failure')}>ROUTE</button><button type="button" className={outageSelected?'active':''} aria-pressed={outageSelected} onClick={()=>toggleModifier('path-outage')}>OUTAGE</button></div>'''
+          replace('src/JourneyTheaterV2.tsx', old_buttons, new_buttons)
+          replace(
+              'src/JourneyTheaterV2.tsx',
+              "<strong className={lossSelected||latencySelected?toneClass:''}>{transportStateLabel}</strong>",
+              "<strong className={lossSelected||latencySelected||outageSelected?toneClass:''}>{transportStateLabel}</strong>",
+          )
+
+          # Fifth selector color; path-outage events deliberately reuse route/loss phase colors.
+          css = Path('src/journey-god-mode.css')
+          css_text = css.read_text().replace('.journey-impairment-profile{min-width:286px}', '.journey-impairment-profile{min-width:350px}')
+          css_text += "\n.journey-modifier-profile button:nth-child(5)[aria-pressed=\"true\"]{background:rgba(255,159,110,.09);color:#ffb58f;box-shadow:inset 0 0 0 1px rgba(255,159,110,.28)}\n"
+          css.write_text(css_text)
+
+          # Permanent contract for the new cross-layer story.
+          Path('scripts/journey-path-outage-contract-check.mjs').write_text(r'''import assert from 'node:assert/strict';
+import { readJourneyBrowserConfig, writeJourneyBrowserConfig } from '../src/journey/browser.ts';
+import { buildJourneyScenario } from '../src/journey/model.ts';
+import { normalizeJourneyModifierIds } from '../src/journey/modifiers.ts';
+import { createPortableJourneyScenario } from '../src/journey/scenario.ts';
+
+const config = (transportProfile, dnsProfile, modifierIds) => ({
+  transportProfile,
+  dnsProfile,
+  impairmentProfile: modifierIds.length > 1 ? 'composed' : modifierIds[0] ?? 'clean',
+  modifierIds,
+});
+
+function event(scenario, id) {
+  const found = scenario.events.find((candidate) => candidate.id === id);
+  assert.ok(found, `missing event ${id}`);
+  return found;
+}
+
+function assertStrict(scenario) {
+  assert.equal(new Set(scenario.events.map((current) => current.id)).size, scenario.events.length);
+  assert.equal(new Set(scenario.events.map((current) => current.atMs)).size, scenario.events.length);
+  assert.ok(scenario.events.every((current, index) => index === 0 || current.atMs > scenario.events[index - 1].atMs));
+}
+
+function memoryStorage(seed = {}) {
+  const values = new Map(Object.entries(seed));
+  return {
+    getItem(key) { return values.has(key) ? values.get(key) : null; },
+    setItem(key, value) { values.set(key, String(value)); },
+  };
+}
+
+assert.deepEqual(normalizeJourneyModifierIds(['path-outage']), ['path-outage']);
+assert.deepEqual(normalizeJourneyModifierIds(['latency-spike', 'path-outage', 'single-loss']), ['single-loss', 'path-outage', 'latency-spike']);
+assert.throws(() => normalizeJourneyModifierIds(['route-failure', 'path-outage']), /mutually exclusive/i);
+
+const tcp = buildJourneyScenario('example.test', config('tcp-h2', 'cache-hit', ['path-outage']));
+assert.deepEqual(tcp.modifierIds, ['path-outage']);
+assert.equal(tcp.impairmentProfile, 'path-outage');
+assert.equal(tcp.durationMs, 15000);
+assert.deepEqual(
+  ['path-outage-primary-fails', 'path-outage-route-invalidated', 'path-outage-spf-recompute', 'path-outage-alternate-installed', 'tcp-outage-rto', 'tcp-outage-retransmit', 'tcp-outage-recovered'].map((id) => event(tcp, id).atMs),
+  [7510, 7710, 7970, 8250, 8510, 8730, 9090],
+);
+assert.equal(event(tcp, 'tcp-outage-rto').transportMetrics.timerLabel, 'RTO');
+assert.equal(event(tcp, 'tcp-outage-rto').transportMetrics.timerMs, 1000);
+assert.match(event(tcp, 'tcp-outage-rto').detail, /not the duplicate-ACK fast-retransmit story/i);
+assert.ok(event(tcp, 'path-outage-alternate-installed').atMs < event(tcp, 'tcp-outage-retransmit').atMs);
+assertStrict(tcp);
+
+const quic = buildJourneyScenario('example.test', config('quic-h3', 'cache-hit', ['path-outage']));
+assert.deepEqual(quic.modifierIds, ['path-outage']);
+assert.equal(quic.durationMs, 15000);
+assert.deepEqual(
+  ['path-outage-primary-fails', 'quic-outage-pto1', 'quic-outage-probe', 'path-outage-spf-recompute', 'quic-outage-pto2', 'path-outage-alternate-installed', 'quic-outage-retransmit', 'quic-outage-recovered'].map((id) => event(quic, id).atMs),
+  [7410, 7550, 7720, 7870, 8010, 8150, 8330, 8570],
+);
+assert.equal(event(quic, 'quic-outage-pto1').transportMetrics.timerLabel, 'PTO');
+assert.equal(event(quic, 'quic-outage-pto1').transportMetrics.timerMs, 89);
+assert.ok(event(quic, 'quic-outage-probe').atMs < event(quic, 'path-outage-alternate-installed').atMs);
+assert.ok(event(quic, 'path-outage-alternate-installed').atMs < event(quic, 'quic-outage-retransmit').atMs);
+assert.match(event(quic, 'quic-outage-retransmit').title, /new packet 4216/i);
+assert.doesNotMatch(event(quic, 'quic-outage-retransmit').detail, /TCP/);
+assertStrict(quic);
+
+const composed = buildJourneyScenario('example.test', config('quic-h3', 'cache-hit', ['latency-spike', 'single-loss', 'path-outage']));
+assert.deepEqual(composed.modifierIds, ['single-loss', 'path-outage', 'latency-spike']);
+assert.ok(event(composed, 'quic-recovered').atMs < event(composed, 'path-outage-primary-fails').atMs);
+assert.ok(event(composed, 'quic-outage-recovered').atMs < event(composed, 'quic-latency-start').atMs);
+assertStrict(composed);
+
+const portableSingle = createPortableJourneyScenario({ name: 'Mid-transfer outage', hostname: 'example.test', config: config('tcp-h2', 'cache-miss', ['path-outage']), timeMs: 9000 });
+assert.equal(portableSingle.version, 1);
+assert.equal(portableSingle.impairmentProfile, 'path-outage');
+const portableComposed = createPortableJourneyScenario({ hostname: 'example.test', config: config('quic-h3', 'cache-hit', ['path-outage', 'latency-spike']), timeMs: 8000 });
+assert.equal(portableComposed.version, 2);
+assert.deepEqual(portableComposed.modifiers, ['path-outage', 'latency-spike']);
+
+const storage = memoryStorage();
+writeJourneyBrowserConfig(config('tcp-h2', 'cache-hit', ['path-outage']), storage);
+assert.equal(readJourneyBrowserConfig(storage).impairmentProfile, 'path-outage');
+
+console.log('Journey path-outage contract passed: cross-layer routing failure, TCP RTO recovery, QUIC PTO recovery, composition, sharing, and persistence.');
+''')
+
+          replace(
+              'package.json',
+              '"check": "npm run typecheck && npm run test:builder-contract && npm run test:worker-contract && npm run test:journey-contract && npm run test:journey-sharing-contract && npm run test:journey-god-mode-contract && npm run test:journey-composition-contract && npm run build",',
+              '"check": "npm run typecheck && npm run test:builder-contract && npm run test:worker-contract && npm run test:journey-contract && npm run test:journey-sharing-contract && npm run test:journey-god-mode-contract && npm run test:journey-composition-contract && npm run test:journey-path-outage-contract && npm run build",',
+          )
+          replace(
+              'package.json',
+              '"test:journey-composition-contract": "node scripts/journey-composition-contract-check.mjs"',
+              '"test:journey-composition-contract": "node scripts/journey-composition-contract-check.mjs",\n    "test:journey-path-outage-contract": "node scripts/journey-path-outage-contract-check.mjs"',
+          )
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run full contract, type, and build gate
+        run: npm run check
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          rm .github/workflows/lab07d-agent-patch.yml
+          git config user.name "HOPSCOTCH Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add package.json src scripts .github/workflows/lab07d-agent-patch.yml
+          git commit -m "Lab 07D: recover across a mid-transfer path outage" -m "Adds a distinct path-outage modifier with routing convergence, TCP RTO recovery, QUIC PTO/probe recovery, GOD MODE UI support, portable scenario compatibility, and permanent contracts. Closes #42."
+          git push origin HEAD:agent/lab-07d-mid-transfer-path-outage
