@@ -59,4 +59,4 @@ At mobile widths the nine modifier controls form a 3×3 grid.
 
 The permanent `journey-partition-contract-check.mjs` contract verifies dual-link failure, zero-route SPF state, terminal event ordering, stalled-not-closed TCP/QUIC state, removal of the successful Journey tail, absence of fabricated recovery semantics, composition after prior recoverable modifiers, schema-v1/v2 portability, and browser persistence.
 
-Exact production-artifact desktop/mobile/reduced-motion inspection remains the final completion gate for this slice.
+The exact GitHub Actions production artifact was exercised in Linux Chromium at desktop, 390 px mobile, and reduced motion. Both route branches visibly fail, active path becomes `NONE`, TCP renders `NO IP PROGRESS`, QUIC retains 1-RTT state separately from reachability, the terminal scene stays `NO ROUTE / NETWORK UNREACHABLE`, no RTO/PTO or RESPONSE READY surface appears, the nine controls remain a clean 3×3 mobile grid with zero horizontal overflow, playback keeps document `scrollY=0`, and no runtime or console errors were observed.
