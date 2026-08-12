@@ -10,4 +10,6 @@ Lab 11F extends the Ethernet fabric with 802.1Q-style teaching boundaries and ro
 - Inter-VLAN forwarding crosses the router once and decrements TTL exactly once.
 - FDB state is keyed by switch + VLAN + MAC, so identical Layer-2 learning concepts stay scoped to their broadcast domain.
 
+The high-density routed Builder stress fixture intentionally keeps this optional LAN fabric empty. That preserves the existing 32-node / 96-link routed ceiling as a comparable benchmark; Ethernet/VLAN behavior is exercised by its own contracts and production-browser sequence instead of quietly inflating the unrelated routed-DOM fixture.
+
 Native VLAN behavior, STP, LACP, ARP/ND, DHCP, routed SVIs, and dynamic routing redistribution between this LAN fabric and the existing routed graph remain explicit future slices rather than hidden assumptions.
