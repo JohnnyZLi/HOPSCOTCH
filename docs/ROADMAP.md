@@ -321,6 +321,17 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] map measured facts into existing semantic scenes where appropriate
 - [x] explicit loopback-only Network Diagnostics bridge transport with no scanning, polling, credentials, or alternate truth path
 
+## Lab 10 — Product surface
+
+### 10A — Explore launcher
+- [x] persistent Explore entry point in the global shell
+- [x] overview hero exposes the full lab catalog directly
+- [x] featured Watch / Break / Build starting points
+- [x] direct one-click access to every major protocol, Internet, and measured workspace
+- [x] launcher stays presentation/navigation-only and cannot become simulation truth
+- [x] keyboard Escape, modal semantics, reduced-motion behavior, and mobile layout
+- [x] permanent Explore routing contract wired into `npm run check`
+
 ## Performance + rendering — ongoing
 
 - [x] DOM/CSS for controls and text
