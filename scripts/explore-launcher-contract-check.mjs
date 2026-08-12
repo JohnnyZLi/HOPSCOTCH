@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 
 const launcher = readFileSync(new URL('../src/ExploreLauncher.tsx', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+const home = readFileSync(new URL('../src/HomeActionDeck.tsx', import.meta.url), 'utf8');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -58,8 +59,12 @@ assert(
   'Explore launcher must have explicit App-owned open state.',
 );
 assert(
-  app.includes('className="explore-trigger"') && app.includes('className="explore-hero-action"'),
-  'Explore must be reachable from both the persistent header and the overview hero.',
+  app.includes('className="explore-trigger"') && app.includes('onExplore={() => setExploreOpen(true)}'),
+  'Explore must be reachable from both the persistent header and the overview product surface.',
+);
+assert(
+  home.includes('Explore all 12 labs') && home.includes('onClick={onExplore}'),
+  'Overview product surface must keep an explicit entry to the full Explore catalog.',
 );
 assert(
   app.includes('onSelect={selectExploreDestination}'),
@@ -74,4 +79,4 @@ assert(
   'Explore launcher must remain presentation/navigation only and must not become simulation or network truth.',
 );
 
-console.log(`Explore launcher contract OK: ${destinations.length} direct destinations, persistent + hero entry points, and no truth-path imports.`);
+console.log(`Explore launcher contract OK: ${destinations.length} direct destinations, persistent + overview entry points, and no truth-path imports.`);
