@@ -50,9 +50,12 @@ const DESTINATION_LAYERS: Readonly<Record<ExploreDestination, NetworkLayer>> = {
   measured: 'internet',
 };
 
-const initialAppRoute = typeof window === 'undefined'
-  ? resolveAppRoute('/', '')
-  : resolveAppRoute(window.location.pathname, window.location.search);
+const browserHistoryRoutingAvailable = typeof window !== 'undefined'
+  && (window.location.protocol === 'http:' || window.location.protocol === 'https:');
+
+const initialAppRoute = browserHistoryRoutingAvailable
+  ? resolveAppRoute(window.location.pathname, window.location.search)
+  : resolveAppRoute('/', typeof window === 'undefined' ? '' : window.location.search);
 
 const initialJourneyBootstrap = typeof window === 'undefined' || initialAppRoute.destination !== 'journey'
   ? { scenario: null, error: null }
@@ -107,14 +110,14 @@ export default function App() {
   const cameraY = ((36 - focusY) / 36) * 9;
 
   const pushBrowserRoute = (destination: ExploreDestination | null) => {
-    if (typeof window === 'undefined') return;
+    if (!browserHistoryRoutingAvailable) return;
     const nextUrl = destination === null ? '/' : pathForDestination(destination);
     const currentUrl = `${window.location.pathname}${window.location.search}`;
     if (currentUrl !== nextUrl) window.history.pushState({}, '', nextUrl);
   };
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!browserHistoryRoutingAvailable) return;
 
     const applyCurrentLocation = () => {
       const route = resolveAppRoute(window.location.pathname, window.location.search);

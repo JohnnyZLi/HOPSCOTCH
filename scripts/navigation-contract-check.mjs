@@ -64,6 +64,8 @@ assert.equal(canonicalUrlForRoute(unknown, '?x=1'), '/');
 assert.match(wrangler, /"not_found_handling"\s*:\s*"single-page-application"/);
 assert.match(wrangler, /"run_worker_first"\s*:\s*\["\/api\/\*"\]/);
 
+assert.match(app, /window\.location\.protocol === 'http:' \|\| window\.location\.protocol === 'https:'/);
+assert.match(app, /resolveAppRoute\('\/', typeof window === 'undefined' \? '' : window\.location\.search\)/);
 assert.match(app, /window\.history\.pushState/);
 assert.match(app, /window\.history\.replaceState/);
 assert.match(app, /addEventListener\('popstate'/);
