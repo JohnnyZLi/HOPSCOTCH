@@ -35,8 +35,8 @@ assert.throws(() => parseBuilderIpv4Cidr('10.0.0.0/31'), /\/8 through \/30/);
 assert.equal(builderIpv4IsUsableInCidr('10.44.9.1', '10.44.9.0/24'), true);
 assert.equal(builderIpv4IsUsableInCidr('10.44.9.255', '10.44.9.0/24'), false);
 
-const movedSegment = replaceBuilderSegmentCidr(graph, validated, 'client-edge', '10.44.9.0/30');
-assert.equal(movedSegment.segments['client-edge'].cidr, '10.44.9.0/30');
+const movedSegment = replaceBuilderSegmentCidr(graph, validated, 'client-edge', '10.44.9.0/29');
+assert.equal(movedSegment.segments['client-edge'].cidr, '10.44.9.0/29');
 assert.deepEqual(movedSegment.segments['client-edge'].interfaces.map((entry) => entry.address), ['10.44.9.1', '10.44.9.2']);
 const edgeAddress = movedSegment.segments['client-edge'].interfaces.find((entry) => entry.nodeId === 'edge')?.address;
 assert.equal(movedSegment.defaultGateways.client, edgeAddress, 'endpoint gateway must follow a segment renumber');
@@ -44,9 +44,9 @@ assert.equal(addressing.segments['client-edge'].cidr, '10.0.0.0/30', 'segment ed
 
 const clientEntry = movedSegment.segments['client-edge'].interfaces.find((entry) => entry.nodeId === 'client');
 assert.ok(clientEntry);
-const clientReaddressed = replaceBuilderInterfaceAddress(graph, movedSegment, 'client-edge', 'client', '10.44.9.2');
+const clientReaddressed = replaceBuilderInterfaceAddress(graph, movedSegment, 'client-edge', 'client', '10.44.9.3');
 const clientAddress = clientReaddressed.segments['client-edge'].interfaces.find((entry) => entry.nodeId === 'client')?.address;
-assert.equal(clientAddress, '10.44.9.2');
+assert.equal(clientAddress, '10.44.9.3');
 assert.throws(
   () => replaceBuilderInterfaceAddress(graph, movedSegment, 'client-edge', 'client', '10.99.0.2'),
   /not a usable host/,
@@ -63,7 +63,9 @@ assert.throws(
 );
 
 const overlapping = cloneBuilderAddressing(validated);
-overlapping.segments['r1-core'].cidr = validated.segments['client-edge'].cidr;
+overlapping.segments['r1-core'].cidr = '10.0.0.0/29';
+overlapping.segments['r1-core'].interfaces[0].address = '10.0.0.5';
+overlapping.segments['r1-core'].interfaces[1].address = '10.0.0.6';
 assert.throws(() => validateBuilderAddressing(graph, overlapping), /overlap/);
 
 const duplicateIp = cloneBuilderAddressing(validated);
