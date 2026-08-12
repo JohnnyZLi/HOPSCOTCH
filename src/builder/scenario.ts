@@ -2,7 +2,7 @@ import {
   createDefaultBuilderAddressing,
   validateBuilderAddressing,
   type BuilderAddressing,
-} from './addressing';
+} from './addressing.ts';
 import {
   BUILDER_LIMITS,
   cloneBuilderGraph,
@@ -12,7 +12,7 @@ import {
   type BuilderLayout,
   type BuilderNode,
   type BuilderLink,
-} from './model';
+} from './model.ts';
 
 export interface BuilderScenarioV1 {
   schema: 'hopscotch.builder';
