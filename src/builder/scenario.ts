@@ -1,4 +1,9 @@
 import {
+  createDefaultBuilderAddressing,
+  validateBuilderAddressing,
+  type BuilderAddressing,
+} from './addressing.ts';
+import {
   BUILDER_LIMITS,
   cloneBuilderGraph,
   defaultBuilderGraph,
@@ -7,7 +12,7 @@ import {
   type BuilderLayout,
   type BuilderNode,
   type BuilderLink,
-} from './model';
+} from './model.ts';
 
 export interface BuilderScenarioV1 {
   schema: 'hopscotch.builder';
@@ -34,9 +39,23 @@ export interface BuilderScenarioV2 {
   updatedAt: string;
 }
 
-export type BuilderScenario = BuilderScenarioV2;
+export interface BuilderScenarioV3 {
+  schema: 'hopscotch.builder';
+  version: 3;
+  name: string;
+  graph: BuilderGraph;
+  addressing: BuilderAddressing;
+  sourceId: string;
+  destinationId: string;
+  layout: BuilderLayout;
+  createdAt: string;
+  updatedAt: string;
+}
 
-const STORAGE_KEY = 'hopscotch.builder.scenarios.v2';
+export type BuilderScenario = BuilderScenarioV3;
+
+const STORAGE_KEY = 'hopscotch.builder.scenarios.v3';
+const LEGACY_STORAGE_KEY = 'hopscotch.builder.scenarios.v2';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -120,23 +139,22 @@ function layoutForGraph(layout: BuilderLayout, graph: BuilderGraph): BuilderLayo
   return scoped;
 }
 
-function migrateV1(raw: Record<string, unknown>): BuilderScenarioV2 {
-  const graph = validateGraph({ nodes: raw.nodes, links: raw.links });
-  return validateV2({ ...raw, version: 2, graph });
-}
-
-function validateV2(raw: Record<string, unknown>): BuilderScenarioV2 {
-  if (raw.schema !== 'hopscotch.builder' || raw.version !== 2) throw new Error('Unsupported HOPSCOTCH Builder schema/version.');
+function validateV3(raw: Record<string, unknown>): BuilderScenarioV3 {
+  if (raw.schema !== 'hopscotch.builder' || raw.version !== 3) throw new Error('Unsupported HOPSCOTCH Builder schema/version.');
   const graph = validateGraph(raw.graph);
   const sourceId = assertString(raw.sourceId, 'sourceId', 48);
   const destinationId = assertString(raw.destinationId, 'destinationId', 48);
   const ids = new Set(graph.nodes.map((node) => node.id));
   if (!ids.has(sourceId) || !ids.has(destinationId)) throw new Error('Source and destination must reference nodes that exist.');
+  if (!isRecord(raw.addressing) || !isRecord(raw.addressing.segments) || !isRecord(raw.addressing.defaultGateways)) {
+    throw new Error('Builder schema v3 requires explicit L3 addressing.');
+  }
   return {
     schema: 'hopscotch.builder',
-    version: 2,
+    version: 3,
     name: assertString(raw.name, 'Scenario name', 80),
     graph,
+    addressing: validateBuilderAddressing(graph, raw.addressing as unknown as BuilderAddressing),
     sourceId,
     destinationId,
     layout: validateLayout(raw.layout, graph),
@@ -145,7 +163,33 @@ function validateV2(raw: Record<string, unknown>): BuilderScenarioV2 {
   };
 }
 
-export function deserializeBuilderScenario(text: string): BuilderScenarioV2 {
+function migrateV1(raw: Record<string, unknown>): BuilderScenarioV3 {
+  const graph = validateGraph({ nodes: raw.nodes, links: raw.links });
+  return validateV3({
+    ...raw,
+    version: 3,
+    graph,
+    addressing: createDefaultBuilderAddressing(graph),
+  });
+}
+
+function migrateV2(raw: Record<string, unknown>): BuilderScenarioV3 {
+  const graph = validateGraph(raw.graph);
+  return validateV3({
+    ...raw,
+    version: 3,
+    graph,
+    addressing: createDefaultBuilderAddressing(graph),
+  });
+}
+
+function normalizeScenarioRecord(raw: Record<string, unknown>): BuilderScenarioV3 {
+  if (raw.version === 1) return migrateV1(raw);
+  if (raw.version === 2) return migrateV2(raw);
+  return validateV3(raw);
+}
+
+export function deserializeBuilderScenario(text: string): BuilderScenarioV3 {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -153,21 +197,29 @@ export function deserializeBuilderScenario(text: string): BuilderScenarioV2 {
     throw new Error('Scenario file is not valid JSON.');
   }
   if (!isRecord(raw) || raw.schema !== 'hopscotch.builder') throw new Error('File is not a HOPSCOTCH Builder scenario.');
-  if (raw.version === 1) return migrateV1(raw);
-  return validateV2(raw);
+  return normalizeScenarioRecord(raw);
 }
 
-export function serializeBuilderScenario(scenario: BuilderScenarioV2): string {
-  return JSON.stringify(validateV2(scenario as unknown as Record<string, unknown>), null, 2);
+export function serializeBuilderScenario(scenario: BuilderScenarioV3): string {
+  return JSON.stringify(validateV3(scenario as unknown as Record<string, unknown>), null, 2);
 }
 
-export function createBuilderScenario(name: string, graph: BuilderGraph, sourceId: string, destinationId: string, layout: BuilderLayout, existing?: BuilderScenarioV2): BuilderScenarioV2 {
+export function createBuilderScenario(
+  name: string,
+  graph: BuilderGraph,
+  sourceId: string,
+  destinationId: string,
+  layout: BuilderLayout,
+  addressing: BuilderAddressing = createDefaultBuilderAddressing(graph),
+  existing?: BuilderScenarioV3,
+): BuilderScenarioV3 {
   const now = new Date().toISOString();
-  return validateV2({
+  return validateV3({
     schema: 'hopscotch.builder',
-    version: 2,
+    version: 3,
     name,
     graph: cloneBuilderGraph(graph),
+    addressing,
     sourceId,
     destinationId,
     layout: layoutForGraph(layout, graph),
@@ -176,39 +228,53 @@ export function createBuilderScenario(name: string, graph: BuilderGraph, sourceI
   });
 }
 
-export function listStoredBuilderScenarios(): BuilderScenarioV2[] {
+function parseStoredList(rawText: string | null): BuilderScenarioV3[] {
+  if (!rawText) return [];
+  const parsed: unknown = JSON.parse(rawText);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.flatMap((item) => {
+    try {
+      return isRecord(item) ? [normalizeScenarioRecord(item)] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
+export function listStoredBuilderScenarios(): BuilderScenarioV3[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.flatMap((item) => {
-      try {
-        if (!isRecord(item)) return [];
-        return [item.version === 1 ? migrateV1(item) : validateV2(item)];
-      } catch {
-        return [];
-      }
-    }).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const current = parseStoredList(window.localStorage.getItem(STORAGE_KEY));
+    const legacy = parseStoredList(window.localStorage.getItem(LEGACY_STORAGE_KEY));
+    const byName = new Map<string, BuilderScenarioV3>();
+    for (const scenario of [...current, ...legacy].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
+      if (!byName.has(scenario.name)) byName.set(scenario.name, scenario);
+    }
+    return [...byName.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   } catch {
     return [];
   }
 }
 
-export function saveStoredBuilderScenario(scenario: BuilderScenarioV2): BuilderScenarioV2[] {
-  const validated = validateV2(scenario as unknown as Record<string, unknown>);
+export function saveStoredBuilderScenario(scenario: BuilderScenarioV3): BuilderScenarioV3[] {
+  const validated = validateV3(scenario as unknown as Record<string, unknown>);
   const next = [validated, ...listStoredBuilderScenarios().filter((item) => item.name !== validated.name)].slice(0, 24);
-  if (typeof window !== 'undefined') window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+  }
   return next;
 }
 
-export function deleteStoredBuilderScenario(name: string): BuilderScenarioV2[] {
+export function deleteStoredBuilderScenario(name: string): BuilderScenarioV3[] {
   const next = listStoredBuilderScenarios().filter((item) => item.name !== name);
-  if (typeof window !== 'undefined') window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+  }
   return next;
 }
 
-export function defaultBuilderScenario(): BuilderScenarioV2 {
-  return createBuilderScenario('Default topology', defaultBuilderGraph, 'client', 'app', defaultBuilderLayout);
+export function defaultBuilderScenario(): BuilderScenarioV3 {
+  return createBuilderScenario('Default topology', defaultBuilderGraph, 'client', 'app', defaultBuilderLayout, createDefaultBuilderAddressing(defaultBuilderGraph));
 }

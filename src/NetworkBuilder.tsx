@@ -1,6 +1,16 @@
 import { motion, useReducedMotion } from 'motion/react';
 import { useMemo, useRef, useState } from 'react';
 import {
+  cloneBuilderAddressing,
+  createDefaultBuilderAddressing,
+  interfacesForBuilderNode,
+  reconcileBuilderAddressing,
+  replaceBuilderDefaultGateway,
+  replaceBuilderInterfaceAddress,
+  replaceBuilderSegmentCidr,
+  type BuilderAddressing,
+} from './builder/addressing.ts';
+import {
   BUILDER_LIMITS,
   cloneBuilderGraph,
   cloneBuilderLayout,
@@ -22,7 +32,7 @@ import {
   listStoredBuilderScenarios,
   saveStoredBuilderScenario,
   serializeBuilderScenario,
-  type BuilderScenarioV2,
+  type BuilderScenarioV3,
 } from './builder/scenario';
 import './NetworkBuilder.css';
 
@@ -35,30 +45,37 @@ function chooseValidNode(graph: BuilderGraph, preferred: string, avoid?: string)
   return graph.nodes.find((node) => node.id !== avoid)?.id ?? '';
 }
 
-export function NetworkBuilder({ onExit, onOpenFailureStory, initialGraph = defaultBuilderGraph, initialLayout = defaultBuilderLayout, initialSourceId = 'client', initialDestinationId = 'app', stressLabel }: { onExit: () => void; onOpenFailureStory: () => void; initialGraph?: BuilderGraph; initialLayout?: BuilderLayout; initialSourceId?: string; initialDestinationId?: string; stressLabel?: string }) {
+export function NetworkBuilder({ onExit, onOpenFailureStory, initialGraph = defaultBuilderGraph, initialLayout = defaultBuilderLayout, initialAddressing, initialSourceId = 'client', initialDestinationId = 'app', stressLabel }: { onExit: () => void; onOpenFailureStory: () => void; initialGraph?: BuilderGraph; initialLayout?: BuilderLayout; initialAddressing?: BuilderAddressing; initialSourceId?: string; initialDestinationId?: string; stressLabel?: string }) {
   const reduceMotion = useReducedMotion();
   const canvasRef = useRef<HTMLDivElement>(null);
   const [graph, setGraph] = useState<BuilderGraph>(() => cloneBuilderGraph(initialGraph));
+  const [addressing, setAddressing] = useState<BuilderAddressing>(() => cloneBuilderAddressing(initialAddressing ?? createDefaultBuilderAddressing(initialGraph)));
   const [layout, setLayout] = useState<BuilderLayout>(() => cloneBuilderLayout(initialLayout));
   const [sourceId, setSourceId] = useState(initialSourceId);
   const [destinationId, setDestinationId] = useState(initialDestinationId);
+  const [selectedNodeId, setSelectedNodeId] = useState(initialSourceId);
   const [selectedLinkId, setSelectedLinkId] = useState(() => initialGraph.links[0]?.id ?? '');
   const [newLinkA, setNewLinkA] = useState(() => initialGraph.nodes[0]?.id ?? '');
   const [newLinkB, setNewLinkB] = useState(() => initialGraph.nodes[1]?.id ?? initialGraph.nodes[0]?.id ?? '');
   const [newLinkCost, setNewLinkCost] = useState(5);
   const [scenarioName, setScenarioName] = useState('My topology');
-  const [saved, setSaved] = useState<BuilderScenarioV2[]>(() => listStoredBuilderScenarios());
+  const [saved, setSaved] = useState<BuilderScenarioV3[]>(() => listStoredBuilderScenarios());
   const [message, setMessage] = useState('Graph truth and layout are separate. Dragging never changes route cost.');
   const route = useMemo(() => findShortestPath(graph, sourceId, destinationId), [graph, sourceId, destinationId]);
   const selectedLink = graph.links.find((link) => link.id === selectedLinkId) ?? graph.links[0];
+  const selectedNode = graph.nodes.find((node) => node.id === selectedNodeId) ?? graph.nodes[0];
+  const selectedSegment = selectedLink ? addressing.segments[selectedLink.id] : undefined;
+  const selectedNodeInterfaces = selectedNode ? interfacesForBuilderNode(addressing, selectedNode.id) : [];
   const activeLinks = new Set(route.linkIds);
 
   const commitGraph = (next: BuilderGraph) => {
     setGraph(next);
+    setAddressing((current) => reconcileBuilderAddressing(next, current));
     const nextSource = chooseValidNode(next, sourceId);
     const nextDestination = chooseValidNode(next, destinationId, nextSource) || nextSource;
     setSourceId(nextSource);
     setDestinationId(nextDestination);
+    if (!next.nodes.some((node) => node.id === selectedNodeId)) setSelectedNodeId(nextSource);
     if (!next.links.some((link) => link.id === selectedLinkId)) setSelectedLinkId(next.links[0]?.id ?? '');
     setNewLinkA(chooseValidNode(next, newLinkA));
     setNewLinkB(chooseValidNode(next, newLinkB, chooseValidNode(next, newLinkA)));
@@ -108,8 +125,9 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, initialGraph = defa
 
   const resetTopology = () => {
     setGraph(cloneBuilderGraph(initialGraph));
-    setSourceId(initialSourceId); setDestinationId(initialDestinationId); setSelectedLinkId(initialGraph.links[0]?.id ?? ''); setNewLinkA(initialGraph.nodes[0]?.id ?? ''); setNewLinkB(initialGraph.nodes[1]?.id ?? initialGraph.nodes[0]?.id ?? ''); setNewLinkCost(5);
-    setMessage('Topology truth reset. Layout was left untouched.');
+    setAddressing(cloneBuilderAddressing(initialAddressing ?? createDefaultBuilderAddressing(initialGraph)));
+    setSourceId(initialSourceId); setDestinationId(initialDestinationId); setSelectedNodeId(initialSourceId); setSelectedLinkId(initialGraph.links[0]?.id ?? ''); setNewLinkA(initialGraph.nodes[0]?.id ?? ''); setNewLinkB(initialGraph.nodes[1]?.id ?? initialGraph.nodes[0]?.id ?? ''); setNewLinkCost(5);
+    setMessage('Topology and L3 address plan reset. Visual layout was left untouched.');
   };
 
   const resetLayout = () => {
@@ -122,25 +140,25 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, initialGraph = defa
   const saveScenario = () => {
     try {
       const existing = saved.find((item) => item.name === scenarioName);
-      const scenario = createBuilderScenario(scenarioName.trim() || 'Untitled topology', graph, sourceId, destinationId, layout, existing);
+      const scenario = createBuilderScenario(scenarioName.trim() || 'Untitled topology', graph, sourceId, destinationId, layout, addressing, existing);
       setSaved(saveStoredBuilderScenario(scenario));
       setMessage(`Saved “${scenario.name}” locally as Builder schema v2.`);
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Unable to save scenario.'); }
   };
 
-  const restoreScenario = (scenario: BuilderScenarioV2) => {
-    setGraph(cloneBuilderGraph(scenario.graph)); setLayout(cloneBuilderLayout(scenario.layout)); setSourceId(scenario.sourceId); setDestinationId(scenario.destinationId);
-    setSelectedLinkId(scenario.graph.links[0]?.id ?? ''); setScenarioName(scenario.name);
+  const restoreScenario = (scenario: BuilderScenarioV3) => {
+    setGraph(cloneBuilderGraph(scenario.graph)); setAddressing(cloneBuilderAddressing(scenario.addressing)); setLayout(cloneBuilderLayout(scenario.layout)); setSourceId(scenario.sourceId); setDestinationId(scenario.destinationId);
+    setSelectedNodeId(scenario.sourceId); setSelectedLinkId(scenario.graph.links[0]?.id ?? ''); setScenarioName(scenario.name);
     setMessage(`Restored “${scenario.name}”. Route recomputed from graph truth.`);
   };
 
   const exportScenario = () => {
     try {
-      const scenario = createBuilderScenario(scenarioName.trim() || 'Exported topology', graph, sourceId, destinationId, layout);
+      const scenario = createBuilderScenario(scenarioName.trim() || 'Exported topology', graph, sourceId, destinationId, layout, addressing);
       const blob = new Blob([serializeBuilderScenario(scenario)], { type: 'application/json' });
       const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
       anchor.href = url; anchor.download = `${scenario.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'hopscotch-topology'}.hopscotch.json`; anchor.click(); URL.revokeObjectURL(url);
-      setMessage('Scenario v2 exported as portable JSON.');
+      setMessage('Scenario v3 exported with topology, layout, and IPv4 addressing.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Export failed.'); }
   };
 
@@ -186,7 +204,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, initialGraph = defa
               const point = layout[node.id]; if (!point) return null;
               const onRoute = route.nodeIds.includes(node.id);
               return <div key={node.id} className="builder-node-anchor" style={{ left: `${point.x}%`, top: `${point.y}%` }}>
-                <motion.div className={`builder-node ${node.kind} ${onRoute ? 'on-route' : ''}`} drag dragMomentum={false} dragElastic={0} onDragEnd={(_, info) => onNodeDragEnd(node.id, info.offset.x, info.offset.y)} whileDrag={reduceMotion ? undefined : { scale: 1.08, zIndex: 8 }}>
+                <motion.div className={`builder-node ${node.kind} ${onRoute ? 'on-route' : ''} ${selectedNode?.id === node.id ? 'selected' : ''}`} drag dragMomentum={false} dragElastic={0} onPointerDown={() => setSelectedNodeId(node.id)} onDragEnd={(_, info) => onNodeDragEnd(node.id, info.offset.x, info.offset.y)} whileDrag={reduceMotion ? undefined : { scale: 1.08, zIndex: 8 }}>
                   <span>{node.kind === 'router' ? 'RTR' : 'END'}</span><strong>{node.label}</strong>{!node.builtin && <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => deleteNode(node.id)} aria-label={`Delete ${node.label}`}>×</button>}
                 </motion.div>
               </div>;
@@ -199,8 +217,10 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, initialGraph = defa
         <aside className="builder-controls">
           <section><div className="control-title"><span>ENDPOINTS</span><strong>ROUTE QUERY</strong></div><label>SOURCE<select value={sourceId} onChange={(e)=>setSourceId(e.currentTarget.value)}>{graph.nodes.map((node)=><option key={node.id} value={node.id}>{node.label}</option>)}</select></label><label>DESTINATION<select value={destinationId} onChange={(e)=>setDestinationId(e.currentTarget.value)}>{graph.nodes.map((node)=><option key={node.id} value={node.id}>{node.label}</option>)}</select></label></section>
           <section><div className="control-title"><span>SELECTED LINK</span><strong>{selectedLink ? `${labelFor(graph,selectedLink.a)} ↔ ${labelFor(graph,selectedLink.b)}` : 'NONE'}</strong></div>{selectedLink && <><label>COST<input type="number" min={1} max={999} value={selectedLink.cost} onChange={(e)=>updateLink(selectedLink.id,{cost:Math.max(1,Math.min(999,Math.round(Number(e.currentTarget.value)||1)))})}/></label><div className="button-row"><button type="button" onClick={()=>updateLink(selectedLink.id,{failed:!selectedLink.failed})}>{selectedLink.failed?'RESTORE':'FAIL LINK'}</button><button type="button" onClick={()=>deleteLink(selectedLink.id)}>DELETE</button></div></>}</section>
+          <section className="builder-l3-section"><div className="control-title"><span>L3 SEGMENT</span><strong>{selectedSegment?.cidr ?? 'NONE'}</strong></div>{selectedLink && selectedSegment && <><label>NETWORK CIDR<input key={`${selectedLink.id}-${selectedSegment.cidr}`} defaultValue={selectedSegment.cidr} onBlur={(event)=>{try{const next=replaceBuilderSegmentCidr(graph,addressing,selectedLink.id,event.currentTarget.value);setAddressing(next);setMessage(`${labelFor(graph,selectedLink.a)} ↔ ${labelFor(graph,selectedLink.b)} renumbered to ${next.segments[selectedLink.id].cidr}. Weighted path cost is unchanged.`);}catch(error){setMessage(`ADDRESSING REJECTED · ${error instanceof Error?error.message:'Invalid IPv4 segment.'}`);event.currentTarget.value=selectedSegment.cidr;}}}/></label><div className="builder-interface-grid">{selectedSegment.interfaces.map((entry)=><label key={`${selectedLink.id}-${entry.nodeId}-${entry.address}`}>{labelFor(graph,entry.nodeId)} · {entry.name}<input defaultValue={entry.address} onBlur={(event)=>{try{const next=replaceBuilderInterfaceAddress(graph,addressing,selectedLink.id,entry.nodeId,event.currentTarget.value);setAddressing(next);setMessage(`${entry.nodeId.toUpperCase()} ${entry.name} is now ${next.segments[selectedLink.id].interfaces.find((item)=>item.nodeId===entry.nodeId)?.address}. Weighted route truth is unchanged.`);}catch(error){setMessage(`ADDRESSING REJECTED · ${error instanceof Error?error.message:'Invalid interface address.'}`);event.currentTarget.value=entry.address;}}}/></label>)}</div><small className="builder-l3-note">IPV4 METADATA · DOES NOT CHANGE LINK COST · ROUTE TABLES NEXT</small></>}</section>
+          <section className="builder-device-section"><div className="control-title"><span>SELECTED DEVICE</span><strong>{selectedNode ? `${selectedNode.kind.toUpperCase()} · ${selectedNodeInterfaces.length} IF` : 'NONE'}</strong></div>{selectedNode && <><div className="builder-interface-list">{selectedNodeInterfaces.length===0?<small>NO INTERFACES · CONNECT THIS DEVICE TO A LINK</small>:selectedNodeInterfaces.map((entry)=><div key={`${entry.linkId}-${entry.name}`}><span>{entry.name}</span><strong>{entry.address}</strong><small>{entry.cidr} · {entry.linkId.toUpperCase()}</small></div>)}</div>{selectedNode.kind==='endpoint'&&<label>DEFAULT GATEWAY<input key={`${selectedNode.id}-${addressing.defaultGateways[selectedNode.id]??'none'}`} defaultValue={addressing.defaultGateways[selectedNode.id]??''} placeholder="NONE" onBlur={(event)=>{try{const next=replaceBuilderDefaultGateway(graph,addressing,selectedNode.id,event.currentTarget.value||null);setAddressing(next);setMessage(`${selectedNode.label} default gateway ${next.defaultGateways[selectedNode.id]??'cleared'}.`);}catch(error){setMessage(`GATEWAY REJECTED · ${error instanceof Error?error.message:'Invalid default gateway.'}`);event.currentTarget.value=addressing.defaultGateways[selectedNode.id]??'';}}}/></label>}</>}</section>
           <section><div className="control-title"><span>AUTHOR</span><strong>TOPOLOGY</strong></div><div className="button-row"><button type="button" onClick={()=>addNode('router')}>+ ROUTER</button><button type="button" onClick={()=>addNode('endpoint')}>+ ENDPOINT</button></div><div className="link-form"><select value={newLinkA} onChange={(e)=>setNewLinkA(e.currentTarget.value)}>{graph.nodes.map((node)=><option key={node.id} value={node.id}>{node.label}</option>)}</select><span>↔</span><select value={newLinkB} onChange={(e)=>setNewLinkB(e.currentTarget.value)}>{graph.nodes.map((node)=><option key={node.id} value={node.id}>{node.label}</option>)}</select><input aria-label="New link cost" type="number" min={1} max={999} value={newLinkCost} onChange={(e)=>setNewLinkCost(Math.max(1,Math.min(999,Math.round(Number(e.currentTarget.value)||1))))}/><button type="button" onClick={addLink}>ADD LINK</button></div></section>
-          <section><div className="control-title"><span>SCENARIOS</span><strong>SCHEMA V2</strong></div><label>NAME<input value={scenarioName} maxLength={80} onChange={(e)=>setScenarioName(e.currentTarget.value)}/></label><div className="button-row"><button type="button" onClick={saveScenario}>SAVE</button><button type="button" onClick={exportScenario}>EXPORT JSON</button><label className="file-button">IMPORT<input type="file" accept="application/json,.json" onChange={(e)=>void importScenario(e.currentTarget.files?.[0])}/></label></div><div className="saved-list">{saved.length===0?<small>NO SAVED SCENARIOS</small>:saved.map((scenario)=><div key={scenario.name}><button type="button" onClick={()=>restoreScenario(scenario)}><strong>{scenario.name}</strong><small>{scenario.graph.nodes.length}N · {scenario.graph.links.length}L</small></button><button type="button" aria-label={`Delete ${scenario.name}`} onClick={()=>setSaved(deleteStoredBuilderScenario(scenario.name))}>×</button></div>)}</div></section>
+          <section><div className="control-title"><span>SCENARIOS</span><strong>SCHEMA V3 · L3</strong></div><label>NAME<input value={scenarioName} maxLength={80} onChange={(e)=>setScenarioName(e.currentTarget.value)}/></label><div className="button-row"><button type="button" onClick={saveScenario}>SAVE</button><button type="button" onClick={exportScenario}>EXPORT JSON</button><label className="file-button">IMPORT<input type="file" accept="application/json,.json" onChange={(e)=>void importScenario(e.currentTarget.files?.[0])}/></label></div><div className="saved-list">{saved.length===0?<small>NO SAVED SCENARIOS</small>:saved.map((scenario)=><div key={scenario.name}><button type="button" onClick={()=>restoreScenario(scenario)}><strong>{scenario.name}</strong><small>{scenario.graph.nodes.length}N · {scenario.graph.links.length}L</small></button><button type="button" aria-label={`Delete ${scenario.name}`} onClick={()=>setSaved(deleteStoredBuilderScenario(scenario.name))}>×</button></div>)}</div></section>
           <section className="reset-section"><div className="button-row"><button type="button" onClick={resetTopology}>RESET TOPOLOGY</button><button type="button" onClick={resetLayout}>RESET LAYOUT</button></div></section>
         </aside>
       </div>
