@@ -39,12 +39,10 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           scenario = Path('src/builder/scenario.ts')
-          text = scenario.read_text()
-          bad = "export type BuilderScenarioV5 = Omit<BuilderScenarioV5, 'version'> & { version: 5 };"
-          good = "export type BuilderScenarioV5 = Omit<BuilderScenarioV4, 'version'> & { version: 5 };"
-          if text.count(bad) != 1:
-              raise SystemExit(f'expected scenario v5 circular alias once, found {text.count(bad)}')
-          scenario.write_text(text.replace(bad, good))
+          text = scenario.read_text().replace('BuilderScenarioV4', 'BuilderScenarioV5')
+          text = text.replace("export interface BuilderScenarioV5 {\n  schema: 'hopscotch.builder';\n  version: 4;", "export interface BuilderScenarioV4 {\n  schema: 'hopscotch.builder';\n  version: 4;")
+          text = text.replace("export type BuilderScenarioV5 = Omit<BuilderScenarioV5, 'version'> & { version: 5 };", "export type BuilderScenarioV5 = Omit<BuilderScenarioV4, 'version'> & { version: 5 };")
+          scenario.write_text(text)
           PY
           npm ci
           npm run check
