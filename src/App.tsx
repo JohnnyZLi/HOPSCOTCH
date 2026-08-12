@@ -1,6 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useMemo, useState } from 'react';
 import { DnsTheater } from './DnsTheater';
+import { ExploreLauncher, type ExploreDestination } from './ExploreLauncher';
 import { HttpComparisonTheater } from './HttpComparisonTheater';
 import { JourneyScenarioMenu } from './JourneyScenarioMenu';
 import { JourneyTheater } from './JourneyTheater';
@@ -47,6 +48,7 @@ export default function App() {
   const initialSharedJourney = initialJourneyBootstrap.scenario;
   const [layer, setLayer] = useState<NetworkLayer>(initialSharedJourney ? 'application' : 'internet');
   const [mode, setMode] = useState<DisplayMode>('overview');
+  const [exploreOpen, setExploreOpen] = useState(false);
   const [activeLab, setActiveLab] = useState<ActiveLab>(initialSharedJourney ? 'journey' : null);
   const [labXray, setLabXray] = useState(true);
   const [timeMs, setTimeMs] = useState(0);
@@ -124,6 +126,24 @@ export default function App() {
     setJourneyScenarioName('');
     setActiveLab('journey');
   };
+  const selectExploreDestination = (destination: ExploreDestination) => {
+    const openers: Record<ExploreDestination, () => void> = {
+      journey: openJourney,
+      failure: () => openFailureLab(0, true),
+      builder: openBuilderLab,
+      packet: openPacketLab,
+      tcp: openTcpLab,
+      dns: openDnsLab,
+      tls: openTlsLab,
+      http: openHttpLab,
+      internet: openInternetLab,
+      physical: openPhysicalInternet,
+      observed: openObservedInternet,
+      measured: openMeasuredNetwork,
+    };
+    setExploreOpen(false);
+    openers[destination]();
+  };
   const openJourneyDetail = (lab: JourneyDetailLab, atMs: number) => {
     const detailLayer: Record<JourneyDetailLab, NetworkLayer> = {
       dns: 'application', tcp: 'transport', tls: 'application', http: 'application', packet: 'packet',
@@ -154,7 +174,7 @@ export default function App() {
     setActiveLab('journey');
     setJourneyRenderKey((current) => current + 1);
   };
-  const exitLabs = () => { setPlaying(false); setJourneyReturnPending(false); setActiveLab(null); };
+  const exitLabs = () => { setPlaying(false); setJourneyReturnPending(false); setExploreOpen(false); setActiveLab(null); };
   const exitActiveLab = () => {
     setPlaying(false);
     if (journeyReturnPending && activeLab !== 'journey') {
@@ -235,9 +255,14 @@ export default function App() {
           <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
           <strong>HOPSCOTCH</strong>
         </button>
-        <div className="build-state"><span>{buildLabel}</span><span className={`status-dot${failureLabActive ? ` phase-${labState.phase}` : ''}`}>{buildStatus}</span></div>
-        {activeLab === 'journey' && <JourneyScenarioMenu hostname={journeyHostname} timeMs={journeyTimeMs} name={journeyScenarioName} onNameChange={setJourneyScenarioName} onImportScenario={importJourneyScenario} />}
+        <div className="topbar-meta">
+          <button className="explore-trigger" type="button" onClick={() => setExploreOpen(true)}>EXPLORE <span>12 LABS</span></button>
+          <div className="build-state"><span>{buildLabel}</span><span className={`status-dot${failureLabActive ? ` phase-${labState.phase}` : ''}`}>{buildStatus}</span></div>
+          {activeLab === 'journey' && <JourneyScenarioMenu hostname={journeyHostname} timeMs={journeyTimeMs} name={journeyScenarioName} onNameChange={setJourneyScenarioName} onImportScenario={importJourneyScenario} />}
+        </div>
       </motion.header>
+
+      <ExploreLauncher open={exploreOpen} onClose={() => setExploreOpen(false)} onSelect={selectExploreDestination} />
 
       <AnimatePresence mode="wait" initial={false}>
         {!activeLab ? (
@@ -248,6 +273,7 @@ export default function App() {
               <motion.p className="lede" initial={reduceMotion ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28, duration: 0.7 }}>Move from the global Internet to a single packet without losing the story in between. Routes, protocols, failures, and recovery become something you can watch, stop, rewind, build, and interrogate.</motion.p>
               <motion.div className="hero-actions" initial={reduceMotion ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38, duration: 0.65 }}>
                 <motion.button className="primary-action" type="button" onClick={openJourney} whileHover={reduceMotion ? undefined : { y: -2, scale: 1.015 }} whileTap={reduceMotion ? undefined : { scale: 0.985 }}>Play URL journey<span aria-hidden="true">↗</span></motion.button>
+                <button className="explore-hero-action" type="button" onClick={() => setExploreOpen(true)}>Explore labs<span>12 labs ↗</span></button>
                 <button className="text-action text-button" type="button" onClick={openMeasuredNetwork}>Inspect measured report</button>
                 <button className="text-action text-button" type="button" onClick={overviewAction.run}>{overviewAction.label}</button>
                 <button className="text-action text-button" type="button" onClick={() => setMode((current) => (current === 'overview' ? 'xray' : 'overview'))}>{mode === 'overview' ? 'Preview X-ray' : 'Hide X-ray'}</button>
