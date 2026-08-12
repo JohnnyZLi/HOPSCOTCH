@@ -352,6 +352,17 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] home action component stays presentation-only and cannot import Journey, simulation, or measurement truth
 - [x] permanent home-action contract wired into `npm run check`
 
+
+### 10D — One-click scenario gallery
+- [x] expose eight curated failure/protocol stories inside Explore without increasing the lab count
+- [x] DNS outage, route failover, mid-transfer path outage, congestion, BGP route leak, terminal partition, HTTP 503, and QUIC loss presets
+- [x] every preset maps to an existing canonical Journey modifier; no gallery-specific event generator exists
+- [x] preset selection launches Journey from t=0 with autoplay so the causal story is visible from the beginning
+- [x] preset URLs use the existing Journey share-query codec under `/journey?...`
+- [x] scenario catalog/presentation stays separate from Journey construction truth
+- [x] responsive gallery collapses from 4-column → 2-column → compact mobile rows
+- [x] permanent scenario-gallery contract wired into `npm run check`
+
 ## Performance + rendering — ongoing
 
 - [x] DOM/CSS for controls and text
