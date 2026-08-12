@@ -107,6 +107,10 @@ The exact built Vite HTML/CSS/JS bytes were audited directly in Linux Chromium r
 
 The local Playwright screenshot driver may scroll the document when it must bring an off-screen mobile causal-rail button into view before clicking it; that driver-induced scroll is not product auto-follow. The permanent CDP compatibility runner clicks events without browser scroll-into-view and independently enforces `scrollY === 0` for routing, DNS, transport, mismatch, and cleared-Journey states.
 
+## Shared architecture state
+
+ROADMAP, ARCHITECTURE, and README are synchronized to the implemented behavior. The measured/native roadmap now marks target-scoped reuse inside existing semantic scenes complete. The remaining native direction is optional local transport/discovery that must feed the same validated Network Diagnostics → native measurement → measured-state path.
+
 ## Still out of scope
 
 - automatic localhost discovery/transport
@@ -115,4 +119,4 @@ The local Playwright screenshot driver may scroll the document when it must brin
 - drawing a continuous measured route from separate diagnostic targets
 - declaring measured/public/simulated sources globally agree or disagree
 
-Shared ROADMAP/ARCHITECTURE/README synchronization and one final clean-tree CI + Performance + Compatibility pass remain the merge gate.
+The final merge gate is one ordinary read-only CI + Performance + Compatibility pass on this exact permanent tree.
