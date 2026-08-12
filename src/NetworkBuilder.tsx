@@ -50,7 +50,7 @@ import {
   type BuilderScenarioV6,
 } from './builder/scenario';
 import { runBuilderProbe, type BuilderProbePacketSeed, type BuilderProbeResult } from './builder/probes.ts';
-import { cloneBuilderEthernetConfig, createDefaultBuilderEthernetConfig, parseBuilderAllowedVlans, runBuilderEthernetFlow, updateBuilderEthernetLink, type BuilderEthernetConfig, type BuilderEthernetFlowResult } from './builder/ethernet.ts';
+import { cloneBuilderEthernetConfig, createDefaultBuilderEthernetConfig, createEmptyBuilderEthernetConfig, parseBuilderAllowedVlans, runBuilderEthernetFlow, updateBuilderEthernetLink, type BuilderEthernetConfig, type BuilderEthernetFlowResult } from './builder/ethernet.ts';
 import './NetworkBuilder.css';
 
 function labelFor(graph: BuilderGraph, id: string): string {
@@ -68,7 +68,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const [graph, setGraph] = useState<BuilderGraph>(() => cloneBuilderGraph(initialGraph));
   const [addressing, setAddressing] = useState<BuilderAddressing>(() => cloneBuilderAddressing(initialAddressing ?? createDefaultBuilderAddressing(initialGraph)));
   const [routing, setRouting] = useState<BuilderRoutingConfig>(() => cloneBuilderRoutingConfig(initialRouting ?? createDefaultBuilderRoutingConfig()));
-  const [ethernet, setEthernet] = useState<BuilderEthernetConfig>(() => cloneBuilderEthernetConfig(initialEthernet ?? createDefaultBuilderEthernetConfig()));
+  const [ethernet, setEthernet] = useState<BuilderEthernetConfig>(() => cloneBuilderEthernetConfig(initialEthernet ?? (stressLabel ? createEmptyBuilderEthernetConfig() : createDefaultBuilderEthernetConfig())));
   const [layout, setLayout] = useState<BuilderLayout>(() => cloneBuilderLayout(initialLayout));
   const [sourceId, setSourceId] = useState(initialSourceId);
   const [destinationId, setDestinationId] = useState(initialDestinationId);

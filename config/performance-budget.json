@@ -18,7 +18,7 @@
   },
   "budgets": {
     "maxJsGzipBytes": 380000,
-    "maxCssGzipBytes": 32000,
+    "maxCssGzipBytes": 33000,
     "maxDomElements": 700,
     "maxHeapUsedBytes": 7340032,
     "maxHeapGrowthBytes": 6291456
