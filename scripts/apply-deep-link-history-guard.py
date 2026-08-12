@@ -20,7 +20,7 @@ new = """const browserHistoryRoutingAvailable = typeof window !== 'undefined'
 
 const initialAppRoute = browserHistoryRoutingAvailable
   ? resolveAppRoute(window.location.pathname, window.location.search)
-  : resolveAppRoute('/', '');
+  : resolveAppRoute('/', typeof window === 'undefined' ? '' : window.location.search);
 """
 app = replace_once(app, old, new, 'initial browser history guard')
 
@@ -48,9 +48,10 @@ if contract.count(anchor) != 1:
 contract = contract.replace(
     anchor,
     "assert.match(app, /window\\.location\\.protocol === 'http:' \\|\\| window\\.location\\.protocol === 'https:'/);\n" +
+    "assert.match(app, /resolveAppRoute\\('\/', typeof window === 'undefined' \\? '' : window\\.location\\.search\\)/);\n" +
     "assert.match(app, /window\\.history\\.pushState/);\n",
     1,
 )
 contract_path.write_text(contract)
 
-print('Applied non-HTTP history guard for exact-artifact browser harnesses.')
+print('Applied non-HTTP history guard while preserving Journey query bootstrap for exact-artifact browser harnesses.')
