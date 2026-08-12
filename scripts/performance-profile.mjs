@@ -293,8 +293,8 @@ profiles.push(
 );
 
 if (compatibility) profiles.push(
-{ id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['OSPF CONTROL PLANE', 'REACHABLE', '1 DOWN', 'via 10.0.0.14', 'OSPF AD 110'] },
-{ id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['OSPF CONTROL PLANE', 'REACHABLE', '1 DOWN', 'via 10.0.0.14'] },
+{ id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'DERIVED FDB'] },
+{ id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20'] },
 { id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', 'NOT PROMOTED TO LOCAL MEASURED'] },
   { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
   { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
@@ -375,8 +375,8 @@ async function exerciseBuilderOspf(cdp, profile) {
     return true;
   })()`);
   if (!selectedLink) throw new Error(`${profile.id} could not select edge-r1.`);
-  await waitForExpression(cdp, `document.querySelector('.builder-controls section:nth-of-type(2) .control-title')?.innerText.includes('EDGE ↔ R1')`, 8000);
-  await measuredClickButton(cdp, '.builder-controls section:nth-of-type(2) button', 'FAIL LINK');
+  await waitForExpression(cdp, `document.querySelector('.builder-link-section .control-title')?.innerText.includes('EDGE ↔ R1')`, 8000);
+  await measuredClickButton(cdp, '.builder-link-section button', 'FAIL LINK');
   await waitForExpression(cdp, `document.querySelector('.builder-ospf-summary')?.innerText.includes('4 FULL') && document.querySelector('.builder-ospf-summary')?.innerText.includes('1 DOWN')`, 8000);
   await waitForExpression(cdp, `document.querySelector('.builder-forwarding')?.innerText.includes('EDGE → R2 → CORE')`, 8000);
   await waitForExpression(cdp, `document.querySelector('.builder-route-table')?.innerText.includes('via 10.0.0.14')`, 8000);
@@ -387,9 +387,88 @@ async function exerciseBuilderOspf(cdp, profile) {
   if (!failed.routeTable.includes('10.0.0.4/30') || !failed.routeTable.includes('via 10.0.0.14')) throw new Error(`${profile.id} EDGE did not reconverge the app subnet through R2.`);
   if (!failed.routeTable.includes('AD 110')) throw new Error(`${profile.id} OSPF route lost its administrative-distance teaching state.`);
 
+  // Lab 11D: the same routed failure state must be observable by an active traceroute.
+  await measuredClickButton(cdp, '.builder-probe-section button', 'TRACEROUTE');
+  await waitForExpression(cdp, `document.querySelector('.builder-probe-panel')?.innerText.includes('TRACEROUTE') && document.querySelector('.builder-probe-panel')?.innerText.includes('ECHO REPLY')`, 8000);
+  const probe = await cdp.evaluate(`(()=>({
+    panel:document.querySelector('.builder-probe-panel')?.innerText??'',
+    path:document.querySelector('.builder-probe-path')?.innerText??'',
+    activeLinks:document.querySelectorAll('.builder-link.probe-active').length,
+  }))()`);
+  if (!probe.path.includes('EDGE') || !probe.path.includes('R2') || !probe.path.includes('CORE') || !probe.path.includes('APP')) throw new Error(`${profile.id} traceroute did not consume the OSPF failover path through R2.`);
+  if (probe.path.includes('R1')) throw new Error(`${profile.id} traceroute retained failed R1 in the active request path.`);
+  if (probe.activeLinks < 4) throw new Error(`${profile.id} did not visually mark the traceroute forwarding path.`);
+
+  // Cross-link one TTL-scoped probe into the actual Packet Microscope and return.
+  await measuredClickButton(cdp, '.builder-probe-section button', 'OPEN ICMP PACKET');
+  await waitForExpression(cdp, `Boolean(document.querySelector('.packet-microscope'))`, 8000);
+  const packetText = await cdp.evaluate(`document.querySelector('.packet-microscope')?.innerText??''`);
+  if (!packetText.includes('LAB 11D · ICMP TRACE TTL') || !packetText.includes('ICMP') || !packetText.includes('TTL')) throw new Error(`${profile.id} probe packet did not seed Lab 02 ICMP state.`);
+  await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN TO BUILDER');
+  await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
+
+  // Labs 11E/F: first show same-VLAN switching and MAC learning.
+  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
+  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('SWITCHED · VLAN 10')`, 8000);
+  const switched = await cdp.evaluate(`(()=>({
+    stage:document.querySelector('.builder-ethernet-stage')?.innerText??'',
+    fdb:document.querySelector('.builder-fdb')?.innerText??'',
+    flowLinks:document.querySelectorAll('.builder-lan-canvas g.flow').length,
+  }))()`);
+  if (!switched.stage.includes('FLOOD THEN LEARN') || !switched.fdb.includes('SW1 · V10') || !switched.fdb.includes('SW2 · V10')) throw new Error(`${profile.id} same-VLAN flow did not expose VLAN-scoped FDB learning.`);
+  if (switched.flowLinks < 3) throw new Error(`${profile.id} same-VLAN path did not highlight the LAN links.`);
+
+  const setSelect = async (index, value) => cdp.evaluate(`(()=>{
+    const section=document.querySelector('.builder-ethernet-section');
+    const select=section?.querySelectorAll('select')[${index}];
+    if(!select)return false;
+    select.value=${JSON.stringify(value)};
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+    return true;
+  })()`);
+  if (!(await setSelect(1, 'lan-c'))) throw new Error(`${profile.id} could not choose PC-C for inter-VLAN flow.`);
+  await sleep(80);
+  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
+  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('ROUTED · VLAN 10 → 20')`, 8000);
+  let routed = await cdp.evaluate(`document.querySelector('.builder-ethernet-stage')?.innerText??''`);
+  if (!routed.includes('RTR') || !routed.includes('VLAN 20') || !routed.includes('TTL 64 → 63')) throw new Error(`${profile.id} inter-VLAN flow lost router-on-a-stick or TTL truth.`);
+
+  // Block VLAN 20 on the switch trunk: VLAN 20 must fail while VLAN 10 remains usable.
+  if (!(await setSelect(2, 'lan-sw1-sw2'))) throw new Error(`${profile.id} could not select SW1↔SW2 trunk.`);
+  await sleep(80);
+  const trunkEdited = await cdp.evaluate(`(()=>{
+    const input=document.querySelector('.builder-ethernet-section input'); if(!input)return false;
+    input.value='10'; input.dispatchEvent(new FocusEvent('focusout',{bubbles:true})); return true;
+  })()`);
+  if (!trunkEdited) throw new Error(`${profile.id} could not edit trunk allow-list.`);
+  await sleep(100);
+  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
+  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.classList.contains('failed')`, 8000);
+  const blocked = await cdp.evaluate(`document.querySelector('.builder-ethernet-stage')?.innerText??''`);
+  if (!blocked.includes('UNREACHABLE') || !blocked.includes('VLAN 20')) throw new Error(`${profile.id} trunk filter did not isolate VLAN 20.`);
+
+  if (!(await setSelect(1, 'lan-b'))) throw new Error(`${profile.id} could not return destination to PC-B.`);
+  await sleep(60);
+  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
+  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('SWITCHED · VLAN 10')`, 8000);
+
+  // Restore the trunk, rerun inter-VLAN routing, and leave the final screenshot on the successful routed state.
+  const trunkRestored = await cdp.evaluate(`(()=>{
+    const input=document.querySelector('.builder-ethernet-section input'); if(!input)return false;
+    input.value='10, 20'; input.dispatchEvent(new FocusEvent('focusout',{bubbles:true})); return true;
+  })()`);
+  if (!trunkRestored) throw new Error(`${profile.id} could not restore trunk allow-list.`);
+  if (!(await setSelect(1, 'lan-c'))) throw new Error(`${profile.id} could not restore PC-C destination.`);
+  await sleep(100);
+  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
+  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('ROUTED · VLAN 10 → 20')`, 8000);
+  const depthFinal = await state();
+  assertViewport(depthFinal, 'active probes + Ethernet/VLAN fabric');
+
   mkdirSync(dirname(reportPath), { recursive: true });
   const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: true });
   writeFileSync(join(dirname(reportPath), `builder-ospf-${profile.id}.png`), Buffer.from(screenshot.data, 'base64'));
+  writeFileSync(join(dirname(reportPath), `builder-depth-${profile.id}.png`), Buffer.from(screenshot.data, 'base64'));
   return {
     defaultNoRoute: true,
     enabledRouters: 4,
@@ -398,7 +477,12 @@ async function exerciseBuilderOspf(cdp, profile) {
     failoverNextHop: '10.0.0.14',
     ospfRouteCount: failed.ospfRoutes,
     scrollWidth: failed.scrollWidth,
-    innerWidth: failed.innerWidth,
+    innerWidth: depthFinal.innerWidth,
+    activeProbeFailover: true,
+    packetMicroscopeIcmp: true,
+    sameVlanSwitching: true,
+    trunkIsolation: true,
+    interVlanRouting: true,
   };
 }
 
