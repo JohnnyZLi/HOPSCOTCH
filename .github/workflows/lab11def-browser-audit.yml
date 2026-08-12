@@ -1,0 +1,168 @@
+name: Labs 11D-F production browser audit
+
+on:
+  push:
+    branches:
+      - agent/lab-11def-builder-probes-switching-vlans
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    if: ${{ github.event.head_commit.message != 'Add permanent Labs 11D-F browser contract' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/lab-11def-builder-probes-switching-vlans
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Add and exercise permanent Builder depth browser contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Give the routed-link controls a stable semantic selector now that 11D/E added sections before it.
+          builder = Path('src/NetworkBuilder.tsx')
+          text = builder.read_text()
+          marker = '<section><div className="control-title"><span>SELECTED LINK</span>'
+          if text.count(marker) != 1:
+              raise SystemExit(f'expected one selected-link section marker, found {text.count(marker)}')
+          builder.write_text(text.replace(marker, '<section className="builder-link-section"><div className="control-title"><span>SELECTED LINK</span>'))
+
+          perf = Path('scripts/performance-profile.mjs')
+          text = perf.read_text()
+          text = text.replace("document.querySelector('.builder-controls section:nth-of-type(2) .control-title')", "document.querySelector('.builder-link-section .control-title')")
+          text = text.replace("measuredClickButton(cdp, '.builder-controls section:nth-of-type(2) button', 'FAIL LINK')", "measuredClickButton(cdp, '.builder-link-section button', 'FAIL LINK')")
+
+          # The two existing OSPF browser profiles now also exercise probes, packet cross-link, Ethernet learning, trunks, and inter-VLAN routing.
+          text = text.replace("expected: ['OSPF CONTROL PLANE', 'REACHABLE', '1 DOWN', 'via 10.0.0.14', 'OSPF AD 110']", "expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'DERIVED FDB']")
+          text = text.replace("expected: ['OSPF CONTROL PLANE', 'REACHABLE', '1 DOWN', 'via 10.0.0.14']", "expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20']")
+
+          marker = "  if (!failed.routeTable.includes('AD 110')) throw new Error(`${profile.id} OSPF route lost its administrative-distance teaching state.`);\n\n  mkdirSync(dirname(reportPath), { recursive: true });"
+          insertion = r'''  if (!failed.routeTable.includes('AD 110')) throw new Error(`${profile.id} OSPF route lost its administrative-distance teaching state.`);
+
+  // Lab 11D: the same routed failure state must be observable by an active traceroute.
+  await measuredClickButton(cdp, '.builder-probe-section button', 'TRACEROUTE');
+  await waitForExpression(cdp, `document.querySelector('.builder-probe-panel')?.innerText.includes('TRACEROUTE') && document.querySelector('.builder-probe-panel')?.innerText.includes('ECHO REPLY')`, 8000);
+  const probe = await cdp.evaluate(`(()=>({
+    panel:document.querySelector('.builder-probe-panel')?.innerText??'',
+    path:document.querySelector('.builder-probe-path')?.innerText??'',
+    activeLinks:document.querySelectorAll('.builder-link.probe-active').length,
+  }))()`);
+  if (!probe.path.includes('EDGE') || !probe.path.includes('R2') || !probe.path.includes('CORE') || !probe.path.includes('APP')) throw new Error(`${profile.id} traceroute did not consume the OSPF failover path through R2.`);
+  if (probe.path.includes('R1')) throw new Error(`${profile.id} traceroute retained failed R1 in the active request path.`);
+  if (probe.activeLinks < 4) throw new Error(`${profile.id} did not visually mark the traceroute forwarding path.`);
+
+  // Cross-link one TTL-scoped probe into the actual Packet Microscope and return.
+  await measuredClickButton(cdp, '.builder-probe-section button', 'OPEN ICMP PACKET');
+  await waitForExpression(cdp, `Boolean(document.querySelector('.packet-microscope'))`, 8000);
+  const packetText = await cdp.evaluate(`document.querySelector('.packet-microscope')?.innerText??''`);
+  if (!packetText.includes('LAB 11D · ICMP TRACE TTL') || !packetText.includes('ICMP') || !packetText.includes('TTL')) throw new Error(`${profile.id} probe packet did not seed Lab 02 ICMP state.`);
+  await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN TO BUILDER');
+  await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
+
+  // Labs 11E/F: first show same-VLAN switching and MAC learning.
+  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
+  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('SWITCHED · VLAN 10')`, 8000);
+  const switched = await cdp.evaluate(`(()=>({
+    stage:document.querySelector('.builder-ethernet-stage')?.innerText??'',
+    fdb:document.querySelector('.builder-fdb')?.innerText??'',
+    flowLinks:document.querySelectorAll('.builder-lan-canvas g.flow').length,
+  }))()`);
+  if (!switched.stage.includes('FLOOD THEN LEARN') || !switched.fdb.includes('SW1 · V10') || !switched.fdb.includes('SW2 · V10')) throw new Error(`${profile.id} same-VLAN flow did not expose VLAN-scoped FDB learning.`);
+  if (switched.flowLinks < 3) throw new Error(`${profile.id} same-VLAN path did not highlight the LAN links.`);
+
+  const setSelect = async (index, value) => cdp.evaluate(`(()=>{
+    const section=document.querySelector('.builder-ethernet-section');
+    const select=section?.querySelectorAll('select')[${index}];
+    if(!select)return false;
+    select.value=${JSON.stringify(value)};
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+    return true;
+  })()`);
+  if (!(await setSelect(1, 'lan-c'))) throw new Error(`${profile.id} could not choose PC-C for inter-VLAN flow.`);
+  await sleep(80);
+  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
+  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('ROUTED · VLAN 10 → 20')`, 8000);
+  let routed = await cdp.evaluate(`document.querySelector('.builder-ethernet-stage')?.innerText??''`);
+  if (!routed.includes('RTR') || !routed.includes('VLAN 20') || !routed.includes('TTL 64 → 63')) throw new Error(`${profile.id} inter-VLAN flow lost router-on-a-stick or TTL truth.`);
+
+  // Block VLAN 20 on the switch trunk: VLAN 20 must fail while VLAN 10 remains usable.
+  if (!(await setSelect(2, 'lan-sw1-sw2'))) throw new Error(`${profile.id} could not select SW1↔SW2 trunk.`);
+  await sleep(80);
+  const trunkEdited = await cdp.evaluate(`(()=>{
+    const input=document.querySelector('.builder-ethernet-section input'); if(!input)return false;
+    input.value='10'; input.dispatchEvent(new FocusEvent('blur',{bubbles:true})); return true;
+  })()`);
+  if (!trunkEdited) throw new Error(`${profile.id} could not edit trunk allow-list.`);
+  await sleep(100);
+  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
+  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.classList.contains('failed')`, 8000);
+  const blocked = await cdp.evaluate(`document.querySelector('.builder-ethernet-stage')?.innerText??''`);
+  if (!blocked.includes('UNREACHABLE') || !blocked.includes('VLAN 20')) throw new Error(`${profile.id} trunk filter did not isolate VLAN 20.`);
+
+  if (!(await setSelect(1, 'lan-b'))) throw new Error(`${profile.id} could not return destination to PC-B.`);
+  await sleep(60);
+  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
+  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('SWITCHED · VLAN 10')`, 8000);
+
+  // Restore the trunk, rerun inter-VLAN routing, and leave the final screenshot on the successful routed state.
+  const trunkRestored = await cdp.evaluate(`(()=>{
+    const input=document.querySelector('.builder-ethernet-section input'); if(!input)return false;
+    input.value='10, 20'; input.dispatchEvent(new FocusEvent('blur',{bubbles:true})); return true;
+  })()`);
+  if (!trunkRestored) throw new Error(`${profile.id} could not restore trunk allow-list.`);
+  if (!(await setSelect(1, 'lan-c'))) throw new Error(`${profile.id} could not restore PC-C destination.`);
+  await sleep(100);
+  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
+  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('ROUTED · VLAN 10 → 20')`, 8000);
+  const depthFinal = await state();
+  assertViewport(depthFinal, 'active probes + Ethernet/VLAN fabric');
+
+  mkdirSync(dirname(reportPath), { recursive: true });'''
+          if text.count(marker) != 1:
+              raise SystemExit(f'expected one OSPF browser insertion marker, found {text.count(marker)}')
+          text = text.replace(marker, insertion)
+
+          screenshot_marker = "  writeFileSync(join(dirname(reportPath), `builder-ospf-${profile.id}.png`), Buffer.from(screenshot.data, 'base64'));"
+          replacement = screenshot_marker + "\n  writeFileSync(join(dirname(reportPath), `builder-depth-${profile.id}.png`), Buffer.from(screenshot.data, 'base64'));"
+          if text.count(screenshot_marker) != 1:
+              raise SystemExit(f'expected one Builder screenshot marker, found {text.count(screenshot_marker)}')
+          text = text.replace(screenshot_marker, replacement)
+
+          return_marker = "    innerWidth: failed.innerWidth,\n  };"
+          return_replacement = "    innerWidth: depthFinal.innerWidth,\n    activeProbeFailover: true,\n    packetMicroscopeIcmp: true,\n    sameVlanSwitching: true,\n    trunkIsolation: true,\n    interVlanRouting: true,\n  };"
+          if text.count(return_marker) != 1:
+              raise SystemExit(f'expected one Builder audit return marker, found {text.count(return_marker)}')
+          perf.write_text(text.replace(return_marker, return_replacement))
+          PY
+
+          npm ci
+          npm run check
+          mkdir -p artifacts
+          HOPSCOTCH_REPORT_PATH=artifacts/lab11def-browser-audit.json npm run compatibility:chrome
+      - name: Commit permanent browser contract
+        run: |
+          rm .github/workflows/lab11def-browser-audit.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add permanent Labs 11D-F browser contract"
+          git push origin HEAD:agent/lab-11def-builder-probes-switching-vlans
+      - name: Upload exact-artifact audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab11def-builder-depth-audit
+          path: |
+            artifacts/lab11def-browser-audit.json
+            artifacts/builder-depth-*.png
+            artifacts/builder-ospf-*.png
+          if-no-files-found: warn
+          retention-days: 3
