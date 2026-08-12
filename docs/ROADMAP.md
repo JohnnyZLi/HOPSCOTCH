@@ -379,6 +379,23 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] UI explicitly states addressing does not change weighted path cost yet; route tables are the next slice
 - [x] permanent Builder L3 addressing contract wired into `npm run check`
 
+### 11B — Connected + static routing
+- [x] derive connected route-table entries from active L3 interfaces; failed links withdraw connected reachability
+- [x] add explicit static routes on router nodes with destination prefix, directly connected next hop, and metric
+- [x] route lookup uses longest prefix → administrative distance → metric → deterministic ID
+- [x] connected routes use AD 0 and static routes AD 1
+- [x] endpoint forwarding uses on-link delivery or the configured default gateway
+- [x] deterministic hop-by-hop L3 forwarding trace detects no-route, link-down, invalid-next-hop, and forwarding-loop states
+- [x] graph path and L3 forwarding are shown separately; a graph can be physically reachable while IP forwarding is not configured
+- [x] explicit INSTALL STATIC PATH snapshots the current weighted path without creating automatic reconvergence
+- [x] static path stays broken after a link failure even when the weighted graph finds an alternate path; reinstall is an explicit user action
+- [x] selected-router route table exposes C/S source, prefix, next hop, outgoing interface, AD, metric, active/down state, and route deletion
+- [x] manual static route editor supports /0–/32 and only directly connected next-hop interface addresses
+- [x] addressing/topology changes reconcile invalid static routes instead of silently retaining broken configuration
+- [x] Builder scenario schema v4 persists routing; v1/v2/v3 files migrate with an empty static table
+- [x] high-density schema-v4 round trip preserves addressing and empty routing at the 32-node / 96-link ceiling
+- [x] permanent Builder static-routing/forwarding contract wired into `npm run check`
+
 ## Performance + rendering — ongoing
 
 - [x] DOM/CSS for controls and text
