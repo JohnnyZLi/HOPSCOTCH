@@ -32,11 +32,15 @@ function byteInField(index: number, segmentOffset: number, field: PacketField | 
 export function PacketMicroscope({
   onExit,
   onOpenSourceEvent,
+  initialConfig,
+  origin,
 }: {
   onExit: () => void;
-  onOpenSourceEvent: () => void;
+  onOpenSourceEvent?: () => void;
+  initialConfig?: Partial<PacketConfig>;
+  origin?: { label: string; timestamp?: string; actionLabel?: string };
 }) {
-  const [config, setConfig] = useState<PacketConfig>(defaultPacketConfig);
+  const [config, setConfig] = useState<PacketConfig>(() => ({ ...defaultPacketConfig, ...initialConfig }));
   const [selectedLayer, setSelectedLayer] = useState<PacketLayerId>('network');
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>('ip-length');
   const rootRef = useRef<HTMLElement>(null);
@@ -100,7 +104,7 @@ export function PacketMicroscope({
   const chooseTransport = (transport: TransportProtocol) => {
     patchConfig('transport', transport);
     setSelectedLayer('transport');
-    setSelectedFieldId(transport === 'tcp' ? 'tcp-checksum' : 'udp-checksum');
+    setSelectedFieldId(transport === 'tcp' ? 'tcp-checksum' : transport === 'udp' ? 'udp-checksum' : 'icmp-checksum');
   };
 
   return (
@@ -131,7 +135,7 @@ export function PacketMicroscope({
             ))}
           </div>
           <div className="packet-toggle-group" aria-label="Transport protocol">
-            {(['tcp', 'udp'] as const).map((transport) => (
+            {(['tcp', 'udp', 'icmp'] as const).map((transport) => (
               <button
                 key={transport}
                 type="button"
@@ -150,13 +154,13 @@ export function PacketMicroscope({
         <div className="packet-origin-strip">
           <div>
             <span>CAPTURE SOURCE</span>
-            <strong>LAB 01 · TRAFFIC RECOVERS</strong>
+            <strong>{origin?.label ?? 'LAB 01 · TRAFFIC RECOVERS'}</strong>
           </div>
           <div>
             <span>TIMESTAMP</span>
-            <strong>00:05.400</strong>
+            <strong>{origin?.timestamp ?? '00:05.400'}</strong>
           </div>
-          <button type="button" onClick={onOpenSourceEvent}>OPEN SOURCE EVENT ↗</button>
+          {onOpenSourceEvent && <button type="button" onClick={onOpenSourceEvent}>{origin?.actionLabel ?? 'OPEN SOURCE EVENT ↗'}</button>}
         </div>
 
         <div className="packet-object-wrap">
@@ -211,7 +215,7 @@ export function PacketMicroscope({
           <div>
             <span>{config.transport.toUpperCase()} CHECKSUM</span>
             <strong className="packet-relation-value">{hex16(snapshot.transportChecksum)}</strong>
-            <small>Pseudo-header + transport + payload</small>
+            <small>{config.transport === 'icmp' ? (config.family === 'ipv4' ? 'ICMP message + payload' : 'ICMPv6 + IPv6 pseudo-header') : 'Pseudo-header + transport + payload'}</small>
           </div>
         </div>
 
@@ -313,9 +317,9 @@ export function PacketMicroscope({
           <span>CHANGE PROPAGATION</span>
           <p>
             Payload size changes propagate into network length fields and the {config.transport.toUpperCase()} checksum.
-            {config.family === 'ipv4'
-              ? ' IPv4 Total Length also changes its header checksum.'
-              : ' IPv6 changes Payload Length but has no network-header checksum to recompute.'}
+            {config.transport === 'icmp'
+              ? (config.family === 'ipv4' ? ' ICMPv4 checksums the control message and payload.' : ' ICMPv6 also covers the IPv6 pseudo-header.')
+              : (config.family === 'ipv4' ? ' IPv4 Total Length also changes its header checksum.' : ' IPv6 changes Payload Length but has no network-header checksum to recompute.')}
           </p>
         </div>
       </aside>
