@@ -1,0 +1,39 @@
+name: Apply Lab 11A Builder L3
+
+on:
+  push:
+    branches: [agent/lab-11a-builder-l3-addressing]
+    paths:
+      - scripts/apply-builder-l3.py
+      - .github/workflows/apply-builder-l3.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/lab-11a-builder-l3-addressing
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply Builder L3 integration
+        run: python3 scripts/apply-builder-l3.py
+      - run: npm ci
+      - run: npm run check
+      - run: npm run performance:check
+      - name: Remove one-shot integration scaffolding
+        run: rm scripts/apply-builder-l3.py .github/workflows/apply-builder-l3.yml
+      - name: Commit integrated Builder L3
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/NetworkBuilder.tsx src/NetworkBuilder.css src/builder/addressing.ts src/builder/scenario.ts scripts/builder-addressing-contract-check.mjs scripts/high-density-contract-check.mjs package.json docs/ROADMAP.md scripts/apply-builder-l3.py .github/workflows/apply-builder-l3.yml
+          git commit -m "Integrate Builder L3 addressing foundation"
+          git push origin HEAD:agent/lab-11a-builder-l3-addressing
