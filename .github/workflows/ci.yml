@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -14,22 +14,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: agent/lab-09f-loopback-bridge
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - name: Apply Lab 09F bridge workspace UI
-        run: python3 scripts/apply-lab09f-ui.py
       - run: npm ci
       - run: npm run check
-      - name: Commit validated Lab 09F bridge UI
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/MeasuredNetworkWorkspace.tsx src/MeasuredNetworkWorkspace.css
-          git rm -f --ignore-unmatch scripts/apply-lab09f-ui.py
-          git diff --cached --quiet && exit 0
-          git commit -m "Promote Lab 09F bridge workspace UI"
-          git push origin HEAD:agent/lab-09f-loopback-bridge
+      - name: Upload production build
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 3
