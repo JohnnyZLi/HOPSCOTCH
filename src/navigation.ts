@@ -9,6 +9,8 @@ export interface AppRouteResolution {
   preserveSearch: boolean;
 }
 
+export const OVERVIEW_PATH = '/';
+
 export const DESTINATION_PATHS: Readonly<Record<ExploreDestination, string>> = Object.freeze({
   journey: '/journey',
   failure: '/labs/failure',
@@ -31,8 +33,8 @@ const PATH_DESTINATIONS = new Map<string, ExploreDestination>(
 );
 
 function normalizePathname(pathname: string): string {
-  const raw = pathname.trim() || '/';
-  if (raw === '/') return '/';
+  const raw = pathname.trim() || OVERVIEW_PATH;
+  if (raw === OVERVIEW_PATH) return OVERVIEW_PATH;
   return `/${raw.replace(/^\/+|\/+$/g, '')}`;
 }
 
@@ -59,7 +61,7 @@ export function resolveAppRoute(pathname: string, search = ''): AppRouteResoluti
     };
   }
 
-  if (normalizedPath === '/') {
+  if (normalizedPath === OVERVIEW_PATH) {
     if (hasJourneyShareQuery(search)) {
       return {
         kind: 'legacy-journey',
@@ -68,10 +70,10 @@ export function resolveAppRoute(pathname: string, search = ''): AppRouteResoluti
         preserveSearch: true,
       };
     }
-    return { kind: 'overview', destination: null, canonicalPath: '/', preserveSearch: false };
+    return { kind: 'overview', destination: null, canonicalPath: OVERVIEW_PATH, preserveSearch: false };
   }
 
-  return { kind: 'unknown', destination: null, canonicalPath: '/', preserveSearch: false };
+  return { kind: 'unknown', destination: null, canonicalPath: OVERVIEW_PATH, preserveSearch: false };
 }
 
 export function canonicalUrlForRoute(route: AppRouteResolution, search = ''): string {
