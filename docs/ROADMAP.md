@@ -332,6 +332,16 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] keyboard Escape, modal semantics, reduced-motion behavior, and mobile layout
 - [x] permanent Explore routing contract wired into `npm run check`
 
+### 10B — Canonical deep links + browser history
+- [x] canonical URL for every major lab and Internet/evidence workspace
+- [x] direct loads derive the initial lab from `window.location.pathname`
+- [x] internal lab changes update browser history without reloading the simulation
+- [x] browser Back / Forward restores the matching HOPSCOTCH workspace
+- [x] old root-level `?journey=...` share links migrate to `/journey?...`
+- [x] unknown and trailing-slash routes canonicalize deterministically
+- [x] Cloudflare SPA fallback serves deep links while `/api/*` remains Worker-first
+- [x] permanent navigation contract wired into `npm run check`
+
 ## Performance + rendering — ongoing
 
 - [x] DOM/CSS for controls and text

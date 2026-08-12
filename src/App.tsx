@@ -13,6 +13,7 @@ import type { PortableJourneyScenario } from './journey/scenario.ts';
 import { LabNetworkField } from './LabNetworkField';
 import { NetworkBuilder } from './NetworkBuilder';
 import { NetworkField } from './NetworkField';
+import { canonicalUrlForRoute, pathForDestination, resolveAppRoute } from './navigation';
 import { ObservedInternet } from './ObservedInternet';
 import { MeasuredNetworkWorkspace } from './MeasuredNetworkWorkspace';
 import type { MeasuredSnapshotState } from './measurement/state.ts';
@@ -24,7 +25,7 @@ import { lab01Scenario, lab01StateAt } from './simulation/lab01';
 import { latestEventAtOrBefore, type NetworkLayer } from './simulation/model';
 
 type DisplayMode = 'overview' | 'xray';
-type ActiveLab = 'journey' | 'failure' | 'packet' | 'tcp' | 'dns' | 'tls' | 'http' | 'builder' | 'physical' | 'internet' | 'observed' | 'measured' | null;
+type ActiveLab = ExploreDestination | null;
 
 const layers: Array<{ id: NetworkLayer; label: string; kicker: string; description: string }> = [
   { id: 'internet', label: 'Internet', kicker: 'Scale 05', description: 'Physical interconnection infrastructure, autonomous systems, public routing evidence, and clearly labeled inference.' },
@@ -34,7 +35,29 @@ const layers: Array<{ id: NetworkLayer; label: string; kicker: string; descripti
   { id: 'packet', label: 'Packet', kicker: 'Scale 01', description: 'Frames, headers, fields, encapsulation, and individual protocol messages.' },
 ];
 
-const initialJourneyBootstrap = typeof window === 'undefined'
+const DESTINATION_LAYERS: Readonly<Record<ExploreDestination, NetworkLayer>> = {
+  journey: 'application',
+  failure: 'routing',
+  builder: 'routing',
+  packet: 'packet',
+  tcp: 'transport',
+  dns: 'application',
+  tls: 'application',
+  http: 'application',
+  internet: 'internet',
+  physical: 'internet',
+  observed: 'internet',
+  measured: 'internet',
+};
+
+const browserHistoryRoutingAvailable = typeof window !== 'undefined'
+  && (window.location.protocol === 'http:' || window.location.protocol === 'https:');
+
+const initialAppRoute = browserHistoryRoutingAvailable
+  ? resolveAppRoute(window.location.pathname, window.location.search)
+  : resolveAppRoute('/', typeof window === 'undefined' ? '' : window.location.search);
+
+const initialJourneyBootstrap = typeof window === 'undefined' || initialAppRoute.destination !== 'journey'
   ? { scenario: null, error: null }
   : bootstrapJourneyFromSearch(window.location.search);
 
@@ -46,16 +69,16 @@ function formatTime(timeMs: number): string {
 
 export default function App() {
   const initialSharedJourney = initialJourneyBootstrap.scenario;
-  const [layer, setLayer] = useState<NetworkLayer>(initialSharedJourney ? 'application' : 'internet');
+  const [layer, setLayer] = useState<NetworkLayer>(initialAppRoute.destination ? DESTINATION_LAYERS[initialAppRoute.destination] : 'internet');
   const [mode, setMode] = useState<DisplayMode>('overview');
   const [exploreOpen, setExploreOpen] = useState(false);
-  const [activeLab, setActiveLab] = useState<ActiveLab>(initialSharedJourney ? 'journey' : null);
+  const [activeLab, setActiveLab] = useState<ActiveLab>(initialAppRoute.destination);
   const [labXray, setLabXray] = useState(true);
   const [timeMs, setTimeMs] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [journeyHostname, setJourneyHostname] = useState(initialSharedJourney?.hostname ?? 'example.test');
   const [journeyTimeMs, setJourneyTimeMs] = useState(initialSharedJourney?.timeMs ?? 0);
-  const [journeyStartPlaying, setJourneyStartPlaying] = useState(!initialSharedJourney);
+  const [journeyStartPlaying, setJourneyStartPlaying] = useState(initialAppRoute.destination === 'journey' && !initialSharedJourney);
   const [journeyReturnPending, setJourneyReturnPending] = useState(false);
   const [journeyEvidence, setJourneyEvidence] = useState<InternetEvidenceSnapshot | null>(null);
   const [measuredSession, setMeasuredSession] = useState<MeasuredSnapshotState | null>(null);
@@ -86,6 +109,62 @@ export default function App() {
   const cameraX = ((60 - focusX) / 60) * 14;
   const cameraY = ((36 - focusY) / 36) * 9;
 
+  const pushBrowserRoute = (destination: ExploreDestination | null) => {
+    if (!browserHistoryRoutingAvailable) return;
+    const nextUrl = destination === null ? '/' : pathForDestination(destination);
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    if (currentUrl !== nextUrl) window.history.pushState({}, '', nextUrl);
+  };
+
+  useEffect(() => {
+    if (!browserHistoryRoutingAvailable) return;
+
+    const applyCurrentLocation = () => {
+      const route = resolveAppRoute(window.location.pathname, window.location.search);
+      const canonicalUrl = canonicalUrlForRoute(route, window.location.search);
+      const currentUrl = `${window.location.pathname}${window.location.search}`;
+      if (currentUrl !== canonicalUrl) window.history.replaceState(window.history.state, '', canonicalUrl);
+
+      setExploreOpen(false);
+      setPlaying(false);
+      setJourneyReturnPending(false);
+
+      if (route.destination === null) {
+        setLayer('internet');
+        setActiveLab(null);
+        return;
+      }
+
+      const destination = route.destination;
+      setLayer(DESTINATION_LAYERS[destination]);
+      if (destination === 'failure') setTimeMs(0);
+
+      if (destination === 'journey') {
+        const bootstrap = bootstrapJourneyFromSearch(window.location.search);
+        if (bootstrap.scenario) {
+          setJourneyHostname(bootstrap.scenario.hostname);
+          setJourneyTimeMs(bootstrap.scenario.timeMs);
+          setJourneyStartPlaying(false);
+          setJourneyScenarioName(bootstrap.scenario.name ?? '');
+          setJourneyRenderKey((current) => current + 1);
+        } else {
+          setJourneyStartPlaying(false);
+        }
+      }
+
+      setActiveLab(destination);
+    };
+
+    const initialCanonicalUrl = canonicalUrlForRoute(initialAppRoute, window.location.search);
+    const initialCurrentUrl = `${window.location.pathname}${window.location.search}`;
+    if (initialCurrentUrl !== initialCanonicalUrl) {
+      window.history.replaceState(window.history.state, '', initialCanonicalUrl);
+    }
+
+    window.addEventListener('popstate', applyCurrentLocation);
+    return () => window.removeEventListener('popstate', applyCurrentLocation);
+  }, []);
+
   useEffect(() => {
     if (!playing || !failureLabActive) return;
     const startedAt = performance.now();
@@ -105,19 +184,21 @@ export default function App() {
   }, [failureLabActive, playing]);
 
   const openFailureLab = (atMs = 0, autoplay = true) => {
+    pushBrowserRoute('failure');
     setLayer('routing'); setTimeMs(atMs); setActiveLab('failure'); setPlaying(autoplay);
   };
-  const openPacketLab = () => { setPlaying(false); setLayer('packet'); setActiveLab('packet'); };
-  const openTcpLab = () => { setPlaying(false); setLayer('transport'); setActiveLab('tcp'); };
-  const openDnsLab = () => { setPlaying(false); setLayer('application'); setActiveLab('dns'); };
-  const openTlsLab = () => { setPlaying(false); setLayer('application'); setActiveLab('tls'); };
-  const openHttpLab = () => { setPlaying(false); setLayer('application'); setActiveLab('http'); };
-  const openBuilderLab = () => { setPlaying(false); setLayer('routing'); setActiveLab('builder'); };
-  const openPhysicalInternet = () => { setPlaying(false); setLayer('internet'); setActiveLab('physical'); };
-  const openInternetLab = () => { setPlaying(false); setLayer('internet'); setActiveLab('internet'); };
-  const openObservedInternet = () => { setPlaying(false); setLayer('internet'); setActiveLab('observed'); };
-  const openMeasuredNetwork = () => { setPlaying(false); setLayer('internet'); setActiveLab('measured'); };
+  const openPacketLab = () => { pushBrowserRoute('packet'); setPlaying(false); setLayer('packet'); setActiveLab('packet'); };
+  const openTcpLab = () => { pushBrowserRoute('tcp'); setPlaying(false); setLayer('transport'); setActiveLab('tcp'); };
+  const openDnsLab = () => { pushBrowserRoute('dns'); setPlaying(false); setLayer('application'); setActiveLab('dns'); };
+  const openTlsLab = () => { pushBrowserRoute('tls'); setPlaying(false); setLayer('application'); setActiveLab('tls'); };
+  const openHttpLab = () => { pushBrowserRoute('http'); setPlaying(false); setLayer('application'); setActiveLab('http'); };
+  const openBuilderLab = () => { pushBrowserRoute('builder'); setPlaying(false); setLayer('routing'); setActiveLab('builder'); };
+  const openPhysicalInternet = () => { pushBrowserRoute('physical'); setPlaying(false); setLayer('internet'); setActiveLab('physical'); };
+  const openInternetLab = () => { pushBrowserRoute('internet'); setPlaying(false); setLayer('internet'); setActiveLab('internet'); };
+  const openObservedInternet = () => { pushBrowserRoute('observed'); setPlaying(false); setLayer('internet'); setActiveLab('observed'); };
+  const openMeasuredNetwork = () => { pushBrowserRoute('measured'); setPlaying(false); setLayer('internet'); setActiveLab('measured'); };
   const openJourney = () => {
+    pushBrowserRoute('journey');
     setPlaying(false);
     setLayer('application');
     setJourneyTimeMs(0);
@@ -154,6 +235,7 @@ export default function App() {
     setJourneyStartPlaying(false);
     setJourneyReturnPending(true);
     setLayer(detailLayer[lab]);
+    pushBrowserRoute(lab as ExploreDestination);
     if (lab === 'failure') {
       setTimeMs(1900);
       setActiveLab('failure');
@@ -163,6 +245,7 @@ export default function App() {
   };
   const importJourneyScenario = (scenario: PortableJourneyScenario) => {
     seedJourneyBrowserScenario(scenario);
+    pushBrowserRoute('journey');
     setPlaying(false);
     setJourneyHostname(scenario.hostname);
     setJourneyTimeMs(scenario.timeMs);
@@ -174,12 +257,13 @@ export default function App() {
     setActiveLab('journey');
     setJourneyRenderKey((current) => current + 1);
   };
-  const exitLabs = () => { setPlaying(false); setJourneyReturnPending(false); setExploreOpen(false); setActiveLab(null); };
+  const exitLabs = () => { pushBrowserRoute(null); setPlaying(false); setJourneyReturnPending(false); setExploreOpen(false); setActiveLab(null); };
   const exitActiveLab = () => {
     setPlaying(false);
     if (journeyReturnPending && activeLab !== 'journey') {
       setJourneyReturnPending(false);
       setJourneyStartPlaying(false);
+      pushBrowserRoute('journey');
       setActiveLab('journey');
       return;
     }
