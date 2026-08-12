@@ -14,7 +14,7 @@
     "test:worker-contract": "node scripts/worker-contract-check.mjs",
     "test:journey-contract": "node scripts/journey-contract-check.mjs",
     "test:journey-sharing-contract": "node scripts/journey-sharing-contract-check.mjs",
-    "check": "npm run typecheck && npm run test:builder-contract && npm run test:builder-addressing-contract && npm run test:builder-routing-contract && npm run test:builder-ospf-contract && npm run test:worker-contract && npm run test:journey-contract && npm run test:journey-sharing-contract && npm run test:journey-god-mode-contract && npm run test:journey-composition-contract && npm run test:journey-path-outage-contract && npm run test:journey-congestion-contract && npm run test:journey-dns-failure-contract && npm run test:journey-server-failure-contract && npm run test:journey-partition-contract && npm run test:journey-route-leak-contract && npm run test:high-density-contract && npm run test:native-measurement-contract && npm run test:measured-state-contract && npm run test:network-diagnostics-ingestion-contract && npm run test:measured-workspace-contract && npm run test:measured-scene-evidence-contract && npm run test:measured-session-sidecar-contract && npm run test:loopback-bridge-contract && npm run test:loopback-bridge-workspace-contract && npm run test:explore-launcher-contract && npm run test:navigation-contract && npm run test:home-action-deck-contract && npm run test:scenario-gallery-contract && npm run build",
+    "check": "npm run typecheck && npm run test:builder-contract && npm run test:builder-addressing-contract && npm run test:builder-routing-contract && npm run test:builder-ospf-contract && npm run test:builder-probes-contract && npm run test:worker-contract && npm run test:journey-contract && npm run test:journey-sharing-contract && npm run test:journey-god-mode-contract && npm run test:journey-composition-contract && npm run test:journey-path-outage-contract && npm run test:journey-congestion-contract && npm run test:journey-dns-failure-contract && npm run test:journey-server-failure-contract && npm run test:journey-partition-contract && npm run test:journey-route-leak-contract && npm run test:high-density-contract && npm run test:native-measurement-contract && npm run test:measured-state-contract && npm run test:network-diagnostics-ingestion-contract && npm run test:measured-workspace-contract && npm run test:measured-scene-evidence-contract && npm run test:measured-session-sidecar-contract && npm run test:loopback-bridge-contract && npm run test:loopback-bridge-workspace-contract && npm run test:explore-launcher-contract && npm run test:navigation-contract && npm run test:home-action-deck-contract && npm run test:scenario-gallery-contract && npm run build",
     "performance:profile": "node scripts/performance-profile.mjs",
     "performance:check": "node scripts/performance-profile.mjs --enforce",
     "preview": "vite preview",
@@ -46,7 +46,8 @@
     "test:scenario-gallery-contract": "node scripts/scenario-gallery-contract-check.mjs",
     "test:builder-addressing-contract": "node scripts/builder-addressing-contract-check.mjs",
     "test:builder-routing-contract": "node scripts/builder-routing-contract-check.mjs",
-    "test:builder-ospf-contract": "node scripts/builder-ospf-contract-check.mjs"
+    "test:builder-ospf-contract": "node scripts/builder-ospf-contract-check.mjs",
+    "test:builder-probes-contract": "node scripts/builder-probes-contract-check.mjs"
   },
   "dependencies": {
     "animejs": "4.5.0",

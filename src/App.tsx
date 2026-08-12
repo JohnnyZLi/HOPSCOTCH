@@ -14,6 +14,7 @@ import type { JourneyDetailLab } from './journey/model';
 import { encodeJourneyQuery, type PortableJourneyScenario } from './journey/scenario.ts';
 import { LabNetworkField } from './LabNetworkField';
 import { NetworkBuilder } from './NetworkBuilder';
+import type { BuilderProbePacketSeed } from './builder/probes.ts';
 import { NetworkField } from './NetworkField';
 import { canonicalUrlForRoute, pathForDestination, resolveAppRoute } from './navigation';
 import { ObservedInternet } from './ObservedInternet';
@@ -87,6 +88,7 @@ export default function App() {
   const [measuredSession, setMeasuredSession] = useState<MeasuredSnapshotState | null>(null);
   const [journeyScenarioName, setJourneyScenarioName] = useState(initialSharedJourney?.name ?? '');
   const [journeyRenderKey, setJourneyRenderKey] = useState(0);
+  const [builderPacketSeed, setBuilderPacketSeed] = useState<BuilderProbePacketSeed | null>(null);
   const reduceMotion = useReducedMotion();
   const active = layers.find((item) => item.id === layer) ?? layers[0];
   const labState = useMemo(() => lab01StateAt(timeMs), [timeMs]);
@@ -190,7 +192,7 @@ export default function App() {
     pushBrowserRoute('failure');
     setLayer('routing'); setTimeMs(atMs); setActiveLab('failure'); setPlaying(autoplay);
   };
-  const openPacketLab = () => { pushBrowserRoute('packet'); setPlaying(false); setLayer('packet'); setActiveLab('packet'); };
+  const openPacketLab = (seed?: BuilderProbePacketSeed) => { setBuilderPacketSeed(seed ?? null); pushBrowserRoute('packet'); setPlaying(false); setLayer('packet'); setActiveLab('packet'); };
   const openTcpLab = () => { pushBrowserRoute('tcp'); setPlaying(false); setLayer('transport'); setActiveLab('tcp'); };
   const openDnsLab = () => { pushBrowserRoute('dns'); setPlaying(false); setLayer('application'); setActiveLab('dns'); };
   const openTlsLab = () => { pushBrowserRoute('tls'); setPlaying(false); setLayer('application'); setActiveLab('tls'); };
@@ -393,7 +395,13 @@ export default function App() {
         ) : activeLab === 'journey' ? (
           <JourneyTheater key={`lab06-${journeyRenderKey}`} hostname={journeyHostname} timeMs={journeyTimeMs} startPlaying={journeyStartPlaying} evidence={journeyEvidence} measuredState={measuredSession} onHostnameChange={setJourneyHostname} onTimeChange={setJourneyTimeMs} onEvidenceChange={setJourneyEvidence} onOpenDetail={openJourneyDetail} onExit={exitLabs} />
         ) : activeLab === 'packet' ? (
-          <PacketMicroscope key="lab02" onExit={exitActiveLab} onOpenSourceEvent={() => openFailureLab(5400, false)} />
+          <PacketMicroscope
+            key={`lab02-${builderPacketSeed?.id ?? 'default'}`}
+            onExit={exitActiveLab}
+            onOpenSourceEvent={builderPacketSeed ? () => openBuilderLab() : () => openFailureLab(5400, false)}
+            initialConfig={builderPacketSeed ? { family: 'ipv4', transport: 'icmp', payloadBytes: 32, ttl: builderPacketSeed.ttl, sourceIpv4: builderPacketSeed.sourceAddress, destinationIpv4: builderPacketSeed.destinationAddress, sourceMac: builderPacketSeed.sourceMac, destinationMac: builderPacketSeed.destinationMac, icmpType: 8, icmpCode: 0, icmpSequence: Math.max(1, builderPacketSeed.ttl) } : undefined}
+            origin={builderPacketSeed ? { label: `LAB 11D · ${builderPacketSeed.label}`, timestamp: `TTL ${builderPacketSeed.ttl}`, actionLabel: 'RETURN TO BUILDER ↗' } : undefined}
+          />
         ) : activeLab === 'tcp' ? (
           <TcpTheater key="lab03-tcp" onExit={exitActiveLab} onOpenPacket={openPacketLab} />
         ) : activeLab === 'dns' ? (
@@ -403,7 +411,7 @@ export default function App() {
         ) : activeLab === 'http' ? (
           <HttpComparisonTheater key="lab03-http" onExit={exitActiveLab} onOpenTls={openTlsLab} />
         ) : activeLab === 'builder' ? (
-          <NetworkBuilder key="lab04" onExit={exitActiveLab} onOpenFailureStory={() => openFailureLab(0, true)} />
+          <NetworkBuilder key="lab04" onExit={exitActiveLab} onOpenFailureStory={() => openFailureLab(0, true)} onOpenProbePacket={openPacketLab} />
         ) : activeLab === 'physical' ? (
           <PhysicalInternetGlobe key="lab05-physical" onExit={exitActiveLab} onOpenSimulated={openInternetLab} onOpenObserved={openObservedInternet} />
         ) : activeLab === 'internet' ? (

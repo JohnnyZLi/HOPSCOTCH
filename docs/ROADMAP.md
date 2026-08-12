@@ -12,7 +12,7 @@ HOPSCOTCH grows as polished vertical slices. A slice is complete only when its m
 - [x] production custom-domain deployment
 - [x] lockfile, CI, and production-build artifact
 - [x] reduced-motion baseline
-- [ ] broader cross-browser/performance baseline
+- [x] broader cross-browser/performance baseline
 
 ## Lab 01 — Failure + recovery
 
@@ -409,6 +409,19 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] Builder scenario schema v5 persists OSPF configuration; v1-v4 migrate with OSPF disabled
 - [x] high-density schema-v5 round trip preserves the 32-node / 96-link ceiling with OSPF disabled by default
 - [x] permanent Builder OSPF contract wired into `npm run check`
+
+### 11D — Active probes: Ping + Traceroute
+- [x] PING consumes the existing hop-by-hop L3 forwarding engine instead of calculating its own route
+- [x] Echo success requires both forward Echo Request and independently evaluated reverse Echo Reply reachability
+- [x] ICMP traceroute expires TTL only at router hops and models Time Exceeded return-path reachability
+- [x] no fabricated RTT: Builder link cost remains routing/control-plane cost, not milliseconds
+- [x] probe failure preserves the underlying no-route, gateway, link, next-hop, loop, or hop-limit reason
+- [x] OSPF failover is visible by rerunning the same probe after topology reconvergence
+- [x] probe history is session-only snapshot state and is not serialized into Builder scenarios
+- [x] active probe links are visually distinct from weighted graph and steady-state L3 forwarding highlights
+- [x] probe attempts can jump to Lab 02 with a seeded IPv4 ICMP Echo Request and the actual Builder source/destination addresses + TTL
+- [x] Packet Microscope supports ICMP/ICMPv6 control-message headers without changing default TCP/UDP behavior
+- [x] permanent active-probe contract wired into `npm run check`
 
 ## Performance + rendering — ongoing
 
