@@ -13,6 +13,12 @@ import {
   type BuilderNode,
   type BuilderLink,
 } from './model.ts';
+import {
+  cloneBuilderRoutingConfig,
+  createDefaultBuilderRoutingConfig,
+  validateBuilderRoutingConfig,
+  type BuilderRoutingConfig,
+} from './routing.ts';
 
 export interface BuilderScenarioV1 {
   schema: 'hopscotch.builder';
@@ -52,10 +58,24 @@ export interface BuilderScenarioV3 {
   updatedAt: string;
 }
 
-export type BuilderScenario = BuilderScenarioV3;
+export interface BuilderScenarioV4 {
+  schema: 'hopscotch.builder';
+  version: 4;
+  name: string;
+  graph: BuilderGraph;
+  addressing: BuilderAddressing;
+  routing: BuilderRoutingConfig;
+  sourceId: string;
+  destinationId: string;
+  layout: BuilderLayout;
+  createdAt: string;
+  updatedAt: string;
+}
 
-const STORAGE_KEY = 'hopscotch.builder.scenarios.v3';
-const LEGACY_STORAGE_KEY = 'hopscotch.builder.scenarios.v2';
+export type BuilderScenario = BuilderScenarioV4;
+
+const STORAGE_KEY = 'hopscotch.builder.scenarios.v4';
+const LEGACY_STORAGE_KEYS = ['hopscotch.builder.scenarios.v3', 'hopscotch.builder.scenarios.v2'] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -139,22 +159,27 @@ function layoutForGraph(layout: BuilderLayout, graph: BuilderGraph): BuilderLayo
   return scoped;
 }
 
-function validateV3(raw: Record<string, unknown>): BuilderScenarioV3 {
-  if (raw.schema !== 'hopscotch.builder' || raw.version !== 3) throw new Error('Unsupported HOPSCOTCH Builder schema/version.');
+function validateV4(raw: Record<string, unknown>): BuilderScenarioV4 {
+  if (raw.schema !== 'hopscotch.builder' || raw.version !== 4) throw new Error('Unsupported HOPSCOTCH Builder schema/version.');
   const graph = validateGraph(raw.graph);
   const sourceId = assertString(raw.sourceId, 'sourceId', 48);
   const destinationId = assertString(raw.destinationId, 'destinationId', 48);
   const ids = new Set(graph.nodes.map((node) => node.id));
   if (!ids.has(sourceId) || !ids.has(destinationId)) throw new Error('Source and destination must reference nodes that exist.');
   if (!isRecord(raw.addressing) || !isRecord(raw.addressing.segments) || !isRecord(raw.addressing.defaultGateways)) {
-    throw new Error('Builder schema v3 requires explicit L3 addressing.');
+    throw new Error('Builder schema v4 requires explicit L3 addressing.');
+  }
+  const addressing = validateBuilderAddressing(graph, raw.addressing as unknown as BuilderAddressing);
+  if (!isRecord(raw.routing) || !Array.isArray(raw.routing.staticRoutes)) {
+    throw new Error('Builder schema v4 requires explicit routing config.');
   }
   return {
     schema: 'hopscotch.builder',
-    version: 3,
+    version: 4,
     name: assertString(raw.name, 'Scenario name', 80),
     graph,
-    addressing: validateBuilderAddressing(graph, raw.addressing as unknown as BuilderAddressing),
+    addressing,
+    routing: validateBuilderRoutingConfig(graph, addressing, raw.routing as unknown as BuilderRoutingConfig),
     sourceId,
     destinationId,
     layout: validateLayout(raw.layout, graph),
@@ -163,33 +188,31 @@ function validateV3(raw: Record<string, unknown>): BuilderScenarioV3 {
   };
 }
 
-function migrateV1(raw: Record<string, unknown>): BuilderScenarioV3 {
+function migrateV1(raw: Record<string, unknown>): BuilderScenarioV4 {
   const graph = validateGraph({ nodes: raw.nodes, links: raw.links });
-  return validateV3({
-    ...raw,
-    version: 3,
-    graph,
-    addressing: createDefaultBuilderAddressing(graph),
-  });
+  const addressing = createDefaultBuilderAddressing(graph);
+  return validateV4({ ...raw, version: 4, graph, addressing, routing: createDefaultBuilderRoutingConfig() });
 }
 
-function migrateV2(raw: Record<string, unknown>): BuilderScenarioV3 {
+function migrateV2(raw: Record<string, unknown>): BuilderScenarioV4 {
   const graph = validateGraph(raw.graph);
-  return validateV3({
-    ...raw,
-    version: 3,
-    graph,
-    addressing: createDefaultBuilderAddressing(graph),
-  });
+  const addressing = createDefaultBuilderAddressing(graph);
+  return validateV4({ ...raw, version: 4, graph, addressing, routing: createDefaultBuilderRoutingConfig() });
 }
 
-function normalizeScenarioRecord(raw: Record<string, unknown>): BuilderScenarioV3 {
+function migrateV3(raw: Record<string, unknown>): BuilderScenarioV4 {
+  const graph = validateGraph(raw.graph);
+  return validateV4({ ...raw, version: 4, graph, routing: createDefaultBuilderRoutingConfig() });
+}
+
+function normalizeScenarioRecord(raw: Record<string, unknown>): BuilderScenarioV4 {
   if (raw.version === 1) return migrateV1(raw);
   if (raw.version === 2) return migrateV2(raw);
-  return validateV3(raw);
+  if (raw.version === 3) return migrateV3(raw);
+  return validateV4(raw);
 }
 
-export function deserializeBuilderScenario(text: string): BuilderScenarioV3 {
+export function deserializeBuilderScenario(text: string): BuilderScenarioV4 {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -200,8 +223,8 @@ export function deserializeBuilderScenario(text: string): BuilderScenarioV3 {
   return normalizeScenarioRecord(raw);
 }
 
-export function serializeBuilderScenario(scenario: BuilderScenarioV3): string {
-  return JSON.stringify(validateV3(scenario as unknown as Record<string, unknown>), null, 2);
+export function serializeBuilderScenario(scenario: BuilderScenarioV4): string {
+  return JSON.stringify(validateV4(scenario as unknown as Record<string, unknown>), null, 2);
 }
 
 export function createBuilderScenario(
@@ -211,15 +234,17 @@ export function createBuilderScenario(
   destinationId: string,
   layout: BuilderLayout,
   addressing: BuilderAddressing = createDefaultBuilderAddressing(graph),
-  existing?: BuilderScenarioV3,
-): BuilderScenarioV3 {
+  routing: BuilderRoutingConfig = createDefaultBuilderRoutingConfig(),
+  existing?: BuilderScenarioV4,
+): BuilderScenarioV4 {
   const now = new Date().toISOString();
-  return validateV3({
+  return validateV4({
     schema: 'hopscotch.builder',
-    version: 3,
+    version: 4,
     name,
     graph: cloneBuilderGraph(graph),
     addressing,
+    routing: cloneBuilderRoutingConfig(routing),
     sourceId,
     destinationId,
     layout: layoutForGraph(layout, graph),
@@ -228,7 +253,7 @@ export function createBuilderScenario(
   });
 }
 
-function parseStoredList(rawText: string | null): BuilderScenarioV3[] {
+function parseStoredList(rawText: string | null): BuilderScenarioV4[] {
   if (!rawText) return [];
   const parsed: unknown = JSON.parse(rawText);
   if (!Array.isArray(parsed)) return [];
@@ -241,13 +266,15 @@ function parseStoredList(rawText: string | null): BuilderScenarioV3[] {
   });
 }
 
-export function listStoredBuilderScenarios(): BuilderScenarioV3[] {
+export function listStoredBuilderScenarios(): BuilderScenarioV4[] {
   if (typeof window === 'undefined') return [];
   try {
-    const current = parseStoredList(window.localStorage.getItem(STORAGE_KEY));
-    const legacy = parseStoredList(window.localStorage.getItem(LEGACY_STORAGE_KEY));
-    const byName = new Map<string, BuilderScenarioV3>();
-    for (const scenario of [...current, ...legacy].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
+    const all = [
+      ...parseStoredList(window.localStorage.getItem(STORAGE_KEY)),
+      ...LEGACY_STORAGE_KEYS.flatMap((key) => parseStoredList(window.localStorage.getItem(key))),
+    ];
+    const byName = new Map<string, BuilderScenarioV4>();
+    for (const scenario of all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
       if (!byName.has(scenario.name)) byName.set(scenario.name, scenario);
     }
     return [...byName.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -256,25 +283,38 @@ export function listStoredBuilderScenarios(): BuilderScenarioV3[] {
   }
 }
 
-export function saveStoredBuilderScenario(scenario: BuilderScenarioV3): BuilderScenarioV3[] {
-  const validated = validateV3(scenario as unknown as Record<string, unknown>);
+function clearLegacyStorage(): void {
+  if (typeof window === 'undefined') return;
+  for (const key of LEGACY_STORAGE_KEYS) window.localStorage.removeItem(key);
+}
+
+export function saveStoredBuilderScenario(scenario: BuilderScenarioV4): BuilderScenarioV4[] {
+  const validated = validateV4(scenario as unknown as Record<string, unknown>);
   const next = [validated, ...listStoredBuilderScenarios().filter((item) => item.name !== validated.name)].slice(0, 24);
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+    clearLegacyStorage();
   }
   return next;
 }
 
-export function deleteStoredBuilderScenario(name: string): BuilderScenarioV3[] {
+export function deleteStoredBuilderScenario(name: string): BuilderScenarioV4[] {
   const next = listStoredBuilderScenarios().filter((item) => item.name !== name);
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+    clearLegacyStorage();
   }
   return next;
 }
 
-export function defaultBuilderScenario(): BuilderScenarioV3 {
-  return createBuilderScenario('Default topology', defaultBuilderGraph, 'client', 'app', defaultBuilderLayout, createDefaultBuilderAddressing(defaultBuilderGraph));
+export function defaultBuilderScenario(): BuilderScenarioV4 {
+  return createBuilderScenario(
+    'Default topology',
+    defaultBuilderGraph,
+    'client',
+    'app',
+    defaultBuilderLayout,
+    createDefaultBuilderAddressing(defaultBuilderGraph),
+    createDefaultBuilderRoutingConfig(),
+  );
 }
