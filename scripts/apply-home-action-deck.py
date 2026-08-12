@@ -162,4 +162,68 @@ addition = anchor + """
 roadmap = roadmap.replace(anchor, addition, 1)
 roadmap_path.write_text(roadmap)
 
-print('Applied Lab 10C action-first overview integration.')
+measured_contract_path = root / 'scripts/measured-workspace-contract-check.mjs'
+measured_contract = measured_contract_path.read_text()
+measured_contract = replace_once(
+    measured_contract,
+    "const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');\n",
+    "const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');\nconst home = readFileSync(new URL('../src/HomeActionDeck.tsx', import.meta.url), 'utf8');\n",
+    'measured contract home source',
+)
+measured_contract = replace_once(
+    measured_contract,
+    "assert.match(app, /Inspect measured report/, 'overview must expose the measured workspace without replacing the URL Journey primary action');\n",
+    "assert.match(app, /onMeasured=\\{openMeasuredNetwork\\}/, 'overview must route the secondary measured action through the existing measured workspace opener');\nassert.match(home, /Inspect measured report/, 'overview utility row must visibly expose the measured workspace');\n",
+    'measured overview exposure assertion',
+)
+measured_contract = replace_once(
+    measured_contract,
+    "assert.match(app, /Play URL journey/, 'URL Journey must remain present as the primary product entry');\n",
+    "assert.match(app, /onWatch=\\{openJourney\\}/, 'overview must route its primary Watch action through the canonical URL Journey opener');\nassert.match(home, /Play URL journey/, 'URL Journey must remain visibly present as a first-class product entry');\n",
+    'journey primary assertion',
+)
+legacy_order = """const primaryIndex = app.indexOf('className=\"primary-action\"');
+const journeyIndex = app.indexOf('Play URL journey');
+const measuredIndex = app.indexOf('Inspect measured report');
+assert.ok(primaryIndex >= 0 && journeyIndex > primaryIndex && measuredIndex > journeyIndex, 'measured report must remain a secondary action after the primary URL Journey');
+"""
+new_order = """const watchIndex = home.indexOf("id: 'watch'");
+const utilitiesIndex = home.indexOf('className=\"home-action-utilities\"');
+const measuredIndex = home.indexOf('Inspect measured report');
+assert.ok(watchIndex >= 0 && utilitiesIndex > watchIndex && measuredIndex > utilitiesIndex, 'measured report must remain in the secondary utility surface after the primary Watch/Journey experience');
+"""
+measured_contract = replace_once(measured_contract, legacy_order, new_order, 'measured primary-secondary ordering')
+measured_contract_path.write_text(measured_contract)
+
+explore_contract_path = root / 'scripts/explore-launcher-contract-check.mjs'
+explore_contract = explore_contract_path.read_text()
+explore_contract = replace_once(
+    explore_contract,
+    "const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');\n",
+    "const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');\nconst home = readFileSync(new URL('../src/HomeActionDeck.tsx', import.meta.url), 'utf8');\n",
+    'explore contract home source',
+)
+legacy_explore_assertion = """assert(
+  app.includes('className=\"explore-trigger\"') && app.includes('className=\"explore-hero-action\"'),
+  'Explore must be reachable from both the persistent header and the overview hero.',
+);
+"""
+new_explore_assertion = """assert(
+  app.includes('className=\"explore-trigger\"') && app.includes('onExplore={() => setExploreOpen(true)}'),
+  'Explore must be reachable from both the persistent header and the overview product surface.',
+);
+assert(
+  home.includes('Explore all 12 labs') && home.includes('onClick={onExplore}'),
+  'Overview product surface must keep an explicit entry to the full Explore catalog.',
+);
+"""
+explore_contract = replace_once(explore_contract, legacy_explore_assertion, new_explore_assertion, 'Explore overview entry contract')
+explore_contract = replace_once(
+    explore_contract,
+    "console.log(`Explore launcher contract OK: ${destinations.length} direct destinations, persistent + hero entry points, and no truth-path imports.`);",
+    "console.log(`Explore launcher contract OK: ${destinations.length} direct destinations, persistent + overview entry points, and no truth-path imports.`);",
+    'Explore contract output wording',
+)
+explore_contract_path.write_text(explore_contract)
+
+print('Applied Lab 10C action-first overview integration with updated product-boundary contracts.')
