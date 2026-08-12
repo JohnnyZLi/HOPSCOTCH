@@ -1,0 +1,543 @@
+name: Labs 11E-F Ethernet and VLAN integration
+
+on:
+  push:
+    branches:
+      - agent/lab-11def-builder-probes-switching-vlans
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: ${{ github.event.head_commit.message != 'Implement Labs 11E-F switching and VLANs' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/lab-11def-builder-probes-switching-vlans
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply Labs 11E-F
+        run: |
+          cat > src/builder/ethernet.ts <<'EOF'
+          export type BuilderEthernetDeviceKind = 'endpoint' | 'switch' | 'router';
+          export type BuilderEthernetPortMode = 'access' | 'trunk';
+
+          export interface BuilderEthernetVlan {
+            id: number;
+            name: string;
+            cidr: string;
+          }
+
+          export interface BuilderEthernetInterface {
+            vlanId: number;
+            address: string;
+            gateway?: string | null;
+          }
+
+          export interface BuilderEthernetDevice {
+            id: string;
+            label: string;
+            kind: BuilderEthernetDeviceKind;
+            mac: string;
+            interfaces: BuilderEthernetInterface[];
+          }
+
+          export interface BuilderEthernetLink {
+            id: string;
+            a: string;
+            b: string;
+            mode: BuilderEthernetPortMode;
+            accessVlan?: number;
+            allowedVlans?: number[];
+            failed: boolean;
+          }
+
+          export interface BuilderEthernetPoint { x: number; y: number }
+
+          export interface BuilderEthernetConfig {
+            vlans: BuilderEthernetVlan[];
+            devices: BuilderEthernetDevice[];
+            links: BuilderEthernetLink[];
+            layout: Record<string, BuilderEthernetPoint>;
+          }
+
+          export interface BuilderEthernetFdbEntry {
+            switchId: string;
+            vlanId: number;
+            mac: string;
+            linkId: string;
+            learnedFrom: string;
+          }
+
+          export interface BuilderEthernetFlowSegment {
+            phase: 'same-vlan' | 'to-gateway' | 'from-router';
+            vlanId: number;
+            nodeIds: string[];
+            linkIds: string[];
+            disposition: 'FLOOD THEN LEARN' | 'UNICAST' | 'ROUTED UNICAST';
+          }
+
+          export interface BuilderEthernetFlowResult {
+            sourceId: string;
+            destinationId: string;
+            sourceVlan: number | null;
+            destinationVlan: number | null;
+            success: boolean;
+            routed: boolean;
+            routedAt: string | null;
+            ttlBefore: number;
+            ttlAfter: number;
+            segments: BuilderEthernetFlowSegment[];
+            fdb: BuilderEthernetFdbEntry[];
+            failureReason: string | null;
+            summary: string;
+          }
+
+          const IPV4_RE = /^(?:\d{1,3}\.){3}\d{1,3}$/;
+          const MAC_RE = /^(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/;
+
+          function cloneInterface(entry: BuilderEthernetInterface): BuilderEthernetInterface {
+            return { ...entry };
+          }
+
+          export function cloneBuilderEthernetConfig(config: BuilderEthernetConfig): BuilderEthernetConfig {
+            return {
+              vlans: config.vlans.map((vlan) => ({ ...vlan })),
+              devices: config.devices.map((device) => ({ ...device, interfaces: device.interfaces.map(cloneInterface) })),
+              links: config.links.map((link) => ({ ...link, allowedVlans: link.allowedVlans ? [...link.allowedVlans] : undefined })),
+              layout: Object.fromEntries(Object.entries(config.layout).map(([id, point]) => [id, { ...point }])),
+            };
+          }
+
+          export function createEmptyBuilderEthernetConfig(): BuilderEthernetConfig {
+            return { vlans: [], devices: [], links: [], layout: {} };
+          }
+
+          export function createDefaultBuilderEthernetConfig(): BuilderEthernetConfig {
+            return {
+              vlans: [
+                { id: 10, name: 'USERS', cidr: '10.10.0.0/24' },
+                { id: 20, name: 'SERVERS', cidr: '10.20.0.0/24' },
+              ],
+              devices: [
+                { id: 'lan-a', label: 'PC-A', kind: 'endpoint', mac: '02:48:4f:10:00:0a', interfaces: [{ vlanId: 10, address: '10.10.0.10', gateway: '10.10.0.1' }] },
+                { id: 'lan-b', label: 'PC-B', kind: 'endpoint', mac: '02:48:4f:10:00:0b', interfaces: [{ vlanId: 10, address: '10.10.0.11', gateway: '10.10.0.1' }] },
+                { id: 'lan-c', label: 'PC-C', kind: 'endpoint', mac: '02:48:4f:20:00:0c', interfaces: [{ vlanId: 20, address: '10.20.0.10', gateway: '10.20.0.1' }] },
+                { id: 'lan-sw1', label: 'SW1', kind: 'switch', mac: '02:48:4f:00:01:01', interfaces: [] },
+                { id: 'lan-sw2', label: 'SW2', kind: 'switch', mac: '02:48:4f:00:02:02', interfaces: [] },
+                { id: 'lan-r1', label: 'RTR', kind: 'router', mac: '02:48:4f:00:fe:01', interfaces: [
+                  { vlanId: 10, address: '10.10.0.1' },
+                  { vlanId: 20, address: '10.20.0.1' },
+                ] },
+              ],
+              links: [
+                { id: 'lan-a-sw1', a: 'lan-a', b: 'lan-sw1', mode: 'access', accessVlan: 10, failed: false },
+                { id: 'lan-sw1-sw2', a: 'lan-sw1', b: 'lan-sw2', mode: 'trunk', allowedVlans: [10, 20], failed: false },
+                { id: 'lan-b-sw2', a: 'lan-b', b: 'lan-sw2', mode: 'access', accessVlan: 10, failed: false },
+                { id: 'lan-c-sw2', a: 'lan-c', b: 'lan-sw2', mode: 'access', accessVlan: 20, failed: false },
+                { id: 'lan-sw1-r1', a: 'lan-sw1', b: 'lan-r1', mode: 'trunk', allowedVlans: [10, 20], failed: false },
+              ],
+              layout: {
+                'lan-a': { x: 8, y: 18 }, 'lan-sw1': { x: 35, y: 35 }, 'lan-sw2': { x: 66, y: 35 },
+                'lan-b': { x: 92, y: 16 }, 'lan-c': { x: 92, y: 68 }, 'lan-r1': { x: 35, y: 82 },
+              },
+            };
+          }
+
+          function validIpv4(value: string): boolean {
+            if (!IPV4_RE.test(value)) return false;
+            return value.split('.').every((part) => Number(part) >= 0 && Number(part) <= 255);
+          }
+
+          function validCidr(value: string): boolean {
+            const [address, prefix] = value.split('/');
+            return Boolean(address && validIpv4(address) && /^\d{1,2}$/.test(prefix ?? '') && Number(prefix) >= 8 && Number(prefix) <= 30);
+          }
+
+          export function validateBuilderEthernetConfig(input: BuilderEthernetConfig): BuilderEthernetConfig {
+            if (!input || !Array.isArray(input.vlans) || !Array.isArray(input.devices) || !Array.isArray(input.links) || !input.layout || typeof input.layout !== 'object') {
+              throw new Error('Ethernet fabric must contain VLAN, device, link, and layout collections.');
+            }
+            if (input.devices.length === 0 && input.links.length === 0 && input.vlans.length === 0) return createEmptyBuilderEthernetConfig();
+            if (input.devices.length > 24 || input.links.length > 48 || input.vlans.length > 32) throw new Error('Ethernet teaching fabric exceeds its 24-device / 48-link / 32-VLAN ceiling.');
+
+            const vlanIds = new Set<number>();
+            for (const vlan of input.vlans) {
+              if (!Number.isInteger(vlan.id) || vlan.id < 1 || vlan.id > 4094 || vlanIds.has(vlan.id)) throw new Error(`VLAN ${vlan.id} must be unique and within 1–4094.`);
+              if (!vlan.name || vlan.name.length > 32 || !validCidr(vlan.cidr)) throw new Error(`VLAN ${vlan.id} requires a short name and valid IPv4 CIDR.`);
+              vlanIds.add(vlan.id);
+            }
+
+            const deviceIds = new Set<string>();
+            for (const device of input.devices) {
+              if (!/^[a-zA-Z0-9_-]+$/.test(device.id) || deviceIds.has(device.id)) throw new Error(`Ethernet device id ${device.id} is invalid or duplicated.`);
+              if (!device.label || device.label.length > 32 || !['endpoint','switch','router'].includes(device.kind) || !MAC_RE.test(device.mac)) throw new Error(`Ethernet device ${device.id} metadata is invalid.`);
+              if (device.kind === 'switch' && device.interfaces.length !== 0) throw new Error(`Switch ${device.id} cannot own routed IPv4 interfaces in this teaching slice.`);
+              if (device.kind === 'endpoint' && device.interfaces.length !== 1) throw new Error(`Endpoint ${device.id} must have exactly one access-VLAN interface.`);
+              const localVlans = new Set<number>();
+              for (const iface of device.interfaces) {
+                if (!vlanIds.has(iface.vlanId) || localVlans.has(iface.vlanId) || !validIpv4(iface.address) || (iface.gateway != null && !validIpv4(iface.gateway))) throw new Error(`Ethernet interface on ${device.id} is invalid.`);
+                localVlans.add(iface.vlanId);
+              }
+              deviceIds.add(device.id);
+            }
+
+            const linkIds = new Set<string>();
+            const pairs = new Set<string>();
+            for (const link of input.links) {
+              if (!/^[a-zA-Z0-9_-]+$/.test(link.id) || linkIds.has(link.id) || !deviceIds.has(link.a) || !deviceIds.has(link.b) || link.a === link.b) throw new Error(`Ethernet link ${link.id} is invalid.`);
+              const pair = [link.a, link.b].sort().join('|');
+              if (pairs.has(pair)) throw new Error(`Duplicate Ethernet link ${pair}.`);
+              pairs.add(pair); linkIds.add(link.id);
+              const a = input.devices.find((device) => device.id === link.a)!;
+              const b = input.devices.find((device) => device.id === link.b)!;
+              if (link.mode === 'access') {
+                if (!Number.isInteger(link.accessVlan) || !vlanIds.has(link.accessVlan!)) throw new Error(`Access link ${link.id} needs an existing VLAN.`);
+              } else if (link.mode === 'trunk') {
+                if (a.kind === 'endpoint' || b.kind === 'endpoint') throw new Error(`Endpoint links cannot be trunks (${link.id}).`);
+                const allowed = [...new Set(link.allowedVlans ?? [])].sort((x,y)=>x-y);
+                if (allowed.length === 0 || allowed.some((id) => !vlanIds.has(id))) throw new Error(`Trunk ${link.id} must allow at least one existing VLAN.`);
+              } else throw new Error(`Ethernet link ${link.id} mode must be access or trunk.`);
+            }
+
+            for (const device of input.devices) {
+              const point = input.layout[device.id];
+              if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y) || point.x < 0 || point.x > 100 || point.y < 0 || point.y > 100) throw new Error(`Ethernet layout is missing ${device.id}.`);
+            }
+            return cloneBuilderEthernetConfig(input);
+          }
+
+          export function parseBuilderAllowedVlans(text: string, config: BuilderEthernetConfig): number[] {
+            const ids = [...new Set(text.split(',').map((part) => Number(part.trim())).filter((id) => Number.isInteger(id)))].sort((a,b)=>a-b);
+            const existing = new Set(config.vlans.map((vlan) => vlan.id));
+            if (ids.length === 0 || ids.some((id) => !existing.has(id))) throw new Error('Trunk allowed VLANs must be a comma-separated list of existing VLAN IDs.');
+            return ids;
+          }
+
+          export function updateBuilderEthernetLink(config: BuilderEthernetConfig, linkId: string, patch: Partial<BuilderEthernetLink>): BuilderEthernetConfig {
+            const current = config.links.find((link) => link.id === linkId);
+            if (!current) throw new Error(`Unknown Ethernet link ${linkId}.`);
+            const next = cloneBuilderEthernetConfig(config);
+            next.links = next.links.map((link) => link.id === linkId ? { ...link, ...patch, allowedVlans: patch.allowedVlans ? [...patch.allowedVlans] : link.allowedVlans } : link);
+            return validateBuilderEthernetConfig(next);
+          }
+
+          function linkCarriesVlan(link: BuilderEthernetLink, vlanId: number): boolean {
+            if (link.failed) return false;
+            return link.mode === 'access' ? link.accessVlan === vlanId : Boolean(link.allowedVlans?.includes(vlanId));
+          }
+
+          function deviceById(config: BuilderEthernetConfig, id: string): BuilderEthernetDevice | undefined { return config.devices.find((device) => device.id === id); }
+          function interfaceFor(device: BuilderEthernetDevice | undefined, vlanId: number): BuilderEthernetInterface | undefined { return device?.interfaces.find((iface) => iface.vlanId === vlanId); }
+          function neighbors(config: BuilderEthernetConfig, id: string, vlanId: number): Array<{ id: string; linkId: string }> {
+            return config.links.filter((link) => linkCarriesVlan(link,vlanId) && (link.a===id || link.b===id)).map((link) => ({ id: link.a===id?link.b:link.a, linkId:link.id })).sort((a,b)=>a.id.localeCompare(b.id));
+          }
+
+          function findL2Path(config: BuilderEthernetConfig, sourceId: string, destinationId: string, vlanId: number): { nodeIds: string[]; linkIds: string[] } | null {
+            if (sourceId === destinationId) return { nodeIds:[sourceId], linkIds:[] };
+            const queue: Array<{id:string;nodes:string[];links:string[]}> = [{id:sourceId,nodes:[sourceId],links:[]}];
+            const seen = new Set([sourceId]);
+            while (queue.length) {
+              const current = queue.shift()!;
+              for (const next of neighbors(config,current.id,vlanId)) {
+                if (seen.has(next.id)) continue;
+                const nextDevice = deviceById(config,next.id);
+                if (!nextDevice) continue;
+                const nodes = [...current.nodes,next.id]; const links = [...current.links,next.linkId];
+                if (next.id === destinationId) return {nodeIds:nodes,linkIds:links};
+                if (nextDevice.kind !== 'switch') continue;
+                seen.add(next.id); queue.push({id:next.id,nodes,links});
+              }
+            }
+            return null;
+          }
+
+          function learn(config: BuilderEthernetConfig, path: {nodeIds:string[];linkIds:string[]}, vlanId:number, mac:string, learnedFrom:string, fdb:Map<string,BuilderEthernetFdbEntry>): void {
+            path.nodeIds.forEach((nodeId,index) => {
+              const device = deviceById(config,nodeId);
+              if (device?.kind !== 'switch' || index === 0) return;
+              const ingress = path.linkIds[index-1]; if (!ingress) return;
+              fdb.set(`${nodeId}:${vlanId}:${mac}`, { switchId:nodeId,vlanId,mac,linkId:ingress,learnedFrom });
+            });
+          }
+
+          function fail(sourceId:string,destinationId:string,sourceVlan:number|null,destinationVlan:number|null,reason:string): BuilderEthernetFlowResult {
+            return { sourceId,destinationId,sourceVlan,destinationVlan,success:false,routed:false,routedAt:null,ttlBefore:64,ttlAfter:64,segments:[],fdb:[],failureReason:reason,summary:reason };
+          }
+
+          export function runBuilderEthernetFlow(configInput: BuilderEthernetConfig, sourceId: string, destinationId: string): BuilderEthernetFlowResult {
+            const config = validateBuilderEthernetConfig(configInput);
+            const source = deviceById(config,sourceId); const destination = deviceById(config,destinationId);
+            if (!source || !destination || source.kind !== 'endpoint' || destination.kind !== 'endpoint' || sourceId === destinationId) return fail(sourceId,destinationId,null,null,'Choose two different Ethernet endpoints.');
+            const sourceIf = source.interfaces[0]; const destinationIf = destination.interfaces[0];
+            const sourceVlan = sourceIf?.vlanId ?? null; const destinationVlan = destinationIf?.vlanId ?? null;
+            if (!sourceIf || !destinationIf) return fail(sourceId,destinationId,sourceVlan,destinationVlan,'Endpoint VLAN interfaces are incomplete.');
+            const fdb = new Map<string,BuilderEthernetFdbEntry>();
+
+            if (sourceVlan === destinationVlan) {
+              const path = findL2Path(config,sourceId,destinationId,sourceVlan);
+              if (!path) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`VLAN ${sourceVlan} has no active Layer-2 path between the endpoints.`);
+              const reverse = { nodeIds:[...path.nodeIds].reverse(), linkIds:[...path.linkIds].reverse() };
+              learn(config,path,sourceVlan,source.mac,sourceId,fdb); learn(config,reverse,sourceVlan,destination.mac,destinationId,fdb);
+              return { sourceId,destinationId,sourceVlan,destinationVlan,success:true,routed:false,routedAt:null,ttlBefore:64,ttlAfter:64,
+                segments:[{phase:'same-vlan',vlanId:sourceVlan,nodeIds:path.nodeIds,linkIds:path.linkIds,disposition:'FLOOD THEN LEARN'}],fdb:[...fdb.values()].sort((a,b)=>`${a.switchId}:${a.mac}`.localeCompare(`${b.switchId}:${b.mac}`)),failureReason:null,
+                summary:`VLAN ${sourceVlan} stays Layer 2: first unknown unicast floods only inside that VLAN, then learned MAC state enables unicast return.` };
+            }
+
+            const router = config.devices.filter((device) => device.kind==='router' && interfaceFor(device,sourceVlan) && interfaceFor(device,destinationVlan)).sort((a,b)=>a.id.localeCompare(b.id))[0];
+            if (!router) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`VLAN ${sourceVlan} and VLAN ${destinationVlan} are isolated: no router has interfaces in both broadcast domains.`);
+            const sourceRouterIf = interfaceFor(router,sourceVlan)!; const destinationRouterIf = interfaceFor(router,destinationVlan)!;
+            if (sourceIf.gateway !== sourceRouterIf.address) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`${source.label} gateway ${sourceIf.gateway ?? 'NONE'} does not match ${router.label} VLAN ${sourceVlan} interface ${sourceRouterIf.address}.`);
+            if (destinationIf.gateway !== destinationRouterIf.address) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`${destination.label} gateway ${destinationIf.gateway ?? 'NONE'} does not match ${router.label} VLAN ${destinationVlan} interface ${destinationRouterIf.address}.`);
+            const toGateway = findL2Path(config,sourceId,router.id,sourceVlan);
+            if (!toGateway) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`VLAN ${sourceVlan} cannot reach the router trunk/access interface.`);
+            const fromRouter = findL2Path(config,router.id,destinationId,destinationVlan);
+            if (!fromRouter) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`Router can route to VLAN ${destinationVlan}, but its tagged/access Layer-2 path to ${destination.label} is blocked.`);
+            learn(config,toGateway,sourceVlan,source.mac,sourceId,fdb); learn(config,{nodeIds:[...toGateway.nodeIds].reverse(),linkIds:[...toGateway.linkIds].reverse()},sourceVlan,router.mac,router.id,fdb);
+            learn(config,fromRouter,destinationVlan,router.mac,router.id,fdb); learn(config,{nodeIds:[...fromRouter.nodeIds].reverse(),linkIds:[...fromRouter.linkIds].reverse()},destinationVlan,destination.mac,destinationId,fdb);
+            return { sourceId,destinationId,sourceVlan,destinationVlan,success:true,routed:true,routedAt:router.id,ttlBefore:64,ttlAfter:63,
+              segments:[
+                {phase:'to-gateway',vlanId:sourceVlan,nodeIds:toGateway.nodeIds,linkIds:toGateway.linkIds,disposition:'FLOOD THEN LEARN'},
+                {phase:'from-router',vlanId:destinationVlan,nodeIds:fromRouter.nodeIds,linkIds:fromRouter.linkIds,disposition:'ROUTED UNICAST'},
+              ],fdb:[...fdb.values()].sort((a,b)=>`${a.switchId}:${a.vlanId}:${a.mac}`.localeCompare(`${b.switchId}:${b.vlanId}:${b.mac}`)),failureReason:null,
+              summary:`${router.label} routes VLAN ${sourceVlan} → VLAN ${destinationVlan} using connected router-on-a-stick subinterfaces; IP TTL decreases once at the router.` };
+          }
+          EOF
+
+          cat > scripts/builder-ethernet-contract-check.mjs <<'EOF'
+          import assert from 'node:assert/strict';
+          import { createDefaultBuilderEthernetConfig, parseBuilderAllowedVlans, runBuilderEthernetFlow, updateBuilderEthernetLink, validateBuilderEthernetConfig } from '../src/builder/ethernet.ts';
+
+          const fabric = createDefaultBuilderEthernetConfig();
+          assert.equal(validateBuilderEthernetConfig(fabric).devices.filter((d)=>d.kind==='switch').length,2);
+          assert.deepEqual(fabric.vlans.map((v)=>v.id),[10,20]);
+
+          const same = runBuilderEthernetFlow(fabric,'lan-a','lan-b');
+          assert.equal(same.success,true);
+          assert.equal(same.routed,false);
+          assert.equal(same.ttlAfter,64);
+          assert.deepEqual(same.segments[0].nodeIds,['lan-a','lan-sw1','lan-sw2','lan-b']);
+          assert.deepEqual(same.segments[0].linkIds,['lan-a-sw1','lan-sw1-sw2','lan-b-sw2']);
+          assert.ok(same.fdb.some((entry)=>entry.switchId==='lan-sw1'&&entry.vlanId===10&&entry.mac==='02:48:4f:10:00:0a'));
+          assert.ok(same.fdb.some((entry)=>entry.switchId==='lan-sw2'&&entry.vlanId===10&&entry.mac==='02:48:4f:10:00:0b'));
+
+          const routed = runBuilderEthernetFlow(fabric,'lan-a','lan-c');
+          assert.equal(routed.success,true);
+          assert.equal(routed.routed,true);
+          assert.equal(routed.routedAt,'lan-r1');
+          assert.equal(routed.ttlAfter,63);
+          assert.deepEqual(routed.segments.map((s)=>s.vlanId),[10,20]);
+          assert.deepEqual(routed.segments[0].nodeIds,['lan-a','lan-sw1','lan-r1']);
+          assert.deepEqual(routed.segments[1].nodeIds,['lan-r1','lan-sw1','lan-sw2','lan-c']);
+
+          const vlan20Blocked = updateBuilderEthernetLink(fabric,'lan-sw1-sw2',{allowedVlans:[10]});
+          const blocked = runBuilderEthernetFlow(vlan20Blocked,'lan-a','lan-c');
+          assert.equal(blocked.success,false);
+          assert.match(blocked.failureReason,/tagged\/access Layer-2 path/);
+          assert.equal(runBuilderEthernetFlow(vlan20Blocked,'lan-a','lan-b').success,true,'VLAN 10 remains permitted on the trunk');
+
+          const accessMismatch = updateBuilderEthernetLink(fabric,'lan-b-sw2',{accessVlan:20});
+          const isolated = runBuilderEthernetFlow(accessMismatch,'lan-a','lan-b');
+          assert.equal(isolated.success,false);
+          assert.match(isolated.failureReason,/no active Layer-2 path/);
+
+          const downTrunk = updateBuilderEthernetLink(fabric,'lan-sw1-sw2',{failed:true});
+          assert.equal(runBuilderEthernetFlow(downTrunk,'lan-a','lan-b').success,false);
+          assert.deepEqual(parseBuilderAllowedVlans('20, 10,20',fabric),[10,20]);
+          assert.throws(()=>parseBuilderAllowedVlans('10,999',fabric),/existing VLAN/);
+          assert.throws(()=>updateBuilderEthernetLink(fabric,'lan-a-sw1',{mode:'trunk',allowedVlans:[10]}),/Endpoint links cannot be trunks/);
+
+          console.log('Builder Ethernet/VLAN contract passed: access switching, VLAN-scoped learning, trunks, trunk filtering, router-on-a-stick inter-VLAN routing, TTL boundary, and explicit isolation.');
+          EOF
+
+          cat > docs/LAB11E.md <<'EOF'
+          # Lab 11E — Ethernet LANs + switching foundation
+
+          Lab 11E adds a bounded Layer-2 teaching fabric inside Network Builder without corrupting the routed point-to-point graph introduced by Labs 11A–11D.
+
+          - Switches forward Ethernet within a VLAN/broadcast domain; they do not gain IPv4 route-table entries.
+          - Access links carry one VLAN untagged in this model.
+          - Unknown unicast is represented as VLAN-scoped flood-and-learn behavior; deterministic FDB entries are derived from the flow rather than persisted as configuration.
+          - A learned return path is unicast.
+          - Link failure or access-VLAN mismatch can make Layer 2 unreachable while the separate routed Builder graph remains unchanged.
+
+          This slice deliberately keeps ARP resolution symbolic: deterministic device MAC addresses let the lesson focus on switching/FDB behavior. ARP itself can become a later packet-level slice rather than being silently fabricated here.
+          EOF
+
+          cat > docs/LAB11F.md <<'EOF'
+          # Lab 11F — VLANs, trunks + inter-VLAN routing
+
+          Lab 11F extends the Ethernet fabric with 802.1Q-style teaching boundaries and router-on-a-stick forwarding.
+
+          - VLAN IDs are explicit (1–4094) and each VLAN owns a distinct IPv4 subnet in the demo.
+          - Trunks carry an explicit allowed-VLAN set; there is no implicit “all VLANs” escape hatch.
+          - Endpoints cannot be attached as trunk ports in this bounded model.
+          - Same-VLAN traffic stays at Layer 2 and does not decrement IP TTL.
+          - Different VLANs are isolated unless one router has an interface/subinterface in both VLANs and endpoint gateways match those router addresses.
+          - Inter-VLAN forwarding crosses the router once and decrements TTL exactly once.
+          - FDB state is keyed by switch + VLAN + MAC, so identical Layer-2 learning concepts stay scoped to their broadcast domain.
+
+          Native VLAN behavior, STP, LACP, ARP/ND, DHCP, routed SVIs, and dynamic routing redistribution between this LAN fabric and the existing routed graph remain explicit future slices rather than hidden assumptions.
+          EOF
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          # Scenario schema v6 persists LAN/VLAN configuration; derived FDB/flow history remains absent.
+          path = Path('src/builder/scenario.ts')
+          text = path.read_text()
+          text = text.replace("} from './routing.ts';", "} from './routing.ts';\nimport { cloneBuilderEthernetConfig, createDefaultBuilderEthernetConfig, createEmptyBuilderEthernetConfig, validateBuilderEthernetConfig, type BuilderEthernetConfig } from './ethernet.ts';")
+          text = text.replace("export type BuilderScenarioV5 = Omit<BuilderScenarioV4, 'version'> & { version: 5 };\nexport type BuilderScenario = BuilderScenarioV5;\n\nconst STORAGE_KEY = 'hopscotch.builder.scenarios.v5';\nconst LEGACY_STORAGE_KEYS = ['hopscotch.builder.scenarios.v4', 'hopscotch.builder.scenarios.v3', 'hopscotch.builder.scenarios.v2'] as const;",
+          "export type BuilderScenarioV5 = Omit<BuilderScenarioV4, 'version'> & { version: 5 };\nexport type BuilderScenarioV6 = Omit<BuilderScenarioV5, 'version'> & { version: 6; ethernet: BuilderEthernetConfig };\nexport type BuilderScenario = BuilderScenarioV6;\n\nconst STORAGE_KEY = 'hopscotch.builder.scenarios.v6';\nconst LEGACY_STORAGE_KEYS = ['hopscotch.builder.scenarios.v5', 'hopscotch.builder.scenarios.v4', 'hopscotch.builder.scenarios.v3', 'hopscotch.builder.scenarios.v2'] as const;")
+          start = text.index('function validateV5(')
+          end = text.index('\nfunction parseStoredList', start)
+          replacement = r'''function validateV6(raw: Record<string, unknown>): BuilderScenarioV6 {
+            if (raw.schema !== 'hopscotch.builder' || raw.version !== 6) throw new Error('Unsupported HOPSCOTCH Builder schema/version.');
+            const graph = validateGraph(raw.graph);
+            const sourceId = assertString(raw.sourceId, 'sourceId', 48);
+            const destinationId = assertString(raw.destinationId, 'destinationId', 48);
+            const ids = new Set(graph.nodes.map((node) => node.id));
+            if (!ids.has(sourceId) || !ids.has(destinationId)) throw new Error('Source and destination must reference nodes that exist.');
+            if (!isRecord(raw.addressing) || !isRecord(raw.addressing.segments) || !isRecord(raw.addressing.defaultGateways)) throw new Error('Builder schema v6 requires explicit L3 addressing.');
+            const addressing = validateBuilderAddressing(graph, raw.addressing as unknown as BuilderAddressing);
+            if (!isRecord(raw.routing) || !Array.isArray(raw.routing.staticRoutes)) throw new Error('Builder schema v6 requires explicit routing config.');
+            if (!isRecord(raw.ethernet)) throw new Error('Builder schema v6 requires explicit Ethernet/VLAN configuration.');
+            return {
+              schema: 'hopscotch.builder', version: 6, name: assertString(raw.name, 'Scenario name', 80), graph, addressing,
+              routing: validateBuilderRoutingConfig(graph, addressing, raw.routing as unknown as BuilderRoutingConfig),
+              ethernet: validateBuilderEthernetConfig(raw.ethernet as unknown as BuilderEthernetConfig), sourceId, destinationId,
+              layout: validateLayout(raw.layout, graph), createdAt: assertTimestamp(raw.createdAt, 'createdAt'), updatedAt: assertTimestamp(raw.updatedAt, 'updatedAt'),
+            };
+          }
+
+          function migrateV1(raw: Record<string, unknown>): BuilderScenarioV6 {
+            const graph = validateGraph({ nodes: raw.nodes, links: raw.links }); const addressing = createDefaultBuilderAddressing(graph);
+            return validateV6({ ...raw, version: 6, graph, addressing, routing: createDefaultBuilderRoutingConfig(), ethernet: createEmptyBuilderEthernetConfig() });
+          }
+          function migrateV2(raw: Record<string, unknown>): BuilderScenarioV6 {
+            const graph = validateGraph(raw.graph); const addressing = createDefaultBuilderAddressing(graph);
+            return validateV6({ ...raw, version: 6, graph, addressing, routing: createDefaultBuilderRoutingConfig(), ethernet: createEmptyBuilderEthernetConfig() });
+          }
+          function migrateV3(raw: Record<string, unknown>): BuilderScenarioV6 {
+            const graph = validateGraph(raw.graph);
+            return validateV6({ ...raw, version: 6, graph, routing: createDefaultBuilderRoutingConfig(), ethernet: createEmptyBuilderEthernetConfig() });
+          }
+          function migrateV4(raw: Record<string, unknown>): BuilderScenarioV6 { return validateV6({ ...raw, version: 6, ethernet: createEmptyBuilderEthernetConfig() }); }
+          function migrateV5(raw: Record<string, unknown>): BuilderScenarioV6 { return validateV6({ ...raw, version: 6, ethernet: createEmptyBuilderEthernetConfig() }); }
+          function normalizeScenarioRecord(raw: Record<string, unknown>): BuilderScenarioV6 {
+            if (raw.version === 1) return migrateV1(raw); if (raw.version === 2) return migrateV2(raw); if (raw.version === 3) return migrateV3(raw); if (raw.version === 4) return migrateV4(raw); if (raw.version === 5) return migrateV5(raw); return validateV6(raw);
+          }
+          export function deserializeBuilderScenario(text: string): BuilderScenarioV6 {
+            let raw: unknown; try { raw = JSON.parse(text); } catch { throw new Error('Scenario file is not valid JSON.'); }
+            if (!isRecord(raw) || raw.schema !== 'hopscotch.builder') throw new Error('File is not a HOPSCOTCH Builder scenario.'); return normalizeScenarioRecord(raw);
+          }
+          export function serializeBuilderScenario(scenario: BuilderScenarioV6): string { return JSON.stringify(validateV6(scenario as unknown as Record<string, unknown>), null, 2); }
+          export function createBuilderScenario(
+            name: string, graph: BuilderGraph, sourceId: string, destinationId: string, layout: BuilderLayout,
+            addressing: BuilderAddressing = createDefaultBuilderAddressing(graph), routing: BuilderRoutingConfig = createDefaultBuilderRoutingConfig(),
+            existing?: BuilderScenarioV6, ethernet: BuilderEthernetConfig = createDefaultBuilderEthernetConfig(),
+          ): BuilderScenarioV6 {
+            const now = new Date().toISOString();
+            return validateV6({ schema:'hopscotch.builder',version:6,name,graph:cloneBuilderGraph(graph),addressing,routing:cloneBuilderRoutingConfig(routing),ethernet:cloneBuilderEthernetConfig(ethernet),sourceId,destinationId,layout:layoutForGraph(layout,graph),createdAt:existing?.createdAt??now,updatedAt:now });
+          }
+          '''
+          text = text[:start] + replacement + text[end:]
+          text = text.replace('BuilderScenarioV5[]', 'BuilderScenarioV6[]').replace('BuilderScenarioV5>', 'BuilderScenarioV6>').replace('BuilderScenarioV5)', 'BuilderScenarioV6)').replace('BuilderScenarioV5 {', 'BuilderScenarioV6 {')
+          text = text.replace('const byName = new Map<string, BuilderScenarioV5>();', 'const byName = new Map<string, BuilderScenarioV6>();')
+          text = text.replace('validateV5(scenario as unknown as Record<string, unknown>)', 'validateV6(scenario as unknown as Record<string, unknown>)')
+          text = text.replace("    createDefaultBuilderRoutingConfig(),\n  );", "    createDefaultBuilderRoutingConfig(),\n    undefined,\n    createDefaultBuilderEthernetConfig(),\n  );")
+          path.write_text(text)
+
+          # NetworkBuilder integrates persisted LAN fabric and control surface.
+          path = Path('src/NetworkBuilder.tsx')
+          text = path.read_text()
+          text = text.replace("  type BuilderScenarioV5,", "  type BuilderScenarioV6,")
+          text = text.replace("import { runBuilderProbe, type BuilderProbePacketSeed, type BuilderProbeResult } from './builder/probes.ts';", "import { runBuilderProbe, type BuilderProbePacketSeed, type BuilderProbeResult } from './builder/probes.ts';\nimport { cloneBuilderEthernetConfig, createDefaultBuilderEthernetConfig, parseBuilderAllowedVlans, runBuilderEthernetFlow, updateBuilderEthernetLink, type BuilderEthernetConfig, type BuilderEthernetFlowResult } from './builder/ethernet.ts';")
+          old_sig = "export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, initialGraph = defaultBuilderGraph, initialLayout = defaultBuilderLayout, initialAddressing, initialRouting, initialSourceId = 'client', initialDestinationId = 'app', stressLabel }: { onExit: () => void; onOpenFailureStory: () => void; onOpenProbePacket?: (seed: BuilderProbePacketSeed) => void; initialGraph?: BuilderGraph; initialLayout?: BuilderLayout; initialAddressing?: BuilderAddressing; initialRouting?: BuilderRoutingConfig; initialSourceId?: string; initialDestinationId?: string; stressLabel?: string }) {"
+          new_sig = "export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, initialGraph = defaultBuilderGraph, initialLayout = defaultBuilderLayout, initialAddressing, initialRouting, initialEthernet, initialSourceId = 'client', initialDestinationId = 'app', stressLabel }: { onExit: () => void; onOpenFailureStory: () => void; onOpenProbePacket?: (seed: BuilderProbePacketSeed) => void; initialGraph?: BuilderGraph; initialLayout?: BuilderLayout; initialAddressing?: BuilderAddressing; initialRouting?: BuilderRoutingConfig; initialEthernet?: BuilderEthernetConfig; initialSourceId?: string; initialDestinationId?: string; stressLabel?: string }) {"
+          if old_sig not in text: raise SystemExit('NetworkBuilder 11D signature marker missing')
+          text = text.replace(old_sig,new_sig)
+          text = text.replace("  const [routing, setRouting] = useState<BuilderRoutingConfig>(() => cloneBuilderRoutingConfig(initialRouting ?? createDefaultBuilderRoutingConfig()));", "  const [routing, setRouting] = useState<BuilderRoutingConfig>(() => cloneBuilderRoutingConfig(initialRouting ?? createDefaultBuilderRoutingConfig()));\n  const [ethernet, setEthernet] = useState<BuilderEthernetConfig>(() => cloneBuilderEthernetConfig(initialEthernet ?? createDefaultBuilderEthernetConfig()));")
+          text = text.replace("  const [saved, setSaved] = useState<BuilderScenarioV5[]>(() => listStoredBuilderScenarios());", "  const [saved, setSaved] = useState<BuilderScenarioV6[]>(() => listStoredBuilderScenarios());")
+          marker = "  const [selectedProbeAttempt, setSelectedProbeAttempt] = useState(0);"
+          addition = marker + "\n  const ethernetEndpoints = ethernet.devices.filter((device) => device.kind === 'endpoint');\n  const [ethernetSourceId, setEthernetSourceId] = useState(() => ethernetEndpoints[0]?.id ?? '');\n  const [ethernetDestinationId, setEthernetDestinationId] = useState(() => ethernetEndpoints[1]?.id ?? ethernetEndpoints[0]?.id ?? '');\n  const [selectedEthernetLinkId, setSelectedEthernetLinkId] = useState(() => ethernet.links[0]?.id ?? '');\n  const [ethernetFlow, setEthernetFlow] = useState<BuilderEthernetFlowResult | null>(null);"
+          if marker not in text: raise SystemExit('probe state marker missing')
+          text = text.replace(marker,addition)
+          marker = "  const probeLinks = new Set(selectedAttempt?.requestLinkIds ?? []);"
+          addition = marker + "\n  const selectedEthernetLink = ethernet.links.find((link) => link.id === selectedEthernetLinkId) ?? ethernet.links[0];\n  const ethernetFlowLinks = new Set(ethernetFlow?.segments.flatMap((segment) => segment.linkIds) ?? []);\n\n  const resetEthernetDemo = () => {\n    const next = createDefaultBuilderEthernetConfig(); setEthernet(next); setEthernetSourceId('lan-a'); setEthernetDestinationId('lan-b'); setSelectedEthernetLinkId(next.links[0]?.id ?? ''); setEthernetFlow(null); setMessage('LAN FABRIC RESET · access VLANs, trunk allow-lists, and router-on-a-stick interfaces restored.');\n  };\n  const runEthernet = () => { const result = runBuilderEthernetFlow(ethernet,ethernetSourceId,ethernetDestinationId); setEthernetFlow(result); setMessage(`LAN FABRIC · ${result.summary}`); };\n  const patchEthernetLink = (patch: Parameters<typeof updateBuilderEthernetLink>[2]) => { if(!selectedEthernetLink)return; try{const next=updateBuilderEthernetLink(ethernet,selectedEthernetLink.id,patch);setEthernet(next);setEthernetFlow(null);setMessage(`LAN PORT · ${selectedEthernetLink.id.toUpperCase()} updated. Rerun the frame to observe new switching/VLAN truth.`);}catch(error){setMessage(`LAN CONFIG REJECTED · ${error instanceof Error?error.message:'Invalid Ethernet port configuration.'}`);} };"
+          if marker not in text: raise SystemExit('probeLinks marker missing')
+          text = text.replace(marker,addition)
+          text = text.replace("    setRouting(cloneBuilderRoutingConfig(initialRouting ?? createDefaultBuilderRoutingConfig()));", "    setRouting(cloneBuilderRoutingConfig(initialRouting ?? createDefaultBuilderRoutingConfig()));\n    setEthernet(cloneBuilderEthernetConfig(initialEthernet ?? createDefaultBuilderEthernetConfig())); setEthernetFlow(null);")
+          old_save = "const scenario = createBuilderScenario(scenarioName.trim() || 'Untitled topology', graph, sourceId, destinationId, layout, addressing, routing, existing);"
+          text = text.replace(old_save, "const scenario = createBuilderScenario(scenarioName.trim() || 'Untitled topology', graph, sourceId, destinationId, layout, addressing, routing, existing, ethernet);")
+          text = text.replace("setMessage(`Saved “${scenario.name}” locally as Builder schema v5.`);", "setMessage(`Saved “${scenario.name}” locally as Builder schema v6.`);")
+          text = text.replace("const restoreScenario = (scenario: BuilderScenarioV5) => {", "const restoreScenario = (scenario: BuilderScenarioV6) => {")
+          text = text.replace("setGraph(cloneBuilderGraph(scenario.graph)); setAddressing(cloneBuilderAddressing(scenario.addressing)); setRouting(cloneBuilderRoutingConfig(scenario.routing)); setLayout", "setGraph(cloneBuilderGraph(scenario.graph)); setAddressing(cloneBuilderAddressing(scenario.addressing)); setRouting(cloneBuilderRoutingConfig(scenario.routing)); setEthernet(cloneBuilderEthernetConfig(scenario.ethernet)); setEthernetFlow(null); setEthernetSourceId(scenario.ethernet.devices.find((device)=>device.kind==='endpoint')?.id ?? ''); setEthernetDestinationId(scenario.ethernet.devices.filter((device)=>device.kind==='endpoint')[1]?.id ?? scenario.ethernet.devices.find((device)=>device.kind==='endpoint')?.id ?? ''); setSelectedEthernetLinkId(scenario.ethernet.links[0]?.id ?? ''); setLayout")
+          old_export = "const scenario = createBuilderScenario(scenarioName.trim() || 'Exported topology', graph, sourceId, destinationId, layout, addressing, routing);"
+          text = text.replace(old_export, "const scenario = createBuilderScenario(scenarioName.trim() || 'Exported topology', graph, sourceId, destinationId, layout, addressing, routing, undefined, ethernet);")
+          text = text.replace("setMessage('Scenario v5 exported with topology, addressing, static routing, and OSPF configuration.');", "setMessage('Scenario v6 exported with routed topology plus Ethernet/VLAN configuration; derived probe/FDB observations remain session-only.');")
+
+          # Add LAN stage panel immediately after active probe panel.
+          needle = "          <div className={`builder-probe-panel ${selectedProbe ? (selectedProbe.success ? 'success' : 'failed') : 'idle'}`}><span>ACTIVE PROBE · SESSION SNAPSHOT</span>{selectedProbe&&selectedAttempt?<><strong>{selectedProbe.kind.toUpperCase()} · TTL {selectedAttempt.ttl} · {selectedAttempt.status.replace('-', ' ').toUpperCase()}</strong><p>{selectedAttempt.detail}</p><div className=\"builder-probe-path\">{selectedAttempt.requestNodeIds.map((id,index)=><span key={`${selectedProbe.id}-${selectedAttempt.index}-${id}-${index}`}><b>{labelFor(graph,id)}</b>{index===0?'SOURCE':index===selectedAttempt.requestNodeIds.length-1?'RESPONDER':'TRANSIT'}</span>)}</div><small>{selectedProbe.snapshotNote}</small></>:<><strong>NO PROBE YET</strong><p>Run Ping or Traceroute. Probes consume the current L3 forwarding table instead of inventing their own route.</p></>}</div>"
+          lan_panel = needle + "\n          <div className={`builder-ethernet-stage ${ethernetFlow ? (ethernetFlow.success?'success':'failed') : ''}`}><span>ETHERNET FABRIC · SWITCHING + VLANs</span><strong>{ethernetFlow ? (ethernetFlow.success ? (ethernetFlow.routed ? `ROUTED · VLAN ${ethernetFlow.sourceVlan} → ${ethernetFlow.destinationVlan}` : `SWITCHED · VLAN ${ethernetFlow.sourceVlan}`) : 'UNREACHABLE') : 'READY · VLAN 10 / VLAN 20'}</strong><p>{ethernetFlow?.summary ?? 'A separate LAN teaching fabric keeps access ports, trunks, MAC learning, broadcast domains, and router-on-a-stick behavior explicit without pretending the routed /30 graph is Ethernet.'}</p><div className=\"builder-lan-canvas\"><svg viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\">{ethernet.links.map((link)=>{const a=ethernet.layout[link.a],b=ethernet.layout[link.b];if(!a||!b)return null;return <g key={link.id} className={`${link.failed?'failed':''} ${ethernetFlowLinks.has(link.id)?'flow':''}`}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y}/><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-2}>{link.failed?'DOWN':link.mode==='access'?`A${link.accessVlan}`:`T ${link.allowedVlans?.join(',')}`}</text></g>;})}</svg>{ethernet.devices.map((device)=>{const point=ethernet.layout[device.id];if(!point)return null;return <div key={device.id} className={`builder-lan-node ${device.kind}`} style={{left:`${point.x}%`,top:`${point.y}%`}}><span>{device.kind==='switch'?'SW':device.kind==='router'?'RTR':'END'}</span><strong>{device.label}</strong>{device.interfaces[0]&&<small>{device.interfaces.map((entry)=>`V${entry.vlanId}`).join(' · ')}</small>}</div>;})}</div>{ethernetFlow&&<div className=\"builder-lan-phases\">{ethernetFlow.segments.map((segment)=><span key={`${segment.phase}-${segment.vlanId}`}><b>VLAN {segment.vlanId} · {segment.phase.replace('-', ' ').toUpperCase()}</b>{segment.nodeIds.map((id)=>ethernet.devices.find((device)=>device.id===id)?.label??id).join(' → ')} · {segment.disposition}</span>)}</div>}<small>FDB IS DERIVED PER FLOW · SAME-VLAN TTL 64 → 64 · INTER-VLAN TTL 64 → 63 · ARP/STP ARE NOT FABRICATED</small></div>"
+          if text.count(needle)!=1: raise SystemExit('probe panel exact marker missing')
+          text = text.replace(needle,lan_panel)
+
+          # Insert LAN controls after active probe controls.
+          needle = "          <section className=\"builder-probe-section\"><div className=\"control-title\"><span>ACTIVE PROBES</span><strong>ICMP · SESSION ONLY</strong></div><div className=\"button-row\"><button type=\"button\" onClick={()=>runProbe('ping')}>PING</button><button type=\"button\" onClick={()=>runProbe('traceroute')}>TRACEROUTE</button><button type=\"button\" onClick={()=>{setProbeHistory([]);setSelectedProbeId(null);setSelectedProbeAttempt(0);}}>CLEAR</button></div>{selectedProbe&&<><label>RESULT<select value={selectedProbe.id} onChange={(event)=>{setSelectedProbeId(event.currentTarget.value);setSelectedProbeAttempt(0);}}>{probeHistory.map((probe)=><option key={probe.id} value={probe.id}>{probe.sequence}. {probe.kind.toUpperCase()} · {probe.success?'PASS':'FAIL'}</option>)}</select></label>{selectedProbe.attempts.length>1&&<label>TTL / ATTEMPT<select value={Math.min(selectedProbeAttempt,selectedProbe.attempts.length-1)} onChange={(event)=>setSelectedProbeAttempt(Number(event.currentTarget.value))}>{selectedProbe.attempts.map((attempt,index)=><option key={`${selectedProbe.id}-${attempt.ttl}-${index}`} value={index}>TTL {attempt.ttl} · {attempt.responderNodeId?labelFor(graph,attempt.responderNodeId):'NO RESPONSE'} · {attempt.status.toUpperCase()}</option>)}</select></label>}<button type=\"button\" disabled={!selectedAttempt?.packet||!onOpenProbePacket} onClick={()=>{if(selectedAttempt?.packet&&onOpenProbePacket)onOpenProbePacket(selectedAttempt.packet);}}>OPEN ICMP PACKET ↗</button></>}<small className=\"builder-routing-note\">PING validates request + reply paths. TRACEROUTE expires TTL at routers and needs a reverse route for each Time Exceeded response. ROUTING COST ≠ RTT.</small></section>"
+          lan_controls = needle + "\n          <section className=\"builder-ethernet-section\"><div className=\"control-title\"><span>LAN FABRIC</span><strong>802.1Q TEACHING MODEL</strong></div>{ethernet.devices.length===0?<><small className=\"builder-routing-note\">THIS LEGACY SCENARIO HAS NO LAN FABRIC CONFIGURATION.</small><button type=\"button\" onClick={resetEthernetDemo}>LOAD LAN DEMO</button></>:<><label>SOURCE<select value={ethernetSourceId} onChange={(event)=>setEthernetSourceId(event.currentTarget.value)}>{ethernet.devices.filter((device)=>device.kind==='endpoint').map((device)=><option key={device.id} value={device.id}>{device.label} · VLAN {device.interfaces[0]?.vlanId}</option>)}</select></label><label>DESTINATION<select value={ethernetDestinationId} onChange={(event)=>setEthernetDestinationId(event.currentTarget.value)}>{ethernet.devices.filter((device)=>device.kind==='endpoint').map((device)=><option key={device.id} value={device.id}>{device.label} · VLAN {device.interfaces[0]?.vlanId}</option>)}</select></label><div className=\"button-row\"><button type=\"button\" onClick={runEthernet}>SEND FRAME / PACKET</button><button type=\"button\" onClick={resetEthernetDemo}>RESET LAN</button></div><label>SELECTED PORT LINK<select value={selectedEthernetLink?.id??''} onChange={(event)=>{setSelectedEthernetLinkId(event.currentTarget.value);setEthernetFlow(null);}}>{ethernet.links.map((link)=><option key={link.id} value={link.id}>{ethernet.devices.find((device)=>device.id===link.a)?.label} ↔ {ethernet.devices.find((device)=>device.id===link.b)?.label}</option>)}</select></label>{selectedEthernetLink&&<><label>PORT MODE<select value={selectedEthernetLink.mode} onChange={(event)=>{const mode=event.currentTarget.value as 'access'|'trunk';const a=ethernet.devices.find((device)=>device.id===selectedEthernetLink.a),b=ethernet.devices.find((device)=>device.id===selectedEthernetLink.b);if(mode==='trunk'&&(a?.kind==='endpoint'||b?.kind==='endpoint')){setMessage('LAN CONFIG REJECTED · endpoints cannot be trunk ports in this teaching model.');return;}patchEthernetLink(mode==='access'?{mode,accessVlan:ethernet.vlans[0]?.id,allowedVlans:undefined}:{mode,allowedVlans:ethernet.vlans.map((vlan)=>vlan.id),accessVlan:undefined});}}><option value=\"access\">ACCESS</option><option value=\"trunk\">TRUNK</option></select></label>{selectedEthernetLink.mode==='access'?<label>ACCESS VLAN<select value={selectedEthernetLink.accessVlan} onChange={(event)=>patchEthernetLink({accessVlan:Number(event.currentTarget.value)})}>{ethernet.vlans.map((vlan)=><option key={vlan.id} value={vlan.id}>VLAN {vlan.id} · {vlan.name}</option>)}</select></label>:<label>ALLOWED VLANs<input key={`${selectedEthernetLink.id}-${selectedEthernetLink.allowedVlans?.join(',')}`} defaultValue={selectedEthernetLink.allowedVlans?.join(', ')??''} onBlur={(event)=>{try{patchEthernetLink({allowedVlans:parseBuilderAllowedVlans(event.currentTarget.value,ethernet)});}catch(error){setMessage(`LAN CONFIG REJECTED · ${error instanceof Error?error.message:'Invalid VLAN list.'}`);event.currentTarget.value=selectedEthernetLink.allowedVlans?.join(', ')??'';}}}/></label>}<button type=\"button\" onClick={()=>patchEthernetLink({failed:!selectedEthernetLink.failed})}>{selectedEthernetLink.failed?'RESTORE LAN LINK':'FAIL LAN LINK'}</button></>}{ethernetFlow&&ethernetFlow.fdb.length>0&&<div className=\"builder-fdb\"><span>DERIVED FDB</span>{ethernetFlow.fdb.map((entry)=><small key={`${entry.switchId}-${entry.vlanId}-${entry.mac}`}><b>{ethernet.devices.find((device)=>device.id===entry.switchId)?.label} · V{entry.vlanId}</b>{entry.mac} → {entry.linkId.replace('lan-','').toUpperCase()}</small>)}</div>}<small className=\"builder-routing-note\">ACCESS = ONE VLAN · TRUNK = EXPLICIT ALLOW-LIST · SWITCH FDB IS VLAN-SCOPED · ROUTER-ON-A-STICK IS THE ONLY INTER-VLAN PATH IN THIS SLICE.</small></>}</section>"
+          if text.count(needle)!=1: raise SystemExit('probe controls marker missing')
+          text = text.replace(needle,lan_controls)
+          path.write_text(text)
+
+          # CSS for LAN fabric canvas / controls.
+          path = Path('src/NetworkBuilder.css')
+          text = path.read_text() + '''\n.builder-ethernet-stage{display:grid;gap:6px;padding:13px 18px 16px;border-top:1px solid rgba(255,255,255,.075);background:rgba(82,190,255,.03)}.builder-ethernet-stage>span{color:#5c89a4;font-size:.5rem;font-weight:850;letter-spacing:.13em}.builder-ethernet-stage>strong{color:#ccecff;font-size:.8rem;letter-spacing:.025em}.builder-ethernet-stage>p{margin:0;color:#75848d;font-size:.64rem;line-height:1.42}.builder-ethernet-stage>small{color:#57646c;font-size:.44rem;letter-spacing:.055em}.builder-ethernet-stage.failed>strong{color:#ff9b9b}.builder-lan-canvas{position:relative;height:230px;margin-top:4px;border:1px solid rgba(82,190,255,.1);border-radius:6px;background:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:24px 24px;overflow:hidden}.builder-lan-canvas svg{position:absolute;inset:0;width:100%;height:100%}.builder-lan-canvas line{stroke:rgba(108,139,157,.4);stroke-width:1.15;vector-effect:non-scaling-stroke}.builder-lan-canvas g.flow line{stroke:#52beff;stroke-width:2.1;filter:drop-shadow(0 0 4px rgba(82,190,255,.35))}.builder-lan-canvas g.failed line{stroke:#e76b6b;stroke-dasharray:3 2}.builder-lan-canvas text{fill:#648092;font-size:2.7px;font-weight:850;paint-order:stroke;stroke:#071017;stroke-width:.55px}.builder-lan-node{position:absolute;transform:translate(-50%,-50%);display:grid;place-items:center;gap:1px;min-width:58px;padding:6px 8px;border:1px solid rgba(82,190,255,.2);border-radius:5px;background:#081018}.builder-lan-node.endpoint{border-radius:17px}.builder-lan-node.switch{border-color:rgba(255,211,106,.26)}.builder-lan-node.router{border-color:rgba(198,156,255,.28)}.builder-lan-node span{font-size:.4rem;color:#5d7180;font-weight:900;letter-spacing:.12em}.builder-lan-node strong{font-size:.58rem;color:#d9e7ee}.builder-lan-node small{font-size:.39rem;color:#668497}.builder-lan-phases{display:flex;gap:5px;overflow:auto}.builder-lan-phases>span{flex:1 1 0;display:grid;gap:2px;min-width:190px;padding:7px;border:1px solid rgba(82,190,255,.1);border-radius:4px;color:#667b87;font-size:.43rem}.builder-lan-phases b{color:#89ccec;font-size:.47rem}.builder-ethernet-section{border-color:rgba(82,190,255,.18)!important}.builder-fdb{display:grid;gap:4px;padding:7px;border:1px solid rgba(255,211,106,.1);border-radius:4px}.builder-fdb>span{color:#9b8146;font-size:.44rem;font-weight:900;letter-spacing:.1em}.builder-fdb small{display:grid;grid-template-columns:80px 1fr;color:#69757b;font:500 .42rem ui-monospace,SFMono-Regular,Menlo,monospace}.builder-fdb b{color:#c5a95f}@media(max-width:560px){.builder-lan-canvas{height:210px}.builder-lan-node{min-width:48px;padding:5px}.builder-lan-node strong{font-size:.5rem}.builder-lan-phases{display:grid}.builder-lan-phases>span{min-width:0}}\n'''
+          path.write_text(text)
+
+          # Update affected Builder contracts from scenario v5 to v6 and validate Ethernet persistence separately.
+          for filename in ['scripts/builder-addressing-contract-check.mjs','scripts/builder-ospf-contract-check.mjs','scripts/high-density-contract-check.mjs']:
+            path = Path(filename); text = path.read_text()
+            text = text.replace('version, 5', 'version, 6').replace('version,5', 'version,6').replace('schema-v5','schema-v6').replace('schema v5','schema v6')
+            text = text.replace("assert.equal(scenario.version, 5);", "assert.equal(scenario.version, 6);")
+            path.write_text(text)
+
+          # Add explicit schema-v6 Ethernet persistence contract.
+          path = Path('scripts/builder-ethernet-contract-check.mjs')
+          text = path.read_text()
+          text = text.replace("import { createDefaultBuilderEthernetConfig,", "import { createDefaultBuilderEthernetConfig,")
+          text = text.replace("from '../src/builder/ethernet.ts';", "from '../src/builder/ethernet.ts';\nimport { createDefaultBuilderAddressing } from '../src/builder/addressing.ts';\nimport { defaultBuilderGraph, defaultBuilderLayout } from '../src/builder/model.ts';\nimport { createDefaultBuilderRoutingConfig } from '../src/builder/routing.ts';\nimport { createBuilderScenario, deserializeBuilderScenario, serializeBuilderScenario } from '../src/builder/scenario.ts';")
+          text = text.replace("console.log('Builder Ethernet/VLAN contract passed", "const scenario=createBuilderScenario('LAN persisted',defaultBuilderGraph,'client','app',defaultBuilderLayout,createDefaultBuilderAddressing(defaultBuilderGraph),createDefaultBuilderRoutingConfig(),undefined,fabric);\nassert.equal(scenario.version,6);\nconst restored=deserializeBuilderScenario(serializeBuilderScenario(scenario));\nassert.deepEqual(restored.ethernet.links.find((link)=>link.id==='lan-sw1-sw2')?.allowedVlans,[10,20]);\nconst legacyV5={...scenario,version:5}; delete legacyV5.ethernet;\nconst migrated=deserializeBuilderScenario(JSON.stringify(legacyV5));\nassert.equal(migrated.version,6); assert.equal(migrated.ethernet.devices.length,0,'legacy routed scenarios migrate without silently fabricating a LAN');\n\nconsole.log('Builder Ethernet/VLAN contract passed")
+          path.write_text(text)
+
+          # package check.
+          path=Path('package.json'); pkg=json.loads(path.read_text()); pkg['scripts']['test:builder-ethernet-contract']='node scripts/builder-ethernet-contract-check.mjs'
+          needle='npm run test:builder-probes-contract && '
+          if needle not in pkg['scripts']['check']: raise SystemExit('package probes check marker missing')
+          pkg['scripts']['check']=pkg['scripts']['check'].replace(needle,needle+'npm run test:builder-ethernet-contract && ')
+          path.write_text(json.dumps(pkg,indent=2)+'\n')
+
+          # Roadmap 11E/11F.
+          path=Path('docs/ROADMAP.md'); text=path.read_text(); marker='## Performance + rendering — ongoing'
+          block='''### 11E — Ethernet LANs + switching foundation\n- [x] add a bounded Layer-2 fabric with endpoint, switch, and router device roles inside Network Builder\n- [x] keep Ethernet/LAN truth separate from the existing routed point-to-point /30 graph instead of silently reinterpreting old links\n- [x] explicit access-port VLAN membership and link-up/down state\n- [x] deterministic VLAN-scoped MAC learning/FDB derivation from each flow\n- [x] unknown-unicast flood-and-learn teaching state followed by learned unicast return\n- [x] same-VLAN forwarding stays Layer 2 and leaves IP TTL unchanged\n- [x] Layer-2 path search permits switches as transit while endpoints/routers remain edge devices\n- [x] permanent Ethernet switching contract wired into `npm run check`\n\n### 11F — VLANs, trunks + inter-VLAN routing\n- [x] VLAN IDs 1–4094 with named IPv4 broadcast domains\n- [x] explicit trunk mode with bounded allowed-VLAN lists; endpoints cannot become trunk ports\n- [x] trunk filtering can isolate one VLAN without breaking another VLAN carried on the same physical link\n- [x] router-on-a-stick device owns explicit per-VLAN IPv4 interfaces\n- [x] endpoint gateways must match the router interface used for inter-VLAN forwarding\n- [x] inter-VLAN flow is two Layer-2 segments separated by one routed hop and one TTL decrement\n- [x] switch FDB state remains keyed by switch + VLAN + MAC\n- [x] Builder scenario schema v6 persists LAN/VLAN configuration while derived FDB/flow observations remain session-only\n- [x] v1–v5 routed scenarios migrate to v6 with an empty LAN fabric rather than fabricated Layer-2 state\n- [x] permanent VLAN/trunk/inter-VLAN contract wired into `npm run check`\n\n'''
+          if marker not in text: raise SystemExit('roadmap marker missing')
+          text=text.replace(marker,block+marker); path.write_text(text)
+          PY
+
+          npm ci
+          npm run check
+      - name: Commit Labs 11E-F
+        run: |
+          rm .github/workflows/lab11ef-integrate.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Implement Labs 11E-F switching and VLANs"
+          git push origin HEAD:agent/lab-11def-builder-probes-switching-vlans
