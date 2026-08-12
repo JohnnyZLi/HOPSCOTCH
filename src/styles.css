@@ -179,8 +179,8 @@ button {
 .hero-copy {
   position: relative;
   z-index: 2;
-  width: min(720px, calc(100% - 64px));
-  margin: clamp(90px, 12vh, 160px) 0 0 max(32px, calc((100vw - min(1500px, calc(100vw - 64px))) / 2));
+  width: min(820px, calc(100% - 64px));
+  margin: clamp(74px, 9vh, 118px) 0 0 max(32px, calc((100vw - min(1500px, calc(100vw - 64px))) / 2));
 }
 
 .eyebrow,
@@ -217,30 +217,6 @@ button {
   color: #a9b2ba;
   font-size: clamp(1rem, 1.2vw, 1.18rem);
   line-height: 1.65;
-}
-
-.hero-actions {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  margin-top: 32px;
-}
-
-.primary-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 34px;
-  padding: 14px 18px;
-  border: 1px solid rgba(121, 242, 218, 0.55);
-  border-radius: 4px;
-  color: #07100e;
-  background: var(--cyan);
-  cursor: pointer;
-  font-size: 0.78rem;
-  font-weight: 760;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  box-shadow: 0 10px 44px rgba(121, 242, 218, 0.12);
 }
 
 .text-action {
@@ -445,6 +421,13 @@ button {
   }
 }
 
+@media (max-width: 760px) {
+  .scale-rail {
+    top: 94px;
+    bottom: auto;
+  }
+}
+
 @media (max-width: 680px) {
   .topbar {
     width: calc(100% - 36px);
@@ -462,12 +445,6 @@ button {
 
   .hero-copy h1 {
     font-size: clamp(3.3rem, 18vw, 5.4rem);
-  }
-
-  .hero-actions {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 16px;
   }
 
   .scale-rail {
