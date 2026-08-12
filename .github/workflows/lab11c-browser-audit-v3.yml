@@ -1,0 +1,74 @@
+name: Lab 11C pointer-correct production browser audit
+
+on:
+  push:
+    branches:
+      - agent/lab-11c-builder-ospf
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    if: ${{ !contains(github.event.head_commit.message, 'Add permanent Lab 11C browser contract') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/lab-11c-builder-ospf
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply and audit permanent Builder OSPF browser contract
+        run: |
+          git show 7d50211eb70996912ad7ec6a6f1c0b29916e051e:.github/workflows/lab11c-browser-audit.yml \
+            | sed -n "/python3 - <<'PY'/,/^          PY$/p" \
+            | sed '1d;$d;s/^          //' > /tmp/lab11c-browser-patch.py
+          python3 /tmp/lab11c-browser-patch.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/performance-profile.mjs')
+          text = path.read_text()
+          pointer = "node.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:1,isPrimary:true,pointerType:'mouse'}));"
+          if text.count('node.click();') != 1:
+              raise SystemExit(f'expected one post-enable EDGE click, found {text.count("node.click();")}')
+          text = text.replace('node.click();', pointer)
+          marker = "  await measuredClickButton(cdp, '.builder-ospf-section button', 'ENABLE ALL');"
+          preselect = r'''  const initialEdgeSelected = await cdp.evaluate(`(()=>{
+    const node=[...document.querySelectorAll('.builder-node')].find((candidate)=>candidate.querySelector('strong')?.textContent?.trim()==='EDGE');
+    if(!node)return false;
+    node.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:1,isPrimary:true,pointerType:'mouse'}));
+    return true;
+  })()`);
+  if (!initialEdgeSelected) throw new Error(`${profile.id} could not select EDGE before enabling OSPF.`);
+  await waitForExpression(cdp, `Boolean(document.querySelector('.builder-ospf-section button'))`, 8000);
+  await measuredClickButton(cdp, '.builder-ospf-section button', 'ENABLE ALL');'''
+          if text.count(marker) != 1:
+              raise SystemExit(f'expected one OSPF enable marker, found {text.count(marker)}')
+          path.write_text(text.replace(marker, preselect))
+          PY
+          npm ci
+          npm run check
+          mkdir -p artifacts
+          HOPSCOTCH_REPORT_PATH=artifacts/lab11c-browser-audit.json npm run compatibility:chrome
+      - name: Commit permanent browser contract
+        run: |
+          rm .github/workflows/lab11c-browser-audit-v3.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add permanent Lab 11C browser contract"
+          git push origin HEAD:agent/lab-11c-builder-ospf
+      - name: Upload exact-artifact OSPF audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab11c-builder-ospf-audit-v3
+          path: |
+            artifacts/lab11c-browser-audit.json
+            artifacts/builder-ospf-*.png
+          if-no-files-found: warn
+          retention-days: 3
