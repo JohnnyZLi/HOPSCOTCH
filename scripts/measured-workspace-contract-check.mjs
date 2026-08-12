@@ -9,8 +9,9 @@ assert.match(workspace, /measuredFreshnessAt/, 'workspace freshness must use the
 assert.match(workspace, /type="file"[^>]*accept="\.json,application\/json"/, 'workspace must expose an explicit JSON file input');
 assert.match(workspace, /await file\.text\(\)/, 'workspace must read the explicitly selected local file in-browser');
 assert.match(workspace, /JSON\.parse\(text\)/, 'workspace must parse the selected JSON before 09C validation');
-assert.match(workspace, /setIngestion\(next\)/, 'successful import must replace measured workspace state only after ingestion succeeds');
-assert.match(workspace, /setIngestion\(null\)/, 'Clear must drop the imported measured state');
+assert.match(workspace, /onMeasuredStateChange\(next\.state\)/, 'successful import must publish only the validated 09B measured projection after 09C ingestion succeeds');
+assert.match(workspace, /onMeasuredStateChange\(null\)/, 'Clear must drop the App-level measured session state');
+assert.doesNotMatch(workspace, /setIngestion\(/, 'workspace must not maintain a second local ingestion-truth store after Lab 09E session lift');
 assert.match(workspace, /setError\([^)]*Nothing was imported/, 'oversize report rejection must not replace measured state');
 assert.match(workspace, /THE PREVIOUS VALID REPORT REMAINS ACTIVE/, 'invalid replacement must communicate that the previous valid report remains active');
 assert.match(workspace, /LOCAL MEASURED · BOUNDED · NOT GLOBAL/, 'workspace must keep its provenance/scope boundary visible');
@@ -37,12 +38,18 @@ assert.match(app, /'measured'/, 'App active-lab model must include the measured 
 assert.match(app, /Inspect measured report/, 'overview must expose the measured workspace without replacing the URL Journey primary action');
 assert.match(app, /LAB 09/, 'top bar must identify the measured workspace as Lab 09');
 assert.match(app, /LOCAL MEASURED ACTIVE/, 'top bar must identify measured workspace state concisely');
+assert.match(app, /useState<MeasuredSnapshotState \| null>\(null\)/, 'App may retain only the validated measured projection as session-only cross-lab evidence');
+assert.match(app, /measuredState=\{measuredSession\}/, 'App must pass the same measured session projection to presentation consumers');
+assert.match(app, /onMeasuredStateChange=\{setMeasuredSession\}/, 'Lab 09 must be the explicit replace/clear surface for the session projection');
 assert.match(app, /<MeasuredNetworkWorkspace[^>]*onExit=/, 'App must render the measured workspace with normal lab exit behavior');
 assert.match(app, /Play URL journey/, 'URL Journey must remain present as the primary product entry');
+for (const forbidden of [/localStorage/, /sessionStorage/, /NetworkDiagnosticsIngestion/, /NativeMeasurementSnapshot/]) {
+  assert.doesNotMatch(app, forbidden, `App-level measured session must not persist or retain raw-ingestion type ${forbidden}`);
+}
 
 const primaryIndex = app.indexOf('className="primary-action"');
 const journeyIndex = app.indexOf('Play URL journey');
 const measuredIndex = app.indexOf('Inspect measured report');
 assert.ok(primaryIndex >= 0 && journeyIndex > primaryIndex && measuredIndex > journeyIndex, 'measured report must remain a secondary action after the primary URL Journey');
 
-console.log('Measured workspace boundary contract passed: explicit session-only 09C import, visible LOCAL MEASURED scope, no persistence/upload/Journey coupling.');
+console.log('Measured workspace boundary contract passed: explicit 09C import publishes only session-memory 09B state, with no persistence/upload/Journey truth coupling.');
