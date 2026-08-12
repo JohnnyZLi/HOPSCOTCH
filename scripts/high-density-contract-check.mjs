@@ -1,7 +1,4 @@
 import assert from 'node:assert/strict';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, join } from 'node:path';
 import { BUILDER_LIMITS, findShortestPath } from '../src/builder/model.ts';
 import { enumeratePolicyPaths } from '../src/internet/asModel.ts';
 import {
@@ -21,18 +18,7 @@ import {
 } from '../src/stress/fixtures.ts';
 
 async function loadBuilderScenarioForNodeContract() {
-  const scriptDir = dirname(fileURLToPath(import.meta.url));
-  const builderDir = join(scriptDir, '..', 'src', 'builder');
-  const sourcePath = join(builderDir, 'scenario.ts');
-  const tempPath = join(builderDir, '.stress-scenario-node.ts');
-  const source = readFileSync(sourcePath, 'utf8');
-  if (!source.includes("from './model';")) throw new Error('Builder scenario import boundary changed; update high-density Node contract loader.');
-  writeFileSync(tempPath, source.replace("from './model';", "from './model.ts';"));
-  try {
-    return await import(`${pathToFileURL(tempPath).href}?stress-contract=${Date.now()}`);
-  } finally {
-    rmSync(tempPath, { force: true });
-  }
+  return import(`${new URL('../src/builder/scenario.ts', import.meta.url).href}?stress-contract=${Date.now()}`);
 }
 
 assert.equal(BUILDER_LIMITS.maxNodes, 32);
@@ -72,6 +58,8 @@ const builderScenario = createBuilderScenario(
 const restoredBuilder = deserializeBuilderScenario(serializeBuilderScenario(builderScenario));
 assert.equal(restoredBuilder.graph.nodes.length, STRESS_BUILDER_NODE_COUNT);
 assert.equal(restoredBuilder.graph.links.length, STRESS_BUILDER_LINK_COUNT);
+assert.equal(restoredBuilder.version, 3);
+assert.equal(Object.keys(restoredBuilder.addressing.segments).length, STRESS_BUILDER_LINK_COUNT);
 assert.equal(findShortestPath(restoredBuilder.graph, restoredBuilder.sourceId, restoredBuilder.destinationId).reachable, true);
 
 const overflowGraph = {

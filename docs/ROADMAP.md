@@ -363,6 +363,22 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] responsive gallery collapses from 4-column → 2-column → compact mobile rows
 - [x] permanent scenario-gallery contract wired into `npm run check`
 
+## Lab 11 — Deeper Network Builder
+
+### 11A — L3 addressing foundation
+- [x] keep weighted graph/path truth unchanged while adding a separate IPv4 addressing model
+- [x] one explicit IPv4 segment per graph link with two named node interfaces
+- [x] deterministic private /30 address plan for default and newly authored links
+- [x] editable /8–/30 segment CIDRs with automatic interface renumbering
+- [x] editable interface IPv4 addresses with host-range, duplicate-address, and overlapping-subnet rejection
+- [x] endpoint default gateways must reference a directly connected router interface
+- [x] device inspector lists stable ethN interfaces, addresses, segment CIDRs, and link identity
+- [x] topology add/delete operations reconcile addressing without renumbering surviving segments
+- [x] Builder scenario schema v3 persists addressing; v1/v2 files migrate deterministically
+- [x] schema-v3 high-density 32-node / 96-link round trip remains inside existing ceilings
+- [x] UI explicitly states addressing does not change weighted path cost yet; route tables are the next slice
+- [x] permanent Builder L3 addressing contract wired into `npm run check`
+
 ## Performance + rendering — ongoing
 
 - [x] DOM/CSS for controls and text

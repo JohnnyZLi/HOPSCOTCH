@@ -63,9 +63,9 @@ assert.throws(
 );
 
 const overlapping = cloneBuilderAddressing(validated);
-overlapping.segments['r1-core'].cidr = '10.0.0.0/29';
-overlapping.segments['r1-core'].interfaces[0].address = '10.0.0.5';
-overlapping.segments['r1-core'].interfaces[1].address = '10.0.0.6';
+overlapping.segments['r1-core'].cidr = '10.0.0.0/27';
+overlapping.segments['r1-core'].interfaces[0].address = '10.0.0.29';
+overlapping.segments['r1-core'].interfaces[1].address = '10.0.0.30';
 assert.throws(() => validateBuilderAddressing(graph, overlapping), /overlap/);
 
 const duplicateIp = cloneBuilderAddressing(validated);
