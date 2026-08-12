@@ -11,6 +11,7 @@ import {
   type BuilderAddressing,
 } from './builder/addressing.ts';
 import {
+  builderOspfState,
   cloneBuilderRoutingConfig,
   createDefaultBuilderRoutingConfig,
   deleteBuilderStaticRoute,
@@ -18,6 +19,8 @@ import {
   nextHopOptionsForBuilderRouter,
   reconcileBuilderRoutingConfig,
   routeTableForBuilderRouter,
+  setBuilderOspfEverywhere,
+  setBuilderOspfRouterEnabled,
   traceBuilderForwarding,
   upsertBuilderStaticRoute,
   type BuilderRoutingConfig,
@@ -44,7 +47,7 @@ import {
   listStoredBuilderScenarios,
   saveStoredBuilderScenario,
   serializeBuilderScenario,
-  type BuilderScenarioV4,
+  type BuilderScenarioV5,
 } from './builder/scenario';
 import './NetworkBuilder.css';
 
@@ -75,15 +78,20 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, initialGraph = defa
   const [staticPrefix, setStaticPrefix] = useState('0.0.0.0/0');
   const [staticNextHop, setStaticNextHop] = useState('');
   const [staticMetric, setStaticMetric] = useState(1);
-  const [saved, setSaved] = useState<BuilderScenarioV4[]>(() => listStoredBuilderScenarios());
+  const [saved, setSaved] = useState<BuilderScenarioV5[]>(() => listStoredBuilderScenarios());
   const [message, setMessage] = useState('Graph truth and layout are separate. Dragging never changes route cost.');
   const route = useMemo(() => findShortestPath(graph, sourceId, destinationId), [graph, sourceId, destinationId]);
   const forwardingTrace = useMemo(() => traceBuilderForwarding(graph, addressing, routing, sourceId, destinationId), [graph, addressing, routing, sourceId, destinationId]);
+  const ospfState = useMemo(() => builderOspfState(graph, addressing, routing), [graph, addressing, routing]);
   const selectedLink = graph.links.find((link) => link.id === selectedLinkId) ?? graph.links[0];
   const selectedNode = graph.nodes.find((node) => node.id === selectedNodeId) ?? graph.nodes[0];
   const selectedSegment = selectedLink ? addressing.segments[selectedLink.id] : undefined;
   const selectedNodeInterfaces = selectedNode ? interfacesForBuilderNode(addressing, selectedNode.id) : [];
   const selectedRouteTable = selectedNode?.kind === 'router' ? routeTableForBuilderRouter(graph, addressing, routing, selectedNode.id) : [];
+  const selectedOspfEnabled = Boolean(selectedNode?.kind === 'router' && routing.ospf.enabledRouterIds.includes(selectedNode.id));
+  const selectedOspfAdjacencies = selectedNode?.kind === 'router' ? ospfState.adjacencies.filter((adjacency) => adjacency.aRouterId === selectedNode.id || adjacency.bRouterId === selectedNode.id) : [];
+  const selectedOspfComponent = selectedNode?.kind === 'router' ? ospfState.components.find((component) => component.includes(selectedNode.id)) : undefined;
+  const selectedOspfPrefixCount = selectedOspfComponent ? new Set(ospfState.advertisements.filter((advertisement) => selectedOspfComponent.includes(advertisement.routerId)).map((advertisement) => advertisement.prefix)).size : 0;
   const selectedNextHopOptions = selectedNode?.kind === 'router' ? nextHopOptionsForBuilderRouter(graph, addressing, selectedNode.id) : [];
   const effectiveStaticNextHop = selectedNextHopOptions.some((option) => option.address === staticNextHop) ? staticNextHop : (selectedNextHopOptions[0]?.address ?? '');
   const destinationInterface = interfacesForBuilderNode(addressing, destinationId)[0];
@@ -112,6 +120,26 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, initialGraph = defa
     setRouting(reconcileBuilderRoutingConfig(graph, next, routing));
   };
 
+  const setSelectedOspf = (enabled: boolean) => {
+    if (!selectedNode || selectedNode.kind !== 'router') { setMessage('Select a router before changing OSPF.'); return; }
+    try {
+      setRouting(setBuilderOspfRouterEnabled(graph, addressing, routing, selectedNode.id, enabled));
+      setMessage(`OSPF · ${selectedNode.label} ${enabled ? 'joined' : 'left'} AREA 0. Dynamic routes recompute from current adjacencies and link costs.`);
+    } catch (error) { setMessage(`OSPF REJECTED · ${error instanceof Error ? error.message : 'Unable to change OSPF state.'}`); }
+  };
+
+  const setAllOspf = (enabled: boolean) => {
+    setRouting(setBuilderOspfEverywhere(graph, addressing, routing, enabled));
+    setMessage(enabled ? 'OSPF AREA 0 ENABLED · all routers participate. Link failures and cost edits now trigger deterministic SPF reconvergence.' : 'OSPF DISABLED · dynamic routes withdrawn. Connected and static routes remain.');
+  };
+
+  const clearStaticRoutes = () => {
+    const next = cloneBuilderRoutingConfig(routing);
+    next.staticRoutes = [];
+    setRouting(next);
+    setMessage('All static routes cleared. Connected and OSPF-derived routes remain.');
+  };
+
   const installCurrentStaticPath = () => {
     try {
       const installed = installStaticRoutesForWeightedPath(graph, addressing, routing, sourceId, destinationId);
@@ -137,6 +165,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, initialGraph = defa
 
   const updateLink = (linkId: string, patch: Partial<{ cost: number; failed: boolean }>) => {
     commitGraph({ ...graph, links: graph.links.map((link) => link.id === linkId ? { ...link, ...patch } : link) });
+    if (routing.ospf.enabledRouterIds.length > 0) setMessage('TOPOLOGY CHANGED · OSPF Area 0 recomputes immediately from active adjacencies and current link costs. Static routes do not reconverge.');
   };
 
   const addNode = (kind: BuilderNodeKind) => {
@@ -182,7 +211,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, initialGraph = defa
     setAddressing(cloneBuilderAddressing(initialAddressing ?? createDefaultBuilderAddressing(initialGraph)));
     setRouting(cloneBuilderRoutingConfig(initialRouting ?? createDefaultBuilderRoutingConfig()));
     setSourceId(initialSourceId); setDestinationId(initialDestinationId); setSelectedNodeId(initialSourceId); setSelectedLinkId(initialGraph.links[0]?.id ?? ''); setNewLinkA(initialGraph.nodes[0]?.id ?? ''); setNewLinkB(initialGraph.nodes[1]?.id ?? initialGraph.nodes[0]?.id ?? ''); setNewLinkCost(5);
-    setMessage('Topology, addressing, and static routing reset. Visual layout was left untouched.');
+    setMessage('Topology, addressing, static routing, and OSPF configuration reset. Visual layout was left untouched.');
   };
 
   const resetLayout = () => {
@@ -197,11 +226,11 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, initialGraph = defa
       const existing = saved.find((item) => item.name === scenarioName);
       const scenario = createBuilderScenario(scenarioName.trim() || 'Untitled topology', graph, sourceId, destinationId, layout, addressing, routing, existing);
       setSaved(saveStoredBuilderScenario(scenario));
-      setMessage(`Saved “${scenario.name}” locally as Builder schema v4.`);
+      setMessage(`Saved “${scenario.name}” locally as Builder schema v5.`);
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Unable to save scenario.'); }
   };
 
-  const restoreScenario = (scenario: BuilderScenarioV4) => {
+  const restoreScenario = (scenario: BuilderScenarioV5) => {
     setGraph(cloneBuilderGraph(scenario.graph)); setAddressing(cloneBuilderAddressing(scenario.addressing)); setRouting(cloneBuilderRoutingConfig(scenario.routing)); setLayout(cloneBuilderLayout(scenario.layout)); setSourceId(scenario.sourceId); setDestinationId(scenario.destinationId);
     setSelectedNodeId(scenario.sourceId); setSelectedLinkId(scenario.graph.links[0]?.id ?? ''); setScenarioName(scenario.name);
     setMessage(`Restored “${scenario.name}”. Route recomputed from graph truth.`);
@@ -213,7 +242,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, initialGraph = defa
       const blob = new Blob([serializeBuilderScenario(scenario)], { type: 'application/json' });
       const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
       anchor.href = url; anchor.download = `${scenario.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'hopscotch-topology'}.hopscotch.json`; anchor.click(); URL.revokeObjectURL(url);
-      setMessage('Scenario v4 exported with topology, addressing, and static routing.');
+      setMessage('Scenario v5 exported with topology, addressing, static routing, and OSPF configuration.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Export failed.'); }
   };
 
@@ -244,13 +273,13 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, initialGraph = defa
 
       <div className="builder-main">
         <section className="builder-stage">
-          <div className="builder-stage-meta"><div><span>GRAPH PATH</span><strong>{route.reachable ? `YES · COST ${route.totalCost}` : 'NO PATH'}</strong></div><div><span>L3 FORWARDING</span><strong>{forwardingTrace.reachable ? 'REACHABLE' : 'NO ROUTE'}</strong></div><div><span>STATIC</span><strong>{routing.staticRoutes.length} ROUTES</strong></div><div><span>GRAPH</span><strong>{graph.nodes.length} NODES · {graph.links.length} LINKS</strong></div></div>
+          <div className="builder-stage-meta"><div><span>GRAPH PATH</span><strong>{route.reachable ? `YES · COST ${route.totalCost}` : 'NO PATH'}</strong></div><div><span>L3 FORWARDING</span><strong>{forwardingTrace.reachable ? 'REACHABLE' : 'NO ROUTE'}</strong></div><div><span>OSPF AREA 0</span><strong>{ospfState.enabledRouterIds.length === 0 ? 'OFF' : `${ospfState.enabledRouterIds.length} RTR · ${ospfState.fullAdjacencyCount} FULL`}</strong></div><div><span>STATIC</span><strong>{routing.staticRoutes.length} ROUTES</strong></div><div><span>GRAPH</span><strong>{graph.nodes.length} NODES · {graph.links.length} LINKS</strong></div></div>
           <div ref={canvasRef} className="builder-canvas">
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Weighted routed topology">
               {graph.links.map((link) => {
                 const a = layout[link.a]; const b = layout[link.b]; if (!a || !b) return null;
                 const active = activeLinks.has(link.id); const forwarding = forwardingLinks.has(link.id);
-                return <g key={link.id} className={`builder-link ${link.failed ? 'failed' : active ? 'active' : 'alternate'} ${forwarding ? 'l3-forwarding' : ''} ${selectedLinkId === link.id ? 'selected' : ''}`} role="button" tabIndex={0} onClick={() => setSelectedLinkId(link.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setSelectedLinkId(link.id); }}>
+                return <g key={link.id} data-link-id={link.id} className={`builder-link ${link.failed ? 'failed' : active ? 'active' : 'alternate'} ${forwarding ? 'l3-forwarding' : ''} ${selectedLinkId === link.id ? 'selected' : ''}`} role="button" tabIndex={0} onClick={() => setSelectedLinkId(link.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setSelectedLinkId(link.id); }}>
                   <line className="hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y}/><line x1={a.x} y1={a.y} x2={b.x} y2={b.y}/><text x={(a.x+b.x)/2} y={(a.y+b.y)/2 - 1.5}>{link.failed ? 'DOWN' : link.cost}</text>
                 </g>;
               })}
@@ -266,18 +295,20 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, initialGraph = defa
             })}
           </div>
           <div className={`builder-route ${route.reachable ? '' : 'unreachable'}`}><span>WEIGHTED GRAPH PATH</span><strong>{route.reachable ? route.nodeIds.map((id) => labelFor(graph,id)).join(' → ') : 'NO VIABLE PATH'}</strong><p>{route.explanation}</p></div>
+          <div className={`builder-ospf-summary ${ospfState.enabledRouterIds.length === 0 ? 'off' : ''}`}><span>OSPF CONTROL PLANE · AREA 0</span><strong>{ospfState.enabledRouterIds.length === 0 ? 'DISABLED · NO DYNAMIC ROUTES' : `${ospfState.components.length} LSDB VIEW${ospfState.components.length === 1 ? '' : 'S'} · ${ospfState.fullAdjacencyCount} FULL · ${ospfState.downAdjacencyCount} DOWN`}</strong><p>{ospfState.enabledRouterIds.length === 0 ? 'Enable OSPF on Builder routers to derive dynamic routes without changing weighted graph truth.' : 'Enabled routers form adjacencies only across active router-router links. SPF uses Builder link cost; connected and static routes keep their own precedence.'}</p></div>
           <div className={`builder-forwarding ${forwardingTrace.reachable ? '' : 'unreachable'}`}><span>L3 FORWARDING · {forwardingTrace.destinationAddress ?? 'NO DESTINATION IP'}</span><strong>{forwardingTrace.reachable ? [sourceId,...forwardingTrace.hops.map((hop)=>hop.nextNodeId).filter((id): id is string=>Boolean(id))].filter((id,index,all)=>index===0||id!==all[index-1]).map((id)=>labelFor(graph,id)).join(' → ') : `${forwardingTrace.failureNodeId ? labelFor(graph,forwardingTrace.failureNodeId) : 'FORWARDING'} · ${forwardingTrace.failureReason ?? 'NO ROUTE'}`}</strong><p>{forwardingTrace.explanation}</p>{forwardingTrace.hops.length>0&&<div className="builder-forwarding-hops">{forwardingTrace.hops.map((hop,index)=><span key={`${hop.nodeId}-${index}`}><b>{hop.nodeLabel}</b>{hop.routeSource.toUpperCase()} · {hop.matchedPrefix ?? '—'} · {hop.nextHop ?? 'LOCAL'} · {hop.outgoingInterface ?? '—'}</span>)}</div>}</div>
           <div className="builder-message">{message}</div>
         </section>
 
         <aside className="builder-controls">
-          <section><div className="control-title"><span>ENDPOINTS</span><strong>GRAPH ↔ IP</strong></div><label>SOURCE<select value={sourceId} onChange={(e)=>setSourceId(e.currentTarget.value)}>{graph.nodes.map((node)=><option key={node.id} value={node.id}>{node.label}</option>)}</select></label><label>DESTINATION<select value={destinationId} onChange={(e)=>setDestinationId(e.currentTarget.value)}>{graph.nodes.map((node)=><option key={node.id} value={node.id}>{node.label}</option>)}</select></label><div className="button-row"><button type="button" onClick={installCurrentStaticPath}>INSTALL STATIC PATH</button><button type="button" onClick={()=>{setRouting(createDefaultBuilderRoutingConfig());setMessage('All static routes cleared. Connected routes remain derived from active interfaces.');}}>CLEAR STATICS</button></div><small className="builder-routing-note">INSTALL snapshots the current weighted path. Static routes do not reconverge when a link fails.</small></section>
+          <section><div className="control-title"><span>ENDPOINTS</span><strong>GRAPH ↔ IP</strong></div><label>SOURCE<select value={sourceId} onChange={(e)=>setSourceId(e.currentTarget.value)}>{graph.nodes.map((node)=><option key={node.id} value={node.id}>{node.label}</option>)}</select></label><label>DESTINATION<select value={destinationId} onChange={(e)=>setDestinationId(e.currentTarget.value)}>{graph.nodes.map((node)=><option key={node.id} value={node.id}>{node.label}</option>)}</select></label><div className="button-row"><button type="button" onClick={installCurrentStaticPath}>INSTALL STATIC PATH</button><button type="button" onClick={clearStaticRoutes}>CLEAR STATICS</button></div><small className="builder-routing-note">INSTALL snapshots the current weighted path. Static routes do not reconverge when a link fails.</small></section>
           <section><div className="control-title"><span>SELECTED LINK</span><strong>{selectedLink ? `${labelFor(graph,selectedLink.a)} ↔ ${labelFor(graph,selectedLink.b)}` : 'NONE'}</strong></div>{selectedLink && <><label>COST<input type="number" min={1} max={999} value={selectedLink.cost} onChange={(e)=>updateLink(selectedLink.id,{cost:Math.max(1,Math.min(999,Math.round(Number(e.currentTarget.value)||1)))})}/></label><div className="button-row"><button type="button" onClick={()=>updateLink(selectedLink.id,{failed:!selectedLink.failed})}>{selectedLink.failed?'RESTORE':'FAIL LINK'}</button><button type="button" onClick={()=>deleteLink(selectedLink.id)}>DELETE</button></div></>}</section>
           <section className="builder-l3-section"><div className="control-title"><span>L3 SEGMENT</span><strong>{selectedSegment?.cidr ?? 'NONE'}</strong></div>{selectedLink && selectedSegment && <><label>NETWORK CIDR<input key={`${selectedLink.id}-${selectedSegment.cidr}`} defaultValue={selectedSegment.cidr} onBlur={(event)=>{try{const next=replaceBuilderSegmentCidr(graph,addressing,selectedLink.id,event.currentTarget.value);commitAddressing(next);setMessage(`${labelFor(graph,selectedLink.a)} ↔ ${labelFor(graph,selectedLink.b)} renumbered to ${next.segments[selectedLink.id].cidr}. Weighted path cost is unchanged.`);}catch(error){setMessage(`ADDRESSING REJECTED · ${error instanceof Error?error.message:'Invalid IPv4 segment.'}`);event.currentTarget.value=selectedSegment.cidr;}}}/></label><div className="builder-interface-grid">{selectedSegment.interfaces.map((entry)=><label key={`${selectedLink.id}-${entry.nodeId}-${entry.address}`}>{labelFor(graph,entry.nodeId)} · {entry.name}<input defaultValue={entry.address} onBlur={(event)=>{try{const next=replaceBuilderInterfaceAddress(graph,addressing,selectedLink.id,entry.nodeId,event.currentTarget.value);commitAddressing(next);setMessage(`${entry.nodeId.toUpperCase()} ${entry.name} is now ${next.segments[selectedLink.id].interfaces.find((item)=>item.nodeId===entry.nodeId)?.address}. Weighted route truth is unchanged.`);}catch(error){setMessage(`ADDRESSING REJECTED · ${error instanceof Error?error.message:'Invalid interface address.'}`);event.currentTarget.value=entry.address;}}}/></label>)}</div><small className="builder-l3-note">IPV4 SEGMENT · ROUTING TABLE USES THIS PREFIX · LINK COST STAYS SEPARATE</small></>}</section>
           <section className="builder-device-section"><div className="control-title"><span>SELECTED DEVICE</span><strong>{selectedNode ? `${selectedNode.kind.toUpperCase()} · ${selectedNodeInterfaces.length} IF` : 'NONE'}</strong></div>{selectedNode && <><div className="builder-interface-list">{selectedNodeInterfaces.length===0?<small>NO INTERFACES · CONNECT THIS DEVICE TO A LINK</small>:selectedNodeInterfaces.map((entry)=><div key={`${entry.linkId}-${entry.name}`}><span>{entry.name}</span><strong>{entry.address}</strong><small>{entry.cidr} · {entry.linkId.toUpperCase()}</small></div>)}</div>{selectedNode.kind==='endpoint'&&<label>DEFAULT GATEWAY<input key={`${selectedNode.id}-${addressing.defaultGateways[selectedNode.id]??'none'}`} defaultValue={addressing.defaultGateways[selectedNode.id]??''} placeholder="NONE" onBlur={(event)=>{try{const next=replaceBuilderDefaultGateway(graph,addressing,selectedNode.id,event.currentTarget.value||null);commitAddressing(next);setMessage(`${selectedNode.label} default gateway ${next.defaultGateways[selectedNode.id]??'cleared'}.`);}catch(error){setMessage(`GATEWAY REJECTED · ${error instanceof Error?error.message:'Invalid default gateway.'}`);event.currentTarget.value=addressing.defaultGateways[selectedNode.id]??'';}}}/></label>}</>}</section>
-          <section className="builder-routing-section"><div className="control-title"><span>ROUTE TABLE</span><strong>{selectedNode?.kind === 'router' ? `${selectedRouteTable.filter((entry)=>entry.active).length} ACTIVE · ${selectedRouteTable.length} TOTAL` : 'ENDPOINT DEFAULT'}</strong></div>{selectedNode?.kind === 'router'?<><div className="builder-route-table">{selectedRouteTable.length===0?<small>NO ROUTES</small>:selectedRouteTable.map((entry)=><div key={entry.id} className={entry.active?'':'inactive'}><span>{entry.source==='connected'?'C':'S'}</span><strong>{entry.prefix}</strong><small>{entry.source==='connected'?'DIRECT':`via ${entry.nextHop}`} · {entry.outgoingInterface} · AD {entry.administrativeDistance} · M {entry.metric} · {entry.stateNote}</small>{entry.source==='static'&&<button type="button" aria-label={`Delete route ${entry.prefix} via ${entry.nextHop}`} onClick={()=>{setRouting(deleteBuilderStaticRoute(graph,addressing,routing,entry.id));setMessage(`${selectedNode.label} static route ${entry.prefix} removed.`);}}>×</button>}</div>)}</div><div className="builder-static-form"><label>DESTINATION PREFIX<input value={staticPrefix} onChange={(event)=>setStaticPrefix(event.currentTarget.value)}/></label><button type="button" onClick={()=>setStaticPrefix(destinationPrefix)}>USE DEST PREFIX</button><label>NEXT HOP<select value={effectiveStaticNextHop} onChange={(event)=>setStaticNextHop(event.currentTarget.value)}>{selectedNextHopOptions.length===0?<option value="">NO NEIGHBORS</option>:selectedNextHopOptions.map((option)=><option key={`${option.linkId}-${option.address}`} value={option.address}>{option.nodeLabel} · {option.address}{option.linkFailed?' · DOWN':''}</option>)}</select></label><label>METRIC<input type="number" min={1} max={999} value={staticMetric} onChange={(event)=>setStaticMetric(Math.max(1,Math.min(999,Math.round(Number(event.currentTarget.value)||1))))}/></label><button type="button" onClick={addStaticRoute} disabled={!effectiveStaticNextHop}>ADD / REPLACE STATIC</button></div><small className="builder-routing-note">LOOKUP: LONGEST PREFIX → AD → METRIC. CONNECTED AD 0 · STATIC AD 1.</small></>:<small className="builder-routing-note">Endpoints forward directly on-link or send off-link traffic to their configured default gateway. Select a router to inspect connected and static routes.</small>}</section>
+          <section className="builder-ospf-section"><div className="control-title"><span>OSPF CONTROL PLANE</span><strong>{selectedNode?.kind === 'router' ? (selectedOspfEnabled ? 'AREA 0 · ENABLED' : 'DISABLED') : 'ROUTERS ONLY'}</strong></div>{selectedNode?.kind === 'router'?<><div className="button-row"><button type="button" onClick={()=>setSelectedOspf(!selectedOspfEnabled)}>{selectedOspfEnabled?'DISABLE ON ROUTER':'ENABLE ON ROUTER'}</button><button type="button" onClick={()=>setAllOspf(true)}>ENABLE ALL</button><button type="button" onClick={()=>setAllOspf(false)}>DISABLE ALL</button></div>{selectedOspfEnabled?<><div className="builder-ospf-facts"><div><span>LSDB COMPONENT</span><strong>{selectedOspfComponent?.map((id)=>labelFor(graph,id)).join(' · ') || selectedNode.label}</strong></div><div><span>KNOWN PREFIXES</span><strong>{selectedOspfPrefixCount}</strong></div></div><div className="builder-ospf-neighbors">{selectedOspfAdjacencies.length===0?<small>NO OSPF ROUTER NEIGHBORS</small>:selectedOspfAdjacencies.map((adjacency)=>{const neighborId=adjacency.aRouterId===selectedNode.id?adjacency.bRouterId:adjacency.aRouterId;return <div key={adjacency.id} className={adjacency.state==='FULL'?'full':'down'}><span>{adjacency.state}</span><strong>{labelFor(graph,neighborId)}</strong><small>{adjacency.linkId.toUpperCase()} · COST {adjacency.cost} · {adjacency.reason}</small></div>;})}</div></>:<small className="builder-routing-note">This router advertises no prefixes and installs no OSPF routes until it joins Area 0.</small>}<small className="builder-routing-note">SINGLE-AREA TEACHING MODEL · ROUTER-ROUTER ADJACENCIES · DETERMINISTIC SPF · NO HELLO/DEAD TIMERS OR ECMP YET.</small></>:<small className="builder-routing-note">Endpoints do not run OSPF. Select a router to inspect Area 0 state.</small>}</section>
+          <section className="builder-routing-section"><div className="control-title"><span>ROUTE TABLE</span><strong>{selectedNode?.kind === 'router' ? `${selectedRouteTable.filter((entry)=>entry.active).length} ACTIVE · ${selectedRouteTable.length} TOTAL` : 'ENDPOINT DEFAULT'}</strong></div>{selectedNode?.kind === 'router'?<><div className="builder-route-table">{selectedRouteTable.length===0?<small>NO ROUTES</small>:selectedRouteTable.map((entry)=><div key={entry.id} className={`${entry.active?'':'inactive'} source-${entry.source}`}><span>{entry.source==='connected'?'C':entry.source==='static'?'S':'O'}</span><strong>{entry.prefix}</strong><small>{entry.source==='connected'?'DIRECT':`via ${entry.nextHop}`} · {entry.outgoingInterface} · AD {entry.administrativeDistance} · M {entry.metric} · {entry.stateNote}</small>{entry.source==='static'&&<button type="button" aria-label={`Delete route ${entry.prefix} via ${entry.nextHop}`} onClick={()=>{setRouting(deleteBuilderStaticRoute(graph,addressing,routing,entry.id));setMessage(`${selectedNode.label} static route ${entry.prefix} removed.`);}}>×</button>}</div>)}</div><div className="builder-static-form"><label>DESTINATION PREFIX<input value={staticPrefix} onChange={(event)=>setStaticPrefix(event.currentTarget.value)}/></label><button type="button" onClick={()=>setStaticPrefix(destinationPrefix)}>USE DEST PREFIX</button><label>NEXT HOP<select value={effectiveStaticNextHop} onChange={(event)=>setStaticNextHop(event.currentTarget.value)}>{selectedNextHopOptions.length===0?<option value="">NO NEIGHBORS</option>:selectedNextHopOptions.map((option)=><option key={`${option.linkId}-${option.address}`} value={option.address}>{option.nodeLabel} · {option.address}{option.linkFailed?' · DOWN':''}</option>)}</select></label><label>METRIC<input type="number" min={1} max={999} value={staticMetric} onChange={(event)=>setStaticMetric(Math.max(1,Math.min(999,Math.round(Number(event.currentTarget.value)||1))))}/></label><button type="button" onClick={addStaticRoute} disabled={!effectiveStaticNextHop}>ADD / REPLACE STATIC</button></div><small className="builder-routing-note">LOOKUP: LONGEST PREFIX → AD → METRIC. CONNECTED AD 0 · STATIC AD 1 · OSPF AD 110. OSPF SPF USES LINK COST.</small></>:<small className="builder-routing-note">Endpoints forward directly on-link or send off-link traffic to their configured default gateway. Select a router to inspect connected, static, and OSPF routes.</small>}</section>
           <section><div className="control-title"><span>AUTHOR</span><strong>TOPOLOGY</strong></div><div className="button-row"><button type="button" onClick={()=>addNode('router')}>+ ROUTER</button><button type="button" onClick={()=>addNode('endpoint')}>+ ENDPOINT</button></div><div className="link-form"><select value={newLinkA} onChange={(e)=>setNewLinkA(e.currentTarget.value)}>{graph.nodes.map((node)=><option key={node.id} value={node.id}>{node.label}</option>)}</select><span>↔</span><select value={newLinkB} onChange={(e)=>setNewLinkB(e.currentTarget.value)}>{graph.nodes.map((node)=><option key={node.id} value={node.id}>{node.label}</option>)}</select><input aria-label="New link cost" type="number" min={1} max={999} value={newLinkCost} onChange={(e)=>setNewLinkCost(Math.max(1,Math.min(999,Math.round(Number(e.currentTarget.value)||1))))}/><button type="button" onClick={addLink}>ADD LINK</button></div></section>
-          <section><div className="control-title"><span>SCENARIOS</span><strong>SCHEMA V4 · STATIC</strong></div><label>NAME<input value={scenarioName} maxLength={80} onChange={(e)=>setScenarioName(e.currentTarget.value)}/></label><div className="button-row"><button type="button" onClick={saveScenario}>SAVE</button><button type="button" onClick={exportScenario}>EXPORT JSON</button><label className="file-button">IMPORT<input type="file" accept="application/json,.json" onChange={(e)=>void importScenario(e.currentTarget.files?.[0])}/></label></div><div className="saved-list">{saved.length===0?<small>NO SAVED SCENARIOS</small>:saved.map((scenario)=><div key={scenario.name}><button type="button" onClick={()=>restoreScenario(scenario)}><strong>{scenario.name}</strong><small>{scenario.graph.nodes.length}N · {scenario.graph.links.length}L</small></button><button type="button" aria-label={`Delete ${scenario.name}`} onClick={()=>setSaved(deleteStoredBuilderScenario(scenario.name))}>×</button></div>)}</div></section>
+          <section><div className="control-title"><span>SCENARIOS</span><strong>SCHEMA V5 · STATIC + OSPF</strong></div><label>NAME<input value={scenarioName} maxLength={80} onChange={(e)=>setScenarioName(e.currentTarget.value)}/></label><div className="button-row"><button type="button" onClick={saveScenario}>SAVE</button><button type="button" onClick={exportScenario}>EXPORT JSON</button><label className="file-button">IMPORT<input type="file" accept="application/json,.json" onChange={(e)=>void importScenario(e.currentTarget.files?.[0])}/></label></div><div className="saved-list">{saved.length===0?<small>NO SAVED SCENARIOS</small>:saved.map((scenario)=><div key={scenario.name}><button type="button" onClick={()=>restoreScenario(scenario)}><strong>{scenario.name}</strong><small>{scenario.graph.nodes.length}N · {scenario.graph.links.length}L</small></button><button type="button" aria-label={`Delete ${scenario.name}`} onClick={()=>setSaved(deleteStoredBuilderScenario(scenario.name))}>×</button></div>)}</div></section>
           <section className="reset-section"><div className="button-row"><button type="button" onClick={resetTopology}>RESET TOPOLOGY</button><button type="button" onClick={resetLayout}>RESET LAYOUT</button></div></section>
         </aside>
       </div>

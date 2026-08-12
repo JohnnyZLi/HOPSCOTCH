@@ -396,6 +396,20 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] high-density schema-v4 round trip preserves addressing and empty routing at the 32-node / 96-link ceiling
 - [x] permanent Builder static-routing/forwarding contract wired into `npm run check`
 
+### 11C — Single-area OSPF control plane
+- [x] keep weighted graph truth, OSPF control-plane truth, and L3 forwarding truth as separate layers
+- [x] explicit per-router OSPF Area 0 enablement with endpoints excluded from participation
+- [x] derive FULL/DOWN router adjacencies only from active OSPF-enabled router-router links
+- [x] advertise active connected prefixes into a deterministic Area 0 link-state view
+- [x] run deterministic SPF over OSPF router adjacencies using Builder link cost as OSPF teaching cost
+- [x] install OSPF routes with AD 110 behind connected AD 0 and static AD 1
+- [x] automatic OSPF reconvergence after link failure, restore, or cost change without changing static-route semantics
+- [x] route table exposes O routes, next hop, outgoing interface, AD, metric, and origin
+- [x] selected-router control-plane inspector exposes Area 0 participation, LSDB component, prefixes, and neighbor state
+- [x] Builder scenario schema v5 persists OSPF configuration; v1-v4 migrate with OSPF disabled
+- [x] high-density schema-v5 round trip preserves the 32-node / 96-link ceiling with OSPF disabled by default
+- [x] permanent Builder OSPF contract wired into `npm run check`
+
 ## Performance + rendering — ongoing
 
 - [x] DOM/CSS for controls and text
