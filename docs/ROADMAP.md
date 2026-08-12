@@ -310,7 +310,7 @@ GOD MODE impairments are deterministic modifiers over the same canonical Journey
 
 **Lab 07 GOD MODE modifier series complete.** Reachability, policy correctness, routing reachability, transport recovery, latency, congestion, DNS availability, and application-service availability remain separate semantic dimensions.
 
-## Measured/native mode — future
+## Measured/native mode — ongoing
 
 Browser-visible evidence is intentionally limited. A future native measurement source may provide data that browsers cannot legitimately observe, such as local interfaces, route tables, traceroute/ICMP, richer transport telemetry, and packet-level captures.
 
@@ -319,6 +319,7 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] ingest native/network-diagnostics data without pretending it is globally complete
 - [x] explicit session-only Network Diagnostics report import + provenance-first measured workspace
 - [x] map measured facts into existing semantic scenes where appropriate
+- [x] explicit loopback-only Network Diagnostics bridge transport with no scanning, polling, credentials, or alternate truth path
 
 ## Performance + rendering — ongoing
 
