@@ -25,7 +25,9 @@ export const DESTINATION_PATHS: Readonly<Record<ExploreDestination, string>> = O
 });
 
 const PATH_DESTINATIONS = new Map<string, ExploreDestination>(
-  Object.entries(DESTINATION_PATHS).map(([destination, path]) => [path, destination as ExploreDestination]),
+  Object.entries(DESTINATION_PATHS).map(
+    ([destination, path]) => [path, destination as ExploreDestination] as const,
+  ),
 );
 
 function normalizePathname(pathname: string): string {
