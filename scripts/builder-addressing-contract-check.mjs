@@ -11,7 +11,8 @@ import {
   replaceBuilderSegmentCidr,
   validateBuilderAddressing,
 } from '../src/builder/addressing.ts';
-import { cloneBuilderGraph, defaultBuilderGraph, findShortestPath } from '../src/builder/model.ts';
+import { cloneBuilderGraph, defaultBuilderGraph, defaultBuilderLayout, findShortestPath } from '../src/builder/model.ts';
+import { createBuilderScenario, deserializeBuilderScenario, serializeBuilderScenario } from '../src/builder/scenario.ts';
 
 const graph = cloneBuilderGraph(defaultBuilderGraph);
 const routeBefore = findShortestPath(graph, 'client', 'app');
@@ -85,4 +86,42 @@ const contractedAddressing = reconcileBuilderAddressing(contractedGraph, expande
 assert.equal(contractedAddressing.segments['r2-r3'], undefined);
 assert.doesNotThrow(() => validateBuilderAddressing(contractedGraph, contractedAddressing));
 
-console.log(`Builder L3 addressing contract passed: ${graph.links.length} deterministic segments, endpoint gateways, edit validation, and topology reconciliation without changing route truth.`);
+const scenario = createBuilderScenario('Addressed topology', graph, 'client', 'app', defaultBuilderLayout, validated);
+assert.equal(scenario.version, 3);
+assert.deepEqual(deserializeBuilderScenario(serializeBuilderScenario(scenario)).addressing, validated);
+
+const now = '2026-08-12T00:00:00.000Z';
+const legacyV2 = {
+  schema: 'hopscotch.builder',
+  version: 2,
+  name: 'Legacy v2',
+  graph,
+  sourceId: 'client',
+  destinationId: 'app',
+  layout: defaultBuilderLayout,
+  createdAt: now,
+  updatedAt: now,
+};
+const migratedV2 = deserializeBuilderScenario(JSON.stringify(legacyV2));
+assert.equal(migratedV2.version, 3);
+assert.doesNotThrow(() => validateBuilderAddressing(migratedV2.graph, migratedV2.addressing));
+
+const legacyV1 = {
+  schema: 'hopscotch.builder',
+  version: 1,
+  name: 'Legacy v1',
+  nodes: graph.nodes,
+  links: graph.links,
+  sourceId: 'client',
+  destinationId: 'app',
+  layout: defaultBuilderLayout,
+  createdAt: now,
+  updatedAt: now,
+};
+assert.equal(deserializeBuilderScenario(JSON.stringify(legacyV1)).version, 3);
+
+const malformedV3 = JSON.parse(serializeBuilderScenario(scenario));
+malformedV3.addressing.segments['client-edge'].interfaces[0].address = '192.0.2.44';
+assert.throws(() => deserializeBuilderScenario(JSON.stringify(malformedV3)), /not a usable host/);
+
+console.log(`Builder L3 addressing contract passed: ${graph.links.length} deterministic segments, endpoint gateways, topology reconciliation, schema-v3 round trip, and v1/v2 migration without changing route truth.`);
