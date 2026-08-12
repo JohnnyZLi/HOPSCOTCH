@@ -165,7 +165,7 @@ const profiles = [
     height: 1000,
     query: query({ stress: 'builder-density' }),
     readySelector: '.builder-workspace',
-    expected: ['32 NODES · 96 LINKS', 'ROUTE INSTALLED'],
+    expected: ['32 NODES · 96 LINKS', 'GRAPH PATH', 'YES · COST', 'L3 FORWARDING', 'NO ROUTE'],
     stress: { builderNodes: 32, builderLinks: 96 },
   },
   {

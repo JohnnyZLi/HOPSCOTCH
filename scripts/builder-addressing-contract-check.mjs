@@ -89,7 +89,7 @@ assert.equal(contractedAddressing.segments['r2-r3'], undefined);
 assert.doesNotThrow(() => validateBuilderAddressing(contractedGraph, contractedAddressing));
 
 const scenario = createBuilderScenario('Addressed topology', graph, 'client', 'app', defaultBuilderLayout, validated);
-assert.equal(scenario.version, 3);
+assert.equal(scenario.version, 4);
 assert.deepEqual(deserializeBuilderScenario(serializeBuilderScenario(scenario)).addressing, validated);
 
 const now = '2026-08-12T00:00:00.000Z';
@@ -105,7 +105,7 @@ const legacyV2 = {
   updatedAt: now,
 };
 const migratedV2 = deserializeBuilderScenario(JSON.stringify(legacyV2));
-assert.equal(migratedV2.version, 3);
+assert.equal(migratedV2.version, 4);
 assert.doesNotThrow(() => validateBuilderAddressing(migratedV2.graph, migratedV2.addressing));
 
 const legacyV1 = {
@@ -120,7 +120,24 @@ const legacyV1 = {
   createdAt: now,
   updatedAt: now,
 };
-assert.equal(deserializeBuilderScenario(JSON.stringify(legacyV1)).version, 3);
+assert.equal(deserializeBuilderScenario(JSON.stringify(legacyV1)).version, 4);
+
+const legacyV3 = {
+  schema: 'hopscotch.builder',
+  version: 3,
+  name: 'Legacy v3',
+  graph,
+  addressing: validated,
+  sourceId: 'client',
+  destinationId: 'app',
+  layout: defaultBuilderLayout,
+  createdAt: now,
+  updatedAt: now,
+};
+const migratedV3 = deserializeBuilderScenario(JSON.stringify(legacyV3));
+assert.equal(migratedV3.version, 4);
+assert.deepEqual(migratedV3.addressing, validated);
+assert.deepEqual(migratedV3.routing.staticRoutes, []);
 
 const malformedV3 = JSON.parse(serializeBuilderScenario(scenario));
 malformedV3.addressing.segments['client-edge'].interfaces[0].address = '192.0.2.44';
