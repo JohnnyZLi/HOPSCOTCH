@@ -24,6 +24,10 @@ A link failure, restore, or cost edit changes the Area 0 topology immediately in
 
 Builder schema v5 persists only OSPF configuration (the set of participating routers) alongside graph, addressing, static routes, layout, and endpoint query state. Derived adjacencies, advertisements, SPF paths, and OSPF routes are recomputed after load. Legacy v1-v4 scenarios migrate with OSPF disabled.
 
+## Permanent browser contract
+
+Compatibility profiling now exercises the production Builder rather than stopping at model-level assertions. The browser contract starts from OSPF disabled with no L3 route, enables all four routers and verifies five FULL adjacencies plus forwarding through R1, fails `edge-r1`, then verifies four FULL / one DOWN adjacency and automatic forwarding reconvergence through R2 with EDGE using next hop `10.0.0.14` at OSPF AD 110. The same interaction runs at desktop and exact 390 px mobile width with horizontal-overflow and document-scroll checks.
+
 ## Deferred
 
 - multi-area OSPF and ABRs
