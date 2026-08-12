@@ -9,8 +9,9 @@ import { JourneyTheater } from './JourneyTheater';
 import { InternetScaleTheater } from './InternetScaleTheater';
 import type { InternetEvidenceSnapshot } from './internet/evidence';
 import { bootstrapJourneyFromSearch, seedJourneyBrowserScenario } from './journey/browser.ts';
+import { scenarioForPreset } from './journey/presets.ts';
 import type { JourneyDetailLab } from './journey/model';
-import type { PortableJourneyScenario } from './journey/scenario.ts';
+import { encodeJourneyQuery, type PortableJourneyScenario } from './journey/scenario.ts';
 import { LabNetworkField } from './LabNetworkField';
 import { NetworkBuilder } from './NetworkBuilder';
 import { NetworkField } from './NetworkField';
@@ -22,6 +23,7 @@ import { PacketMicroscope } from './PacketMicroscope';
 import { PhysicalInternetGlobe } from './PhysicalInternetGlobe';
 import { TcpTheater } from './TcpTheater';
 import { TlsTheater } from './TlsTheater';
+import type { ScenarioPresetId } from './scenarios/catalog.ts';
 import { lab01Scenario, lab01StateAt } from './simulation/lab01';
 import { latestEventAtOrBefore, type NetworkLayer } from './simulation/model';
 
@@ -208,6 +210,26 @@ export default function App() {
     setJourneyScenarioName('');
     setActiveLab('journey');
   };
+  const launchScenarioPreset = (presetId: ScenarioPresetId) => {
+    const scenario = scenarioForPreset(presetId);
+    seedJourneyBrowserScenario(scenario);
+    if (browserHistoryRoutingAvailable) {
+      const nextUrl = `/journey${encodeJourneyQuery(scenario)}`;
+      const currentUrl = `${window.location.pathname}${window.location.search}`;
+      if (currentUrl !== nextUrl) window.history.pushState({}, '', nextUrl);
+    }
+    setPlaying(false);
+    setJourneyHostname(scenario.hostname);
+    setJourneyTimeMs(scenario.timeMs);
+    setJourneyStartPlaying(true);
+    setJourneyReturnPending(false);
+    setJourneyEvidence(null);
+    setJourneyScenarioName(scenario.name ?? '');
+    setLayer('application');
+    setExploreOpen(false);
+    setActiveLab('journey');
+    setJourneyRenderKey((current) => current + 1);
+  };
   const selectExploreDestination = (destination: ExploreDestination) => {
     const openers: Record<ExploreDestination, () => void> = {
       journey: openJourney,
@@ -337,7 +359,7 @@ export default function App() {
         </div>
       </motion.header>
 
-      <ExploreLauncher open={exploreOpen} onClose={() => setExploreOpen(false)} onSelect={selectExploreDestination} />
+      <ExploreLauncher open={exploreOpen} onClose={() => setExploreOpen(false)} onSelect={selectExploreDestination} onScenarioSelect={launchScenarioPreset} />
 
       <AnimatePresence mode="wait" initial={false}>
         {!activeLab ? (

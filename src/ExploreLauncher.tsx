@@ -1,5 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useRef } from 'react';
+import { ScenarioGallery } from './ScenarioGallery';
+import type { ScenarioPresetId } from './scenarios/catalog.ts';
 import './ExploreLauncher.css';
 
 export type ExploreDestination =
@@ -174,10 +176,12 @@ export function ExploreLauncher({
   open,
   onClose,
   onSelect,
+  onScenarioSelect,
 }: {
   open: boolean;
   onClose: () => void;
   onSelect: (destination: ExploreDestination) => void;
+  onScenarioSelect: (presetId: ScenarioPresetId) => void;
 }) {
   const reduceMotion = useReducedMotion();
   const panelRef = useRef<HTMLElement>(null);
@@ -255,6 +259,8 @@ export function ExploreLauncher({
                 </motion.button>
               ))}
             </section>
+
+            <ScenarioGallery onSelect={onScenarioSelect} />
 
             <div className="explore-groups">
               {GROUPS.map((group) => (
