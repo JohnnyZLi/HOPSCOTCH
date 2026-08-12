@@ -75,6 +75,39 @@ Lab 09 keeps file import and the optional bridge as parallel acquisition methods
 - Disconnect removes bridge connection state but does not erase the last valid report
 - Clear erases measured report state but does not implicitly connect/disconnect anything
 
+## Permanent validation
+
+`npm run check` includes both the pure loopback transport contract and the Lab 09 workspace separation contract. Together they prove loopback-only normalization, fixed endpoints, strict handshake parsing, omitted credentials, bounded one-shot requests, fail-before-fetch behavior for non-loopback input, mandatory 09C ingestion, unchanged Journey construction/reducer state, and independent Connect / Refresh / Disconnect / Clear state transitions.
+
+The existing compatibility-only Chrome profiler now runs the bridge flow before the normal Lab 09 file-import flow on desktop, exact 390 px mobile, and reduced motion. Its mocked loopback transport covers:
+
+- private-LAN origin rejection before `fetch`
+- network/CORS-style `Failed to fetch` failure
+- rejected wrong-schema handshake
+- successful Connect with measured state still empty
+- valid Refresh Report through the existing ingestion path
+- invalid replacement preserving the previous valid measurement
+- Clear while the bridge remains connected
+- re-refresh after Clear
+- Disconnect while the measured report remains active
+- exact fixed handshake/report URLs plus CORS / `credentials: omit` / no-store / redirect-error request options
+
+That flow is permanent under Chrome default, explicit SwiftShader, and WebGL-disabled compatibility jobs. Firefox/Gecko remains covered by the existing semantic compatibility pass.
+
+## Exact production-artifact audit
+
+Clean source head `ca03de0` produced CI artifact `hopscotch-dist` with digest `sha256:f57c8fc759f77c60dfa9529cc3fea8bd2f0f65cb6dde1ff6c64f602d5f621d81`.
+
+The exact built Vite HTML/CSS/JS bytes were rendered directly in Linux Chromium with a mocked loopback bridge:
+
+- desktop 1440: connected-before-refresh remains `data-measured-loaded=false`; valid refresh becomes measured without changing bridge state; invalid refresh keeps both connection and previous report
+- exact 390 px mobile: bridge, capture strip, category grid, measured facts, and provenance panel stack without horizontal overflow
+- reduced-motion 1280: valid bridge/report state renders synchronously with reduced motion enabled
+- all audited states had `scrollWidth === innerWidth`, `scrollY === 0`, and zero page runtime errors
+- the bridge remains a compact acquisition strip; the measured report remains the primary workspace after refresh
+
+On the same clean head, ordinary CI, full Performance, Chrome default/SwiftShader/WebGL-disabled Compatibility, and Firefox/Gecko semantic Compatibility all passed.
+
 ## Out of scope
 
 - automatic localhost port scanning
@@ -85,5 +118,3 @@ Lab 09 keeps file import and the optional bridge as parallel acquisition methods
 - native bridge/server implementation in Network Diagnostics Suite
 - credentials or cookie-bearing bridge requests
 - bypassing browser CORS/local-network permission behavior
-
-The first merge gate is the pure loopback/handshake/report contract plus the promoted workspace UI passing the full existing correctness suite. Production browser interaction coverage and shared-doc synchronization follow only after that source gate is green.
