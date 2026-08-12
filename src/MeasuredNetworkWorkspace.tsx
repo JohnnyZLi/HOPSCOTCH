@@ -2,6 +2,13 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ingestNetworkDiagnosticsReportV2 } from './measurement/networkDiagnosticsAdapter.ts';
 import {
+  DEFAULT_LOOPBACK_BRIDGE_ORIGIN,
+  connectLoopbackBridge,
+  fetchLoopbackBridgeReport,
+  type LoopbackBridgeConnection,
+  type LoopbackBridgeStatus,
+} from './measurement/loopbackBridge.ts';
+import {
   measuredFactsByCategory,
   measuredFreshnessAt,
   type MeasuredFreshness,
@@ -150,6 +157,10 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
   const [selectedCategory, setSelectedCategory] = useState<NativeMeasurementCategory>('interface');
   const [selectedTargetKey, setSelectedTargetKey] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [bridgeOrigin, setBridgeOrigin] = useState(DEFAULT_LOOPBACK_BRIDGE_ORIGIN);
+  const [bridgeStatus, setBridgeStatus] = useState<LoopbackBridgeStatus>('disconnected');
+  const [bridgeConnection, setBridgeConnection] = useState<LoopbackBridgeConnection | null>(null);
+  const [bridgeError, setBridgeError] = useState<string | null>(null);
 
   useEffect(() => {
     if (measuredState === null) return;
@@ -202,6 +213,43 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
     }
   };
 
+  const connectBridge = async () => {
+    if (bridgeStatus === 'connecting') return;
+    setBridgeError(null);
+    setBridgeStatus('connecting');
+    try {
+      const connection = await connectLoopbackBridge(bridgeOrigin);
+      setBridgeConnection(connection);
+      setBridgeOrigin(connection.origin);
+      setBridgeStatus('connected');
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : 'Unable to connect to the local Network Diagnostics bridge.';
+      setBridgeConnection(null);
+      setBridgeStatus(/handshake|schema|version|identity|report path|capabilit/i.test(message) ? 'rejected' : 'unavailable');
+      setBridgeError(message);
+    }
+  };
+
+  const refreshBridgeReport = async () => {
+    if (bridgeConnection === null || bridgeStatus !== 'connected') return;
+    setBridgeError(null);
+    try {
+      const next = await fetchLoopbackBridgeReport(bridgeConnection);
+      onMeasuredStateChange(next.state);
+      setFileName('LOCAL BRIDGE · REPORT V2');
+      setNowMs(Date.now());
+      chooseBestCategory(next.state);
+    } catch (reason) {
+      setBridgeError(reason instanceof Error ? reason.message : 'Unable to load a report from the local bridge.');
+    }
+  };
+
+  const disconnectBridge = () => {
+    setBridgeConnection(null);
+    setBridgeStatus('disconnected');
+    setBridgeError(null);
+  };
+
   const clear = () => {
     onMeasuredStateChange(null);
     setFileName(null);
@@ -213,6 +261,7 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
   return <motion.section
     className="measured-workspace"
     data-measured-loaded={measuredState ? 'true' : 'false'}
+    data-bridge-status={bridgeStatus}
     initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.987, filter: 'blur(12px)' }}
     animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
     exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.012, filter: 'blur(8px)' }}
@@ -241,6 +290,30 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
       <p>Imported bytes stay in this browser session. Facts are shown only after the Network Diagnostics v2 adapter, native provenance validator, and measured-state projection accept them. Separate targets are not drawn as one observed route.</p>
     </div>
 
+    <section className="measured-bridge" aria-label="Optional local Network Diagnostics bridge">
+      <div className="measured-bridge-copy">
+        <span>OPTIONAL LOCAL BRIDGE</span>
+        <strong>EXPLICIT LOOPBACK CONNECTION</strong>
+        <p>No scanning or background polling. Connect performs one handshake against a loopback-only endpoint; Refresh Report is the separate action that requests one report through the existing validation path.</p>
+      </div>
+      <label className="measured-bridge-origin">
+        <span>BRIDGE ORIGIN</span>
+        <input value={bridgeOrigin} disabled={bridgeStatus === 'connecting' || bridgeStatus === 'connected'} onChange={(event) => setBridgeOrigin(event.currentTarget.value)} spellCheck={false} aria-label="Local bridge origin" />
+      </label>
+      <div className="measured-bridge-state">
+        <span>STATE</span>
+        <strong className={`state-${bridgeStatus}`}>{bridgeStatus.toUpperCase()}</strong>
+        {bridgeConnection && <small>{bridgeConnection.handshake.application} · BRIDGE {bridgeConnection.handshake.bridgeVersion}</small>}
+      </div>
+      <div className="measured-bridge-actions">
+        {bridgeStatus !== 'connected' ? <button type="button" disabled={bridgeStatus === 'connecting'} onClick={() => void connectBridge()}>{bridgeStatus === 'connecting' ? 'CONNECTING…' : 'CONNECT'}</button> : <>
+          <button type="button" onClick={() => void refreshBridgeReport()}>REFRESH REPORT</button>
+          <button className="bridge-disconnect" type="button" onClick={disconnectBridge}>DISCONNECT</button>
+        </>}
+      </div>
+      {bridgeError && <p className="measured-bridge-error"><strong>BRIDGE {bridgeStatus === 'connected' ? 'REPORT REJECTED' : bridgeStatus.toUpperCase()}</strong><span>{bridgeError}</span>{measuredState && <small>PREVIOUS VALID MEASUREMENT REMAINS ACTIVE.</small>}</p>}
+    </section>
+
     <AnimatePresence mode="wait" initial={false}>
       {error && <motion.div key={error} className="measured-error" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
         <strong>IMPORT REJECTED</strong><span>{error}</span>{measuredState && <small>THE PREVIOUS VALID REPORT REMAINS ACTIVE.</small>}
@@ -249,7 +322,7 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
 
     {!measuredState ? <section className="measured-empty">
       <SemanticGlyph category="route" />
-      <div><strong>NO LOCAL MEASUREMENT LOADED</strong><p>Import a Network Diagnostics Suite report-v2 JSON file. HOPSCOTCH will not probe localhost, upload the file, or invent measurements for sections that were not captured.</p></div>
+      <div><strong>NO LOCAL MEASUREMENT LOADED</strong><p>Import a Network Diagnostics Suite report-v2 JSON file or explicitly connect the optional loopback bridge above. HOPSCOTCH does not scan localhost, poll in the background, upload reports, or invent measurements for sections that were not captured.</p></div>
       <button type="button" onClick={() => inputRef.current?.click()}>CHOOSE JSON REPORT <span>↗</span></button>
     </section> : <>
       <section className="measured-capture-strip" aria-label="Imported measurement capture">
