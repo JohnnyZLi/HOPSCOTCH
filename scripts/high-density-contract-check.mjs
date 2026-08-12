@@ -58,7 +58,7 @@ const builderScenario = createBuilderScenario(
 const restoredBuilder = deserializeBuilderScenario(serializeBuilderScenario(builderScenario));
 assert.equal(restoredBuilder.graph.nodes.length, STRESS_BUILDER_NODE_COUNT);
 assert.equal(restoredBuilder.graph.links.length, STRESS_BUILDER_LINK_COUNT);
-assert.equal(restoredBuilder.version, 5);
+assert.equal(restoredBuilder.version, 6);
 assert.equal(Object.keys(restoredBuilder.addressing.segments).length, STRESS_BUILDER_LINK_COUNT);
 assert.deepEqual(restoredBuilder.routing.staticRoutes, []);
 assert.deepEqual(restoredBuilder.routing.ospf.enabledRouterIds, []);

@@ -423,6 +423,28 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] Packet Microscope supports ICMP/ICMPv6 control-message headers without changing default TCP/UDP behavior
 - [x] permanent active-probe contract wired into `npm run check`
 
+### 11E — Ethernet LANs + switching foundation
+- [x] add a bounded Layer-2 fabric with endpoint, switch, and router device roles inside Network Builder
+- [x] keep Ethernet/LAN truth separate from the existing routed point-to-point /30 graph instead of silently reinterpreting old links
+- [x] explicit access-port VLAN membership and link-up/down state
+- [x] deterministic VLAN-scoped MAC learning/FDB derivation from each flow
+- [x] unknown-unicast flood-and-learn teaching state followed by learned unicast return
+- [x] same-VLAN forwarding stays Layer 2 and leaves IP TTL unchanged
+- [x] Layer-2 path search permits switches as transit while endpoints/routers remain edge devices
+- [x] permanent Ethernet switching contract wired into `npm run check`
+
+### 11F — VLANs, trunks + inter-VLAN routing
+- [x] VLAN IDs 1–4094 with named IPv4 broadcast domains
+- [x] explicit trunk mode with bounded allowed-VLAN lists; endpoints cannot become trunk ports
+- [x] trunk filtering can isolate one VLAN without breaking another VLAN carried on the same physical link
+- [x] router-on-a-stick device owns explicit per-VLAN IPv4 interfaces
+- [x] endpoint gateways must match the router interface used for inter-VLAN forwarding
+- [x] inter-VLAN flow is two Layer-2 segments separated by one routed hop and one TTL decrement
+- [x] switch FDB state remains keyed by switch + VLAN + MAC
+- [x] Builder scenario schema v6 persists LAN/VLAN configuration while derived FDB/flow observations remain session-only
+- [x] v1–v5 routed scenarios migrate to v6 with an empty LAN fabric rather than fabricated Layer-2 state
+- [x] permanent VLAN/trunk/inter-VLAN contract wired into `npm run check`
+
 ## Performance + rendering — ongoing
 
 - [x] DOM/CSS for controls and text
