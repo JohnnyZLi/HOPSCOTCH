@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { DnsTheater } from './DnsTheater';
 import { ExploreLauncher, type ExploreDestination } from './ExploreLauncher';
 import { HttpComparisonTheater } from './HttpComparisonTheater';
+import { HomeActionDeck } from './HomeActionDeck';
 import { JourneyScenarioMenu } from './JourneyScenarioMenu';
 import { JourneyTheater } from './JourneyTheater';
 import { InternetScaleTheater } from './InternetScaleTheater';
@@ -277,16 +278,6 @@ export default function App() {
   };
   const seek = (nextTime: number) => { setPlaying(false); setTimeMs(nextTime); };
 
-  const overviewAction = layer === 'packet'
-    ? { label: 'Open packet microscope', run: openPacketLab }
-    : layer === 'transport'
-      ? { label: 'Open TCP theater', run: openTcpLab }
-      : layer === 'application'
-        ? { label: 'Compare HTTP/2 vs HTTP/3', run: openHttpLab }
-        : layer === 'routing'
-          ? { label: 'Open network builder', run: openBuilderLab }
-          : { label: 'Open physical Internet', run: openPhysicalInternet };
-
   const buildLabel = activeLab === 'measured'
     ? 'LAB 09'
     : activeLab === 'journey'
@@ -355,14 +346,15 @@ export default function App() {
               <motion.p className="eyebrow" initial={reduceMotion ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.7 }}>Interactive network systems laboratory</motion.p>
               <motion.h1 initial={reduceMotion ? false : { opacity: 0, y: 34 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16, duration: 0.85, ease: [0.16, 1, 0.3, 1] }}>SEE THE<span>INTERNET</span>HAPPEN.</motion.h1>
               <motion.p className="lede" initial={reduceMotion ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28, duration: 0.7 }}>Move from the global Internet to a single packet without losing the story in between. Routes, protocols, failures, and recovery become something you can watch, stop, rewind, build, and interrogate.</motion.p>
-              <motion.div className="hero-actions" initial={reduceMotion ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38, duration: 0.65 }}>
-                <motion.button className="primary-action" type="button" onClick={openJourney} whileHover={reduceMotion ? undefined : { y: -2, scale: 1.015 }} whileTap={reduceMotion ? undefined : { scale: 0.985 }}>Play URL journey<span aria-hidden="true">↗</span></motion.button>
-                <button className="explore-hero-action" type="button" onClick={() => setExploreOpen(true)}>Explore labs<span>12 labs ↗</span></button>
-                <button className="text-action text-button" type="button" onClick={openMeasuredNetwork}>Inspect measured report</button>
-                <button className="text-action text-button" type="button" onClick={overviewAction.run}>{overviewAction.label}</button>
-                <button className="text-action text-button" type="button" onClick={() => setMode((current) => (current === 'overview' ? 'xray' : 'overview'))}>{mode === 'overview' ? 'Preview X-ray' : 'Hide X-ray'}</button>
-                <a className="text-action" href="https://github.com/JohnnyZLi/HOPSCOTCH">Source</a>
-              </motion.div>
+              <HomeActionDeck
+                onWatch={openJourney}
+                onBreak={() => openFailureLab(0, true)}
+                onBuild={openBuilderLab}
+                onExplore={() => setExploreOpen(true)}
+                onMeasured={openMeasuredNetwork}
+                onToggleXray={() => setMode((current) => (current === 'overview' ? 'xray' : 'overview'))}
+                xrayActive={mode === 'xray'}
+              />
             </section>
 
             <nav className="scale-rail" aria-label="Network scale">

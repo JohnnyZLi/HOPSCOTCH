@@ -36,40 +36,6 @@
   outline: none;
 }
 
-.hero-actions {
-  flex-wrap: wrap;
-}
-
-.explore-hero-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 20px;
-  padding: 13px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 4px;
-  color: #e3e9ed;
-  background: rgba(7, 11, 15, 0.62);
-  cursor: pointer;
-  font-size: 0.76rem;
-  font-weight: 760;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  backdrop-filter: blur(14px);
-}
-
-.explore-hero-action span {
-  color: #74808a;
-  font-size: 0.58rem;
-  letter-spacing: 0.09em;
-}
-
-.explore-hero-action:hover,
-.explore-hero-action:focus-visible {
-  border-color: rgba(121, 242, 218, 0.46);
-  color: #ffffff;
-  outline: none;
-}
-
 .explore-overlay {
   position: fixed;
   inset: 0;

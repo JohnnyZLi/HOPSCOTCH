@@ -342,6 +342,16 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] Cloudflare SPA fallback serves deep links while `/api/*` remains Worker-first
 - [x] permanent navigation contract wired into `npm run check`
 
+
+### 10C — Action-first overview
+- [x] Watch a Request / Break the Network / Build a Network are the three first-class overview choices
+- [x] Explore, measured evidence, X-Ray, and source move to a secondary utility row
+- [x] remove the scale-dependent extra hero CTA so network scale and product navigation stay separate concepts
+- [x] preserve the existing Explore launcher as the complete catalog rather than duplicating all 12 labs on the home screen
+- [x] compact mobile action rows keep all three primary choices visible without a tall card stack
+- [x] home action component stays presentation-only and cannot import Journey, simulation, or measurement truth
+- [x] permanent home-action contract wired into `npm run check`
+
 ## Performance + rendering — ongoing
 
 - [x] DOM/CSS for controls and text
