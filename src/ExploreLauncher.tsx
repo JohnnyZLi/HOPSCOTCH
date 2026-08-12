@@ -196,7 +196,7 @@ export function ExploreLauncher({
       window.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   return (
     <AnimatePresence>
