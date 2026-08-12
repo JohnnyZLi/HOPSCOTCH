@@ -190,7 +190,7 @@ export function ExploreLauncher({
       if (event.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKeyDown);
-    const focusFrame = requestAnimationFrame(() => panelRef.current?.focus());
+    const focusFrame = requestAnimationFrame(() => panelRef.current?.focus({ preventScroll: true }));
     return () => {
       cancelAnimationFrame(focusFrame);
       window.removeEventListener('keydown', onKeyDown);
