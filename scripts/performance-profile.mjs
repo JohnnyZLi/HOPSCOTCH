@@ -293,7 +293,9 @@ profiles.push(
 );
 
 if (compatibility) profiles.push(
-  { id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', 'NOT PROMOTED TO LOCAL MEASURED'] },
+{ id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['OSPF CONTROL PLANE', 'REACHABLE', '1 DOWN', 'via 10.0.0.14', 'OSPF AD 110'] },
+{ id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['OSPF CONTROL PLANE', 'REACHABLE', '1 DOWN', 'via 10.0.0.14'] },
+{ id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', 'NOT PROMOTED TO LOCAL MEASURED'] },
   { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
   { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
   { id: 'measured-sidecars-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['ONE REQUEST.', 'BREAK THE PATH.'] },
@@ -315,6 +317,89 @@ async function setFileInput(cdp, selector, filePath) {
   const result = await cdp.call('DOM.querySelector', { nodeId: document.root.nodeId, selector });
   if (!result.nodeId) throw new Error(`Unable to find file input ${selector}.`);
   await cdp.call('DOM.setFileInputFiles', { nodeId: result.nodeId, files: [filePath] });
+}
+
+async function exerciseBuilderOspf(cdp, profile) {
+  await measuredClickButton(cdp, 'button', 'BUILD A NETWORK');
+  await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
+
+  const state = async () => cdp.evaluate(`(()=>({
+    innerWidth,
+    scrollWidth:document.documentElement.scrollWidth,
+    scrollY,
+    text:document.body.innerText,
+    meta:document.querySelector('.builder-stage-meta')?.innerText??'',
+    ospf:document.querySelector('.builder-ospf-summary')?.innerText??'',
+    forwarding:document.querySelector('.builder-forwarding')?.innerText??'',
+    routeTable:document.querySelector('.builder-route-table')?.innerText??'',
+    ospfRoutes:document.querySelectorAll('.builder-route-table .source-ospf').length,
+  }))()`);
+  const assertViewport = (value, label) => {
+    if (value.scrollWidth > value.innerWidth) throw new Error(`${profile.id} ${label} horizontally overflows: ${value.scrollWidth} > ${value.innerWidth}.`);
+    if (value.scrollY !== 0) throw new Error(`${profile.id} ${label} moved document scrollY to ${value.scrollY}.`);
+  };
+
+  const initial = await state();
+  assertViewport(initial, 'default Builder');
+  if (!initial.meta.includes('OSPF AREA 0') || !initial.meta.includes('OFF')) throw new Error(`${profile.id} did not start with OSPF disabled.`);
+  if (!initial.meta.includes('L3 FORWARDING') || !initial.meta.includes('NO ROUTE')) throw new Error(`${profile.id} OSPF-off default fabricated forwarding reachability.`);
+
+  const initialEdgeSelected = await cdp.evaluate(`(()=>{
+    const node=[...document.querySelectorAll('.builder-node')].find((candidate)=>candidate.querySelector('strong')?.textContent?.trim()==='EDGE');
+    if(!node)return false;
+    node.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:1,isPrimary:true,pointerType:'mouse'}));
+    return true;
+  })()`);
+  if (!initialEdgeSelected) throw new Error(`${profile.id} could not select EDGE before enabling OSPF.`);
+  await waitForExpression(cdp, `Boolean(document.querySelector('.builder-ospf-section button'))`, 8000);
+  await measuredClickButton(cdp, '.builder-ospf-section button', 'ENABLE ALL');
+  await waitForExpression(cdp, `document.querySelector('.builder-stage-meta')?.innerText.includes('4 RTR · 5 FULL')`, 8000);
+  await waitForExpression(cdp, `!document.querySelector('.builder-forwarding')?.classList.contains('unreachable')`, 8000);
+
+  const edgeSelected = await cdp.evaluate(`(()=>{
+    const node=[...document.querySelectorAll('.builder-node')].find((candidate)=>candidate.querySelector('strong')?.textContent?.trim()==='EDGE');
+    if(!node)return false;
+    node.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:1,isPrimary:true,pointerType:'mouse'}));
+    return true;
+  })()`);
+  if (!edgeSelected) throw new Error(`${profile.id} could not select EDGE for OSPF route-table inspection.`);
+  await waitForExpression(cdp, `document.querySelectorAll('.builder-route-table .source-ospf').length > 0`, 8000);
+  const converged = await state();
+  assertViewport(converged, 'converged OSPF');
+  if (!converged.routeTable.includes('10.0.0.4/30') || !converged.routeTable.includes('via 10.0.0.10')) throw new Error(`${profile.id} EDGE did not install the primary OSPF path via R1.`);
+
+  const selectedLink = await cdp.evaluate(`(()=>{
+    const link=document.querySelector('.builder-link[data-link-id="edge-r1"]');
+    if(!link)return false;
+    link.dispatchEvent(new MouseEvent('click',{bubbles:true}));
+    return true;
+  })()`);
+  if (!selectedLink) throw new Error(`${profile.id} could not select edge-r1.`);
+  await waitForExpression(cdp, `document.querySelector('.builder-controls section:nth-of-type(2) .control-title')?.innerText.includes('EDGE ↔ R1')`, 8000);
+  await measuredClickButton(cdp, '.builder-controls section:nth-of-type(2) button', 'FAIL LINK');
+  await waitForExpression(cdp, `document.querySelector('.builder-ospf-summary')?.innerText.includes('4 FULL') && document.querySelector('.builder-ospf-summary')?.innerText.includes('1 DOWN')`, 8000);
+  await waitForExpression(cdp, `document.querySelector('.builder-forwarding')?.innerText.includes('EDGE → R2 → CORE')`, 8000);
+  await waitForExpression(cdp, `document.querySelector('.builder-route-table')?.innerText.includes('via 10.0.0.14')`, 8000);
+
+  const failed = await state();
+  assertViewport(failed, 'OSPF failover');
+  if (!failed.meta.includes('REACHABLE')) throw new Error(`${profile.id} OSPF failover did not preserve L3 reachability.`);
+  if (!failed.routeTable.includes('10.0.0.4/30') || !failed.routeTable.includes('via 10.0.0.14')) throw new Error(`${profile.id} EDGE did not reconverge the app subnet through R2.`);
+  if (!failed.routeTable.includes('AD 110')) throw new Error(`${profile.id} OSPF route lost its administrative-distance teaching state.`);
+
+  mkdirSync(dirname(reportPath), { recursive: true });
+  const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: true });
+  writeFileSync(join(dirname(reportPath), `builder-ospf-${profile.id}.png`), Buffer.from(screenshot.data, 'base64'));
+  return {
+    defaultNoRoute: true,
+    enabledRouters: 4,
+    initialFullAdjacencies: 5,
+    failedAdjacencies: 1,
+    failoverNextHop: '10.0.0.14',
+    ospfRouteCount: failed.ospfRoutes,
+    scrollWidth: failed.scrollWidth,
+    innerWidth: failed.innerWidth,
+  };
 }
 
 async function exerciseLoopbackBridgeWorkspace(cdp, profile) {
@@ -668,6 +753,7 @@ async function loadProfile(cdp, artifact, profile) {
   await cdp.evaluate(artifact.scriptText);
   await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(profile.readySelector ?? '.journey-workspace')}))`);
   await sleep(550);
+  const builderOspfInteraction = profile.builderOspf ? await exerciseBuilderOspf(cdp, profile) : null;
   const measuredInteraction = profile.measuredWorkspace
     ? await exerciseMeasuredWorkspace(cdp, profile)
     : profile.measuredSidecars
@@ -767,6 +853,7 @@ async function loadProfile(cdp, artifact, profile) {
     heading: structural.heading,
     stress: structural.stress,
     measured: measuredInteraction,
+    builderOspf: builderOspfInteraction,
     heapUsedBytes: heap.usedSize,
     diagnostic: {
       scriptDurationSeconds: performanceMetrics.ScriptDuration ?? null,
