@@ -492,10 +492,10 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [ ] acquired host configuration feeds the same ARP/routing/application models used by statically configured endpoints
 
 ### 11M — OSPF depth + real convergence timing
-- [ ] explicit Hello/dead timers and adjacency lifecycle rather than instantaneous neighbor loss
-- [ ] LSA origination/flooding and per-router LSDB state
-- [ ] SPF scheduling, RIB installation, and FIB transition are distinct causal events
-- [ ] traffic can encounter stale state during convergence instead of teleporting directly to the final route
+- [x] explicit Hello/dead timers and adjacency lifecycle rather than instantaneous neighbor loss
+- [x] LSA origination/flooding and per-router LSDB state in deterministic link-failure convergence episodes
+- [x] SPF scheduling, RIB installation, and FIB transition are distinct causal events
+- [x] traffic can encounter stale state during convergence instead of teleporting directly to the final route
 - [ ] equal-cost multipath with deterministic per-flow selection
 - [ ] multi-area OSPF with ABRs, inter-area routes, and summarization
 - [ ] stub/NSSA and redistribution only after the base multi-area model is stable

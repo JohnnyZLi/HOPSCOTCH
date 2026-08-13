@@ -79,7 +79,7 @@ assert.deepEqual(edgeOnly.ospf.enabledRouterIds, ['edge']);
 assert.equal(selectBuilderRoute(routeTableForBuilderRouter(graph, addressing, edgeOnly, 'edge'), '10.0.0.6'), null, 'one isolated OSPF router cannot learn a remote prefix');
 
 const scenario = createBuilderScenario('OSPF topology', graph, 'client', 'app', defaultBuilderLayout, addressing, ospfRouting);
-assert.equal(scenario.version, 8);
+assert.equal(scenario.version, 9);
 const restored = deserializeBuilderScenario(serializeBuilderScenario(scenario));
 assert.deepEqual(restored.routing.ospf.enabledRouterIds, ['core', 'edge', 'r1', 'r2']);
 
@@ -90,7 +90,7 @@ const legacyV4 = {
   createdAt: now, updatedAt: now,
 };
 const migratedV4 = deserializeBuilderScenario(JSON.stringify(legacyV4));
-assert.equal(migratedV4.version, 8);
+assert.equal(migratedV4.version, 9);
 assert.deepEqual(migratedV4.routing.ospf.enabledRouterIds, []);
 assert.deepEqual(migratedV4.nat.boundaries, []);
 
