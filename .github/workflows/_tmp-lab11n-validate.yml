@@ -1,0 +1,37 @@
+name: Temp Lab 11N Validate
+
+on:
+  push:
+    branches: [agent/lab-11n-ipv6-control-plane]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: python3 scripts/_tmp_patch_ipv6_packet_support.py
+      - run: python3 scripts/_tmp_patch_ipv6_panel_plumbing.py
+      - run: python3 scripts/_tmp_patch_ipv6_panel_handlers.py
+      - run: python3 scripts/_tmp_patch_ipv6_panel_nd.py
+      - run: python3 scripts/_tmp_patch_ipv6_panel_pmtu.py
+      - run: python3 scripts/_tmp_patch_ipv6_panel_ospfv3.py
+      - run: python3 scripts/_tmp_patch_ipv6_network.py
+      - run: python3 scripts/_tmp_patch_ipv6_package.py
+      - run: npm ci
+      - run: npm run check
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lab11n-patched-files
+          path: |
+            src/BuilderIpv6Panel.tsx
+            src/NetworkBuilder.tsx
+            src/builder/probes.ts
+            src/packet/model.ts
+            src/App.tsx
+            package.json
