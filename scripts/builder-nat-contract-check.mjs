@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
-import { defaultBuilderGraph } from '../src/builder/model.ts';
+import { defaultBuilderGraph, defaultBuilderLayout } from '../src/builder/model.ts';
 import { createDefaultBuilderAddressing, interfacesForBuilderNode } from '../src/builder/addressing.ts';
 import { createDefaultBuilderRoutingConfig, setBuilderOspfEverywhere } from '../src/builder/routing.ts';
 import { createDefaultBuilderAclConfig, upsertBuilderAclRule } from '../src/builder/acl.ts';
+import { createDefaultBuilderLinkProfiles } from '../src/builder/link-characteristics.ts';
+import { createDefaultBuilderEthernetConfig } from '../src/builder/ethernet.ts';
+import { createBuilderScenario, deserializeBuilderScenario, serializeBuilderScenario } from '../src/builder/scenario.ts';
+import { runBuilderProbe } from '../src/builder/probes.ts';
 import {
   clearBuilderNatSessions,
   createDefaultBuilderNatConfig,
@@ -17,6 +21,8 @@ import {
 const graph = defaultBuilderGraph;
 const addressing = createDefaultBuilderAddressing(graph);
 const routing = setBuilderOspfEverywhere(graph, addressing, createDefaultBuilderRoutingConfig(), true);
+const linkProfiles = createDefaultBuilderLinkProfiles(graph);
+const defaultAcl = createDefaultBuilderAclConfig();
 let nat = createDefaultBuilderNatConfig(graph);
 nat = validateBuilderNatConfig(graph, nat);
 assert.equal(nat.boundaries.length, 1);
@@ -166,4 +172,39 @@ assert.equal(failover.success, true);
 assert.ok(failover.forwarding?.hops.some((hop) => hop.nodeId === 'edge' && hop.linkId === 'edge-r2'), 'NAT boundary remains valid across OSPF failover because both EDGE outside links are explicit');
 assert.equal(failover.translatedTuple?.sourceAddress, '198.51.100.10');
 
-console.log('Builder NAT/PAT contract passed: explicit boundaries, deterministic PAT, session reuse/expiry, return-state matching, unsolicited inbound rejection, static port forwarding, static 1:1 NAT, UDP, pre/post-NAT ACL stages, and OSPF outside-link failover.');
+const natPing = runBuilderProbe(graph, addressing, routing, 'ping', 'client', 'app', 50, linkProfiles, defaultAcl, natWithoutOneToOne, []);
+assert.equal(natPing.success, true);
+assert.equal(natPing.natApplied, true);
+assert.ok(natPing.natTranslationId);
+assert.equal(natPing.natSessions.length, 1, 'NAT-aware Ping returns the active translation state to the Builder owner');
+assert.match(natPing.attempts[0].natDetail ?? '', /PAT/);
+assert.match(natPing.attempts[0].detail, /NAT boundary|reverse translation/i);
+
+const natTrace = runBuilderProbe(graph, addressing, routing, 'traceroute', 'client', 'app', 60, linkProfiles, defaultAcl, natWithoutOneToOne, []);
+assert.equal(natTrace.success, true);
+assert.equal(natTrace.natApplied, true);
+assert.ok(natTrace.attempts.some((attempt) => attempt.status === 'time-exceeded' && /NAT|PAT|RETURN/.test(attempt.natDetail ?? '')), 'post-boundary traceroute responses must consume related NAT state');
+assert.equal(natTrace.attempts.at(-1)?.status, 'echo-reply');
+assert.match(natTrace.snapshotNote, /NAT is active|translation state/i);
+
+const persistedScenario = createBuilderScenario(
+  'NAT persisted', graph, 'client', 'app', defaultBuilderLayout, addressing, routing, undefined,
+  createDefaultBuilderEthernetConfig(), linkProfiles, defaultAcl, nat,
+);
+assert.equal(persistedScenario.version, 8);
+const persistedJson = serializeBuilderScenario(persistedScenario);
+assert.doesNotMatch(persistedJson, /natSessions|createdSequence|lastUsedSequence/, 'dynamic translation state must never serialize with scenario configuration');
+const restoredScenario = deserializeBuilderScenario(persistedJson);
+assert.deepEqual(restoredScenario.nat, nat, 'NAT boundary + static config round-trip in schema v8');
+assert.equal(restoredScenario.nat.staticAddresses.length, 1);
+assert.equal(restoredScenario.nat.staticMappings.length, 1);
+
+const legacyV7 = { ...persistedScenario, version: 7 };
+delete legacyV7.nat;
+const migratedV7 = deserializeBuilderScenario(JSON.stringify(legacyV7));
+assert.equal(migratedV7.version, 8);
+assert.deepEqual(migratedV7.nat.boundaries, [], 'schema v7 migration must not fabricate a NAT boundary');
+assert.deepEqual(migratedV7.nat.staticAddresses, []);
+assert.deepEqual(migratedV7.nat.staticMappings, []);
+
+console.log('Builder NAT/PAT contract passed: explicit boundaries, deterministic PAT, session reuse/expiry, return-state matching, unsolicited inbound rejection, static port forwarding, static 1:1 NAT, UDP, pre/post-NAT ACL stages, NAT-aware Ping/Traceroute, OSPF outside-link failover, schema-v8 persistence, and session-state exclusion.');
