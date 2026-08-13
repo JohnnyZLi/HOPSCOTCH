@@ -6,6 +6,20 @@ import {
   type BuilderInterfaceAddress,
 } from './addressing.ts';
 import { findShortestPath, type BuilderGraph } from './model.ts';
+import {
+  BUILDER_OSPF_BACKBONE_AREA,
+  builderOspfAbrRouterIds,
+  builderOspfAreaComponents,
+  builderOspfAreaForLink,
+  builderOspfAreasForRouter,
+  builderOspfPathCandidates,
+  builderOspfPrefixContains,
+  normalizeBuilderOspfAreaId,
+  reconcileBuilderOspfAreaConfig,
+  validateBuilderOspfAreaConfig,
+  type BuilderOspfSummary,
+} from './ospf-areas.ts';
+export type { BuilderOspfSummary } from './ospf-areas.ts';
 
 export interface BuilderStaticRoute {
   id: string;
@@ -17,6 +31,8 @@ export interface BuilderStaticRoute {
 
 export interface BuilderOspfConfig {
   enabledRouterIds: string[];
+  linkAreas?: Record<string, string>;
+  summaries?: BuilderOspfSummary[];
 }
 
 export interface BuilderRoutingConfig {
@@ -39,6 +55,10 @@ export interface BuilderRouteTableEntry {
   linkId: string;
   active: boolean;
   stateNote: string;
+  ospfRouteType?: 'intra-area' | 'inter-area';
+  ospfAreaId?: string;
+  ospfAbrRouterId?: string | null;
+  ospfSummaryId?: string | null;
 }
 
 export interface BuilderForwardingHop {
@@ -94,6 +114,7 @@ export interface BuilderStaticPathInstallResult {
 export interface BuilderOspfAdjacency {
   id: string;
   linkId: string;
+  areaId: string;
   aRouterId: string;
   bRouterId: string;
   cost: number;
@@ -104,6 +125,7 @@ export interface BuilderOspfAdjacency {
 export interface BuilderOspfAdvertisement {
   id: string;
   routerId: string;
+  areaId: string;
   prefix: string;
   linkId: string;
   metric: number;
@@ -111,7 +133,10 @@ export interface BuilderOspfAdvertisement {
 
 export interface BuilderOspfState {
   areaId: '0.0.0.0';
+  areaIds: string[];
   enabledRouterIds: string[];
+  abrRouterIds: string[];
+  areaComponents: Record<string, string[][]>;
   adjacencies: BuilderOspfAdjacency[];
   advertisements: BuilderOspfAdvertisement[];
   components: string[][];
@@ -284,7 +309,7 @@ function primaryInterfaceForNode(addressing: BuilderAddressing, nodeId: string) 
 }
 
 export function createDefaultBuilderRoutingConfig(): BuilderRoutingConfig {
-  return { staticRoutes: [], ospf: { enabledRouterIds: [] } };
+  return { staticRoutes: [], ospf: { enabledRouterIds: [], linkAreas: {}, summaries: [] } };
 }
 
 export function validateBuilderRoutingConfig(
@@ -325,13 +350,14 @@ export function validateBuilderRoutingConfig(
     if (!router || router.kind !== 'router') throw new Error(`OSPF can only be enabled on router nodes; ${routerId} is not a router.`);
   }
 
-  return { staticRoutes, ospf: { enabledRouterIds } };
+  const areaConfig = validateBuilderOspfAreaConfig(graph, { ...(value.ospf ?? { enabledRouterIds }), enabledRouterIds });
+  return { staticRoutes, ospf: { enabledRouterIds, linkAreas: areaConfig.linkAreas, summaries: areaConfig.summaries } };
 }
 
 export function cloneBuilderRoutingConfig(value: BuilderRoutingConfig): BuilderRoutingConfig {
   return {
     staticRoutes: value.staticRoutes.map((route) => ({ ...route })),
-    ospf: { enabledRouterIds: [...(value.ospf?.enabledRouterIds ?? [])] },
+    ospf: { enabledRouterIds: [...(value.ospf?.enabledRouterIds ?? [])], linkAreas: { ...(value.ospf?.linkAreas ?? {}) }, summaries: (value.ospf?.summaries ?? []).map((summary) => ({ ...summary })) },
   };
 }
 
@@ -356,7 +382,8 @@ export function reconcileBuilderRoutingConfig(
     if (!unique.has(key)) unique.set(key, { ...route, prefix: parseRoutePrefix(route.prefix).cidr, nextHop: normalizeBuilderIpv4(route.nextHop) });
   }
   const enabledRouterIds = (current.ospf?.enabledRouterIds ?? []).filter((routerId) => nodeById(graph, routerId)?.kind === 'router');
-  return validateBuilderRoutingConfig(graph, addressing, { staticRoutes: [...unique.values()], ospf: { enabledRouterIds } });
+  const areaConfig = reconcileBuilderOspfAreaConfig(graph, { ...(current.ospf ?? { enabledRouterIds }), enabledRouterIds });
+  return validateBuilderRoutingConfig(graph, addressing, { staticRoutes: [...unique.values()], ospf: { enabledRouterIds, linkAreas: areaConfig.linkAreas, summaries: areaConfig.summaries } });
 }
 
 export function setBuilderOspfRouterEnabled(
@@ -371,7 +398,9 @@ export function setBuilderOspfRouterEnabled(
   const ids = new Set(routing.ospf?.enabledRouterIds ?? []);
   if (enabled) ids.add(routerId);
   else ids.delete(routerId);
-  return validateBuilderRoutingConfig(graph, addressing, { ...cloneBuilderRoutingConfig(routing), ospf: { enabledRouterIds: [...ids] } });
+  const next = cloneBuilderRoutingConfig(routing);
+  next.ospf.enabledRouterIds = [...ids];
+  return validateBuilderRoutingConfig(graph, addressing, next);
 }
 
 export function setBuilderOspfEverywhere(
@@ -382,8 +411,50 @@ export function setBuilderOspfEverywhere(
 ): BuilderRoutingConfig {
   return validateBuilderRoutingConfig(graph, addressing, {
     ...cloneBuilderRoutingConfig(routing),
-    ospf: { enabledRouterIds: enabled ? graph.nodes.filter((node) => node.kind === 'router').map((node) => node.id) : [] },
+    ospf: { ...(routing.ospf ?? {}), enabledRouterIds: enabled ? graph.nodes.filter((node) => node.kind === 'router').map((node) => node.id) : [] },
   });
+}
+
+export function setBuilderOspfLinkArea(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routing: BuilderRoutingConfig,
+  linkId: string,
+  areaId: string,
+): BuilderRoutingConfig {
+  if (!linkById(graph, linkId)) throw new Error(`Unknown Builder link ${linkId}.`);
+  const normalizedAreaId = normalizeBuilderOspfAreaId(areaId);
+  const next = cloneBuilderRoutingConfig(routing);
+  const linkAreas = { ...(next.ospf.linkAreas ?? {}) };
+  if (normalizedAreaId === BUILDER_OSPF_BACKBONE_AREA) delete linkAreas[linkId];
+  else linkAreas[linkId] = normalizedAreaId;
+  next.ospf.linkAreas = linkAreas;
+  return validateBuilderRoutingConfig(graph, addressing, next);
+}
+
+export function upsertBuilderOspfSummary(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routing: BuilderRoutingConfig,
+  summary: Omit<BuilderOspfSummary, 'id'> & { id?: string },
+): BuilderRoutingConfig {
+  const fromAreaId = normalizeBuilderOspfAreaId(summary.fromAreaId);
+  const prefix = parseRoutePrefix(summary.prefix).cidr;
+  const id = summary.id?.trim() || `ospf-summary:${summary.abrRouterId}:${fromAreaId}:${prefix}`.replace(/\//g, ':');
+  const next = cloneBuilderRoutingConfig(routing);
+  next.ospf.summaries = [...(next.ospf.summaries ?? []).filter((entry) => entry.id !== id && !(entry.abrRouterId === summary.abrRouterId && entry.fromAreaId === fromAreaId && entry.prefix === prefix)), { id, abrRouterId: summary.abrRouterId, fromAreaId, prefix, metric: summary.metric, description: summary.description }];
+  return validateBuilderRoutingConfig(graph, addressing, next);
+}
+
+export function deleteBuilderOspfSummary(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routing: BuilderRoutingConfig,
+  summaryId: string,
+): BuilderRoutingConfig {
+  const next = cloneBuilderRoutingConfig(routing);
+  next.ospf.summaries = (next.ospf.summaries ?? []).filter((summary) => summary.id !== summaryId);
+  return validateBuilderRoutingConfig(graph, addressing, next);
 }
 
 export function builderOspfState(
@@ -391,23 +462,26 @@ export function builderOspfState(
   addressing: BuilderAddressing,
   routing: BuilderRoutingConfig,
 ): BuilderOspfState {
-  const enabled = enabledOspfSet(routing);
+  const validated = validateBuilderRoutingConfig(graph, addressing, routing);
+  const enabled = enabledOspfSet(validated);
   const enabledRouterIds = [...enabled].filter((routerId) => nodeById(graph, routerId)?.kind === 'router').sort();
   const adjacencies: BuilderOspfAdjacency[] = [];
   for (const link of graph.links) {
     if (!enabled.has(link.a) || !enabled.has(link.b)) continue;
     if (nodeById(graph, link.a)?.kind !== 'router' || nodeById(graph, link.b)?.kind !== 'router') continue;
+    const areaId = builderOspfAreaForLink(validated.ospf, link.id);
     adjacencies.push({
       id: `ospf-adj:${link.id}`,
       linkId: link.id,
+      areaId,
       aRouterId: link.a,
       bRouterId: link.b,
       cost: link.cost,
       state: link.failed ? 'DOWN' : 'FULL',
-      reason: link.failed ? 'LINK DOWN' : 'AREA 0 ADJACENCY',
+      reason: link.failed ? 'LINK DOWN' : `${areaId} ADJACENCY`,
     });
   }
-  adjacencies.sort((a, b) => a.linkId.localeCompare(b.linkId));
+  adjacencies.sort((a, b) => a.areaId.localeCompare(b.areaId) || a.linkId.localeCompare(b.linkId));
 
   const advertisements: BuilderOspfAdvertisement[] = [];
   for (const routerId of enabledRouterIds) {
@@ -417,13 +491,14 @@ export function builderOspfState(
       advertisements.push({
         id: `ospf-lsa:${routerId}:${entry.linkId}`,
         routerId,
+        areaId: builderOspfAreaForLink(validated.ospf, entry.linkId),
         prefix: parseBuilderIpv4Cidr(entry.cidr).cidr,
         linkId: entry.linkId,
         metric: link.cost,
       });
     }
   }
-  advertisements.sort((a, b) => a.routerId.localeCompare(b.routerId) || a.prefix.localeCompare(b.prefix) || a.linkId.localeCompare(b.linkId));
+  advertisements.sort((a, b) => a.areaId.localeCompare(b.areaId) || a.routerId.localeCompare(b.routerId) || a.prefix.localeCompare(b.prefix) || a.linkId.localeCompare(b.linkId));
 
   const fullAdjacency = adjacencies.filter((adjacency) => adjacency.state === 'FULL');
   const adjacencyByRouter = new Map<string, string[]>();
@@ -451,10 +526,15 @@ export function builderOspfState(
     components.push(component.sort());
   }
   components.sort((a, b) => (a[0] ?? '').localeCompare(b[0] ?? ''));
+  const areaIds = [...new Set([BUILDER_OSPF_BACKBONE_AREA, ...adjacencies.map((entry) => entry.areaId), ...advertisements.map((entry) => entry.areaId)])].sort();
+  const areaComponents = Object.fromEntries(areaIds.map((areaId) => [areaId, builderOspfAreaComponents(graph, validated.ospf, areaId)]));
 
   return {
-    areaId: '0.0.0.0',
+    areaId: BUILDER_OSPF_BACKBONE_AREA,
+    areaIds,
     enabledRouterIds,
+    abrRouterIds: builderOspfAbrRouterIds(graph, validated.ospf),
+    areaComponents,
     adjacencies,
     advertisements,
     components,
@@ -477,28 +557,42 @@ function ospfRouteEntriesForBuilderRouter(
 
   for (const advertisement of state.advertisements) {
     if (advertisement.routerId === routerId || directlyConnected.has(advertisement.prefix)) continue;
-    const paths = ospfRouterFirstHops(graph, routing, routerId, advertisement.routerId);
-    if (!paths.reachable || paths.firstHops.length === 0) continue;
-    const parsed = parseRoutePrefix(advertisement.prefix);
-    for (const firstHop of paths.firstHops) {
-      const segment = addressing.segments[firstHop.linkId];
-      const local = segment?.interfaces.find((entry) => entry.nodeId === routerId);
-      const remote = segment?.interfaces.find((entry) => entry.nodeId === firstHop.nextRouterId);
-      if (!segment || !local || !remote) continue;
-      candidates.push({
-        id: `ospf:${routerId}:${parsed.cidr}:${advertisement.routerId}:${firstHop.nextRouterId}:${firstHop.linkId}`.replace(/\//g, ':'),
-        routerId,
-        prefix: parsed.cidr,
-        prefixLength: parsed.prefixLength,
-        source: 'ospf',
-        administrativeDistance: 110,
-        metric: paths.totalCost + advertisement.metric,
-        nextHop: remote.address,
-        outgoingInterface: local.name,
-        linkId: firstHop.linkId,
-        active: true,
-        stateNote: `OSPF AREA 0 · ORIGIN ${nodeById(graph, advertisement.routerId)?.label ?? advertisement.routerId}`,
-      });
+    const paths = builderOspfPathCandidates(graph, routing.ospf, routerId, advertisement.routerId, advertisement.areaId);
+    for (const path of paths) {
+      if (!path.reachable || path.firstHops.length === 0) continue;
+      const matchingSummary = path.routeType === 'inter-area' && path.destinationAbrRouterId
+        ? (routing.ospf.summaries ?? []).find((summary) => summary.abrRouterId === path.destinationAbrRouterId && normalizeBuilderOspfAreaId(summary.fromAreaId) === advertisement.areaId && builderOspfPrefixContains(summary.prefix, advertisement.prefix))
+        : undefined;
+      const learnedPrefix = matchingSummary?.prefix ?? advertisement.prefix;
+      const parsed = parseRoutePrefix(learnedPrefix);
+      const metric = matchingSummary ? path.costToDestinationAbr + matchingSummary.metric : path.totalCost + advertisement.metric;
+      for (const firstHop of path.firstHops) {
+        const segment = addressing.segments[firstHop.linkId];
+        const local = segment?.interfaces.find((entry) => entry.nodeId === routerId);
+        const remote = segment?.interfaces.find((entry) => entry.nodeId === firstHop.nextRouterId);
+        if (!segment || !local || !remote) continue;
+        const routeType = path.routeType;
+        const abrRouterId = matchingSummary?.abrRouterId ?? path.destinationAbrRouterId;
+        const routeLabel = routeType === 'intra-area' ? `OSPF O · AREA ${advertisement.areaId}` : matchingSummary ? `OSPF O IA · SUMMARY ${matchingSummary.prefix} FROM ${advertisement.areaId}` : `OSPF O IA · AREA ${advertisement.areaId}`;
+        candidates.push({
+          id: `ospf:${routerId}:${parsed.cidr}:${advertisement.routerId}:${firstHop.nextRouterId}:${firstHop.linkId}:${matchingSummary?.id ?? 'specific'}`.replace(/\//g, ':'),
+          routerId,
+          prefix: parsed.cidr,
+          prefixLength: parsed.prefixLength,
+          source: 'ospf',
+          administrativeDistance: 110,
+          metric,
+          nextHop: remote.address,
+          outgoingInterface: local.name,
+          linkId: firstHop.linkId,
+          active: true,
+          stateNote: `${routeLabel}${abrRouterId ? ` · ABR ${nodeById(graph, abrRouterId)?.label ?? abrRouterId}` : ''} · ORIGIN ${nodeById(graph, advertisement.routerId)?.label ?? advertisement.routerId}`,
+          ospfRouteType: routeType,
+          ospfAreaId: advertisement.areaId,
+          ospfAbrRouterId: abrRouterId,
+          ospfSummaryId: matchingSummary?.id ?? null,
+        });
+      }
     }
   }
 
@@ -510,16 +604,16 @@ function ospfRouteEntriesForBuilderRouter(
   }
   const winners: BuilderRouteTableEntry[] = [];
   for (const prefixCandidates of byPrefix.values()) {
-    const bestMetric = Math.min(...prefixCandidates.map((candidate) => candidate.metric));
+    const bestOspfRank = Math.min(...prefixCandidates.map((candidate) => candidate.ospfRouteType === 'inter-area' ? 1 : 0));
+    const preferredType = prefixCandidates.filter((candidate) => (candidate.ospfRouteType === 'inter-area' ? 1 : 0) === bestOspfRank);
+    const bestMetric = Math.min(...preferredType.map((candidate) => candidate.metric));
     const byNextHop = new Map<string, BuilderRouteTableEntry>();
-    for (const candidate of prefixCandidates.filter((entry) => entry.metric === bestMetric).sort((a, b) => a.id.localeCompare(b.id))) {
+    for (const candidate of preferredType.filter((entry) => entry.metric === bestMetric).sort((a, b) => a.id.localeCompare(b.id))) {
       const key = `${candidate.nextHop ?? ''}\u0000${candidate.linkId}`;
       if (!byNextHop.has(key)) byNextHop.set(key, candidate);
     }
     const equal = [...byNextHop.values()].sort((a, b) => a.id.localeCompare(b.id));
-    for (const candidate of equal) {
-      winners.push({ ...candidate, stateNote: `${candidate.stateNote}${equal.length > 1 ? ` · ECMP ${equal.length}-WAY` : ''}` });
-    }
+    for (const candidate of equal) winners.push({ ...candidate, stateNote: `${candidate.stateNote}${equal.length > 1 ? ` · ECMP ${equal.length}-WAY` : ''}` });
   }
   return winners;
 }
@@ -606,9 +700,12 @@ export function routeTableForBuilderRouter(
     || left.id.localeCompare(right.id));
 }
 
+function ospfRoutePreference(entry: BuilderRouteTableEntry): number { return entry.source !== 'ospf' ? 0 : entry.ospfRouteType === 'inter-area' ? 1 : 0; }
+
 function compareBuilderRoutePreference(left: BuilderRouteTableEntry, right: BuilderRouteTableEntry): number {
   return right.prefixLength - left.prefixLength
     || left.administrativeDistance - right.administrativeDistance
+    || ospfRoutePreference(left) - ospfRoutePreference(right)
     || left.metric - right.metric
     || left.id.localeCompare(right.id);
 }
@@ -621,7 +718,7 @@ export function builderEcmpRoutesForDestination(
   const best = matches[0];
   if (!best) return [];
   return matches
-    .filter((entry) => entry.prefix === best.prefix && entry.prefixLength === best.prefixLength && entry.administrativeDistance === best.administrativeDistance && entry.metric === best.metric)
+    .filter((entry) => entry.prefix === best.prefix && entry.prefixLength === best.prefixLength && entry.administrativeDistance === best.administrativeDistance && ospfRoutePreference(entry) === ospfRoutePreference(best) && entry.metric === best.metric)
     .sort((left, right) => left.id.localeCompare(right.id));
 }
 

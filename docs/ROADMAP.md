@@ -497,7 +497,7 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] SPF scheduling, RIB installation, and FIB transition are distinct causal events
 - [x] traffic can encounter stale state during convergence instead of teleporting directly to the final route
 - [x] equal-cost multipath with deterministic per-flow selection
-- [ ] multi-area OSPF with ABRs, inter-area routes, and summarization
+- [x] multi-area OSPF with ABRs, inter-area routes, and summarization
 - [ ] stub/NSSA and redistribution only after the base multi-area model is stable
 
 ### 11N — IPv6 + dual stack
