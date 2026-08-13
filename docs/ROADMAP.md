@@ -473,6 +473,161 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] ICMP probes evaluate forward and reverse policy independently, including Time Exceeded replies
 - [x] ACL configuration persists while per-flow decisions remain derived
 
+### 11K — NAT / PAT
+- [ ] static one-to-one NAT and dynamic PAT use explicit inside/outside interfaces
+- [ ] deterministic translation table records original and translated address/port tuples
+- [ ] outbound flows create state; unsolicited inbound flows fail without a matching mapping or static rule
+- [ ] static port forwarding and translation expiration are visible without conflating NAT state with firewall policy
+- [ ] ACL decisions are evaluated at documented pre/post-translation boundaries
+- [ ] probes and application flows can explain whether failure is routing, policy, or translation state
+- [ ] NAT configuration persists while active translation entries remain derived/session state
+
+### 11L — DHCP + host bootstrap
+- [ ] endpoints can begin without an IPv4 lease instead of requiring preconfigured addresses
+- [ ] deterministic DISCOVER → OFFER → REQUEST → ACK exchange with transaction/lease state
+- [ ] configurable pools, subnet mask, default gateway, and DNS options
+- [ ] renewal/rebinding and lease expiration
+- [ ] pool exhaustion and invalid/missing option failure states
+- [ ] DHCP relay across routed boundaries without pretending broadcasts cross routers directly
+- [ ] acquired host configuration feeds the same ARP/routing/application models used by statically configured endpoints
+
+### 11M — OSPF depth + real convergence timing
+- [ ] explicit Hello/dead timers and adjacency lifecycle rather than instantaneous neighbor loss
+- [ ] LSA origination/flooding and per-router LSDB state
+- [ ] SPF scheduling, RIB installation, and FIB transition are distinct causal events
+- [ ] traffic can encounter stale state during convergence instead of teleporting directly to the final route
+- [ ] equal-cost multipath with deterministic per-flow selection
+- [ ] multi-area OSPF with ABRs, inter-area routes, and summarization
+- [ ] stub/NSSA and redistribution only after the base multi-area model is stable
+
+### 11N — IPv6 + dual stack
+- [ ] IPv6 global and link-local interface addressing
+- [ ] Neighbor Discovery replaces ARP for IPv6 next-hop resolution
+- [ ] Router Solicitation / Router Advertisement and SLAAC host bootstrap
+- [ ] ICMPv6 control behavior including Packet Too Big / path-MTU discovery
+- [ ] IPv6 connected/static forwarding and default routes
+- [ ] OSPFv3 integration after the IPv6 forwarding model is stable
+- [ ] dual-stack application/probe selection keeps IPv4 and IPv6 truth independent
+
+### 11O — BGP inside Network Builder
+- [ ] author routers with documentation ASNs and explicit eBGP/iBGP sessions
+- [ ] advertise/withdraw prefixes through a deterministic path-vector control plane
+- [ ] expose AS_PATH, LOCAL_PREF, MED, NEXT_HOP, communities, and best-path reasoning
+- [ ] prefix lists and route-policy controls affect import/export independently from physical reachability
+- [ ] route leaks and hijack-style teaching scenarios reuse the same policy truth as Lab 05 rather than a second BGP model
+- [ ] Builder BGP state can project into the Internet-scale AS view and back without changing truth
+
+### 11P — Device CONFIG / STATE / EVENTS workspace
+- [ ] every device exposes canonical configuration separately from derived runtime state
+- [ ] CONFIG covers interfaces, VLANs, routes, dynamic routing, ACLs, NAT, DHCP, and later service configuration
+- [ ] STATE covers ARP/ND, FDB, RIB/FIB, OSPF neighbors/LSDB, BGP RIBs, NAT translations, and DHCP leases
+- [ ] EVENTS answers what changed, when, and which upstream event caused it
+- [ ] route, packet, adjacency, FDB, and policy objects expose a deterministic “why?” chain
+- [ ] state can be inspected at historical timestamps once Builder-wide time travel exists
+
+## Long-term product roadmap — visual causal debugger
+
+The long-term target is not a browser clone of Packet Tracer or a catalog of vendor commands. HOPSCOTCH should let a user build a network, run real simulated traffic through the canonical model, break any layer, and inspect exactly why the observed behavior follows from configuration and state.
+
+### Track A — Builder-wide time machine + causal troubleshooting
+- [ ] promote Builder configuration changes, control-plane transitions, forwarding decisions, and flow outcomes into one scrub-able deterministic event timeline
+- [ ] inspect every device’s historical state at any timestamp
+- [ ] before/after state diffs for route tables, FIB, ARP/ND, FDB, STP, ACL counters, NAT state, DHCP leases, and routing databases
+- [ ] causal “why?” chains from user-visible failure back through policy, routing, resolution, topology, and configuration
+- [ ] preserve independent truth dimensions such as physical reachability, L2 forwarding, next-hop resolution, route selection, policy permission, translation state, transport state, and application state
+- [ ] never collapse a failure into generic “network down” when the model knows the actual boundary
+
+### Track B — Network Builder authoring environment
+- [ ] undo/redo over canonical configuration edits
+- [ ] copy/paste, multi-select, marquee selection, alignment, and distribution
+- [ ] reusable topology groups/templates and collapsible sites
+- [ ] labels, annotations, interface-name visibility, topology search, zoom-to-device, and minimap
+- [ ] bulk edits for interface/VLAN/link/device properties
+- [ ] scenario snapshots and branches so failures/repairs can fork from a clean baseline without destroying it
+- [ ] deterministic compare view between scenarios/configurations
+
+### Track C — enterprise Layer 2 / Layer 3 depth
+- [ ] RSTP after the base STP model, with faster role/state transitions and failure recovery
+- [ ] LACP / EtherChannel as one logical bundle backed by multiple physical members
+- [ ] LLDP-style neighbor discovery as derived local state
+- [ ] Layer-3 switches, SVIs, routed switch ports, and access/distribution/core designs
+- [ ] first-hop redundancy with a vendor-neutral VRRP-style virtual gateway model
+- [ ] VRFs with genuinely separate routing tables, including overlapping address space
+- [ ] native VLAN / tagged-vs-untagged behavior only when it can be modeled without weakening current VLAN truth
+
+### Track D — end-to-end application traffic in Builder
+- [ ] endpoints can host simulated DNS, HTTP/HTTPS, SSH, generic TCP, and generic UDP services
+- [ ] a Builder application request consumes DHCP/addressing, ARP/ND, Ethernet, VLAN/STP, routing, ACL/NAT, transport, TLS, and application truth rather than a shortcut path
+- [ ] Builder-generated TCP/QUIC sessions reuse the canonical protocol models from Lab 03 / Journey
+- [ ] any packet/segment can open Packet Microscope with exact state from the originating Builder flow
+- [ ] the same transaction can project between Builder, protocol theater, Journey, and Packet Microscope as different cameras on one simulation
+
+### Track E — data-plane realism
+- [ ] packet queues with serialization delay, queue occupancy, capacity, and deterministic scheduling
+- [ ] tail drop and ECN behavior share concepts with the existing GOD MODE congestion model
+- [ ] traffic generators for single flows, bulk TCP, competing flows, constant-rate UDP, and bursts
+- [ ] deterministic bandwidth sharing and per-flow throughput/latency observations
+- [ ] IPv4 fragmentation, DF behavior, ICMP Fragmentation Needed, IPv6 Packet Too Big, and PMTU caches
+- [ ] PMTUD black-hole scenarios where small traffic succeeds but large application transfers fail because required ICMP is blocked
+- [ ] integrate transport congestion/recovery with Builder link/queue truth rather than maintaining isolated approximations
+
+### Track F — routing + policy depth
+- [ ] route redistribution between connected/static/OSPF/BGP with explicit provenance and loop hazards
+- [ ] policy-based routing without replacing normal destination-based forwarding truth
+- [ ] ECMP forwarding based on deterministic flow hashing rather than only displaying equal routes
+- [ ] route summarization and intentional black-hole teaching scenarios
+- [ ] deeper BGP policy including communities, local policy, withdrawal timing, and route-reflector concepts
+- [ ] IS-IS only after OSPF/BGP depth is strong enough that another IGP adds meaningful value
+- [ ] avoid protocol-count work such as RIP/EIGRP unless certification coverage becomes an explicit product goal
+
+### Track G — service-provider + overlay networking
+- [ ] GRE / IP-in-IP tunnel encapsulation with explicit underlay/overlay path separation
+- [ ] IPsec-style and WireGuard-style encrypted tunnel semantics without pretending to implement production cryptography
+- [ ] MPLS label push/swap/pop, LSP state, and label forwarding tables
+- [ ] VXLAN VNI/VTEP overlays with distinct underlay and overlay reachability
+- [ ] EVPN MAC/IP control-plane learning after VXLAN and BGP foundations are mature
+
+### Track H — real evidence import + replay
+- [ ] PCAP/PCAPNG import as `CAPTURED` evidence, never simulated truth
+- [ ] reconstruct conversations, DNS, TCP streams, retransmissions, RTT observations, ICMP, and TLS metadata from capture-bounded facts
+- [ ] replay captured evidence through HOPSCOTCH visualizations while preserving capture provenance and uncertainty
+- [ ] traceroute, route-table, interface, and device-state snapshot imports
+- [ ] optional parsed Cisco/Juniper/FRR configuration import with `PARSED CONFIG` provenance distinct from observed runtime state
+- [ ] never infer a complete network topology from partial evidence without marking the result `INFERRED`
+
+### Track I — native companion integration
+- [ ] use the existing loopback-only Network Diagnostics bridge contract as the boundary for richer local measurements
+- [ ] surface local interfaces, routes, DNS configuration, traceroute/ICMP, and bounded transport telemetry as `LOCAL MEASURED`
+- [ ] correlate local measurements with public routing/facility observations without claiming they are the same evidence source
+- [ ] visualize local host → gateway → measured hops → public observations → destination with explicit provenance transitions
+- [ ] no credentials, network scanning/discovery, or hidden background collection as a prerequisite for the web product
+
+### Track J — troubleshooting challenges
+- [ ] deterministic broken-network scenarios generated from canonical configuration/state rather than hand-authored answer text
+- [ ] challenge families for addressing, gateway, VLAN, trunk, STP, ARP/ND, routing, OSPF, ACL, NAT, DHCP, MTU, DNS, transport, and BGP policy failures
+- [ ] users diagnose with the same inspectors/probes available in normal Builder instead of special challenge-only tools
+- [ ] score reasoning path and evidence gathered, not merely whether the final repair button was clicked
+- [ ] reproducible challenge seeds and shareable challenge scenarios
+
+### Track K — vendor-neutral HOPSCOTCH CLI
+- [ ] compact read commands such as `show interfaces`, `show arp`, `show mac`, `show route`, `show ospf neighbors`, `show bgp`, `show acl`, `show nat`, `ping`, and `traceroute`
+- [ ] later bounded configuration commands mutate the same canonical configuration as the GUI
+- [ ] CLI is a second interaction surface, never a second simulator or source of truth
+- [ ] deliberately avoid broad vendor syntax emulation and device-image behavior
+
+### Track L — explain-this-network layer
+- [ ] deterministic simulator emits structured cause/effect facts before any natural-language explanation exists
+- [ ] explanation layer can summarize why a route was selected, packet was dropped, adjacency changed, or application failed
+- [ ] explanations cite the canonical configuration/state/events they are interpreting
+- [ ] AI may explain simulator output but must never decide routing, forwarding, packet outcomes, or protocol state
+- [ ] users can request explanations at novice, operational, and protocol-detail levels without changing simulation truth
+
+### North-star integration
+- [ ] a workstation can obtain configuration, resolve a next hop, cross switched/routed domains, traverse policy/NAT, resolve DNS, establish TCP or QUIC/TLS, exchange HTTP, and expose exact packet bytes as one continuous deterministic scenario
+- [ ] every abstraction is a projection of shared canonical truth rather than a disconnected lab-specific reenactment
+- [ ] failures remain composable across layers while preserving the boundary where each failure actually occurs
+- [ ] time, causality, provenance, and inspectability remain first-class even as protocol breadth increases
+
 ## Performance + rendering — ongoing
 
 - [x] DOM/CSS for controls and text
