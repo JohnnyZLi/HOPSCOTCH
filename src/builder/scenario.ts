@@ -20,6 +20,8 @@ import {
   type BuilderRoutingConfig,
 } from './routing.ts';
 import { cloneBuilderEthernetConfig, createDefaultBuilderEthernetConfig, createEmptyBuilderEthernetConfig, validateBuilderEthernetConfig, type BuilderEthernetConfig } from './ethernet.ts';
+import { cloneBuilderLinkProfiles, createDefaultBuilderLinkProfiles, validateBuilderLinkProfiles, type BuilderLinkProfiles } from './link-characteristics.ts';
+import { cloneBuilderAclConfig, createDefaultBuilderAclConfig, validateBuilderAclConfig, type BuilderAclConfig } from './acl.ts';
 
 export interface BuilderScenarioV1 {
   schema: 'hopscotch.builder';
@@ -75,10 +77,11 @@ export interface BuilderScenarioV4 {
 
 export type BuilderScenarioV5 = Omit<BuilderScenarioV4, 'version'> & { version: 5 };
 export type BuilderScenarioV6 = Omit<BuilderScenarioV5, 'version'> & { version: 6; ethernet: BuilderEthernetConfig };
-export type BuilderScenario = BuilderScenarioV6;
+export type BuilderScenarioV7 = Omit<BuilderScenarioV6, 'version'> & { version: 7; linkProfiles: BuilderLinkProfiles; acl: BuilderAclConfig };
+export type BuilderScenario = BuilderScenarioV7;
 
-const STORAGE_KEY = 'hopscotch.builder.scenarios.v6';
-const LEGACY_STORAGE_KEYS = ['hopscotch.builder.scenarios.v5', 'hopscotch.builder.scenarios.v4', 'hopscotch.builder.scenarios.v3', 'hopscotch.builder.scenarios.v2'] as const;
+const STORAGE_KEY = 'hopscotch.builder.scenarios.v7';
+const LEGACY_STORAGE_KEYS = ['hopscotch.builder.scenarios.v6', 'hopscotch.builder.scenarios.v5', 'hopscotch.builder.scenarios.v4', 'hopscotch.builder.scenarios.v3', 'hopscotch.builder.scenarios.v2'] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -162,57 +165,52 @@ function layoutForGraph(layout: BuilderLayout, graph: BuilderGraph): BuilderLayo
   return scoped;
 }
 
-function validateV6(raw: Record<string, unknown>): BuilderScenarioV6 {
-  if (raw.schema !== 'hopscotch.builder' || raw.version !== 6) throw new Error('Unsupported HOPSCOTCH Builder schema/version.');
+function validateV7(raw: Record<string, unknown>): BuilderScenarioV7 {
+  if (raw.schema !== 'hopscotch.builder' || raw.version !== 7) throw new Error('Unsupported HOPSCOTCH Builder schema/version.');
   const graph = validateGraph(raw.graph);
   const sourceId = assertString(raw.sourceId, 'sourceId', 48);
   const destinationId = assertString(raw.destinationId, 'destinationId', 48);
   const ids = new Set(graph.nodes.map((node) => node.id));
   if (!ids.has(sourceId) || !ids.has(destinationId)) throw new Error('Source and destination must reference nodes that exist.');
-  if (!isRecord(raw.addressing) || !isRecord(raw.addressing.segments) || !isRecord(raw.addressing.defaultGateways)) throw new Error('Builder schema v6 requires explicit L3 addressing.');
+  if (!isRecord(raw.addressing) || !isRecord(raw.addressing.segments) || !isRecord(raw.addressing.defaultGateways)) throw new Error('Builder schema v7 requires explicit L3 addressing.');
   const addressing = validateBuilderAddressing(graph, raw.addressing as unknown as BuilderAddressing);
-  if (!isRecord(raw.routing) || !Array.isArray(raw.routing.staticRoutes)) throw new Error('Builder schema v6 requires explicit routing config.');
-  if (!isRecord(raw.ethernet)) throw new Error('Builder schema v6 requires explicit Ethernet/VLAN configuration.');
+  if (!isRecord(raw.routing) || !Array.isArray(raw.routing.staticRoutes)) throw new Error('Builder schema v7 requires explicit routing config.');
+  if (!isRecord(raw.ethernet)) throw new Error('Builder schema v7 requires explicit Ethernet/VLAN configuration.');
+  if (!isRecord(raw.linkProfiles)) throw new Error('Builder schema v7 requires routed link characteristics.');
+  if (!isRecord(raw.acl)) throw new Error('Builder schema v7 requires ACL policy configuration.');
   return {
-    schema: 'hopscotch.builder', version: 6, name: assertString(raw.name, 'Scenario name', 80), graph, addressing,
+    schema: 'hopscotch.builder', version: 7, name: assertString(raw.name, 'Scenario name', 80), graph, addressing,
     routing: validateBuilderRoutingConfig(graph, addressing, raw.routing as unknown as BuilderRoutingConfig),
-    ethernet: validateBuilderEthernetConfig(raw.ethernet as unknown as BuilderEthernetConfig), sourceId, destinationId,
+    ethernet: validateBuilderEthernetConfig(raw.ethernet as unknown as BuilderEthernetConfig),
+    linkProfiles: validateBuilderLinkProfiles(graph, raw.linkProfiles as unknown as BuilderLinkProfiles),
+    acl: validateBuilderAclConfig(graph, raw.acl as unknown as BuilderAclConfig), sourceId, destinationId,
     layout: validateLayout(raw.layout, graph), createdAt: assertTimestamp(raw.createdAt, 'createdAt'), updatedAt: assertTimestamp(raw.updatedAt, 'updatedAt'),
   };
 }
 
-function migrateV1(raw: Record<string, unknown>): BuilderScenarioV6 {
-  const graph = validateGraph({ nodes: raw.nodes, links: raw.links }); const addressing = createDefaultBuilderAddressing(graph);
-  return validateV6({ ...raw, version: 6, graph, addressing, routing: createDefaultBuilderRoutingConfig(), ethernet: createEmptyBuilderEthernetConfig() });
+function migrationDefaults(graph: BuilderGraph) { return { linkProfiles: createDefaultBuilderLinkProfiles(graph), acl: createDefaultBuilderAclConfig() }; }
+function migrateV1(raw: Record<string, unknown>): BuilderScenarioV7 { const graph=validateGraph({nodes:raw.nodes,links:raw.links}); const addressing=createDefaultBuilderAddressing(graph); return validateV7({...raw,version:7,graph,addressing,routing:createDefaultBuilderRoutingConfig(),ethernet:createEmptyBuilderEthernetConfig(),...migrationDefaults(graph)}); }
+function migrateV2(raw: Record<string, unknown>): BuilderScenarioV7 { const graph=validateGraph(raw.graph); const addressing=createDefaultBuilderAddressing(graph); return validateV7({...raw,version:7,graph,addressing,routing:createDefaultBuilderRoutingConfig(),ethernet:createEmptyBuilderEthernetConfig(),...migrationDefaults(graph)}); }
+function migrateV3(raw: Record<string, unknown>): BuilderScenarioV7 { const graph=validateGraph(raw.graph); return validateV7({...raw,version:7,graph,routing:createDefaultBuilderRoutingConfig(),ethernet:createEmptyBuilderEthernetConfig(),...migrationDefaults(graph)}); }
+function migrateV4(raw: Record<string, unknown>): BuilderScenarioV7 { const graph=validateGraph(raw.graph); return validateV7({...raw,version:7,ethernet:createEmptyBuilderEthernetConfig(),...migrationDefaults(graph)}); }
+function migrateV5(raw: Record<string, unknown>): BuilderScenarioV7 { const graph=validateGraph(raw.graph); return validateV7({...raw,version:7,ethernet:createEmptyBuilderEthernetConfig(),...migrationDefaults(graph)}); }
+function migrateV6(raw: Record<string, unknown>): BuilderScenarioV7 { const graph=validateGraph(raw.graph); return validateV7({...raw,version:7,...migrationDefaults(graph)}); }
+function normalizeScenarioRecord(raw: Record<string, unknown>): BuilderScenarioV7 {
+  if(raw.version===1)return migrateV1(raw); if(raw.version===2)return migrateV2(raw); if(raw.version===3)return migrateV3(raw); if(raw.version===4)return migrateV4(raw); if(raw.version===5)return migrateV5(raw); if(raw.version===6)return migrateV6(raw); return validateV7(raw);
 }
-function migrateV2(raw: Record<string, unknown>): BuilderScenarioV6 {
-  const graph = validateGraph(raw.graph); const addressing = createDefaultBuilderAddressing(graph);
-  return validateV6({ ...raw, version: 6, graph, addressing, routing: createDefaultBuilderRoutingConfig(), ethernet: createEmptyBuilderEthernetConfig() });
-}
-function migrateV3(raw: Record<string, unknown>): BuilderScenarioV6 {
-  const graph = validateGraph(raw.graph);
-  return validateV6({ ...raw, version: 6, graph, routing: createDefaultBuilderRoutingConfig(), ethernet: createEmptyBuilderEthernetConfig() });
-}
-function migrateV4(raw: Record<string, unknown>): BuilderScenarioV6 { return validateV6({ ...raw, version: 6, ethernet: createEmptyBuilderEthernetConfig() }); }
-function migrateV5(raw: Record<string, unknown>): BuilderScenarioV6 { return validateV6({ ...raw, version: 6, ethernet: createEmptyBuilderEthernetConfig() }); }
-function normalizeScenarioRecord(raw: Record<string, unknown>): BuilderScenarioV6 {
-  if (raw.version === 1) return migrateV1(raw); if (raw.version === 2) return migrateV2(raw); if (raw.version === 3) return migrateV3(raw); if (raw.version === 4) return migrateV4(raw); if (raw.version === 5) return migrateV5(raw); return validateV6(raw);
-}
-export function deserializeBuilderScenario(text: string): BuilderScenarioV6 {
-  let raw: unknown; try { raw = JSON.parse(text); } catch { throw new Error('Scenario file is not valid JSON.'); }
-  if (!isRecord(raw) || raw.schema !== 'hopscotch.builder') throw new Error('File is not a HOPSCOTCH Builder scenario.'); return normalizeScenarioRecord(raw);
-}
-export function serializeBuilderScenario(scenario: BuilderScenarioV6): string { return JSON.stringify(validateV6(scenario as unknown as Record<string, unknown>), null, 2); }
+export function deserializeBuilderScenario(text: string): BuilderScenarioV7 { let raw:unknown; try{raw=JSON.parse(text);}catch{throw new Error('Scenario file is not valid JSON.');} if(!isRecord(raw)||raw.schema!=='hopscotch.builder')throw new Error('File is not a HOPSCOTCH Builder scenario.'); return normalizeScenarioRecord(raw); }
+export function serializeBuilderScenario(scenario: BuilderScenarioV7): string { return JSON.stringify(validateV7(scenario as unknown as Record<string, unknown>),null,2); }
 export function createBuilderScenario(
-  name: string, graph: BuilderGraph, sourceId: string, destinationId: string, layout: BuilderLayout,
-  addressing: BuilderAddressing = createDefaultBuilderAddressing(graph), routing: BuilderRoutingConfig = createDefaultBuilderRoutingConfig(),
-  existing?: BuilderScenarioV6, ethernet: BuilderEthernetConfig = createDefaultBuilderEthernetConfig(),
-): BuilderScenarioV6 {
-  const now = new Date().toISOString();
-  return validateV6({ schema:'hopscotch.builder',version:6,name,graph:cloneBuilderGraph(graph),addressing,routing:cloneBuilderRoutingConfig(routing),ethernet:cloneBuilderEthernetConfig(ethernet),sourceId,destinationId,layout:layoutForGraph(layout,graph),createdAt:existing?.createdAt??now,updatedAt:now });
+  name:string, graph:BuilderGraph, sourceId:string, destinationId:string, layout:BuilderLayout,
+  addressing:BuilderAddressing=createDefaultBuilderAddressing(graph), routing:BuilderRoutingConfig=createDefaultBuilderRoutingConfig(),
+  existing?:BuilderScenarioV7, ethernet:BuilderEthernetConfig=createDefaultBuilderEthernetConfig(),
+  linkProfiles:BuilderLinkProfiles=createDefaultBuilderLinkProfiles(graph), acl:BuilderAclConfig=createDefaultBuilderAclConfig(),
+): BuilderScenarioV7 {
+  const now=new Date().toISOString();
+  return validateV7({schema:'hopscotch.builder',version:7,name,graph:cloneBuilderGraph(graph),addressing,routing:cloneBuilderRoutingConfig(routing),ethernet:cloneBuilderEthernetConfig(ethernet),linkProfiles:cloneBuilderLinkProfiles(linkProfiles),acl:cloneBuilderAclConfig(acl),sourceId,destinationId,layout:layoutForGraph(layout,graph),createdAt:existing?.createdAt??now,updatedAt:now});
 }
 
-function parseStoredList(rawText: string | null): BuilderScenarioV6[] {
+function parseStoredList(rawText: string | null): BuilderScenarioV7[] {
   if (!rawText) return [];
   const parsed: unknown = JSON.parse(rawText);
   if (!Array.isArray(parsed)) return [];
@@ -225,14 +223,14 @@ function parseStoredList(rawText: string | null): BuilderScenarioV6[] {
   });
 }
 
-export function listStoredBuilderScenarios(): BuilderScenarioV6[] {
+export function listStoredBuilderScenarios(): BuilderScenarioV7[] {
   if (typeof window === 'undefined') return [];
   try {
     const all = [
       ...parseStoredList(window.localStorage.getItem(STORAGE_KEY)),
       ...LEGACY_STORAGE_KEYS.flatMap((key) => parseStoredList(window.localStorage.getItem(key))),
     ];
-    const byName = new Map<string, BuilderScenarioV6>();
+    const byName = new Map<string, BuilderScenarioV7>();
     for (const scenario of all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
       if (!byName.has(scenario.name)) byName.set(scenario.name, scenario);
     }
@@ -247,8 +245,8 @@ function clearLegacyStorage(): void {
   for (const key of LEGACY_STORAGE_KEYS) window.localStorage.removeItem(key);
 }
 
-export function saveStoredBuilderScenario(scenario: BuilderScenarioV6): BuilderScenarioV6[] {
-  const validated = validateV6(scenario as unknown as Record<string, unknown>);
+export function saveStoredBuilderScenario(scenario: BuilderScenarioV7): BuilderScenarioV7[] {
+  const validated = validateV7(scenario as unknown as Record<string, unknown>);
   const next = [validated, ...listStoredBuilderScenarios().filter((item) => item.name !== validated.name)].slice(0, 24);
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
@@ -257,7 +255,7 @@ export function saveStoredBuilderScenario(scenario: BuilderScenarioV6): BuilderS
   return next;
 }
 
-export function deleteStoredBuilderScenario(name: string): BuilderScenarioV6[] {
+export function deleteStoredBuilderScenario(name: string): BuilderScenarioV7[] {
   const next = listStoredBuilderScenarios().filter((item) => item.name !== name);
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
@@ -266,7 +264,7 @@ export function deleteStoredBuilderScenario(name: string): BuilderScenarioV6[] {
   return next;
 }
 
-export function defaultBuilderScenario(): BuilderScenarioV6 {
+export function defaultBuilderScenario(): BuilderScenarioV7 {
   return createBuilderScenario(
     'Default topology',
     defaultBuilderGraph,

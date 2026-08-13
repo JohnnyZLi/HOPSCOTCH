@@ -47,7 +47,7 @@ import {
   listStoredBuilderScenarios,
   saveStoredBuilderScenario,
   serializeBuilderScenario,
-  type BuilderScenarioV6,
+  type BuilderScenarioV7,
 } from './builder/scenario';
 import { runBuilderProbe, type BuilderProbePacketSeed, type BuilderProbeResult } from './builder/probes.ts';
 import { cloneBuilderEthernetConfig, createDefaultBuilderEthernetConfig, createEmptyBuilderEthernetConfig, parseBuilderAllowedVlans, runBuilderEthernetFlow, updateBuilderEthernetLink, type BuilderEthernetConfig, type BuilderEthernetFlowResult } from './builder/ethernet.ts';
@@ -81,7 +81,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const [staticPrefix, setStaticPrefix] = useState('0.0.0.0/0');
   const [staticNextHop, setStaticNextHop] = useState('');
   const [staticMetric, setStaticMetric] = useState(1);
-  const [saved, setSaved] = useState<BuilderScenarioV6[]>(() => listStoredBuilderScenarios());
+  const [saved, setSaved] = useState<BuilderScenarioV7[]>(() => listStoredBuilderScenarios());
   const [message, setMessage] = useState('Graph truth and layout are separate. Dragging never changes route cost.');
   const [probeHistory, setProbeHistory] = useState<BuilderProbeResult[]>([]);
   const [selectedProbeId, setSelectedProbeId] = useState<string | null>(null);
@@ -261,7 +261,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Unable to save scenario.'); }
   };
 
-  const restoreScenario = (scenario: BuilderScenarioV6) => {
+  const restoreScenario = (scenario: BuilderScenarioV7) => {
     setGraph(cloneBuilderGraph(scenario.graph)); setAddressing(cloneBuilderAddressing(scenario.addressing)); setRouting(cloneBuilderRoutingConfig(scenario.routing)); setEthernet(cloneBuilderEthernetConfig(scenario.ethernet)); setEthernetFlow(null); setEthernetSourceId(scenario.ethernet.devices.find((device)=>device.kind==='endpoint')?.id ?? ''); setEthernetDestinationId(scenario.ethernet.devices.filter((device)=>device.kind==='endpoint')[1]?.id ?? scenario.ethernet.devices.find((device)=>device.kind==='endpoint')?.id ?? ''); setSelectedEthernetLinkId(scenario.ethernet.links[0]?.id ?? ''); setLayout(cloneBuilderLayout(scenario.layout)); setSourceId(scenario.sourceId); setDestinationId(scenario.destinationId);
     setSelectedNodeId(scenario.sourceId); setSelectedLinkId(scenario.graph.links[0]?.id ?? ''); setScenarioName(scenario.name);
     setMessage(`Restored “${scenario.name}”. Route recomputed from graph truth.`);
