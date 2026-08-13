@@ -25,6 +25,7 @@ jobs:
       - name: Apply and exercise production browser contract
         run: |
           python3 scripts/lab11gj-browser.py
+          python3 scripts/lab11gj-browser-postfix.py
           npm ci
           npm run check
           mkdir -p artifacts
@@ -32,7 +33,7 @@ jobs:
           HOPSCOTCH_REPORT_PATH=artifacts/lab11gj-performance.json npm run performance:check
       - name: Commit permanent browser contract
         run: |
-          rm .github/workflows/lab11gj-browser.yml scripts/lab11gj-browser.py
+          rm .github/workflows/lab11gj-browser.yml scripts/lab11gj-browser.py scripts/lab11gj-browser-postfix.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
