@@ -32,6 +32,10 @@ block=r'''  // Lab 11J: evaluate policy while the OSPF failover path is still li
   await measuredClickButton(cdp, '.builder-probe-section button', 'PING');
   await waitForExpression(cdp, `document.querySelector('.builder-probe-panel')?.innerText.includes('PING') && document.querySelector('.builder-probe-panel')?.classList.contains('success')`, 8000);
 
+  // Restore a TTL-scoped traceroute selection before jumping into Lab 02 so the cross-link contract remains stable.
+  await measuredClickButton(cdp, '.builder-probe-section button', 'TRACEROUTE');
+  await waitForExpression(cdp, `document.querySelector('.builder-probe-panel')?.innerText.includes('TRACEROUTE') && document.querySelector('.builder-probe-panel')?.innerText.includes('ECHO REPLY')`, 8000);
+
 '''
 if marker not in t:
     raise SystemExit('Packet Microscope insertion marker missing')
