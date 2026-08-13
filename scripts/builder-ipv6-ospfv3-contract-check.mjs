@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { createDefaultBuilderAddressing } from '../src/builder/addressing.ts';
+import { cloneBuilderGraph, defaultBuilderGraph } from '../src/builder/model.ts';
+import { builderOspfv3State, createDefaultBuilderIpv6Config, interfacesForBuilderNodeIpv6, routeTableForBuilderIpv6Router, setBuilderOspfv3Everywhere, traceBuilderIpv6Forwarding } from '../src/builder/ipv6.ts';
+const graph=cloneBuilderGraph(defaultBuilderGraph), ipv4=createDefaultBuilderAddressing(graph);
+const ipv6=setBuilderOspfv3Everywhere(graph,ipv4,createDefaultBuilderIpv6Config(graph,ipv4),true);
+const state=builderOspfv3State(graph,ipv6); assert.equal(state.enabledRouterIds.length,4); assert.equal(state.fullAdjacencyCount,5);
+const appPrefix=interfacesForBuilderNodeIpv6(ipv6.addressing,'app')[0].prefix;
+const o6=routeTableForBuilderIpv6Router(graph,ipv6,'edge').find(x=>x.source==='ospfv3'&&x.prefix===appPrefix);
+assert.ok(o6); assert.equal(o6.administrativeDistance,110); assert.ok(o6.nextHop?.startsWith('fe80:'));
+assert.equal(traceBuilderIpv6Forwarding(graph,ipv6,'client','app').reachable,true);
+const failed=cloneBuilderGraph(graph); failed.links.find(x=>x.id==='edge-r1').failed=true;
+const after=builderOspfv3State(failed,ipv6); assert.equal(after.fullAdjacencyCount,4); assert.ok(after.adjacencies.some(x=>x.linkId==='edge-r1'&&x.state==='DOWN'));
+const trace=traceBuilderIpv6Forwarding(failed,ipv6,'client','app'); assert.equal(trace.reachable,true); assert.ok(trace.hops.some(x=>x.nodeId==='r2')); assert.ok(!trace.hops.some(x=>x.nodeId==='r1'));
+console.log('Builder OSPFv3 contract passed: Area 0 adjacencies, O6 AD110 routes, and R2 failure reconvergence.');
