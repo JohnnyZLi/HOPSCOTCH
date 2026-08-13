@@ -1,9 +1,12 @@
 from pathlib import Path
-p=Path('scripts/builder-addressing-contract-check.mjs')
-text=p.read_text(encoding='utf-8')
-count=text.count('.version, 8)')
-if count < 1:
-    raise SystemExit('no stale addressing schema assertions found')
-text=text.replace('.version, 8)', '.version, 9)')
-p.write_text(text,encoding='utf-8')
-print(f'Updated {count} stale addressing contract schema expectation(s) to v9.')
+changed=[]
+count=0
+for p in sorted(Path('scripts').glob('builder-*-contract-check.mjs')):
+    text=p.read_text(encoding='utf-8')
+    n=text.count('.version, 8)')
+    if not n:
+        continue
+    p.write_text(text.replace('.version, 8)', '.version, 9)'),encoding='utf-8')
+    changed.append(str(p))
+    count+=n
+print(f'Updated {count} stale Builder schema assertion(s) to v9 across {len(changed)} contract file(s): {", ".join(changed)}')
