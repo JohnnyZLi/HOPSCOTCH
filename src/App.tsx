@@ -399,8 +399,8 @@ export default function App() {
             key={`lab02-${builderPacketSeed?.id ?? 'default'}`}
             onExit={exitActiveLab}
             onOpenSourceEvent={builderPacketSeed ? () => openBuilderLab() : () => openFailureLab(5400, false)}
-            initialConfig={builderPacketSeed ? { family: 'ipv4', transport: 'icmp', payloadBytes: 32, ttl: builderPacketSeed.ttl, sourceIpv4: builderPacketSeed.sourceAddress, destinationIpv4: builderPacketSeed.destinationAddress, sourceMac: builderPacketSeed.sourceMac, destinationMac: builderPacketSeed.destinationMac, icmpType: 8, icmpCode: 0, icmpSequence: Math.max(1, builderPacketSeed.ttl) } : undefined}
-            origin={builderPacketSeed ? { label: `LAB 11D · ${builderPacketSeed.label}`, timestamp: `TTL ${builderPacketSeed.ttl}`, actionLabel: 'RETURN TO BUILDER ↗' } : undefined}
+            initialConfig={builderPacketSeed ? { family: builderPacketSeed.family, transport: 'icmp', payloadBytes: 32, ttl: builderPacketSeed.ttl, ...(builderPacketSeed.family === 'ipv4' ? { sourceIpv4: builderPacketSeed.sourceAddress, destinationIpv4: builderPacketSeed.destinationAddress } : { sourceIpv6: builderPacketSeed.sourceAddress, destinationIpv6: builderPacketSeed.destinationAddress }), sourceMac: builderPacketSeed.sourceMac, destinationMac: builderPacketSeed.destinationMac, icmpType: builderPacketSeed.family === 'ipv4' ? 8 : 128, icmpCode: 0, icmpSequence: Math.max(1, builderPacketSeed.ttl) } : undefined}
+            origin={builderPacketSeed ? { label: `${builderPacketSeed.family === 'ipv4' ? 'LAB 11D' : 'LAB 11N'} · ${builderPacketSeed.label}`, timestamp: `${builderPacketSeed.family === 'ipv4' ? 'TTL' : 'HOP LIMIT'} ${builderPacketSeed.ttl}`, actionLabel: 'RETURN TO BUILDER ↗' } : undefined}
           />
         ) : activeLab === 'tcp' ? (
           <TcpTheater key="lab03-tcp" onExit={exitActiveLab} onOpenPacket={openPacketLab} />

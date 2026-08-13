@@ -7,7 +7,7 @@ import { createEmptyBuilderNatConfig, runBuilderNatInboundFlow, runBuilderNatOut
 
 export type BuilderProbeKind = 'ping' | 'traceroute';
 export type BuilderProbeStatus = 'echo-reply' | 'time-exceeded' | 'timeout' | 'unreachable';
-export interface BuilderProbePacketSeed { id:string; label:string; sourceAddress:string; destinationAddress:string; sourceMac:string; destinationMac:string; ttl:number; }
+export interface BuilderProbePacketSeed { id:string; label:string; family:'ipv4'|'ipv6'; sourceAddress:string; destinationAddress:string; sourceMac:string; destinationMac:string; ttl:number; }
 export interface BuilderProbeAttempt {
   index:number; ttl:number; status:BuilderProbeStatus; responderNodeId:string|null; responderAddress:string|null;
   requestNodeIds:string[]; requestLinkIds:string[]; responseNodeIds:string[]; responseLinkIds:string[]; detail:string; packet:BuilderProbePacketSeed|null;
@@ -15,7 +15,7 @@ export interface BuilderProbeAttempt {
   natDetail:string|null;
 }
 export interface BuilderProbeResult {
-  id:string; sequence:number; kind:BuilderProbeKind; plane:'ROUTED IPV4'; sourceNodeId:string; destinationNodeId:string; sourceAddress:string|null; destinationAddress:string|null;
+  id:string; sequence:number; kind:BuilderProbeKind; plane:'ROUTED IPV4'|'ROUTED IPV6'; sourceNodeId:string; destinationNodeId:string; sourceAddress:string|null; destinationAddress:string|null;
   success:boolean; attempts:BuilderProbeAttempt[]; summary:string; snapshotNote:string; natApplied:boolean; natTranslationId:string|null; natSessions:BuilderNatSessionTable;
 }
 
@@ -26,7 +26,7 @@ function linkPath(trace:BuilderForwardingTrace):string[]{return trace.hops.flatM
 function primaryAddress(addressing:BuilderAddressing,nodeId:string):string|null{return interfacesForBuilderNode(addressing,nodeId)[0]?.address??null;}
 function inboundAddress(addressing:BuilderAddressing,nodeId:string,linkId:string|undefined):string|null{if(!linkId)return primaryAddress(addressing,nodeId);return addressing.segments[linkId]?.interfaces.find((entry)=>entry.nodeId===nodeId)?.address??primaryAddress(addressing,nodeId);}
 function stableMac(nodeId:string,salt=''):string{const text=`${nodeId}:${salt}`;let hash=0x811c9dc5;for(let index=0;index<text.length;index+=1){hash^=text.charCodeAt(index);hash=Math.imul(hash,0x01000193)>>>0;}return[0x02,0x48,0x4f,(hash>>>16)&0xff,(hash>>>8)&0xff,hash&0xff].map((byte)=>byte.toString(16).padStart(2,'0')).join(':');}
-function packetSeed(id:string,label:string,sourceNodeId:string,destinationNodeId:string,sourceAddress:string|null,destinationAddress:string|null,ttl:number):BuilderProbePacketSeed|null{if(!sourceAddress||!destinationAddress)return null;return{id,label,sourceAddress,destinationAddress,sourceMac:stableMac(sourceNodeId,'probe'),destinationMac:stableMac(destinationNodeId,'probe'),ttl};}
+function packetSeed(id:string,label:string,sourceNodeId:string,destinationNodeId:string,sourceAddress:string|null,destinationAddress:string|null,ttl:number):BuilderProbePacketSeed|null{if(!sourceAddress||!destinationAddress)return null;return{id,label,family:'ipv4',sourceAddress,destinationAddress,sourceMac:stableMac(sourceNodeId,'probe'),destinationMac:stableMac(destinationNodeId,'probe'),ttl};}
 function metrics(profiles:BuilderLinkProfiles,requestLinkIds:string[],responseLinkIds:string[],hasResponse:boolean){const path=builderPathCharacteristics(profiles,[...requestLinkIds,...responseLinkIds]);const round=builderRoundTripCharacteristics(profiles,requestLinkIds,responseLinkIds);return{simulatedRttMs:hasResponse?Number(round.rttMs.toFixed(2)):null,jitterMs:Number(path.jitterMs.toFixed(2)),bottleneckMbps:path.bottleneckMbps,pathMtuBytes:path.pathMtuBytes,pathLossPercent:Number(path.lossPercent.toFixed(4))};}
 function natNote(request:BuilderNatFlowResult|null,response:BuilderNatFlowResult|null):string|null{if(!request?.translation&&!response?.translation)return null;const parts=[];if(request?.translation)parts.push(`${request.translation.kind.toUpperCase()} ${request.originalTuple.sourceAddress} → ${request.translatedTuple?.sourceAddress}`);if(response?.translation)parts.push(`RETURN ${response.originalTuple.destinationAddress} → ${response.translatedTuple?.destinationAddress}`);return parts.join(' · ');}
 

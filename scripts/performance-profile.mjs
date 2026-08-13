@@ -331,8 +331,8 @@ async function exerciseBuilderOspf(cdp, profile) {
     meta:document.querySelector('.builder-stage-meta')?.innerText??'',
     ospf:document.querySelector('.builder-ospf-summary')?.innerText??'',
     forwarding:document.querySelector('.builder-forwarding')?.innerText??'',
-    routeTable:document.querySelector('.builder-route-table')?.innerText??'',
-    ospfRoutes:document.querySelectorAll('.builder-route-table .source-ospf').length,
+    routeTable:document.querySelector('.builder-ipv4-route-table')?.innerText??'',
+    ospfRoutes:document.querySelectorAll('.builder-ipv4-route-table .source-ospf').length,
   }))()`);
   const assertViewport = (value, label) => {
     if (value.scrollWidth > value.innerWidth) throw new Error(`${profile.id} ${label} horizontally overflows: ${value.scrollWidth} > ${value.innerWidth}.`);
@@ -363,7 +363,7 @@ async function exerciseBuilderOspf(cdp, profile) {
     return true;
   })()`);
   if (!edgeSelected) throw new Error(`${profile.id} could not select EDGE for OSPF route-table inspection.`);
-  await waitForExpression(cdp, `document.querySelectorAll('.builder-route-table .source-ospf').length > 0`, 8000);
+  await waitForExpression(cdp, `document.querySelectorAll('.builder-ipv4-route-table .source-ospf').length > 0`, 8000);
   const converged = await state();
   assertViewport(converged, 'converged OSPF');
   if (!converged.routeTable.includes('10.0.0.4/30') || !converged.routeTable.includes('via 10.0.0.10')) throw new Error(`${profile.id} EDGE did not install the primary OSPF path via R1.`);
@@ -379,7 +379,7 @@ async function exerciseBuilderOspf(cdp, profile) {
   await measuredClickButton(cdp, '.builder-link-section button', 'FAIL LINK');
   await waitForExpression(cdp, `document.querySelector('.builder-ospf-summary')?.innerText.includes('4 FULL') && document.querySelector('.builder-ospf-summary')?.innerText.includes('1 DOWN')`, 8000);
   await waitForExpression(cdp, `document.querySelector('.builder-forwarding')?.innerText.includes('EDGE → R2 → CORE')`, 8000);
-  await waitForExpression(cdp, `document.querySelector('.builder-route-table')?.innerText.includes('via 10.0.0.14')`, 8000);
+  await waitForExpression(cdp, `document.querySelector('.builder-ipv4-route-table')?.innerText.includes('via 10.0.0.14')`, 8000);
 
   const failed = await state();
   assertViewport(failed, 'OSPF failover');
@@ -435,6 +435,42 @@ async function exerciseBuilderOspf(cdp, profile) {
   if (!packetText.includes('LAB 11D · ICMP TRACE TTL') || !packetText.includes('ICMP') || !packetText.includes('TTL')) throw new Error(`${profile.id} probe packet did not seed Lab 02 ICMP state.`);
   await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN TO BUILDER');
   await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
+
+  // Lab 11N foundation: IPv6 is an independent FIB. Addressing exists by default, but routed reachability
+  // appears only after explicit IPv6 route state is installed. The existing failed EDGE↔R1 link means the
+  // weighted-path helper must choose the live R2 side without borrowing IPv4 OSPF state.
+  const ipv6Before = await cdp.evaluate(`document.querySelector('.builder-ipv6-section')?.innerText??''`);
+  if (!ipv6Before.includes('IPV6 · DUAL STACK') || !ipv6Before.includes('ENABLED · NO ROUTE') || !ipv6Before.includes('2001:db8:') || !ipv6Before.includes('LINK-LOCAL fe80:')) throw new Error(`${profile.id} IPv6 foundation did not expose independent enabled addressing before route installation.`);
+  await measuredClickButton(cdp, '.builder-ipv6-section button', 'INSTALL IPV6 STATIC PATH');
+  await waitForExpression(cdp, `document.querySelector('.builder-ipv6-section')?.innerText.includes('ENABLED · REACHABLE')`, 8000);
+  const ipv6FamilySelected = await cdp.evaluate(`(()=>{
+    const select=document.querySelector('.builder-probe-section select');
+    if(!select)return false;
+    select.value='ipv6';
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+    return select.value==='ipv6';
+  })()`);
+  if (!ipv6FamilySelected) throw new Error(`${profile.id} could not select the IPv6 active-probe family.`);
+  await sleep(60);
+  await measuredClickButton(cdp, '.builder-probe-section button', 'TRACEROUTE');
+  await waitForExpression(cdp, `document.querySelector('.builder-probe-panel')?.innerText.includes('TRACEROUTE') && document.querySelector('.builder-probe-panel')?.innerText.includes('ECHO REPLY')`, 8000);
+  const ipv6ProbeText = await cdp.evaluate(`document.querySelector('.builder-probe-section')?.innerText??''`);
+  if (!ipv6ProbeText.includes('ICMPV6') || !ipv6ProbeText.includes('IPV6') || !ipv6ProbeText.includes('HOP LIMIT')) throw new Error(`${profile.id} IPv6 traceroute did not expose ICMPv6/Hop-Limit teaching state.`);
+  await measuredClickButton(cdp, '.builder-probe-section button', 'OPEN ICMP PACKET');
+  await waitForExpression(cdp, `Boolean(document.querySelector('.packet-microscope'))`, 8000);
+  const packet6Text = await cdp.evaluate(`document.querySelector('.packet-microscope')?.innerText??''`);
+  if (!packet6Text.includes('LAB 11N · ICMPV6 TRACE HOP LIMIT') || !packet6Text.includes('IPv6') || !packet6Text.includes('ICMPv6') || !packet6Text.toLowerCase().includes('2001:db8:')) throw new Error(`${profile.id} IPv6 probe packet did not seed actual Builder ICMPv6 state into Lab 02.`);
+  await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN TO BUILDER');
+  await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
+  const ipv4FamilyRestored = await cdp.evaluate(`(()=>{
+    const select=document.querySelector('.builder-probe-section select');
+    if(!select)return false;
+    select.value='ipv4';
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+    return select.value==='ipv4';
+  })()`);
+  if (!ipv4FamilyRestored) throw new Error(`${profile.id} could not restore IPv4 probe family for downstream policy contracts.`);
+  await sleep(60);
 
   // Labs 11E-H: first show ARP resolution, STP blocking, same-VLAN switching, and MAC learning.
   await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
@@ -527,6 +563,8 @@ async function exerciseBuilderOspf(cdp, profile) {
     innerWidth: depthFinal.innerWidth,
     activeProbeFailover: true,
     packetMicroscopeIcmp: true,
+    ipv6Foundation: true,
+    packetMicroscopeIcmpv6: true,
     sameVlanSwitching: true,
     trunkIsolation: true,
     interVlanRouting: true,
