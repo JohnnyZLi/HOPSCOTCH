@@ -25,6 +25,7 @@ jobs:
       - name: Apply core integration
         run: |
           python3 scripts/lab11gj-integrate.py
+          sed -i 's/BuilderScenarioV6/BuilderScenarioV7/g' src/NetworkBuilder.tsx
           npm ci
           npm run check
       - name: Commit core integration
