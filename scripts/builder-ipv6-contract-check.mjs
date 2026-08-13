@@ -53,7 +53,7 @@ assert.equal(reverse.reachable, true);
 assert.deepEqual(forward.hops.map((hop) => hop.nodeId), ['client', 'edge', 'r1', 'core']);
 assert.deepEqual(reverse.hops.map((hop) => hop.nodeId), ['app', 'core', 'r1', 'edge']);
 assert.ok(forward.hops.every((hop) => hop.routeSource === 'default-router' || hop.routeSource === 'static' || hop.routeSource === 'connected'));
-assert.ok(installed.routing.staticRoutes.length >= 6, 'bidirectional routed path should install forward and reverse static state on transit routers');
+assert.equal(installed.routing.staticRoutes.length, 4, 'the default bidirectional path needs two forward and two reverse transit-router statics; destination-adjacent routers use connected /64s');
 
 const edgeTable = routeTableForBuilderIpv6Router(graph, installed, 'edge');
 assert.ok(edgeTable.some((entry) => entry.source === 'connected' && entry.administrativeDistance === 0));
