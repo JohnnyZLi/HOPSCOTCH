@@ -1,0 +1,32 @@
+name: Temp Lab 11M Apply
+
+on:
+  push:
+    branches: [agent/lab-11m-ospf-timing]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: "!contains(github.event.head_commit.message, '[lab11m-applied]')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/lab-11m-ospf-timing
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: python3 scripts/_tmp_apply_lab11m.py
+      - run: npm ci
+      - run: npm run check
+      - name: Commit applied implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src scripts package.json docs
+          git commit -m "Lab 11M: add timed OSPF convergence [lab11m-applied]"
+          git push origin HEAD:agent/lab-11m-ospf-timing
