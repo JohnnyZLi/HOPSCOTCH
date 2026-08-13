@@ -13,6 +13,8 @@ export type PacketConfig = {
   destinationMac?: string;
   sourceIpv4?: string;
   destinationIpv4?: string;
+  sourceIpv6?: string;
+  destinationIpv6?: string;
   icmpType?: number;
   icmpCode?: number;
   icmpIdentifier?: number;
@@ -72,6 +74,20 @@ function parseIpv4(value: string | undefined, fallback: readonly number[]): numb
   if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part) || Number(part) > 255)) return [...fallback];
   return parts.map(Number);
 }
+function parseIpv6(value: string | undefined, fallback: readonly number[]): number[] {
+  if (!value) return [...fallback];
+  try {
+    const normalized=value.trim().toLowerCase();
+    if(!normalized||normalized.includes('%')||normalized.includes('.')||(normalized.match(/::/g)??[]).length>1)return[...fallback];
+    const compressed=normalized.includes('::');
+    const [leftText,rightText='']=compressed?normalized.split('::'):[normalized,''];
+    const side=(text:string)=>text===''?[]:text.split(':').map((part)=>{if(!/^[0-9a-f]{1,4}$/.test(part))throw new Error('bad');return Number.parseInt(part,16);});
+    const left=side(leftText),right=side(rightText);
+    const groups=compressed?[...left,...Array.from({length:8-left.length-right.length},()=>0),...right]:left;
+    if(groups.length!==8||(compressed&&8-left.length-right.length<1))return[...fallback];
+    return groups.flatMap((group)=>[(group>>>8)&0xff,group&0xff]);
+  } catch { return [...fallback]; }
+}
 export function hex16(value: number): string { return `0x${value.toString(16).padStart(4, '0').toUpperCase()}`; }
 function protocolNumber(config: PacketConfig): number {
   if (config.transport === 'tcp') return 6;
@@ -110,36 +126,36 @@ function buildIpv4(config: PacketConfig, transportLength: number, source: readon
   ] };
 }
 
-function buildIpv6(config: PacketConfig, transportLength: number): { bytes: number[]; checksum: null; fields: PacketField[] } {
+function buildIpv6(config: PacketConfig, transportLength: number, source: readonly number[], destination: readonly number[]): { bytes: number[]; checksum: null; fields: PacketField[] } {
   const payloadLength = transportLength + config.payloadBytes;
   const nextHeader = protocolNumber(config);
-  const bytes = [0x60,0,0,0,...word16(payloadLength),nextHeader,config.ttl,...SOURCE_IPV6,...DEST_IPV6];
+  const bytes = [0x60,0,0,0,...word16(payloadLength),nextHeader,config.ttl,...source,...destination];
   const nextLabel = config.transport === 'tcp' ? '6 · TCP' : config.transport === 'udp' ? '17 · UDP' : '58 · ICMPv6';
   return { bytes, checksum: null, fields: [
     { id: 'ip6-version', label: 'Version / Flow', value: 'IPv6 · flow label 0', offset: 0, length: 4 },
     { id: 'ip6-length', label: 'Payload Length', value: `${payloadLength} bytes`, offset: 4, length: 2, derived: true, note: 'Upper-layer/control message + payload' },
     { id: 'ip6-next', label: 'Next Header', value: nextLabel, offset: 6, length: 1, derived: true },
     { id: 'ip6-hop', label: 'Hop Limit', value: String(config.ttl), offset: 7, length: 1 },
-    { id: 'ip6-src', label: 'Source', value: formatIpv6(SOURCE_IPV6), offset: 8, length: 16 },
-    { id: 'ip6-dst', label: 'Destination', value: formatIpv6(DEST_IPV6), offset: 24, length: 16 },
+    { id: 'ip6-src', label: 'Source', value: formatIpv6(source), offset: 8, length: 16 },
+    { id: 'ip6-dst', label: 'Destination', value: formatIpv6(destination), offset: 24, length: 16 },
     { id: 'ip6-checksum', label: 'Header Checksum', value: 'None', offset: 0, length: 0, note: 'IPv6 deliberately removed the network-header checksum.' },
   ] };
 }
 
-function pseudoHeader(config: PacketConfig, transportLength: number, sourceIpv4: readonly number[], destinationIpv4: readonly number[]): number[] {
+function pseudoHeader(config: PacketConfig, transportLength: number, sourceIpv4: readonly number[], destinationIpv4: readonly number[], sourceIpv6: readonly number[], destinationIpv6: readonly number[]): number[] {
   const protocol = protocolNumber(config);
   if (config.family === 'ipv4') return [...sourceIpv4,...destinationIpv4,0,protocol,...word16(transportLength + config.payloadBytes)];
-  return [...SOURCE_IPV6,...DEST_IPV6,...word32(transportLength + config.payloadBytes),0,0,0,protocol];
+  return [...sourceIpv6,...destinationIpv6,...word32(transportLength + config.payloadBytes),0,0,0,protocol];
 }
 
-function buildTransport(config: PacketConfig, payload: readonly number[], sourceIpv4: readonly number[], destinationIpv4: readonly number[]): { bytes: number[]; checksum: number; fields: PacketField[] } {
+function buildTransport(config: PacketConfig, payload: readonly number[], sourceIpv4: readonly number[], destinationIpv4: readonly number[], sourceIpv6: readonly number[], destinationIpv6: readonly number[]): { bytes: number[]; checksum: number; fields: PacketField[] } {
   if (config.transport === 'icmp') {
     const type = clampInteger(config.icmpType ?? (config.family === 'ipv4' ? 8 : 128), 0, 255);
     const code = clampInteger(config.icmpCode ?? 0, 0, 255);
     const identifier = clampInteger(config.icmpIdentifier ?? 0x484f, 0, 65535);
     const sequence = clampInteger(config.icmpSequence ?? 1, 0, 65535);
     const bytes = [type, code, 0, 0, ...word16(identifier), ...word16(sequence)];
-    const checksumInput = config.family === 'ipv4' ? [...bytes, ...payload] : [...pseudoHeader(config, 8, sourceIpv4, destinationIpv4), ...bytes, ...payload];
+    const checksumInput = config.family === 'ipv4' ? [...bytes, ...payload] : [...pseudoHeader(config, 8, sourceIpv4, destinationIpv4, sourceIpv6, destinationIpv6), ...bytes, ...payload];
     const checksum = checksum16(checksumInput); bytes[2] = (checksum >>> 8) & 0xff; bytes[3] = checksum & 0xff;
     return { bytes, checksum, fields: [
       { id: 'icmp-type', label: 'Type', value: config.family === 'ipv4' && type === 8 ? '8 · Echo Request' : config.family === 'ipv6' && type === 128 ? '128 · Echo Request' : String(type), offset: 0, length: 1 },
@@ -154,7 +170,7 @@ function buildTransport(config: PacketConfig, payload: readonly number[], source
   const bytes = config.transport === 'tcp'
     ? [...word16(config.sourcePort),...word16(config.destinationPort),...word32(0x1a2b3c4d),...word32(0x55667788),0x50,0x18,...word16(64240),0,0,0,0]
     : [...word16(config.sourcePort),...word16(config.destinationPort),...word16(8 + config.payloadBytes),0,0];
-  let checksum = checksum16([...pseudoHeader(config, transportLength, sourceIpv4, destinationIpv4), ...bytes, ...payload]);
+  let checksum = checksum16([...pseudoHeader(config, transportLength, sourceIpv4, destinationIpv4, sourceIpv6, destinationIpv6), ...bytes, ...payload]);
   if (config.transport === 'udp' && checksum === 0) checksum = 0xffff;
   const checksumOffset = config.transport === 'tcp' ? 16 : 6; bytes[checksumOffset] = (checksum >>> 8) & 0xff; bytes[checksumOffset + 1] = checksum & 0xff;
   const commonFields: PacketField[] = [
@@ -190,9 +206,11 @@ export function buildPacket(input: PacketConfig): PacketSnapshot {
   const transportHeaderLength = config.transport === 'tcp' ? 20 : 8;
   const sourceIpv4 = parseIpv4(config.sourceIpv4, DEFAULT_SOURCE_IPV4);
   const destinationIpv4 = parseIpv4(config.destinationIpv4, DEFAULT_DEST_IPV4);
+  const sourceIpv6 = parseIpv6(config.sourceIpv6, SOURCE_IPV6);
+  const destinationIpv6 = parseIpv6(config.destinationIpv6, DEST_IPV6);
   const ethernet = buildEthernet(config);
-  const network = config.family === 'ipv4' ? buildIpv4(config, transportHeaderLength, sourceIpv4, destinationIpv4) : buildIpv6(config, transportHeaderLength);
-  const transport = buildTransport(config, payload, sourceIpv4, destinationIpv4);
+  const network = config.family === 'ipv4' ? buildIpv4(config, transportHeaderLength, sourceIpv4, destinationIpv4) : buildIpv6(config, transportHeaderLength, sourceIpv6, destinationIpv6);
+  const transport = buildTransport(config, payload, sourceIpv4, destinationIpv4, sourceIpv6, destinationIpv6);
   const networkOffset = ethernet.bytes.length; const transportOffset = networkOffset + network.bytes.length; const payloadOffset = transportOffset + transport.bytes.length;
   const transportLabel = config.transport === 'icmp' ? (config.family === 'ipv4' ? 'ICMP' : 'ICMPv6') : config.transport.toUpperCase();
   const segments: PacketSegment[] = [

@@ -501,13 +501,13 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [ ] stub/NSSA and redistribution only after the base multi-area model is stable
 
 ### 11N — IPv6 + dual stack
-- [ ] IPv6 global and link-local interface addressing
+- [x] IPv6 global and link-local interface addressing
 - [ ] Neighbor Discovery replaces ARP for IPv6 next-hop resolution
 - [ ] Router Solicitation / Router Advertisement and SLAAC host bootstrap
 - [ ] ICMPv6 control behavior including Packet Too Big / path-MTU discovery
-- [ ] IPv6 connected/static forwarding and default routes
+- [x] IPv6 connected/static forwarding and default routes
 - [ ] OSPFv3 integration after the IPv6 forwarding model is stable
-- [ ] dual-stack application/probe selection keeps IPv4 and IPv6 truth independent
+- [x] dual-stack application/probe selection keeps IPv4 and IPv6 truth independent
 
 ### 11O — BGP inside Network Builder
 - [ ] author routers with documentation ASNs and explicit eBGP/iBGP sessions
