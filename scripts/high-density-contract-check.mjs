@@ -58,10 +58,11 @@ const builderScenario = createBuilderScenario(
 const restoredBuilder = deserializeBuilderScenario(serializeBuilderScenario(builderScenario));
 assert.equal(restoredBuilder.graph.nodes.length, STRESS_BUILDER_NODE_COUNT);
 assert.equal(restoredBuilder.graph.links.length, STRESS_BUILDER_LINK_COUNT);
-assert.equal(restoredBuilder.version, 7);
+assert.equal(restoredBuilder.version, 8);
 assert.equal(Object.keys(restoredBuilder.addressing.segments).length, STRESS_BUILDER_LINK_COUNT);
 assert.deepEqual(restoredBuilder.routing.staticRoutes, []);
 assert.deepEqual(restoredBuilder.routing.ospf.enabledRouterIds, []);
+assert.deepEqual(restoredBuilder.nat.boundaries, [], 'routed stress fixture does not fabricate NAT boundaries');
 assert.equal(findShortestPath(restoredBuilder.graph, restoredBuilder.sourceId, restoredBuilder.destinationId).reachable, true);
 
 const overflowGraph = {
@@ -91,4 +92,4 @@ assert.ok(densePhysicalStressFacilities.every((facility) => facility.city === 'T
 assert.equal(densePhysicalStressFacilities[0].name, 'SIMULATED STRESS FACILITY 0001');
 assert.equal(densePhysicalStressFacilities.at(-1)?.name, `SIMULATED STRESS FACILITY ${String(STRESS_FACILITY_COUNT).padStart(4, '0')}`);
 
-console.log(`High-density fixture contract passed: ${STRESS_AS_NODE_COUNT}/${STRESS_AS_RELATIONSHIP_COUNT} AS graph, ${STRESS_BUILDER_NODE_COUNT}/${STRESS_BUILDER_LINK_COUNT} Builder ceiling + schema round trip, ${STRESS_FACILITY_COUNT} simulated WebGL points.`);
+console.log(`High-density fixture contract passed: ${STRESS_AS_NODE_COUNT}/${STRESS_AS_RELATIONSHIP_COUNT} AS graph, ${STRESS_BUILDER_NODE_COUNT}/${STRESS_BUILDER_LINK_COUNT} Builder ceiling + schema-v8 round trip, ${STRESS_FACILITY_COUNT} simulated WebGL points.`);
