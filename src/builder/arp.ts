@@ -60,7 +60,8 @@ export function resolveBuilderArp(
   }
   if(!owner||!ownerIf)return{cache,resolution:{ownerDeviceId,targetDeviceId:null,vlanId,targetAddress,targetMac:null,cacheHit:false,success:false,requestNodeIds:[],requestLinkIds:[],replyNodeIds:[],replyLinkIds:[],failureReason:`${ownerDeviceId} has no IPv4 interface in VLAN ${vlanId}.`,summary:`ARP cannot start without a local VLAN ${vlanId} interface.`}};
   const targetDeviceId=targetForAddress(config,vlanId,targetAddress);
-  const target=targetDeviceId?builderEthernetDeviceById(config,targetDeviceId):undefined;
+  if(!targetDeviceId)return{cache,resolution:{ownerDeviceId,targetDeviceId:null,vlanId,targetAddress,targetMac:null,cacheHit:false,success:false,requestNodeIds:[ownerDeviceId],requestLinkIds:[],replyNodeIds:[],replyLinkIds:[],failureReason:`No device owns ${targetAddress} in VLAN ${vlanId}.`,summary:`ARP Request for ${targetAddress} receives no reply.`}};
+  const target=builderEthernetDeviceById(config,targetDeviceId);
   if(!target)return{cache,resolution:{ownerDeviceId,targetDeviceId:null,vlanId,targetAddress,targetMac:null,cacheHit:false,success:false,requestNodeIds:[ownerDeviceId],requestLinkIds:[],replyNodeIds:[],replyLinkIds:[],failureReason:`No device owns ${targetAddress} in VLAN ${vlanId}.`,summary:`ARP Request for ${targetAddress} receives no reply.`}};
   const path=builderEthernetPathForVlan(config,ownerDeviceId,targetDeviceId,vlanId);
   if(!path)return{cache,resolution:{ownerDeviceId,targetDeviceId,vlanId,targetAddress,targetMac:null,cacheHit:false,success:false,requestNodeIds:[ownerDeviceId],requestLinkIds:[],replyNodeIds:[],replyLinkIds:[],failureReason:`VLAN ${vlanId} has no STP-forwarding Layer-2 path to ${target.label}.`,summary:`ARP broadcast cannot reach ${target.label}.`}};
