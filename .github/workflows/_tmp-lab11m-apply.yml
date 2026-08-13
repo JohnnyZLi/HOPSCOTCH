@@ -21,6 +21,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: python3 scripts/_tmp_apply_lab11m.py
+      - run: python3 scripts/_tmp_fix_lab11m_precheck.py
       - run: npm ci
       - run: npm run check
       - name: Commit applied implementation
