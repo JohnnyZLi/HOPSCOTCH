@@ -37,7 +37,7 @@ function runPing(graph:BuilderGraph,addressing:BuilderAddressing,routing:Builder
   const request=natRequest?.forwarding??ordinaryRequestPolicy?.forwarding??traceBuilderForwarding(graph,addressing,routing,sourceNodeId,destinationNodeId);
   let workingSessions=natRequest?.sessions??natSessions;
   const sourceAddress=primaryAddress(addressing,sourceNodeId); const destinationAddress=request.destinationAddress??primaryAddress(addressing,destinationNodeId);
-  let reply:BuilderForwardingTrace|null=null; let natReply:BuilderNatFlowResult|null=null; let status:BuilderProbeStatus; let responderNodeId:string|null; let detail:string; let dropLinkId:string|null=null;
+  let reply:BuilderForwardingTrace|null=null; let natReply:BuilderNatFlowResult|null=null; let status:BuilderProbeStatus='unreachable'; let responderNodeId:string|null=null; let detail=''; let dropLinkId:string|null=null;
   const requestLinks=linkPath(request); const requestPhysical=builderPathCharacteristics(profiles,requestLinks);
   if(!request.reachable){status='unreachable';responderNodeId=request.failureNodeId;detail=request.failureReason??'Forward request could not be delivered.';}
   else if(natRequest&&!natRequest.success){status='unreachable';responderNodeId=natRequest.deniedAtRouterId??natRequest.routerId;detail=`NAT / policy stopped the Echo Request: ${natRequest.explanation}`;}
