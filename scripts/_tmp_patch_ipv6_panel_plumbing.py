@@ -1,0 +1,20 @@
+from pathlib import Path
+p=Path('src/BuilderIpv6Panel.tsx')
+s=p.read_text(encoding='utf-8')
+def rep(a,b):
+ global s
+ n=s.count(a)
+ if n!=1: raise SystemExit(f'expected 1 match, found {n}: {a[:90]!r}')
+ s=s.replace(a,b,1)
+rep("import {\n  clearBuilderIpv6StaticRoutes,","import {\n  builderOspfv3State,\n  clearBuilderIpv6StaticRoutes,")
+rep("  routeTableForBuilderIpv6Router,\n  traceBuilderIpv6Forwarding,","  routeTableForBuilderIpv6Router,\n  setBuilderIpv6RaRouterEnabled,\n  setBuilderOspfv3Everywhere,\n  setBuilderOspfv3RouterEnabled,\n  traceBuilderIpv6Forwarding,")
+rep("} from './builder/ipv6.ts';\n","} from './builder/ipv6.ts';\nimport { clearBuilderIpv6NeighborCache, clearBuilderIpv6PmtuCache, runBuilderIpv6RouterSolicitation, type BuilderIpv6ControlState } from './builder/ipv6-control-plane.ts';\n")
+rep("export function BuilderIpv6Panel({ graph, ipv4, ipv6, selectedNodeId, selectedLinkId, sourceId, destinationId, onChange, onMessage }: {","export function BuilderIpv6Panel({ graph, ipv4, ipv6, selectedNodeId, selectedLinkId, sourceId, destinationId, controlState, onControlStateChange, probePacketBytes, onProbePacketBytesChange, onChange, onMessage }: {")
+rep("  destinationId: string;\n  onChange:","  destinationId: string;\n  controlState: BuilderIpv6ControlState;\n  onControlStateChange: (next: BuilderIpv6ControlState) => void;\n  probePacketBytes: number;\n  onProbePacketBytesChange: (bytes: number) => void;\n  onChange:")
+rep("  const trace = useMemo(() => traceBuilderIpv6Forwarding(graph, ipv6, sourceId, destinationId), [graph, ipv6, sourceId, destinationId]);\n","  const trace = useMemo(() => traceBuilderIpv6Forwarding(graph, ipv6, sourceId, destinationId), [graph, ipv6, sourceId, destinationId]);\n  const ospfv3 = useMemo(() => builderOspfv3State(graph, ipv6), [graph, ipv6]);\n  const selectedOspfv3Enabled = Boolean(selectedNode?.kind === 'router' && ipv6.ospfv3.enabledRouterIds.includes(selectedNode.id));\n  const selectedRaEnabled = Boolean(selectedNode?.kind === 'router' && ipv6.autoconfig.raEnabledRouterIds.includes(selectedNode.id));\n  const selectedNeighbors = selectedNode ? controlState.neighborCache.filter((entry) => entry.nodeId === selectedNode.id) : [];\n  const lastRa = controlState.raHistory.at(-1) ?? null;\n  const lastPmtu = controlState.pmtuHistory.at(-1) ?? null;\n")
+rep("<small>LINK-LOCAL {entry.linkLocalAddress}</small>","<small>{entry.addressOrigin.toUpperCase()} · LINK-LOCAL {entry.linkLocalAddress}</small>")
+rep("<small>{entry.prefix} · LL {entry.linkLocalAddress} · {entry.linkId.toUpperCase()}</small>","<small>{entry.addressOrigin.toUpperCase()} · {entry.prefix} · LL {entry.linkLocalAddress} · {entry.linkId.toUpperCase()}</small>")
+rep("<div className=\"builder-route-table\">{routeTable.length","<div className=\"builder-route-table builder-ipv6-route-table\">{routeTable.length")
+rep("<span>{entry.source === 'connected' ? 'C6' : 'S6'}</span>","<span>{entry.source === 'connected' ? 'C6' : entry.source === 'static' ? 'S6' : 'O6'}</span>")
+p.write_text(s,encoding='utf-8')
+print('IPv6 panel plumbing patched.')
