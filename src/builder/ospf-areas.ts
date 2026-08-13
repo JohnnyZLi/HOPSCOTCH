@@ -85,9 +85,14 @@ export function builderOspfAreaForLink(config: BuilderOspfAreaConfigLike, linkId
   return normalizeBuilderOspfAreaId(config.linkAreas?.[linkId] ?? BUILDER_OSPF_BACKBONE_AREA);
 }
 
-export function builderOspfAreasForRouter(graph: BuilderGraph, config: BuilderOspfAreaConfigLike, routerId: string): string[] {
-  if (!config.enabledRouterIds.includes(routerId) || !nodeIsRouter(graph, routerId)) return [];
+function configuredAreasForRouter(graph: BuilderGraph, config: BuilderOspfAreaConfigLike, routerId: string): string[] {
+  if (!nodeIsRouter(graph, routerId)) return [];
   return [...new Set(graph.links.filter((link) => link.a === routerId || link.b === routerId).map((link) => builderOspfAreaForLink(config, link.id)))].sort();
+}
+
+export function builderOspfAreasForRouter(graph: BuilderGraph, config: BuilderOspfAreaConfigLike, routerId: string): string[] {
+  if (!config.enabledRouterIds.includes(routerId)) return [];
+  return configuredAreasForRouter(graph, config, routerId);
 }
 
 export function builderOspfAbrRouterIds(graph: BuilderGraph, config: BuilderOspfAreaConfigLike): string[] {
@@ -107,18 +112,17 @@ export function validateBuilderOspfAreaConfig(graph: BuilderGraph, config: Build
   }
 
   const normalizedConfig: BuilderOspfAreaConfigLike = { ...config, linkAreas };
-  const abrIds = new Set(builderOspfAbrRouterIds(graph, normalizedConfig));
-  const enabled = new Set(config.enabledRouterIds);
+  const configuredAbrIds = new Set(graph.nodes.filter((node) => node.kind === 'router').map((node) => node.id).filter((routerId) => { const areas = configuredAreasForRouter(graph, normalizedConfig, routerId); return areas.includes(BUILDER_OSPF_BACKBONE_AREA) && areas.some((areaId) => areaId !== BUILDER_OSPF_BACKBONE_AREA); }));
   const summaryIds = new Set<string>();
   const summaries = (config.summaries ?? []).map((raw, index): BuilderOspfSummary => {
     if (!raw || typeof raw !== 'object') throw new Error(`OSPF summary ${index + 1} is invalid.`);
     const id = String(raw.id ?? '').trim();
     if (!id || id.length > 120 || !/^[a-zA-Z0-9_.:-]+$/.test(id) || summaryIds.has(id)) throw new Error(`OSPF summary ${index + 1} has an invalid or duplicate id.`);
     const abrRouterId = String(raw.abrRouterId ?? '').trim();
-    if (!enabled.has(abrRouterId) || !abrIds.has(abrRouterId)) throw new Error(`OSPF summary ${id} must belong to an enabled ABR attached to Area 0.`);
+    if (!configuredAbrIds.has(abrRouterId)) throw new Error(`OSPF summary ${id} must belong to a configured ABR attached to Area 0 and a non-backbone area.`);
     const fromAreaId = normalizeBuilderOspfAreaId(raw.fromAreaId);
     if (fromAreaId === BUILDER_OSPF_BACKBONE_AREA) throw new Error(`OSPF summary ${id} must summarize a non-backbone source area in this teaching model.`);
-    if (!builderOspfAreasForRouter(graph, normalizedConfig, abrRouterId).includes(fromAreaId)) throw new Error(`OSPF summary ${id} ABR ${abrRouterId} is not attached to ${fromAreaId}.`);
+    if (!configuredAreasForRouter(graph, normalizedConfig, abrRouterId).includes(fromAreaId)) throw new Error(`OSPF summary ${id} ABR ${abrRouterId} is not attached to ${fromAreaId}.`);
     const prefix = parsePrefix(raw.prefix).cidr;
     const metric = Number(raw.metric);
     if (!Number.isInteger(metric) || metric < 1 || metric > 16777215) throw new Error(`OSPF summary ${id} metric must be 1–16777215.`);
@@ -132,8 +136,7 @@ export function reconcileBuilderOspfAreaConfig(graph: BuilderGraph, config: Buil
   const linkIds = new Set(graph.links.map((link) => link.id));
   const linkAreas = Object.fromEntries(Object.entries(config.linkAreas ?? {}).filter(([linkId]) => linkIds.has(linkId)));
   const provisional: BuilderOspfAreaConfigLike = { ...config, linkAreas, summaries: [] };
-  const abrIds = new Set(builderOspfAbrRouterIds(graph, provisional));
-  const summaries = (config.summaries ?? []).filter((summary) => abrIds.has(summary.abrRouterId) && builderOspfAreasForRouter(graph, provisional, summary.abrRouterId).includes(normalizeBuilderOspfAreaId(summary.fromAreaId)));
+  const summaries = (config.summaries ?? []).filter((summary) => { const areas = configuredAreasForRouter(graph, provisional, summary.abrRouterId); return areas.includes(BUILDER_OSPF_BACKBONE_AREA) && areas.includes(normalizeBuilderOspfAreaId(summary.fromAreaId)); });
   return validateBuilderOspfAreaConfig(graph, { ...config, linkAreas, summaries });
 }
 
