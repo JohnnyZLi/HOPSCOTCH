@@ -32,9 +32,9 @@ function natNote(request:BuilderNatFlowResult|null,response:BuilderNatFlowResult
 
 function runPing(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig,sourceNodeId:string,destinationNodeId:string,sequence:number,profiles:BuilderLinkProfiles,acl:BuilderAclConfig,nat:BuilderNatConfig,natSessions:BuilderNatSessionTable):BuilderProbeResult{
   const natEnabled=nat.boundaries.some((boundary)=>boundary.enabled);
-  const ordinaryRequestPolicy=natEnabled?null:traceBuilderPolicy(graph,addressing,routing,acl,sourceNodeId,destinationNodeId,'icmp');
+  const ordinaryRequestPolicy=natEnabled?null:traceBuilderPolicy(graph,addressing,routing,acl,sourceNodeId,destinationNodeId,'icmp',null,`icmp|${sourceNodeId}|${destinationNodeId}|${sequence}|request`);
   const natRequest=natEnabled?runBuilderNatOutboundFlow(graph,addressing,routing,nat,natSessions,sourceNodeId,destinationNodeId,'icmp',null,null,sequence,acl):null;
-  const request=natRequest?.forwarding??ordinaryRequestPolicy?.forwarding??traceBuilderForwarding(graph,addressing,routing,sourceNodeId,destinationNodeId);
+  const request=natRequest?.forwarding??ordinaryRequestPolicy?.forwarding??traceBuilderForwarding(graph,addressing,routing,sourceNodeId,destinationNodeId,graph,`icmp|${sourceNodeId}|${destinationNodeId}|${sequence}|request`);
   let workingSessions=natRequest?.sessions??natSessions;
   const sourceAddress=primaryAddress(addressing,sourceNodeId); const destinationAddress=request.destinationAddress??primaryAddress(addressing,destinationNodeId);
   let reply:BuilderForwardingTrace|null=null; let natReply:BuilderNatFlowResult|null=null; let status:BuilderProbeStatus='unreachable'; let responderNodeId:string|null=null; let detail=''; let dropLinkId:string|null=null;
@@ -49,7 +49,7 @@ function runPing(graph:BuilderGraph,addressing:BuilderAddressing,routing:Builder
       natReply=runBuilderNatInboundFlow(graph,addressing,routing,nat,workingSessions,destinationNodeId,natRequest.translation.outsideAddress,'icmp',null,null,sequence+1,acl);
       reply=natReply.forwarding; workingSessions=natReply.sessions;
     }else{
-      const replyPolicy=traceBuilderPolicy(graph,addressing,routing,acl,destinationNodeId,sourceNodeId,'icmp'); reply=replyPolicy.forwarding;
+      const replyPolicy=traceBuilderPolicy(graph,addressing,routing,acl,destinationNodeId,sourceNodeId,'icmp',null,`icmp|${destinationNodeId}|${sourceNodeId}|${sequence}|reply`); reply=replyPolicy.forwarding;
       if(!reply.reachable){status='timeout';responderNodeId=destinationNodeId;detail=`Echo Request reached ${nodeLabel(graph,destinationNodeId)}, but the Echo Reply cannot return: ${reply.failureReason??'reverse path unavailable'}.`;}
       else if(!replyPolicy.permitted){status='timeout';responderNodeId=destinationNodeId;detail=`Echo Request arrived, but reverse ACL / firewall policy denied the Echo Reply: ${replyPolicy.explanation}`;}
     }
@@ -68,9 +68,9 @@ function runPing(graph:BuilderGraph,addressing:BuilderAddressing,routing:Builder
 
 function runTraceroute(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig,sourceNodeId:string,destinationNodeId:string,sequence:number,profiles:BuilderLinkProfiles,acl:BuilderAclConfig,nat:BuilderNatConfig,natSessions:BuilderNatSessionTable):BuilderProbeResult{
   const natEnabled=nat.boundaries.some((boundary)=>boundary.enabled);
-  const fullPolicy=natEnabled?null:traceBuilderPolicy(graph,addressing,routing,acl,sourceNodeId,destinationNodeId,'icmp');
+  const fullPolicy=natEnabled?null:traceBuilderPolicy(graph,addressing,routing,acl,sourceNodeId,destinationNodeId,'icmp',null,`icmp|${sourceNodeId}|${destinationNodeId}|${sequence}|request`);
   const natRequest=natEnabled?runBuilderNatOutboundFlow(graph,addressing,routing,nat,natSessions,sourceNodeId,destinationNodeId,'icmp',null,null,sequence,acl):null;
-  const forward=natRequest?.forwarding??fullPolicy?.forwarding??traceBuilderForwarding(graph,addressing,routing,sourceNodeId,destinationNodeId);
+  const forward=natRequest?.forwarding??fullPolicy?.forwarding??traceBuilderForwarding(graph,addressing,routing,sourceNodeId,destinationNodeId,graph,`icmp|${sourceNodeId}|${destinationNodeId}|${sequence}|request`);
   let workingSessions=natRequest?.sessions??natSessions;
   const sourceAddress=primaryAddress(addressing,sourceNodeId); const destinationAddress=forward.destinationAddress??primaryAddress(addressing,destinationNodeId);
   const nodes=nodePath(forward); const links=linkPath(forward); const attempts:BuilderProbeAttempt[]=[]; let ttl=1; let terminal=false;
@@ -91,9 +91,9 @@ function runTraceroute(graph:BuilderGraph,addressing:BuilderAddressing,routing:B
       natResponse=natRequest.translation.kind==='pat'
         ? runBuilderNatRelatedIcmpInbound(graph,addressing,routing,nat,workingSessions,nodeId,natRequest.translation.id,sequence+ttl,acl)
         : runBuilderNatInboundFlow(graph,addressing,routing,nat,workingSessions,nodeId,natRequest.translation.outsideAddress,'icmp',null,null,sequence+ttl,acl);
-      response=natResponse.forwarding??traceBuilderForwarding(graph,addressing,routing,nodeId,sourceNodeId); responsePermitted=natResponse.success; responseExplanation=natResponse.explanation; workingSessions=natResponse.sessions;
+      response=natResponse.forwarding??traceBuilderForwarding(graph,addressing,routing,nodeId,sourceNodeId,graph,`icmp|${nodeId}|${sourceNodeId}|${sequence}|ttl-${ttl}-reply`); responsePermitted=natResponse.success; responseExplanation=natResponse.explanation; workingSessions=natResponse.sessions;
     }else{
-      const responsePolicy=traceBuilderPolicy(graph,addressing,routing,acl,nodeId,sourceNodeId,'icmp'); response=responsePolicy.forwarding; responsePermitted=responsePolicy.permitted; responseExplanation=responsePolicy.explanation;
+      const responsePolicy=traceBuilderPolicy(graph,addressing,routing,acl,nodeId,sourceNodeId,'icmp',null,`icmp|${nodeId}|${sourceNodeId}|${sequence}|ttl-${ttl}-reply`); response=responsePolicy.forwarding; responsePermitted=responsePolicy.permitted; responseExplanation=responsePolicy.explanation;
     }
     const responseLinks=linkPath(response); const responseDrop=response.reachable&&responsePermitted?deterministicBuilderPathDrop(profiles,responseLinks,`trace:${sequence}:${ttl}:reply`):null;
     const ok=response.reachable&&responsePermitted&&!responseDrop; const m=metrics(profiles,requestLinks,responseLinks,ok);
@@ -104,7 +104,7 @@ function runTraceroute(graph:BuilderGraph,addressing:BuilderAddressing,routing:B
     if(forward.reachable&&forwardPermitted){
       let reply:BuilderForwardingTrace; let replyPermitted=true; let replyExplanation=''; let natReply:BuilderNatFlowResult|null=null;
       if(natRequest?.translation){natReply=runBuilderNatInboundFlow(graph,addressing,routing,nat,workingSessions,destinationNodeId,natRequest.translation.outsideAddress,'icmp',null,null,sequence+ttl,acl);reply=natReply.forwarding??traceBuilderForwarding(graph,addressing,routing,destinationNodeId,sourceNodeId);replyPermitted=natReply.success;replyExplanation=natReply.explanation;workingSessions=natReply.sessions;}
-      else{const replyPolicy=traceBuilderPolicy(graph,addressing,routing,acl,destinationNodeId,sourceNodeId,'icmp');reply=replyPolicy.forwarding;replyPermitted=replyPolicy.permitted;replyExplanation=replyPolicy.explanation;}
+      else{const replyPolicy=traceBuilderPolicy(graph,addressing,routing,acl,destinationNodeId,sourceNodeId,'icmp',null,`icmp|${destinationNodeId}|${sourceNodeId}|${sequence}|reply`);reply=replyPolicy.forwarding;replyPermitted=replyPolicy.permitted;replyExplanation=replyPolicy.explanation;}
       const responseLinks=linkPath(reply);const requestDrop=deterministicBuilderPathDrop(profiles,links,`trace:${sequence}:${ttl}:request`);const responseDrop=!requestDrop&&reply.reachable&&replyPermitted?deterministicBuilderPathDrop(profiles,responseLinks,`trace:${sequence}:${ttl}:reply`):null;const ok=!requestDrop&&reply.reachable&&replyPermitted&&!responseDrop;const m=metrics(profiles,links,responseLinks,ok);attempts.push({index:attempts.length,ttl,status:ok?'echo-reply':'timeout',responderNodeId:destinationNodeId,responderAddress:destinationAddress,requestNodeIds:nodes,requestLinkIds:links,responseNodeIds:ok?nodePath(reply):[],responseLinkIds:ok?responseLinks:[],detail:ok?`${nodeLabel(graph,destinationNodeId)} returns Echo Reply${natReply?.translation?' through reverse NAT':''} · ${m.simulatedRttMs} ms simulated RTT.`:requestDrop?`Final Echo probe was dropped on ${requestDrop}.`:!reply.reachable?'Final Echo Reply has no reverse route.':!replyPermitted?`Final Echo Reply cannot traverse reverse policy/NAT: ${replyExplanation}`:`Final Echo Reply was dropped on ${responseDrop}.`,packet:packetSeed(`probe-${sequence}-ttl-${ttl}`,`ICMP TRACE TTL ${ttl}`,sourceNodeId,destinationNodeId,sourceAddress,destinationAddress,ttl),...m,dropLinkId:requestDrop??responseDrop,natDetail:natNote(natRequest,natReply)});
     }else if(!forward.reachable){const m=metrics(profiles,links,[],false);attempts.push({index:attempts.length,ttl,status:'unreachable',responderNodeId:forward.failureNodeId,responderAddress:forward.failureNodeId?primaryAddress(addressing,forward.failureNodeId):null,requestNodeIds:nodes,requestLinkIds:links,responseNodeIds:[],responseLinkIds:[],detail:`${nodeLabel(graph,forward.failureNodeId??sourceNodeId)} cannot continue the probe: ${forward.failureReason??'no route'}.`,packet:packetSeed(`probe-${sequence}-ttl-${ttl}`,`ICMP TRACE TTL ${ttl}`,sourceNodeId,destinationNodeId,sourceAddress,destinationAddress,ttl),...m,dropLinkId:null,natDetail:natNote(natRequest,null)});}
   }
