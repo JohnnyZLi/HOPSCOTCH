@@ -503,6 +503,7 @@ export function routeTableForBuilderRouter(
   addressing: BuilderAddressing,
   routing: BuilderRoutingConfig,
   routerId: string,
+  ospfTopologyGraph: BuilderGraph = graph,
 ): BuilderRouteTableEntry[] {
   const router = nodeById(graph, routerId);
   if (!router || router.kind !== 'router') return [];
@@ -544,7 +545,7 @@ export function routeTableForBuilderRouter(
       stateNote: !attachment ? 'NEXT HOP INVALID' : link?.failed ? 'NEXT-HOP LINK DOWN' : 'STATIC',
     });
   }
-  entries.push(...ospfRouteEntriesForBuilderRouter(graph, addressing, routing, routerId));
+  entries.push(...ospfRouteEntriesForBuilderRouter(ospfTopologyGraph, addressing, routing, routerId));
   return entries.sort((left, right) =>
     right.prefixLength - left.prefixLength
     || left.administrativeDistance - right.administrativeDistance
@@ -598,6 +599,7 @@ export function traceBuilderForwarding(
   routing: BuilderRoutingConfig,
   sourceNodeId: string,
   destinationNodeId: string,
+  ospfTopologyGraph: BuilderGraph = graph,
 ): BuilderForwardingTrace {
   const source = nodeById(graph, sourceNodeId);
   const destination = nodeById(graph, destinationNodeId);
@@ -674,7 +676,7 @@ export function traceBuilderForwarding(
       continue;
     }
 
-    const table = routeTableForBuilderRouter(graph, addressing, routing, currentNodeId);
+    const table = routeTableForBuilderRouter(graph, addressing, routing, currentNodeId, ospfTopologyGraph);
     const selected = selectBuilderRoute(table, destinationAddress);
     if (!selected) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'NO MATCHING ROUTE');
     let nextNodeId: string | null = null;

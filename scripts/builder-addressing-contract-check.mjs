@@ -89,7 +89,7 @@ assert.equal(contractedAddressing.segments['r2-r3'], undefined);
 assert.doesNotThrow(() => validateBuilderAddressing(contractedGraph, contractedAddressing));
 
 const scenario = createBuilderScenario('Addressed topology', graph, 'client', 'app', defaultBuilderLayout, validated);
-assert.equal(scenario.version, 8);
+assert.equal(scenario.version, 9);
 assert.deepEqual(deserializeBuilderScenario(serializeBuilderScenario(scenario)).addressing, validated);
 
 const now = '2026-08-12T00:00:00.000Z';
@@ -105,7 +105,7 @@ const legacyV2 = {
   updatedAt: now,
 };
 const migratedV2 = deserializeBuilderScenario(JSON.stringify(legacyV2));
-assert.equal(migratedV2.version, 8);
+assert.equal(migratedV2.version, 9);
 assert.doesNotThrow(() => validateBuilderAddressing(migratedV2.graph, migratedV2.addressing));
 assert.deepEqual(migratedV2.nat.boundaries, [], 'legacy scenarios do not fabricate NAT boundaries');
 
@@ -121,7 +121,7 @@ const legacyV1 = {
   createdAt: now,
   updatedAt: now,
 };
-assert.equal(deserializeBuilderScenario(JSON.stringify(legacyV1)).version, 8);
+assert.equal(deserializeBuilderScenario(JSON.stringify(legacyV1)).version, 9);
 
 const legacyV3 = {
   schema: 'hopscotch.builder',
@@ -136,7 +136,7 @@ const legacyV3 = {
   updatedAt: now,
 };
 const migratedV3 = deserializeBuilderScenario(JSON.stringify(legacyV3));
-assert.equal(migratedV3.version, 8);
+assert.equal(migratedV3.version, 9);
 assert.deepEqual(migratedV3.addressing, validated);
 assert.deepEqual(migratedV3.routing.staticRoutes, []);
 assert.deepEqual(migratedV3.routing.ospf.enabledRouterIds, []);
@@ -155,7 +155,7 @@ const legacyV4 = {
   updatedAt: now,
 };
 const migratedV4 = deserializeBuilderScenario(JSON.stringify(legacyV4));
-assert.equal(migratedV4.version, 8);
+assert.equal(migratedV4.version, 9);
 assert.deepEqual(migratedV4.routing.ospf.enabledRouterIds, []);
 
 const malformedV3 = JSON.parse(serializeBuilderScenario(scenario));

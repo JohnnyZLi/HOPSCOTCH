@@ -191,7 +191,7 @@ const persistedScenario = createBuilderScenario(
   'NAT persisted', graph, 'client', 'app', defaultBuilderLayout, addressing, routing, undefined,
   createDefaultBuilderEthernetConfig(), linkProfiles, defaultAcl, nat,
 );
-assert.equal(persistedScenario.version, 8);
+assert.equal(persistedScenario.version, 9);
 const persistedJson = serializeBuilderScenario(persistedScenario);
 assert.doesNotMatch(persistedJson, /natSessions|createdSequence|lastUsedSequence/, 'dynamic translation state must never serialize with scenario configuration');
 const restoredScenario = deserializeBuilderScenario(persistedJson);
@@ -202,7 +202,7 @@ assert.equal(restoredScenario.nat.staticMappings.length, 1);
 const legacyV7 = { ...persistedScenario, version: 7 };
 delete legacyV7.nat;
 const migratedV7 = deserializeBuilderScenario(JSON.stringify(legacyV7));
-assert.equal(migratedV7.version, 8);
+assert.equal(migratedV7.version, 9);
 assert.deepEqual(migratedV7.nat.boundaries, [], 'schema v7 migration must not fabricate a NAT boundary');
 assert.deepEqual(migratedV7.nat.staticAddresses, []);
 assert.deepEqual(migratedV7.nat.staticMappings, []);
