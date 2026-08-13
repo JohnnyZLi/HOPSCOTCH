@@ -1,5 +1,5 @@
 import { interfacesForBuilderNode, normalizeBuilderIpv4, type BuilderAddressing } from './addressing.ts';
-import { traceBuilderForwarding, type BuilderForwardingTrace, type BuilderRoutingConfig } from './routing.ts';
+import { traceBuilderForwarding, type BuilderFlowKey, type BuilderForwardingTrace, type BuilderRoutingConfig } from './routing.ts';
 import type { BuilderGraph } from './model.ts';
 
 export type BuilderAclAction = 'permit' | 'deny';
@@ -131,9 +131,10 @@ export function traceBuilderPolicy(
   destinationNodeId: string,
   protocol: BuilderAclProtocol='ip',
   destinationPort: number|null=null,
+  flowKey: BuilderFlowKey | string | null = null,
 ): BuilderPolicyTrace {
   const config=validateBuilderAclConfig(graph,acl);
-  const forwarding=traceBuilderForwarding(graph,addressing,routing,sourceNodeId,destinationNodeId);
+  const forwarding=traceBuilderForwarding(graph,addressing,routing,sourceNodeId,destinationNodeId,graph,flowKey);
   const sourceAddress=primaryAddress(addressing,sourceNodeId);
   const destinationAddress=forwarding.destinationAddress??primaryAddress(addressing,destinationNodeId);
   if(!forwarding.reachable||!sourceAddress||!destinationAddress)return{forwarding,permitted:false,sourceAddress,destinationAddress,protocol,destinationPort,decisions:[],deniedAtRouterId:null,explanation:forwarding.failureReason??'Forwarding must succeed before ACL policy can be evaluated.'};

@@ -496,7 +496,7 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] LSA origination/flooding and per-router LSDB state in deterministic link-failure convergence episodes
 - [x] SPF scheduling, RIB installation, and FIB transition are distinct causal events
 - [x] traffic can encounter stale state during convergence instead of teleporting directly to the final route
-- [ ] equal-cost multipath with deterministic per-flow selection
+- [x] equal-cost multipath with deterministic per-flow selection
 - [ ] multi-area OSPF with ABRs, inter-area routes, and summarization
 - [ ] stub/NSSA and redistribution only after the base multi-area model is stable
 

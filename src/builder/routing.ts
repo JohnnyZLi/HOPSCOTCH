@@ -50,6 +50,10 @@ export interface BuilderForwardingHop {
   outgoingInterface: string | null;
   linkId: string | null;
   nextNodeId: string | null;
+  ecmpCandidateCount?: number;
+  ecmpSelectedIndex?: number | null;
+  ecmpFlowHash?: number | null;
+  ecmpFlowKey?: string | null;
 }
 
 export interface BuilderForwardingTrace {
@@ -61,6 +65,23 @@ export interface BuilderForwardingTrace {
   failureNodeId: string | null;
   failureReason: string | null;
   explanation: string;
+}
+
+export interface BuilderFlowKey {
+  sourceAddress?: string | null;
+  destinationAddress?: string | null;
+  protocol?: string | null;
+  sourcePort?: number | null;
+  destinationPort?: number | null;
+  discriminator?: string | number | null;
+}
+
+export interface BuilderRouteSelection {
+  route: BuilderRouteTableEntry | null;
+  candidates: BuilderRouteTableEntry[];
+  flowKey: string | null;
+  flowHash: number | null;
+  selectedIndex: number | null;
 }
 
 export interface BuilderStaticPathInstallResult {
@@ -105,11 +126,15 @@ interface RoutePrefix {
   broadcast: number;
 }
 
-interface OspfRouterPath {
+interface OspfRouterFirstHop {
+  nextRouterId: string;
+  linkId: string;
+}
+
+interface OspfRouterPathSet {
   reachable: boolean;
-  nodeIds: string[];
-  linkIds: string[];
   totalCost: number;
+  firstHops: OspfRouterFirstHop[];
 }
 
 function ipv4ToInt(value: string): number {
@@ -160,21 +185,11 @@ function enabledOspfSet(routing: BuilderRoutingConfig): Set<string> {
   return new Set(routing.ospf?.enabledRouterIds ?? []);
 }
 
-function ospfRouterPath(
+function ospfAdjacencyMap(
   graph: BuilderGraph,
   routing: BuilderRoutingConfig,
-  sourceRouterId: string,
-  destinationRouterId: string,
-): OspfRouterPath {
-  if (sourceRouterId === destinationRouterId) return { reachable: true, nodeIds: [sourceRouterId], linkIds: [], totalCost: 0 };
+): Map<string, Array<{ neighbor: string; linkId: string; cost: number }>> {
   const enabled = enabledOspfSet(routing);
-  if (!enabled.has(sourceRouterId) || !enabled.has(destinationRouterId)) return { reachable: false, nodeIds: [], linkIds: [], totalCost: 0 };
-
-  type Candidate = { nodeId: string; cost: number; nodePath: string[]; linkPath: string[] };
-  const best = new Map<string, Candidate>();
-  const settled = new Set<string>();
-  best.set(sourceRouterId, { nodeId: sourceRouterId, cost: 0, nodePath: [sourceRouterId], linkPath: [] });
-
   const adjacency = new Map<string, Array<{ neighbor: string; linkId: string; cost: number }>>();
   for (const routerId of enabled) adjacency.set(routerId, []);
   for (const link of graph.links) {
@@ -184,33 +199,57 @@ function ospfRouterPath(
     adjacency.get(link.b)?.push({ neighbor: link.a, linkId: link.id, cost: link.cost });
   }
   for (const neighbors of adjacency.values()) neighbors.sort((a, b) => a.neighbor.localeCompare(b.neighbor) || a.linkId.localeCompare(b.linkId));
+  return adjacency;
+}
 
-  while (settled.size < enabled.size) {
-    let current: Candidate | undefined;
-    for (const candidate of best.values()) {
-      if (settled.has(candidate.nodeId)) continue;
-      if (!current || candidate.cost < current.cost || (candidate.cost === current.cost && stablePathKey(candidate.nodePath).localeCompare(stablePathKey(current.nodePath)) < 0)) current = candidate;
+function ospfDistances(
+  adjacency: Map<string, Array<{ neighbor: string; linkId: string; cost: number }>>,
+  startRouterId: string,
+): Map<string, number> {
+  const distances = new Map<string, number>();
+  const settled = new Set<string>();
+  for (const routerId of adjacency.keys()) distances.set(routerId, Number.POSITIVE_INFINITY);
+  if (!adjacency.has(startRouterId)) return distances;
+  distances.set(startRouterId, 0);
+  while (settled.size < adjacency.size) {
+    let currentId: string | null = null;
+    let currentCost = Number.POSITIVE_INFINITY;
+    for (const [routerId, cost] of distances) {
+      if (settled.has(routerId)) continue;
+      if (cost < currentCost || (cost === currentCost && currentId !== null && routerId.localeCompare(currentId) < 0)) {
+        currentId = routerId;
+        currentCost = cost;
+      }
     }
-    if (!current) break;
-    if (current.nodeId === destinationRouterId) break;
-    settled.add(current.nodeId);
-    for (const edge of adjacency.get(current.nodeId) ?? []) {
-      if (settled.has(edge.neighbor)) continue;
-      const next: Candidate = {
-        nodeId: edge.neighbor,
-        cost: current.cost + edge.cost,
-        nodePath: [...current.nodePath, edge.neighbor],
-        linkPath: [...current.linkPath, edge.linkId],
-      };
-      const prior = best.get(edge.neighbor);
-      if (!prior || next.cost < prior.cost || (next.cost === prior.cost && stablePathKey(next.nodePath).localeCompare(stablePathKey(prior.nodePath)) < 0)) best.set(edge.neighbor, next);
+    if (currentId === null || !Number.isFinite(currentCost)) break;
+    settled.add(currentId);
+    for (const edge of adjacency.get(currentId) ?? []) {
+      const nextCost = currentCost + edge.cost;
+      if (nextCost < (distances.get(edge.neighbor) ?? Number.POSITIVE_INFINITY)) distances.set(edge.neighbor, nextCost);
     }
   }
+  return distances;
+}
 
-  const winner = best.get(destinationRouterId);
-  return winner
-    ? { reachable: true, nodeIds: winner.nodePath, linkIds: winner.linkPath, totalCost: winner.cost }
-    : { reachable: false, nodeIds: [], linkIds: [], totalCost: 0 };
+function ospfRouterFirstHops(
+  graph: BuilderGraph,
+  routing: BuilderRoutingConfig,
+  sourceRouterId: string,
+  destinationRouterId: string,
+): OspfRouterPathSet {
+  if (sourceRouterId === destinationRouterId) return { reachable: true, totalCost: 0, firstHops: [] };
+  const enabled = enabledOspfSet(routing);
+  if (!enabled.has(sourceRouterId) || !enabled.has(destinationRouterId)) return { reachable: false, totalCost: 0, firstHops: [] };
+  const adjacency = ospfAdjacencyMap(graph, routing);
+  const fromSource = ospfDistances(adjacency, sourceRouterId);
+  const toDestination = ospfDistances(adjacency, destinationRouterId);
+  const totalCost = fromSource.get(destinationRouterId) ?? Number.POSITIVE_INFINITY;
+  if (!Number.isFinite(totalCost)) return { reachable: false, totalCost: 0, firstHops: [] };
+  const firstHops = (adjacency.get(sourceRouterId) ?? [])
+    .filter((edge) => edge.cost + (toDestination.get(edge.neighbor) ?? Number.POSITIVE_INFINITY) === totalCost)
+    .map((edge) => ({ nextRouterId: edge.neighbor, linkId: edge.linkId }))
+    .sort((a, b) => a.nextRouterId.localeCompare(b.nextRouterId) || a.linkId.localeCompare(b.linkId));
+  return { reachable: firstHops.length > 0, totalCost, firstHops };
 }
 
 function remoteInterfaceForNextHop(
@@ -438,37 +477,51 @@ function ospfRouteEntriesForBuilderRouter(
 
   for (const advertisement of state.advertisements) {
     if (advertisement.routerId === routerId || directlyConnected.has(advertisement.prefix)) continue;
-    const path = ospfRouterPath(graph, routing, routerId, advertisement.routerId);
-    if (!path.reachable || path.nodeIds.length < 2 || path.linkIds.length < 1) continue;
-    const nextRouterId = path.nodeIds[1];
-    const firstLinkId = path.linkIds[0];
-    const segment = addressing.segments[firstLinkId];
-    const local = segment?.interfaces.find((entry) => entry.nodeId === routerId);
-    const remote = segment?.interfaces.find((entry) => entry.nodeId === nextRouterId);
-    if (!segment || !local || !remote) continue;
+    const paths = ospfRouterFirstHops(graph, routing, routerId, advertisement.routerId);
+    if (!paths.reachable || paths.firstHops.length === 0) continue;
     const parsed = parseRoutePrefix(advertisement.prefix);
-    candidates.push({
-      id: `ospf:${routerId}:${parsed.cidr}:${advertisement.routerId}`.replace(/\//g, ':'),
-      routerId,
-      prefix: parsed.cidr,
-      prefixLength: parsed.prefixLength,
-      source: 'ospf',
-      administrativeDistance: 110,
-      metric: path.totalCost + advertisement.metric,
-      nextHop: remote.address,
-      outgoingInterface: local.name,
-      linkId: firstLinkId,
-      active: true,
-      stateNote: `OSPF AREA 0 · ORIGIN ${nodeById(graph, advertisement.routerId)?.label ?? advertisement.routerId}`,
-    });
+    for (const firstHop of paths.firstHops) {
+      const segment = addressing.segments[firstHop.linkId];
+      const local = segment?.interfaces.find((entry) => entry.nodeId === routerId);
+      const remote = segment?.interfaces.find((entry) => entry.nodeId === firstHop.nextRouterId);
+      if (!segment || !local || !remote) continue;
+      candidates.push({
+        id: `ospf:${routerId}:${parsed.cidr}:${advertisement.routerId}:${firstHop.nextRouterId}:${firstHop.linkId}`.replace(/\//g, ':'),
+        routerId,
+        prefix: parsed.cidr,
+        prefixLength: parsed.prefixLength,
+        source: 'ospf',
+        administrativeDistance: 110,
+        metric: paths.totalCost + advertisement.metric,
+        nextHop: remote.address,
+        outgoingInterface: local.name,
+        linkId: firstHop.linkId,
+        active: true,
+        stateNote: `OSPF AREA 0 · ORIGIN ${nodeById(graph, advertisement.routerId)?.label ?? advertisement.routerId}`,
+      });
+    }
   }
 
-  const bestByPrefix = new Map<string, BuilderRouteTableEntry>();
+  const byPrefix = new Map<string, BuilderRouteTableEntry[]>();
   for (const candidate of candidates) {
-    const prior = bestByPrefix.get(candidate.prefix);
-    if (!prior || candidate.metric < prior.metric || (candidate.metric === prior.metric && candidate.id.localeCompare(prior.id) < 0)) bestByPrefix.set(candidate.prefix, candidate);
+    const list = byPrefix.get(candidate.prefix) ?? [];
+    list.push(candidate);
+    byPrefix.set(candidate.prefix, list);
   }
-  return [...bestByPrefix.values()];
+  const winners: BuilderRouteTableEntry[] = [];
+  for (const prefixCandidates of byPrefix.values()) {
+    const bestMetric = Math.min(...prefixCandidates.map((candidate) => candidate.metric));
+    const byNextHop = new Map<string, BuilderRouteTableEntry>();
+    for (const candidate of prefixCandidates.filter((entry) => entry.metric === bestMetric).sort((a, b) => a.id.localeCompare(b.id))) {
+      const key = `${candidate.nextHop ?? ''}\u0000${candidate.linkId}`;
+      if (!byNextHop.has(key)) byNextHop.set(key, candidate);
+    }
+    const equal = [...byNextHop.values()].sort((a, b) => a.id.localeCompare(b.id));
+    for (const candidate of equal) {
+      winners.push({ ...candidate, stateNote: `${candidate.stateNote}${equal.length > 1 ? ` · ECMP ${equal.length}-WAY` : ''}` });
+    }
+  }
+  return winners;
 }
 
 export function upsertBuilderStaticRoute(
@@ -553,16 +606,66 @@ export function routeTableForBuilderRouter(
     || left.id.localeCompare(right.id));
 }
 
+function compareBuilderRoutePreference(left: BuilderRouteTableEntry, right: BuilderRouteTableEntry): number {
+  return right.prefixLength - left.prefixLength
+    || left.administrativeDistance - right.administrativeDistance
+    || left.metric - right.metric
+    || left.id.localeCompare(right.id);
+}
+
+export function builderEcmpRoutesForDestination(
+  entries: readonly BuilderRouteTableEntry[],
+  destinationAddress: string,
+): BuilderRouteTableEntry[] {
+  const matches = entries.filter((entry) => entry.active && prefixContains(parseRoutePrefix(entry.prefix), destinationAddress)).sort(compareBuilderRoutePreference);
+  const best = matches[0];
+  if (!best) return [];
+  return matches
+    .filter((entry) => entry.prefix === best.prefix && entry.prefixLength === best.prefixLength && entry.administrativeDistance === best.administrativeDistance && entry.metric === best.metric)
+    .sort((left, right) => left.id.localeCompare(right.id));
+}
+
+export function builderStableFlowHash(value: string): number {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash >>> 0;
+}
+
+function canonicalBuilderFlowKey(flowKey: BuilderFlowKey | string | null | undefined, destinationAddress: string): string | null {
+  if (flowKey == null) return null;
+  if (typeof flowKey === 'string') return flowKey;
+  const protocol = String(flowKey.protocol ?? 'ip').trim().toLowerCase() || 'ip';
+  const sourceAddress = String(flowKey.sourceAddress ?? '').trim();
+  const resolvedDestination = String(flowKey.destinationAddress ?? destinationAddress).trim();
+  const sourcePort = flowKey.sourcePort == null ? '' : String(flowKey.sourcePort);
+  const destinationPort = flowKey.destinationPort == null ? '' : String(flowKey.destinationPort);
+  const discriminator = flowKey.discriminator == null ? '' : String(flowKey.discriminator);
+  return `${protocol}|${sourceAddress}|${resolvedDestination}|${sourcePort}|${destinationPort}|${discriminator}`;
+}
+
+export function selectBuilderRouteWithDecision(
+  entries: readonly BuilderRouteTableEntry[],
+  destinationAddress: string,
+  flowKey: BuilderFlowKey | string | null = null,
+): BuilderRouteSelection {
+  const candidates = builderEcmpRoutesForDestination(entries, destinationAddress);
+  if (candidates.length === 0) return { route: null, candidates: [], flowKey: null, flowHash: null, selectedIndex: null };
+  const canonical = canonicalBuilderFlowKey(flowKey, destinationAddress);
+  if (candidates.length === 1 || canonical === null) return { route: candidates[0], candidates, flowKey: canonical, flowHash: null, selectedIndex: 0 };
+  const flowHash = builderStableFlowHash(canonical);
+  const selectedIndex = flowHash % candidates.length;
+  return { route: candidates[selectedIndex], candidates, flowKey: canonical, flowHash, selectedIndex };
+}
+
 export function selectBuilderRoute(
   entries: readonly BuilderRouteTableEntry[],
   destinationAddress: string,
+  flowKey: BuilderFlowKey | string | null = null,
 ): BuilderRouteTableEntry | null {
-  const matches = entries.filter((entry) => entry.active && prefixContains(parseRoutePrefix(entry.prefix), destinationAddress));
-  return matches.sort((left, right) =>
-    right.prefixLength - left.prefixLength
-    || left.administrativeDistance - right.administrativeDistance
-    || left.metric - right.metric
-    || left.id.localeCompare(right.id))[0] ?? null;
+  return selectBuilderRouteWithDecision(entries, destinationAddress, flowKey).route;
 }
 
 function remoteNodeOnLink(graph: BuilderGraph, linkId: string, nodeId: string): string | null {
@@ -600,6 +703,7 @@ export function traceBuilderForwarding(
   sourceNodeId: string,
   destinationNodeId: string,
   ospfTopologyGraph: BuilderGraph = graph,
+  flowKey: BuilderFlowKey | string | null = null,
 ): BuilderForwardingTrace {
   const source = nodeById(graph, sourceNodeId);
   const destination = nodeById(graph, destinationNodeId);
@@ -677,7 +781,8 @@ export function traceBuilderForwarding(
     }
 
     const table = routeTableForBuilderRouter(graph, addressing, routing, currentNodeId, ospfTopologyGraph);
-    const selected = selectBuilderRoute(table, destinationAddress);
+    const selection = selectBuilderRouteWithDecision(table, destinationAddress, flowKey);
+    const selected = selection.route;
     if (!selected) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'NO MATCHING ROUTE');
     let nextNodeId: string | null = null;
     let nextHop: string | null = selected.nextHop;
@@ -695,7 +800,7 @@ export function traceBuilderForwarding(
     }
     const link = linkById(graph, selected.linkId);
     if (!link || link.failed) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'OUTGOING LINK DOWN');
-    hops.push({ nodeId: currentNodeId, nodeLabel: current.label, routeSource: selected.source, matchedPrefix: selected.prefix, nextHop, outgoingInterface: selected.outgoingInterface, linkId: selected.linkId, nextNodeId });
+    hops.push({ nodeId: currentNodeId, nodeLabel: current.label, routeSource: selected.source, matchedPrefix: selected.prefix, nextHop, outgoingInterface: selected.outgoingInterface, linkId: selected.linkId, nextNodeId, ecmpCandidateCount: selection.candidates.length, ecmpSelectedIndex: selection.selectedIndex, ecmpFlowHash: selection.flowHash, ecmpFlowKey: selection.flowKey });
     if (!nextNodeId) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'NEXT HOP HAS NO DEVICE');
     currentNodeId = nextNodeId;
   }

@@ -20,7 +20,7 @@ def replace_once(path, old, new):
 
 def regex_replace_once(path, pattern, replacement, flags=0):
     text = read(path)
-    next_text, count = re.subn(pattern, replacement, text, count=1, flags=flags)
+    next_text, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=flags)
     if count != 1:
         raise SystemExit(f'{path}: expected exactly one regex match, found {count}: {pattern[:120]!r}')
     write(path, next_text)
