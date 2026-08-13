@@ -12,8 +12,13 @@ network='src/NetworkBuilder.tsx'
 replace_once(network,"import { cloneBuilderIpv6Config, createDefaultBuilderIpv6Config, reconcileBuilderIpv6Config, traceBuilderIpv6Forwarding, type BuilderIpv6Config } from './builder/ipv6.ts';", "import { cloneBuilderIpv6Config, createDefaultBuilderIpv6Config, reconcileBuilderIpv6Config, type BuilderIpv6Config } from './builder/ipv6.ts';")
 replace_once(network,"  const ipv6ForwardingTrace = useMemo(() => traceBuilderIpv6Forwarding(graph, ipv6, sourceId, destinationId), [graph, ipv6, sourceId, destinationId]);\n", "")
 replace_once(network,"  const ipv6ForwardingLinks = new Set(ipv6ForwardingTrace.hops.flatMap((hop) => hop.linkId ? [hop.linkId] : []));\n", "")
+replace_once(network,'<div className="builder-route-table">{selectedRouteTable.length===0?', '<div className="builder-route-table builder-ipv4-route-table">{selectedRouteTable.length===0?')
 
 perf='scripts/performance-profile.mjs'
+replace_once(perf,"routeTable:document.querySelector('.builder-route-table')?.innerText??'',","routeTable:document.querySelector('.builder-ipv4-route-table')?.innerText??'',")
+replace_once(perf,"ospfRoutes:document.querySelectorAll('.builder-route-table .source-ospf').length,","ospfRoutes:document.querySelectorAll('.builder-ipv4-route-table .source-ospf').length,")
+replace_once(perf,"document.querySelectorAll('.builder-route-table .source-ospf').length > 0","document.querySelectorAll('.builder-ipv4-route-table .source-ospf').length > 0")
+replace_once(perf,"document.querySelector('.builder-route-table')?.innerText.includes('via 10.0.0.14')","document.querySelector('.builder-ipv4-route-table')?.innerText.includes('via 10.0.0.14')")
 anchor="""  await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN TO BUILDER');
   await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
 
