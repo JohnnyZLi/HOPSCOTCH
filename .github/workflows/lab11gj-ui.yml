@@ -1,0 +1,37 @@
+name: Labs 11G-J Builder UI integration
+
+on:
+  push:
+    branches:
+      - agent/lab-11g-j-arp-stp-links-acl
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: ${{ github.event.head_commit.message != 'Integrate Labs 11G-J Builder UI' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/lab-11g-j-arp-stp-links-acl
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply Builder UI integration
+        run: |
+          python3 scripts/lab11gj-ui.py
+          npm ci
+          npm run check
+      - name: Commit Builder UI integration
+        run: |
+          rm .github/workflows/lab11gj-ui.yml scripts/lab11gj-ui.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Integrate Labs 11G-J Builder UI"
+          git push origin HEAD:agent/lab-11g-j-arp-stp-links-acl
