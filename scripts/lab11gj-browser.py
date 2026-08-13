@@ -21,7 +21,17 @@ marker="  await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN 
 insertion="""  await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN TO BUILDER');
   await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
 
-  // Lab 11J: install an ordered ICMP deny on EDGE. Forwarding stays reachable while policy blocks the packet.
+  // Lab 11J: returning from Lab 02 recreates the Builder selection shell, so explicitly select EDGE again.
+  const aclEdgeSelected = await cdp.evaluate(`(()=>{
+    const node=[...document.querySelectorAll('.builder-node')].find((candidate)=>candidate.querySelector('strong')?.textContent?.trim()==='EDGE');
+    if(!node)return false;
+    node.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:1,isPrimary:true,pointerType:'mouse'}));
+    return true;
+  })()`);
+  if (!aclEdgeSelected) throw new Error(`${profile.id} could not select EDGE for ACL policy testing.`);
+  await waitForExpression(cdp, `document.querySelector('.builder-acl-section .control-title')?.innerText.includes('0 RULES')`, 8000);
+
+  // Install an ordered ICMP deny on EDGE. Forwarding stays reachable while policy blocks the packet.
   await measuredClickButton(cdp, '.builder-acl-section button', 'ADD ACL RULE');
   await waitForExpression(cdp, `document.querySelector('.builder-policy-panel')?.classList.contains('denied')`, 8000);
   const deniedPolicy = await cdp.evaluate(`(()=>({policy:document.querySelector('.builder-policy-panel')?.innerText??'',forwarding:document.querySelector('.builder-forwarding')?.innerText??'',rules:document.querySelectorAll('.builder-acl-rules>div').length}))()`);
