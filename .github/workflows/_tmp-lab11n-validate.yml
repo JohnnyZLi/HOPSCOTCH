@@ -22,9 +22,9 @@ jobs:
       - run: python3 scripts/_tmp_patch_ipv6_panel_ospfv3.py
       - run: python3 scripts/_tmp_fix_ipv6_network_order.py
       - run: python3 scripts/_tmp_patch_ipv6_network.py
-      - run: python3 scripts/_tmp_patch_ipv6_package.py
       - run: npm ci
       - run: npm run check
+      - run: node scripts/builder-ipv6-ospfv3-contract-check.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -35,4 +35,3 @@ jobs:
             src/builder/probes.ts
             src/packet/model.ts
             src/App.tsx
-            package.json
