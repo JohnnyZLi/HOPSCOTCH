@@ -45,11 +45,11 @@ assert.throws(()=>parseBuilderAllowedVlans('10,999',fabric),/existing VLAN/);
 assert.throws(()=>updateBuilderEthernetLink(fabric,'lan-a-sw1',{mode:'trunk',allowedVlans:[10]}),/Endpoint links cannot be trunks/);
 
 const scenario=createBuilderScenario('LAN persisted',defaultBuilderGraph,'client','app',defaultBuilderLayout,createDefaultBuilderAddressing(defaultBuilderGraph),createDefaultBuilderRoutingConfig(),undefined,fabric);
-assert.equal(scenario.version,7);
+assert.equal(scenario.version,8);
 const restored=deserializeBuilderScenario(serializeBuilderScenario(scenario));
 assert.deepEqual(restored.ethernet.links.find((link)=>link.id==='lan-sw1-sw2')?.allowedVlans,[10,20]);
-const legacyV5={...scenario,version:5}; delete legacyV5.ethernet; delete legacyV5.linkProfiles; delete legacyV5.acl;
+const legacyV5={...scenario,version:5}; delete legacyV5.ethernet; delete legacyV5.linkProfiles; delete legacyV5.acl; delete legacyV5.nat;
 const migrated=deserializeBuilderScenario(JSON.stringify(legacyV5));
-assert.equal(migrated.version,7); assert.equal(migrated.ethernet.devices.length,0,'legacy routed scenarios migrate without silently fabricating a LAN');
+assert.equal(migrated.version,8); assert.equal(migrated.ethernet.devices.length,0,'legacy routed scenarios migrate without silently fabricating a LAN'); assert.equal(migrated.nat.boundaries.length,0,'legacy scenarios do not silently fabricate NAT');
 
-console.log('Builder Ethernet/VLAN contract passed: access switching, VLAN-scoped learning, trunks, trunk filtering, router-on-a-stick inter-VLAN routing, TTL boundary, and explicit isolation.');
+console.log('Builder Ethernet/VLAN contract passed: access switching, VLAN-scoped learning, trunks, trunk filtering, router-on-a-stick inter-VLAN routing, TTL boundary, explicit isolation, and schema-v8 migration.');

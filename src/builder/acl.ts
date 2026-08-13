@@ -112,9 +112,10 @@ export function deleteBuilderAclRule(graph: BuilderGraph, config: BuilderAclConf
 function protocolMatches(rule: BuilderAclRule, protocol: BuilderAclProtocol): boolean { return rule.protocol==='ip' || rule.protocol===protocol; }
 function portMatches(rule: BuilderAclRule, destinationPort: number | null): boolean { return rule.destinationPort==null || rule.destinationPort===destinationPort; }
 
-function decisionForRouter(config: BuilderAclConfig, routerId: string, sourceAddress: string, destinationAddress: string, protocol: BuilderAclProtocol, destinationPort: number | null): BuilderAclDecision {
+export function evaluateBuilderAclAtRouter(config: BuilderAclConfig, routerId: string, sourceAddress: string, destinationAddress: string, protocol: BuilderAclProtocol, destinationPort: number | null): BuilderAclDecision {
+  const normalizedSource=normalizeBuilderIpv4(sourceAddress); const normalizedDestination=normalizeBuilderIpv4(destinationAddress);
   const rules=config.rules.filter((rule)=>rule.routerId===routerId).sort((a,b)=>a.order-b.order||a.id.localeCompare(b.id));
-  const match=rules.find((rule)=>protocolMatches(rule,protocol)&&portMatches(rule,destinationPort)&&contains(rule.sourcePrefix,sourceAddress)&&contains(rule.destinationPrefix,destinationAddress));
+  const match=rules.find((rule)=>protocolMatches(rule,protocol)&&portMatches(rule,destinationPort)&&contains(rule.sourcePrefix,normalizedSource)&&contains(rule.destinationPrefix,normalizedDestination));
   if(match)return{routerId,action:match.action,ruleId:match.id,ruleDescription:match.description||`${match.action.toUpperCase()} ${match.protocol.toUpperCase()} ${match.sourcePrefix} → ${match.destinationPrefix}`};
   return{routerId,action:config.defaultAction,ruleId:null,ruleDescription:`DEFAULT ${config.defaultAction.toUpperCase()}`};
 }
@@ -139,7 +140,7 @@ export function traceBuilderPolicy(
   const routerIds=[...new Set(forwarding.hops.map((hop)=>hop.nodeId).filter((id)=>graph.nodes.find((node)=>node.id===id)?.kind==='router'))];
   const decisions:BuilderAclDecision[]=[];
   for(const routerId of routerIds){
-    const decision=decisionForRouter(config,routerId,sourceAddress,destinationAddress,protocol,destinationPort); decisions.push(decision);
+    const decision=evaluateBuilderAclAtRouter(config,routerId,sourceAddress,destinationAddress,protocol,destinationPort); decisions.push(decision);
     if(decision.action==='deny')return{forwarding,permitted:false,sourceAddress,destinationAddress,protocol,destinationPort,decisions,deniedAtRouterId:routerId,explanation:`${graph.nodes.find((node)=>node.id===routerId)?.label??routerId} denied ${protocol.toUpperCase()} by ${decision.ruleId??'default policy'}: ${decision.ruleDescription}.`};
   }
   return{forwarding,permitted:true,sourceAddress,destinationAddress,protocol,destinationPort,decisions,deniedAtRouterId:null,explanation:decisions.length===0?'No router ACL boundary was crossed.':`All ${decisions.length} routed ACL boundary${decisions.length===1?'':'ies'} permitted the flow.`};
