@@ -293,8 +293,8 @@ profiles.push(
 );
 
 if (compatibility) profiles.push(
-{ id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'DERIVED FDB'] },
-{ id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20'] },
+{ id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'DERIVED FDB', 'ARP CACHE', 'STP', 'ROUTED POLICY'] },
+{ id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'ARP CACHE', 'STP', 'ROUTED POLICY'] },
 { id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', 'NOT PROMOTED TO LOCAL MEASURED'] },
   { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
   { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
@@ -398,6 +398,35 @@ async function exerciseBuilderOspf(cdp, profile) {
   if (!probe.path.includes('EDGE') || !probe.path.includes('R2') || !probe.path.includes('CORE') || !probe.path.includes('APP')) throw new Error(`${profile.id} traceroute did not consume the OSPF failover path through R2.`);
   if (probe.path.includes('R1')) throw new Error(`${profile.id} traceroute retained failed R1 in the active request path.`);
   if (probe.activeLinks < 4) throw new Error(`${profile.id} did not visually mark the traceroute forwarding path.`);
+  const probeMetrics = await cdp.evaluate(`document.querySelector('.builder-probe-metrics')?.innerText??''`);
+  if (!probeMetrics.includes('RTT MS') || !probeMetrics.includes('PATH MTU') || /—\s*RTT MS/.test(probeMetrics)) throw new Error(`${profile.id} traceroute did not expose link-derived RTT/MTU metrics.`);
+
+  // Lab 11J: evaluate policy while the OSPF failover path is still live.
+  const aclEdgeSelected = await cdp.evaluate(`(()=>{
+    const node=[...document.querySelectorAll('.builder-node')].find((candidate)=>candidate.querySelector('strong')?.textContent?.trim()==='EDGE');
+    if(!node)return false;
+    node.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:1,isPrimary:true,pointerType:'mouse'}));
+    return true;
+  })()`);
+  if (!aclEdgeSelected) throw new Error(`${profile.id} could not select EDGE for ACL policy testing.`);
+  await waitForExpression(cdp, `document.querySelector('.builder-acl-section .control-title')?.innerText.includes('0 RULES')`, 8000);
+  await measuredClickButton(cdp, '.builder-acl-section button', 'ADD ACL RULE');
+  await waitForExpression(cdp, `document.querySelector('.builder-policy-panel')?.classList.contains('denied')`, 8000);
+  const deniedPolicy = await cdp.evaluate(`(()=>({policy:document.querySelector('.builder-policy-panel')?.innerText??'',forwarding:document.querySelector('.builder-forwarding')?.innerText??'',rules:document.querySelectorAll('.builder-acl-rules>div').length}))()`);
+  if (!deniedPolicy.policy.includes('DENIED') || !deniedPolicy.forwarding.includes('EDGE → R2 → CORE') || deniedPolicy.rules !== 1) throw new Error(`${profile.id} ACL denial did not remain separate from OSPF forwarding truth.`);
+  await measuredClickButton(cdp, '.builder-probe-section button', 'PING');
+  await waitForExpression(cdp, `document.querySelector('.builder-probe-panel')?.innerText.includes('PING') && document.querySelector('.builder-probe-panel')?.classList.contains('failed')`, 8000);
+  const aclPing = await cdp.evaluate(`document.querySelector('.builder-probe-panel')?.innerText??''`);
+  if (!/ACL|POLICY|DENIED/i.test(aclPing)) throw new Error(`${profile.id} Ping did not surface ACL policy denial.`);
+  const deletedAcl = await cdp.evaluate(`(()=>{const button=document.querySelector('.builder-acl-rules button');if(!button)return false;button.click();return true})()`);
+  if (!deletedAcl) throw new Error(`${profile.id} could not remove the temporary ACL rule.`);
+  await waitForExpression(cdp, `!document.querySelector('.builder-policy-panel')?.classList.contains('denied')`, 8000);
+  await measuredClickButton(cdp, '.builder-probe-section button', 'PING');
+  await waitForExpression(cdp, `document.querySelector('.builder-probe-panel')?.innerText.includes('PING') && document.querySelector('.builder-probe-panel')?.classList.contains('success')`, 8000);
+
+  // Restore a TTL-scoped traceroute selection before jumping into Lab 02 so the cross-link contract remains stable.
+  await measuredClickButton(cdp, '.builder-probe-section button', 'TRACEROUTE');
+  await waitForExpression(cdp, `document.querySelector('.builder-probe-panel')?.innerText.includes('TRACEROUTE') && document.querySelector('.builder-probe-panel')?.innerText.includes('ECHO REPLY')`, 8000);
 
   // Cross-link one TTL-scoped probe into the actual Packet Microscope and return.
   await measuredClickButton(cdp, '.builder-probe-section button', 'OPEN ICMP PACKET');
@@ -407,7 +436,7 @@ async function exerciseBuilderOspf(cdp, profile) {
   await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN TO BUILDER');
   await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
 
-  // Labs 11E/F: first show same-VLAN switching and MAC learning.
+  // Labs 11E-H: first show ARP resolution, STP blocking, same-VLAN switching, and MAC learning.
   await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
   await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('SWITCHED · VLAN 10')`, 8000);
   const switched = await cdp.evaluate(`(()=>({
@@ -416,7 +445,13 @@ async function exerciseBuilderOspf(cdp, profile) {
     flowLinks:document.querySelectorAll('.builder-lan-canvas g.flow').length,
   }))()`);
   if (!switched.stage.includes('FLOOD THEN LEARN') || !switched.fdb.includes('SW1 · V10') || !switched.fdb.includes('SW2 · V10')) throw new Error(`${profile.id} same-VLAN flow did not expose VLAN-scoped FDB learning.`);
+  if (!switched.stage.includes('ARP REQUEST → REPLY') || !switched.stage.includes('SW1 ROOT') || !switched.stage.includes('1 BLOCKED')) throw new Error(`${profile.id} first LAN flow did not expose ARP + STP truth.`);
   if (switched.flowLinks < 3) throw new Error(`${profile.id} same-VLAN path did not highlight the LAN links.`);
+  if (await cdp.evaluate(`document.querySelectorAll('.builder-lan-canvas g.stp-blocked').length`) !== 1) throw new Error(`${profile.id} did not visually mark exactly one VLAN-10 STP blocked segment.`);
+
+  // Repeating the same flow must hit the session-only ARP cache rather than replay address resolution.
+  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
+  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('ARP CACHE HIT')`, 8000);
 
   const setSelect = async (index, value) => cdp.evaluate(`(()=>{
     const section=document.querySelector('.builder-ethernet-section');
@@ -426,12 +461,24 @@ async function exerciseBuilderOspf(cdp, profile) {
     select.dispatchEvent(new Event('change',{bubbles:true}));
     return true;
   })()`);
+  if (!(await setSelect(2, 'lan-sw1-sw2'))) throw new Error(`${profile.id} could not select the primary SW1↔SW2 trunk for STP failover.`);
+  await sleep(60);
+  await measuredClickButton(cdp, '.builder-ethernet-section button', 'FAIL LAN LINK');
+  await waitForExpression(cdp, `document.querySelector('.builder-lan-truth')?.innerText.includes('0 BLOCKED')`, 8000);
+  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
+  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('SWITCHED · VLAN 10')`, 8000);
+  const stpFailover = await cdp.evaluate(`document.querySelector('.builder-ethernet-stage')?.innerText??''`);
+  if (!stpFailover.includes('SW3') || !stpFailover.includes('PC-B')) throw new Error(`${profile.id} VLAN-10 traffic did not reconverge through SW3 after primary trunk failure.`);
+  await measuredClickButton(cdp, '.builder-ethernet-section button', 'RESTORE LAN LINK');
+  await waitForExpression(cdp, `document.querySelector('.builder-lan-truth')?.innerText.includes('1 BLOCKED')`, 8000);
+
   if (!(await setSelect(1, 'lan-c'))) throw new Error(`${profile.id} could not choose PC-C for inter-VLAN flow.`);
   await sleep(80);
   await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
   await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('ROUTED · VLAN 10 → 20')`, 8000);
   let routed = await cdp.evaluate(`document.querySelector('.builder-ethernet-stage')?.innerText??''`);
   if (!routed.includes('RTR') || !routed.includes('VLAN 20') || !routed.includes('TTL 64 → 63')) throw new Error(`${profile.id} inter-VLAN flow lost router-on-a-stick or TTL truth.`);
+  if ((routed.match(/ARP REQUEST → REPLY/g)??[]).length < 2 || !routed.includes('10.10.0.1') || !routed.includes('10.20.0.10')) throw new Error(`${profile.id} inter-VLAN flow did not resolve gateway-side and destination-side ARP independently.`);
 
   // Block VLAN 20 on the switch trunk: VLAN 20 must fail while VLAN 10 remains usable.
   if (!(await setSelect(2, 'lan-sw1-sw2'))) throw new Error(`${profile.id} could not select SW1↔SW2 trunk.`);
@@ -483,6 +530,10 @@ async function exerciseBuilderOspf(cdp, profile) {
     sameVlanSwitching: true,
     trunkIsolation: true,
     interVlanRouting: true,
+    arpResolutionAndCache: true,
+    stpBlockingAndFailover: true,
+    linkDerivedProbeMetrics: true,
+    aclPolicyIsolation: true,
   };
 }
 

@@ -79,7 +79,7 @@ assert.deepEqual(edgeOnly.ospf.enabledRouterIds, ['edge']);
 assert.equal(selectBuilderRoute(routeTableForBuilderRouter(graph, addressing, edgeOnly, 'edge'), '10.0.0.6'), null, 'one isolated OSPF router cannot learn a remote prefix');
 
 const scenario = createBuilderScenario('OSPF topology', graph, 'client', 'app', defaultBuilderLayout, addressing, ospfRouting);
-assert.equal(scenario.version, 6);
+assert.equal(scenario.version, 7);
 const restored = deserializeBuilderScenario(serializeBuilderScenario(scenario));
 assert.deepEqual(restored.routing.ospf.enabledRouterIds, ['core', 'edge', 'r1', 'r2']);
 
@@ -90,7 +90,7 @@ const legacyV4 = {
   createdAt: now, updatedAt: now,
 };
 const migratedV4 = deserializeBuilderScenario(JSON.stringify(legacyV4));
-assert.equal(migratedV4.version, 6);
+assert.equal(migratedV4.version, 7);
 assert.deepEqual(migratedV4.routing.ospf.enabledRouterIds, []);
 
-console.log('Builder OSPF contract passed: explicit Area 0 enablement, adjacencies, advertisements, deterministic SPF, automatic failure/cost reconvergence, AD precedence, forwarding, and schema-v6 persistence.');
+console.log('Builder OSPF contract passed: explicit Area 0 enablement, adjacencies, advertisements, deterministic SPF, automatic failure/cost reconvergence, AD precedence, forwarding, and schema-v7 persistence.');

@@ -445,6 +445,34 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] v1–v5 routed scenarios migrate to v6 with an empty LAN fabric rather than fabricated Layer-2 state
 - [x] permanent VLAN/trunk/inter-VLAN contract wired into `npm run check`
 
+### 11G — ARP + Layer-2/Layer-3 resolution
+- [x] same-subnet endpoints ARP for the destination while off-subnet endpoints ARP for their configured gateway
+- [x] routed inter-VLAN delivery performs independent gateway-side and destination-side ARP resolution
+- [x] ARP Request broadcast and Reply unicast follow the current VLAN + STP forwarding topology
+- [x] session-only ARP cache produces explicit cache hits and can be cleared without mutating topology
+- [x] unresolved targets, blocked paths, and unsafe STP-disabled loops fail closed
+
+### 11H — STP / Layer-2 loop control
+- [x] deterministic root-bridge election from bridge priority + MAC + stable device ID
+- [x] per-VLAN root-path tree with explicit FORWARDING/BLOCKING switch segments
+- [x] redundant VLAN-10 switch triangle demonstrates blocked links without changing VLAN-20 trunk-isolation truth
+- [x] forwarding-link failure recomputes the tree and activates the alternate trunk
+- [x] STP-disabled Layer-2 cycles are surfaced as unsafe instead of silently terminating looping broadcasts
+
+### 11I — Routed link characteristics
+- [x] routing cost remains independent from latency, jitter, bandwidth, loss, MTU, and queue capacity
+- [x] deterministic link profiles persist per routed link and reconcile with topology edits
+- [x] Ping/Traceroute report simulated RTT, jitter, bottleneck bandwidth, path MTU, and aggregate loss from actual forwarding links
+- [x] deterministic replayable loss sampling; no random/non-reproducible packet outcomes
+- [x] DF teaching probes fail explicitly when packet size exceeds path MTU; fragmentation is not fabricated
+
+### 11J — ACL / firewall policy
+- [x] ordered per-router permit/deny rules with IPv4 prefixes, protocol, and optional TCP/UDP destination port
+- [x] first-match rule semantics with explicit default action
+- [x] route reachability and policy permission stay separate truth dimensions
+- [x] ICMP probes evaluate forward and reverse policy independently, including Time Exceeded replies
+- [x] ACL configuration persists while per-flow decisions remain derived
+
 ## Performance + rendering — ongoing
 
 - [x] DOM/CSS for controls and text

@@ -1,3 +1,5 @@
+import { builderStpState, cloneBuilderStpConfig, createDefaultBuilderStpConfig, validateBuilderStpConfig, type BuilderStpConfig } from './stp.ts';
+
 export type BuilderEthernetDeviceKind = 'endpoint' | 'switch' | 'router';
 export type BuilderEthernetPortMode = 'access' | 'trunk';
 
@@ -38,6 +40,7 @@ export interface BuilderEthernetConfig {
   devices: BuilderEthernetDevice[];
   links: BuilderEthernetLink[];
   layout: Record<string, BuilderEthernetPoint>;
+  stp: BuilderStpConfig;
 }
 
 export interface BuilderEthernetFdbEntry {
@@ -85,11 +88,12 @@ export function cloneBuilderEthernetConfig(config: BuilderEthernetConfig): Build
     devices: config.devices.map((device) => ({ ...device, interfaces: device.interfaces.map(cloneInterface) })),
     links: config.links.map((link) => ({ ...link, allowedVlans: link.allowedVlans ? [...link.allowedVlans] : undefined })),
     layout: Object.fromEntries(Object.entries(config.layout).map(([id, point]) => [id, { ...point }])),
+    stp: cloneBuilderStpConfig(config.stp),
   };
 }
 
 export function createEmptyBuilderEthernetConfig(): BuilderEthernetConfig {
-  return { vlans: [], devices: [], links: [], layout: {} };
+  return { vlans: [], devices: [], links: [], layout: {}, stp: createDefaultBuilderStpConfig() };
 }
 
 export function createDefaultBuilderEthernetConfig(): BuilderEthernetConfig {
@@ -104,6 +108,7 @@ export function createDefaultBuilderEthernetConfig(): BuilderEthernetConfig {
       { id: 'lan-c', label: 'PC-C', kind: 'endpoint', mac: '02:48:4f:20:00:0c', interfaces: [{ vlanId: 20, address: '10.20.0.10', gateway: '10.20.0.1' }] },
       { id: 'lan-sw1', label: 'SW1', kind: 'switch', mac: '02:48:4f:00:01:01', interfaces: [] },
       { id: 'lan-sw2', label: 'SW2', kind: 'switch', mac: '02:48:4f:00:02:02', interfaces: [] },
+      { id: 'lan-sw3', label: 'SW3', kind: 'switch', mac: '02:48:4f:00:03:03', interfaces: [] },
       { id: 'lan-r1', label: 'RTR', kind: 'router', mac: '02:48:4f:00:fe:01', interfaces: [
         { vlanId: 10, address: '10.10.0.1' },
         { vlanId: 20, address: '10.20.0.1' },
@@ -112,14 +117,17 @@ export function createDefaultBuilderEthernetConfig(): BuilderEthernetConfig {
     links: [
       { id: 'lan-a-sw1', a: 'lan-a', b: 'lan-sw1', mode: 'access', accessVlan: 10, failed: false },
       { id: 'lan-sw1-sw2', a: 'lan-sw1', b: 'lan-sw2', mode: 'trunk', allowedVlans: [10, 20], failed: false },
+      { id: 'lan-sw1-sw3', a: 'lan-sw1', b: 'lan-sw3', mode: 'trunk', allowedVlans: [10], failed: false },
+      { id: 'lan-sw2-sw3', a: 'lan-sw2', b: 'lan-sw3', mode: 'trunk', allowedVlans: [10], failed: false },
       { id: 'lan-b-sw2', a: 'lan-b', b: 'lan-sw2', mode: 'access', accessVlan: 10, failed: false },
       { id: 'lan-c-sw2', a: 'lan-c', b: 'lan-sw2', mode: 'access', accessVlan: 20, failed: false },
       { id: 'lan-sw1-r1', a: 'lan-sw1', b: 'lan-r1', mode: 'trunk', allowedVlans: [10, 20], failed: false },
     ],
     layout: {
-      'lan-a': { x: 8, y: 18 }, 'lan-sw1': { x: 35, y: 35 }, 'lan-sw2': { x: 66, y: 35 },
-      'lan-b': { x: 92, y: 16 }, 'lan-c': { x: 92, y: 68 }, 'lan-r1': { x: 35, y: 82 },
+      'lan-a': { x: 8, y: 18 }, 'lan-sw1': { x: 35, y: 35 }, 'lan-sw2': { x: 66, y: 35 }, 'lan-sw3': { x: 58, y: 68 },
+      'lan-b': { x: 92, y: 16 }, 'lan-c': { x: 92, y: 68 }, 'lan-r1': { x: 30, y: 82 },
     },
+    stp: createDefaultBuilderStpConfig(),
   };
 }
 
@@ -183,7 +191,9 @@ export function validateBuilderEthernetConfig(input: BuilderEthernetConfig): Bui
     const point = input.layout[device.id];
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y) || point.x < 0 || point.x > 100 || point.y < 0 || point.y > 100) throw new Error(`Ethernet layout is missing ${device.id}.`);
   }
-  return cloneBuilderEthernetConfig(input);
+  const normalized = cloneBuilderEthernetConfig({ ...input, stp: cloneBuilderStpConfig(input.stp) });
+  normalized.stp = validateBuilderStpConfig(normalized, input.stp);
+  return normalized;
 }
 
 export function parseBuilderAllowedVlans(text: string, config: BuilderEthernetConfig): number[] {
@@ -201,18 +211,26 @@ export function updateBuilderEthernetLink(config: BuilderEthernetConfig, linkId:
   return validateBuilderEthernetConfig(next);
 }
 
-function linkCarriesVlan(link: BuilderEthernetLink, vlanId: number): boolean {
+function linkCarriesVlanRaw(link: BuilderEthernetLink, vlanId: number): boolean {
   if (link.failed) return false;
   return link.mode === 'access' ? link.accessVlan === vlanId : Boolean(link.allowedVlans?.includes(vlanId));
+}
+
+function linkCarriesVlan(config: BuilderEthernetConfig, link: BuilderEthernetLink, vlanId: number): boolean {
+  if (!linkCarriesVlanRaw(link, vlanId)) return false;
+  return !builderStpState(config, vlanId).blockedLinkIds.includes(link.id);
 }
 
 function deviceById(config: BuilderEthernetConfig, id: string): BuilderEthernetDevice | undefined { return config.devices.find((device) => device.id === id); }
 function interfaceFor(device: BuilderEthernetDevice | undefined, vlanId: number): BuilderEthernetInterface | undefined { return device?.interfaces.find((iface) => iface.vlanId === vlanId); }
 function neighbors(config: BuilderEthernetConfig, id: string, vlanId: number): Array<{ id: string; linkId: string }> {
-  return config.links.filter((link) => linkCarriesVlan(link,vlanId) && (link.a===id || link.b===id)).map((link) => ({ id: link.a===id?link.b:link.a, linkId:link.id })).sort((a,b)=>a.id.localeCompare(b.id));
+  return config.links.filter((link) => linkCarriesVlan(config,link,vlanId) && (link.a===id || link.b===id)).map((link) => ({ id: link.a===id?link.b:link.a, linkId:link.id })).sort((a,b)=>a.id.localeCompare(b.id));
 }
 
-function findL2Path(config: BuilderEthernetConfig, sourceId: string, destinationId: string, vlanId: number): { nodeIds: string[]; linkIds: string[] } | null {
+export function builderEthernetDeviceById(config: BuilderEthernetConfig, id: string): BuilderEthernetDevice | undefined { return deviceById(config,id); }
+export function builderEthernetInterfaceFor(device: BuilderEthernetDevice | undefined, vlanId: number): BuilderEthernetInterface | undefined { return interfaceFor(device,vlanId); }
+
+export function builderEthernetPathForVlan(config: BuilderEthernetConfig, sourceId: string, destinationId: string, vlanId: number): { nodeIds: string[]; linkIds: string[] } | null {
   if (sourceId === destinationId) return { nodeIds:[sourceId], linkIds:[] };
   const queue: Array<{id:string;nodes:string[];links:string[]}> = [{id:sourceId,nodes:[sourceId],links:[]}];
   const seen = new Set([sourceId]);
@@ -253,8 +271,13 @@ export function runBuilderEthernetFlow(configInput: BuilderEthernetConfig, sourc
   if (!sourceIf || !destinationIf) return fail(sourceId,destinationId,sourceVlan,destinationVlan,'Endpoint VLAN interfaces are incomplete.');
   const fdb = new Map<string,BuilderEthernetFdbEntry>();
 
+  const sourceStp = builderStpState(config, sourceVlan);
+  if (!sourceStp.enabled && sourceStp.loopDetected) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`STP is disabled while VLAN ${sourceVlan} contains a Layer-2 cycle. Broadcast/unknown-unicast forwarding is unsafe.`);
+  const destinationStp = builderStpState(config, destinationVlan);
+  if (!destinationStp.enabled && destinationStp.loopDetected) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`STP is disabled while VLAN ${destinationVlan} contains a Layer-2 cycle. Broadcast/unknown-unicast forwarding is unsafe.`);
+
   if (sourceVlan === destinationVlan) {
-    const path = findL2Path(config,sourceId,destinationId,sourceVlan);
+    const path = builderEthernetPathForVlan(config,sourceId,destinationId,sourceVlan);
     if (!path) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`VLAN ${sourceVlan} has no active Layer-2 path between the endpoints.`);
     const reverse = { nodeIds:[...path.nodeIds].reverse(), linkIds:[...path.linkIds].reverse() };
     learn(config,path,sourceVlan,source.mac,sourceId,fdb); learn(config,reverse,sourceVlan,destination.mac,destinationId,fdb);
@@ -268,9 +291,9 @@ export function runBuilderEthernetFlow(configInput: BuilderEthernetConfig, sourc
   const sourceRouterIf = interfaceFor(router,sourceVlan)!; const destinationRouterIf = interfaceFor(router,destinationVlan)!;
   if (sourceIf.gateway !== sourceRouterIf.address) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`${source.label} gateway ${sourceIf.gateway ?? 'NONE'} does not match ${router.label} VLAN ${sourceVlan} interface ${sourceRouterIf.address}.`);
   if (destinationIf.gateway !== destinationRouterIf.address) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`${destination.label} gateway ${destinationIf.gateway ?? 'NONE'} does not match ${router.label} VLAN ${destinationVlan} interface ${destinationRouterIf.address}.`);
-  const toGateway = findL2Path(config,sourceId,router.id,sourceVlan);
+  const toGateway = builderEthernetPathForVlan(config,sourceId,router.id,sourceVlan);
   if (!toGateway) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`VLAN ${sourceVlan} cannot reach the router trunk/access interface.`);
-  const fromRouter = findL2Path(config,router.id,destinationId,destinationVlan);
+  const fromRouter = builderEthernetPathForVlan(config,router.id,destinationId,destinationVlan);
   if (!fromRouter) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`Router can route to VLAN ${destinationVlan}, but its tagged/access Layer-2 path to ${destination.label} is blocked.`);
   learn(config,toGateway,sourceVlan,source.mac,sourceId,fdb); learn(config,{nodeIds:[...toGateway.nodeIds].reverse(),linkIds:[...toGateway.linkIds].reverse()},sourceVlan,router.mac,router.id,fdb);
   learn(config,fromRouter,destinationVlan,router.mac,router.id,fdb); learn(config,{nodeIds:[...fromRouter.nodeIds].reverse(),linkIds:[...fromRouter.linkIds].reverse()},destinationVlan,destination.mac,destinationId,fdb);
