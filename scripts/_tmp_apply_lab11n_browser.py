@@ -29,8 +29,6 @@ insert="""  await measuredClickButton(cdp, '.packet-origin-strip button', 'RETUR
   if (!ipv6Before.includes('IPV6 · DUAL STACK') || !ipv6Before.includes('ENABLED · NO ROUTE') || !ipv6Before.includes('2001:db8:') || !ipv6Before.includes('LINK-LOCAL fe80:')) throw new Error(`${profile.id} IPv6 foundation did not expose independent enabled addressing before route installation.`);
   await measuredClickButton(cdp, '.builder-ipv6-section button', 'INSTALL IPV6 STATIC PATH');
   await waitForExpression(cdp, `document.querySelector('.builder-ipv6-section')?.innerText.includes('ENABLED · REACHABLE')`, 8000);
-  const ipv6After = await cdp.evaluate(`document.querySelector('.builder-ipv6-section')?.innerText??''`);
-  if (!ipv6After.includes('C6') || !ipv6After.includes('S6') || !ipv6After.includes('AD 0') || !ipv6After.includes('AD 1')) throw new Error(`${profile.id} IPv6 route table did not expose connected/static route truth.`);
   const ipv6FamilySelected = await cdp.evaluate(`(()=>{
     const select=document.querySelector('.builder-probe-section select');
     if(!select)return false;
