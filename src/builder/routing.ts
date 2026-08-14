@@ -6,6 +6,7 @@ import {
   type BuilderInterfaceAddress,
 } from './addressing.ts';
 import { findShortestPath, type BuilderGraph } from './model.ts';
+import { builderBgpState, cloneBuilderBgpConfig, createDefaultBuilderBgpConfig, reconcileBuilderBgpConfig, validateBuilderBgpConfig, type BuilderBgpConfig, type BuilderBgpRoute } from './bgp.ts';
 import {
   BUILDER_OSPF_BACKBONE_AREA,
   builderOspfAbrRouterIds,
@@ -38,9 +39,10 @@ export interface BuilderOspfConfig {
 export interface BuilderRoutingConfig {
   staticRoutes: BuilderStaticRoute[];
   ospf: BuilderOspfConfig;
+  bgp: BuilderBgpConfig;
 }
 
-export type BuilderRouteSource = 'connected' | 'static' | 'ospf';
+export type BuilderRouteSource = 'connected' | 'static' | 'ospf' | 'bgp';
 
 export interface BuilderRouteTableEntry {
   id: string;
@@ -59,6 +61,13 @@ export interface BuilderRouteTableEntry {
   ospfAreaId?: string;
   ospfAbrRouterId?: string | null;
   ospfSummaryId?: string | null;
+  bgpLearnedVia?: 'ebgp' | 'ibgp';
+  bgpAsPath?: number[];
+  bgpLocalPref?: number;
+  bgpMed?: number;
+  bgpCommunities?: string[];
+  bgpProtocolNextHop?: string;
+  bgpPolicyAnomaly?: boolean;
 }
 
 export interface BuilderForwardingHop {
@@ -309,7 +318,7 @@ function primaryInterfaceForNode(addressing: BuilderAddressing, nodeId: string) 
 }
 
 export function createDefaultBuilderRoutingConfig(): BuilderRoutingConfig {
-  return { staticRoutes: [], ospf: { enabledRouterIds: [], linkAreas: {}, summaries: [] } };
+  return { staticRoutes: [], ospf: { enabledRouterIds: [], linkAreas: {}, summaries: [] }, bgp: createDefaultBuilderBgpConfig() };
 }
 
 export function validateBuilderRoutingConfig(
@@ -351,13 +360,15 @@ export function validateBuilderRoutingConfig(
   }
 
   const areaConfig = validateBuilderOspfAreaConfig(graph, { ...(value.ospf ?? { enabledRouterIds }), enabledRouterIds });
-  return { staticRoutes, ospf: { enabledRouterIds, linkAreas: areaConfig.linkAreas, summaries: areaConfig.summaries } };
+  const bgp = validateBuilderBgpConfig(graph, value.bgp ?? createDefaultBuilderBgpConfig());
+  return { staticRoutes, ospf: { enabledRouterIds, linkAreas: areaConfig.linkAreas, summaries: areaConfig.summaries }, bgp };
 }
 
 export function cloneBuilderRoutingConfig(value: BuilderRoutingConfig): BuilderRoutingConfig {
   return {
     staticRoutes: value.staticRoutes.map((route) => ({ ...route })),
     ospf: { enabledRouterIds: [...(value.ospf?.enabledRouterIds ?? [])], linkAreas: { ...(value.ospf?.linkAreas ?? {}) }, summaries: (value.ospf?.summaries ?? []).map((summary) => ({ ...summary })) },
+    bgp: cloneBuilderBgpConfig(value.bgp ?? createDefaultBuilderBgpConfig()),
   };
 }
 
@@ -383,7 +394,7 @@ export function reconcileBuilderRoutingConfig(
   }
   const enabledRouterIds = (current.ospf?.enabledRouterIds ?? []).filter((routerId) => nodeById(graph, routerId)?.kind === 'router');
   const areaConfig = reconcileBuilderOspfAreaConfig(graph, { ...(current.ospf ?? { enabledRouterIds }), enabledRouterIds });
-  return validateBuilderRoutingConfig(graph, addressing, { staticRoutes: [...unique.values()], ospf: { enabledRouterIds, linkAreas: areaConfig.linkAreas, summaries: areaConfig.summaries } });
+  return validateBuilderRoutingConfig(graph, addressing, { staticRoutes: [...unique.values()], ospf: { enabledRouterIds, linkAreas: areaConfig.linkAreas, summaries: areaConfig.summaries }, bgp: reconcileBuilderBgpConfig(graph, current.bgp ?? createDefaultBuilderBgpConfig()) });
 }
 
 export function setBuilderOspfRouterEnabled(
@@ -693,6 +704,33 @@ export function routeTableForBuilderRouter(
     });
   }
   entries.push(...ospfRouteEntriesForBuilderRouter(ospfTopologyGraph, addressing, routing, routerId));
+  const bgpState = builderBgpState(graph, addressing, routing.bgp ?? createDefaultBuilderBgpConfig());
+  for (const path of bgpState.bestRoutes.filter((route): route is BuilderBgpRoute & { learnedVia: 'ebgp' | 'ibgp' } => route.routerId === routerId && route.learnedVia !== 'local')) {
+    const attachment = remoteInterfaceForNextHop(graph, addressing, routerId, path.nextHopAddress);
+    const link = attachment ? linkById(graph, attachment.linkId) : null;
+    const parsed = parseRoutePrefix(path.prefix);
+    entries.push({
+      id: `fib:${path.id}`,
+      routerId,
+      prefix: parsed.cidr,
+      prefixLength: parsed.prefixLength,
+      source: 'bgp',
+      administrativeDistance: path.learnedVia === 'ebgp' ? 20 : 200,
+      metric: path.asPath.length * 1000 + path.med,
+      nextHop: path.nextHopAddress,
+      outgoingInterface: attachment?.local.name ?? '—',
+      linkId: attachment?.linkId ?? '—',
+      active: Boolean(attachment && link && !link.failed),
+      stateNote: `${path.learnedVia.toUpperCase()} · LP ${path.localPref} · AS_PATH ${path.asPath.length ? path.asPath.join(' ') : 'LOCAL'} · MED ${path.med} · BGP NEXT_HOP ${path.nextHopAddress}${path.communities.length ? ` · COMM ${path.communities.join(' ')}` : ''}${path.policyAnomaly ? ' · RELATIONSHIP LEAK' : ''}${!attachment ? ' · NEXT_HOP UNRESOLVED' : ''}`,
+      bgpLearnedVia: path.learnedVia,
+      bgpAsPath: [...path.asPath],
+      bgpLocalPref: path.localPref,
+      bgpMed: path.med,
+      bgpCommunities: [...path.communities],
+      bgpProtocolNextHop: path.nextHopAddress,
+      bgpPolicyAnomaly: path.policyAnomaly,
+    });
+  }
   return entries.sort((left, right) =>
     right.prefixLength - left.prefixLength
     || left.administrativeDistance - right.administrativeDistance
