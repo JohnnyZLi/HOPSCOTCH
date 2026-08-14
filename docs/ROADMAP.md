@@ -516,11 +516,11 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] IPv6 ACL/firewall policy with independent forward/reverse ICMPv6 evaluation
 
 ### 11O — BGP inside Network Builder
-- [ ] author routers with documentation ASNs and explicit eBGP/iBGP sessions
-- [ ] advertise/withdraw prefixes through a deterministic path-vector control plane
-- [ ] expose AS_PATH, LOCAL_PREF, MED, NEXT_HOP, communities, and best-path reasoning
-- [ ] prefix lists and route-policy controls affect import/export independently from physical reachability
-- [ ] route leaks and hijack-style teaching scenarios reuse the same policy truth as Lab 05 rather than a second BGP model
+- [x] author routers with documentation ASNs and explicit eBGP/iBGP sessions
+- [x] advertise and withdraw prefixes through a deterministic path-vector control plane
+- [x] expose `AS_PATH`, `LOCAL_PREF`, `MED`, `NEXT_HOP`, communities, and best-path reasoning
+- [x] prefix lists and route-policy controls affect import/export independently from physical reachability
+- [x] route leaks and hijack-style teaching scenarios reuse the same relationship-export policy truth as Lab 05 instead of creating a second BGP model
 - [ ] Builder BGP state can project into the Internet-scale AS view and back without changing truth
 
 ### 11P — Device CONFIG / STATE / EVENTS workspace

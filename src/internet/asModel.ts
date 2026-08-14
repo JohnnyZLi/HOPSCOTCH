@@ -46,12 +46,19 @@ export interface AsPathCandidate {
   scoreLabel: string;
 }
 
-function documentationAsns(): number[] {
-  return [
-    ...Array.from({ length: 16 }, (_, index) => 64496 + index),
-    ...Array.from({ length: 16 }, (_, index) => 65536 + index),
-  ];
+export const DOCUMENTATION_ASNS: number[] = [
+  ...Array.from({ length: 16 }, (_, index) => 64496 + index),
+  ...Array.from({ length: 16 }, (_, index) => 65536 + index),
+];
+
+export function isDocumentationAsn(asn: number): boolean { return DOCUMENTATION_ASNS.includes(Number(asn)); }
+
+export type RouteRelationship = 'local' | 'customer' | 'peer' | 'provider';
+export function relationshipExportAllowed(learnedFrom: RouteRelationship, advertiseTo: Exclude<RouteRelationship, 'local'>): boolean {
+  return learnedFrom === 'local' || learnedFrom === 'customer' || advertiseTo === 'customer';
 }
+
+function documentationAsns(): number[] { return [...DOCUMENTATION_ASNS]; }
 
 function roleFor(asn: number): AsRole {
   if (asn >= 64496 && asn <= 64499) return 'access';
