@@ -25,6 +25,31 @@ jobs:
         run: |
           node --check scripts/track-a-intermediate-patch.mjs
           node scripts/track-a-intermediate-patch.mjs
+      - name: Align control-plane transition with Lab 11M timing
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          function replaceOnce(path,before,after){
+            const text=readFileSync(path,'utf8');
+            if(!text.includes(before)) throw new Error(`Missing alignment anchor in ${path}`);
+            writeFileSync(path,text.replace(before,after));
+          }
+          replaceOnce(
+            'src/builder/canonical-events.ts',
+            "if (kind === 'ADJACENCY_DOWN') return { control: 'after' };",
+            "if (kind === 'DEAD_TIMER_EXPIRED') return { control: 'after' };",
+          );
+          replaceOnce(
+            'scripts/builder-canonical-events-contract-check.mjs',
+            "assert.equal(helloSnapshot.state,deadSnapshot.state,'dead-timer expiry alone must not allocate a duplicate scene state');\nassert.equal(failed(adjacencySnapshot.state.truthGraphs.controlGraph),true,'ADJACENCY DOWN must advance control-plane truth to the failed topology');\nassert.equal(failed(adjacencySnapshot.state.truthGraphs.ribGraph),false,'RIB must still be stale after control-plane convergence begins');",
+            "assert.equal(failed(deadSnapshot.state.truthGraphs.controlGraph),true,'DEAD TIMER EXPIRED must advance control-plane truth at the exact Lab 11M model boundary');\nassert.equal(failed(deadSnapshot.state.truthGraphs.ribGraph),false,'RIB must remain stale when the dead timer expires');\nassert.equal(deadSnapshot.state,adjacencySnapshot.state,'ADJACENCY DOWN occurs at the same model instant and should share the control-plane snapshot');\nassert.equal(failed(adjacencySnapshot.state.truthGraphs.ribGraph),false,'RIB must still be stale after the adjacency leaves FULL');",
+          );
+          replaceOnce(
+            'docs/TRACKA.md',
+            'ADJACENCY DOWN advances control-plane truth; RIB UPDATED advances route selection while the FIB is still stale;',
+            'DEAD TIMER EXPIRED advances control-plane truth and the same-instant ADJACENCY DOWN event observes that state; RIB UPDATED advances route selection while the FIB is still stale;',
+          );
+          NODE
       - run: npm ci
       - run: npm run test:builder-canonical-events-contract
       - run: npm run test:builder-timeline-contract
