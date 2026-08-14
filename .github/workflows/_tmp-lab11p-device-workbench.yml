@@ -24,6 +24,7 @@ jobs:
       - run: python3 scripts/_tmp_fix_lab11p.py
       - run: python3 scripts/_tmp_fix2_lab11p.py
       - run: python3 scripts/_tmp_fix3_lab11p.py
+      - run: python3 scripts/_tmp_fix4_lab11p.py
       - run: python3 scripts/_tmp_patch_lab11p_package.py
       - run: npm ci
       - run: npm run test:builder-device-workbench-contract
@@ -37,7 +38,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/NetworkBuilder.tsx src/BuilderDeviceWorkbench.tsx src/BuilderDeviceWorkbench.css src/builder/device-workbench.ts scripts/builder-device-workbench-contract-check.mjs package.json docs/ROADMAP.md docs/LAB11P.md
-          git rm scripts/_tmp_prepare_lab11p.py scripts/_tmp_patch_lab11p.py scripts/_tmp_fix_lab11p.py scripts/_tmp_fix2_lab11p.py scripts/_tmp_fix3_lab11p.py scripts/_tmp_patch_lab11p_package.py .github/workflows/_tmp-lab11p-device-workbench.yml
+          git add src/NetworkBuilder.tsx src/BuilderDeviceWorkbench.tsx src/BuilderDeviceWorkbench.css src/builder/device-workbench.ts scripts/builder-device-workbench-contract-check.mjs package.json config/performance-budget.json docs/ROADMAP.md docs/LAB11P.md
+          git rm scripts/_tmp_prepare_lab11p.py scripts/_tmp_patch_lab11p.py scripts/_tmp_fix_lab11p.py scripts/_tmp_fix2_lab11p.py scripts/_tmp_fix3_lab11p.py scripts/_tmp_fix4_lab11p.py scripts/_tmp_patch_lab11p_package.py .github/workflows/_tmp-lab11p-device-workbench.yml
           git commit -m 'Lab 11P: add per-device CONFIG STATE EVENTS workbench [lab11p-finalized]'
           git push origin HEAD:$BRANCH
