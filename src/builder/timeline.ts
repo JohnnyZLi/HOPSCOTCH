@@ -50,9 +50,13 @@ export interface BuilderTimelineDeviceDiff {
   stateChanges: number;
 }
 
+function cloneValue<T>(value: T): T {
+  if (typeof structuredClone === 'function') return structuredClone(value);
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 function cloneTimelineState(state: BuilderTimelineState): BuilderTimelineState {
-  if (typeof structuredClone === 'function') return structuredClone(state);
-  return JSON.parse(JSON.stringify(state)) as BuilderTimelineState;
+  return cloneValue(state);
 }
 
 function stateFromInput(input: BuilderTimelineCaptureInput): BuilderTimelineState {
@@ -68,17 +72,50 @@ export function captureBuilderTimelineSnapshot(timeline: BuilderTimeline, journa
   const lastSequence=timeline.snapshots.at(-1)?.sequence??-1;
   const uncaptured=journal.filter((event)=>event.sequence>lastSequence);
   if(uncaptured.length===0)return timeline;
-  const state=cloneTimelineState(stateFromInput(input));
-  const snapshots=uncaptured.map((event):BuilderTimelineSnapshot=>({
-    eventId:event.id,
-    sequence:event.sequence,
-    atMs:event.atMs??event.sequence*BUILDER_TIMELINE_TICK_MS,
-    category:event.category,
-    kind:event.kind??'action',
-    summary:event.summary,
-    detail:event.detail,
-    state,
-  }));
+  const finalState=cloneTimelineState(stateFromInput(input));
+  const priorState=timeline.snapshots.at(-1)?.state??null;
+  const staged=Boolean(priorState&&uncaptured.some((event)=>event.projection));
+  if(!staged){
+    const snapshots=uncaptured.map((event):BuilderTimelineSnapshot=>({
+      eventId:event.id,
+      sequence:event.sequence,
+      atMs:event.atMs??event.sequence*BUILDER_TIMELINE_TICK_MS,
+      category:event.category,
+      kind:event.kind??'action',
+      summary:event.summary,
+      detail:event.detail,
+      state:finalState,
+    }));
+    return { snapshots: [...timeline.snapshots,...snapshots].slice(-BUILDER_TIMELINE_LIMIT) };
+  }
+
+  const beforeGraph=cloneValue(priorState!.graph);
+  const afterGraph=finalState.graph;
+  let truthGraphs={controlGraph:beforeGraph,ribGraph:beforeGraph,fibGraph:beforeGraph};
+  let state:BuilderTimelineState={...finalState,graph:beforeGraph,truthGraphs};
+  const snapshots=uncaptured.map((event):BuilderTimelineSnapshot=>{
+    const projection=event.projection;
+    if(projection){
+      const nextTruth={...truthGraphs};
+      let graph=state.graph;
+      if(projection.physical==='after')graph=afterGraph;
+      if(projection.control==='after')nextTruth.controlGraph=afterGraph;
+      if(projection.rib==='after')nextTruth.ribGraph=afterGraph;
+      if(projection.fib==='after')nextTruth.fibGraph=afterGraph;
+      truthGraphs=nextTruth;
+      state={...state,graph,truthGraphs};
+    }
+    return {
+      eventId:event.id,
+      sequence:event.sequence,
+      atMs:event.atMs??event.sequence*BUILDER_TIMELINE_TICK_MS,
+      category:event.category,
+      kind:event.kind??'action',
+      summary:event.summary,
+      detail:event.detail,
+      state,
+    };
+  });
   return { snapshots: [...timeline.snapshots,...snapshots].slice(-BUILDER_TIMELINE_LIMIT) };
 }
 

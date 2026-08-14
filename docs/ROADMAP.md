@@ -541,7 +541,8 @@ The long-term target is not a browser clone of Packet Tracer or a catalog of ven
 - [x] second slice: the entire Builder scene renders from the selected immutable historical snapshot, including topology/link failures, route/forwarding overlays, LAN/STP/ARP, protocol panels, NAT/DHCP/IPv6 state, layout, and link characteristics; authoring is locked until LIVE
 - [ ] promote every Builder configuration change, control-plane transition, forwarding decision, and flow outcome into one fully time-native deterministic event timeline
   - [x] third-slice foundation: canonical model deltas emit deterministic physical/control-plane/RIB/FIB/resolution/forwarding/translation/flow events, including timed OSPF convergence and probe/L2 outcomes
-  - [ ] finish protocol-native stage coverage for DHCP transactions, complete protocol databases/counters, and per-stage historical scene projection
+  - [x] timed OSPF intermediate history projects physical, control-plane, RIB, and FIB truth independently, so stale control/route/forwarding state remains inspectable during convergence
+  - [ ] finish protocol-native stage coverage for DHCP transactions, complete protocol databases/counters, and extend per-stage historical scene projection beyond timed OSPF
 - [x] inspect every device’s historical workbench state at captured canonical Builder event timestamps
 - [ ] extend before/after diffs beyond current workbench-exposed CONFIG/STATE rows to time-native ACL counters and complete protocol databases
 - [ ] causal “why?” chains from user-visible failure back through policy, routing, resolution, topology, and configuration

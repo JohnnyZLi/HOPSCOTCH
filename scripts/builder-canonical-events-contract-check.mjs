@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createDefaultBuilderAddressing } from '../src/builder/addressing.ts';
 import { createDefaultBuilderAclConfig } from '../src/builder/acl.ts';
 import { clearBuilderArpCache, resolveBuilderEthernetFlowArp } from '../src/builder/arp.ts';
@@ -63,8 +64,39 @@ timeline=captureBuilderTimelineSnapshot(timeline,journal,{...failedState,events:
 assert.equal(timeline.snapshots.at(-1).eventId,journal.at(-1).id);
 assert.equal(timeline.snapshots.at(-1).atMs,journal.at(-1).atMs);
 assert.equal(timeline.snapshots.filter((snapshot)=>snapshot.sequence>0).length,journal.filter((event)=>event.sequence>0).length,'one capture pass must expose every canonical event');
-const stateRefs=new Set(timeline.snapshots.slice(1).map((snapshot)=>snapshot.state));
-assert.equal(stateRefs.size,1,'events captured from one committed Builder action should share one immutable state snapshot');
+const failed=(candidate)=>candidate.links.find((link)=>link.id==='edge-r1')?.failed===true;
+const actionSnapshot=timeline.snapshots.find((snapshot)=>snapshot.eventId===action.id);
+const linkDownSnapshot=timeline.snapshots.find((snapshot)=>snapshot.summary==='OSPF · LINK DOWN');
+const helloSnapshot=timeline.snapshots.find((snapshot)=>snapshot.summary==='OSPF · HELLO MISSED');
+const deadSnapshot=timeline.snapshots.find((snapshot)=>snapshot.summary==='OSPF · DEAD TIMER EXPIRED');
+const adjacencySnapshot=timeline.snapshots.find((snapshot)=>snapshot.summary==='OSPF · ADJACENCY DOWN');
+const ribSnapshot=timeline.snapshots.find((snapshot)=>snapshot.summary==='OSPF · RIB UPDATED');
+const fibSnapshot=timeline.snapshots.find((snapshot)=>snapshot.summary==='OSPF · FIB UPDATED');
+assert.ok(actionSnapshot&&linkDownSnapshot&&helloSnapshot&&deadSnapshot&&adjacencySnapshot&&ribSnapshot&&fibSnapshot);
+assert.equal(failed(actionSnapshot.state.graph),false,'root action is inspectable before the physical transition is applied');
+assert.equal(failed(linkDownSnapshot.state.graph),true,'physical link failure must project immediately at LINK DOWN');
+assert.ok(linkDownSnapshot.state.truthGraphs,'timed convergence snapshots must carry independent truth graphs');
+assert.equal(failed(linkDownSnapshot.state.truthGraphs.controlGraph),false,'OSPF control plane must remain stale immediately after carrier loss');
+assert.equal(failed(linkDownSnapshot.state.truthGraphs.ribGraph),false,'RIB must remain stale immediately after carrier loss');
+assert.equal(failed(linkDownSnapshot.state.truthGraphs.fibGraph),false,'FIB must remain stale immediately after carrier loss');
+assert.equal(linkDownSnapshot.state,helloSnapshot.state,'events without a truth transition should continue sharing the same immutable scene state');
+assert.equal(dead.atMs,40000+action.atMs,'dead timer remains at the canonical Lab 11M boundary');
+const adjacency=journal.find((event)=>event.summary==='OSPF · ADJACENCY DOWN');
+assert.ok(adjacency);
+assert.equal(adjacency.atMs,dead.atMs,'dead expiry and adjacency down occur at the same model instant');
+assert.ok(dead.sequence<adjacency.sequence,'same-time canonical events must preserve Lab 11M emission order instead of sorting lexically by key');
+assert.equal(failed(deadSnapshot.state.truthGraphs.controlGraph),true,'DEAD TIMER EXPIRED must advance control-plane truth at the exact Lab 11M model boundary');
+assert.equal(failed(deadSnapshot.state.truthGraphs.ribGraph),false,'RIB must remain stale when the dead timer expires');
+assert.equal(deadSnapshot.state,adjacencySnapshot.state,'ADJACENCY DOWN occurs at the same model instant and should share the control-plane snapshot');
+assert.equal(failed(adjacencySnapshot.state.truthGraphs.ribGraph),false,'RIB must still be stale after the adjacency leaves FULL');
+assert.equal(failed(ribSnapshot.state.truthGraphs.ribGraph),true,'RIB UPDATED must advance route-selection truth');
+assert.equal(failed(ribSnapshot.state.truthGraphs.fibGraph),false,'FIB must remain stale until its own install event');
+assert.equal(failed(fibSnapshot.state.truthGraphs.fibGraph),true,'FIB UPDATED must advance forwarding truth');
+
+const builderSource=readFileSync(new URL('../src/NetworkBuilder.tsx',import.meta.url),'utf8');
+assert.match(builderSource,/sceneState\.truthGraphs\?\.controlGraph \?\? sceneGraph/);
+assert.match(builderSource,/routeTableForBuilderRouter\(sceneRibGraph/);
+assert.match(builderSource,/traceBuilderForwarding\(sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId, sceneFibGraph\)/);
 
 const probe=runBuilderProbe(graph,addressing,routing,'ping','client','app',1,base.linkProfiles,base.acl,base.nat,[]);
 const probeAction=appendBuilderWorkbenchMessageEvent(createBuilderWorkbenchEventJournal(),'PING · '+probe.summary,[{plane:'routed',id:'client'},{plane:'routed',id:'app'}]).at(-1);
@@ -82,4 +114,4 @@ assert.ok(lanSpecs.some((entry)=>entry.kind==='resolution'&&entry.category==='ne
 assert.ok(lanSpecs.some((entry)=>entry.kind==='forwarding'&&entry.category==='switching'),'LAN flow must emit L2 forwarding truth');
 assert.ok(lanSpecs.some((entry)=>entry.kind==='flow'&&entry.category==='switching'),'LAN flow must emit terminal outcome truth');
 
-console.log('Builder canonical-event contract passed: action events expand from canonical model deltas into deterministic physical/control-plane/RIB/FIB/resolution/forwarding/translation/flow events, preserve model timing, causal links, and bounded shared-state timeline capture.');
+console.log('Builder canonical-event contract passed: canonical model events preserve timing and causality while timed OSPF history independently projects physical, control-plane, RIB, and FIB truth with bounded structural sharing.');

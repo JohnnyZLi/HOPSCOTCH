@@ -164,6 +164,9 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const isHistorical = historicalTimelineSnapshot != null;
   const sceneState = historicalTimelineSnapshot?.state ?? liveTimelineInput;
   const sceneGraph = sceneState.graph;
+  const sceneControlGraph = sceneState.truthGraphs?.controlGraph ?? sceneGraph;
+  const sceneRibGraph = sceneState.truthGraphs?.ribGraph ?? sceneGraph;
+  const sceneFibGraph = sceneState.truthGraphs?.fibGraph ?? sceneGraph;
   const sceneAddressing = sceneState.addressing;
   const sceneRouting = sceneState.routing;
   const sceneIpv6 = sceneState.ipv6;
@@ -194,15 +197,15 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const sceneRenderState = { ...sceneState, selectedNodeId: sceneSelectedNodeId, selectedLinkId: sceneSelectedLinkId, ethernetSourceId: sceneEthernetSourceId, ethernetDestinationId: sceneEthernetDestinationId, selectedEthernetLinkId: sceneSelectedEthernetLinkId };
 
   const route = useMemo(() => findShortestPath(sceneGraph, sceneSourceId, sceneDestinationId), [sceneGraph, sceneSourceId, sceneDestinationId]);
-  const forwardingTrace = useMemo(() => traceBuilderForwarding(sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId), [sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId]);
-  const policyTrace = useMemo(() => traceBuilderPolicy(sceneGraph, sceneAddressing, sceneRouting, sceneAcl, sceneSourceId, sceneDestinationId, 'icmp'), [sceneGraph, sceneAddressing, sceneRouting, sceneAcl, sceneSourceId, sceneDestinationId]);
-  const ospfState = useMemo(() => builderOspfState(sceneGraph, sceneAddressing, sceneRouting), [sceneGraph, sceneAddressing, sceneRouting]);
+  const forwardingTrace = useMemo(() => traceBuilderForwarding(sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId, sceneFibGraph), [sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId, sceneFibGraph]);
+  const policyTrace = useMemo(() => traceBuilderPolicy(sceneGraph, sceneAddressing, sceneRouting, sceneAcl, sceneSourceId, sceneDestinationId, 'icmp', null, null, sceneFibGraph), [sceneGraph, sceneAddressing, sceneRouting, sceneAcl, sceneSourceId, sceneDestinationId, sceneFibGraph]);
+  const ospfState = useMemo(() => builderOspfState(sceneControlGraph, sceneAddressing, sceneRouting), [sceneControlGraph, sceneAddressing, sceneRouting]);
   const selectedLink = sceneGraph.links.find((link) => link.id === sceneSelectedLinkId) ?? sceneGraph.links[0];
   const selectedLinkProfile = selectedLink ? sceneLinkProfiles[selectedLink.id] : undefined;
   const selectedNode = sceneGraph.nodes.find((node) => node.id === sceneSelectedNodeId) ?? sceneGraph.nodes[0];
   const selectedSegment = selectedLink ? sceneAddressing.segments[selectedLink.id] : undefined;
   const selectedNodeInterfaces = selectedNode ? interfacesForBuilderNode(sceneAddressing, selectedNode.id) : [];
-  const selectedRouteTable = selectedNode?.kind === 'router' ? routeTableForBuilderRouter(sceneGraph, sceneAddressing, sceneRouting, selectedNode.id) : [];
+  const selectedRouteTable = selectedNode?.kind === 'router' ? routeTableForBuilderRouter(sceneRibGraph, sceneAddressing, sceneRouting, selectedNode.id) : [];
   const selectedOspfEnabled = Boolean(selectedNode?.kind === 'router' && sceneRouting.ospf.enabledRouterIds.includes(selectedNode.id));
   const selectedOspfAdjacencies = selectedNode?.kind === 'router' ? ospfState.adjacencies.filter((adjacency) => adjacency.aRouterId === selectedNode.id || adjacency.bRouterId === selectedNode.id) : [];
   const selectedOspfComponent = selectedNode?.kind === 'router' ? ospfState.components.find((component) => component.includes(selectedNode.id)) : undefined;

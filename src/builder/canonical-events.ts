@@ -8,6 +8,7 @@ import type {
   BuilderWorkbenchEvent,
   BuilderWorkbenchEventCategory,
   BuilderWorkbenchEventKind,
+  BuilderWorkbenchEventProjection,
   BuilderWorkbenchEventSpec,
 } from './device-workbench.ts';
 
@@ -41,8 +42,9 @@ function spec(
   deviceRefs: BuilderDeviceRef[] = [],
   objectIds: string[] = [],
   causeKey?: string | null,
+  projection?: BuilderWorkbenchEventProjection,
 ): BuilderWorkbenchEventSpec {
-  return { key, kind, category, summary, detail, offsetMs, deviceRefs, objectIds, causeKey };
+  return { key, kind, category, summary, detail, offsetMs, deviceRefs, objectIds, causeKey, projection };
 }
 
 function ospfEventKind(kind: BuilderOspfConvergenceEventKind): BuilderWorkbenchEventKind {
@@ -51,6 +53,14 @@ function ospfEventKind(kind: BuilderOspfConvergenceEventKind): BuilderWorkbenchE
   if (kind === 'FIB_UPDATED') return 'fib';
   if (kind === 'TRAFFIC_RECOVERED') return 'flow';
   return 'control-plane';
+}
+
+function ospfProjection(kind: BuilderOspfConvergenceEventKind): BuilderWorkbenchEventProjection | undefined {
+  if (kind === 'LINK_DOWN') return { physical: 'after' };
+  if (kind === 'DEAD_TIMER_EXPIRED') return { control: 'after' };
+  if (kind === 'RIB_UPDATED') return { rib: 'after' };
+  if (kind === 'FIB_UPDATED') return { fib: 'after' };
+  return undefined;
 }
 
 function activeRouteFingerprint(state: BuilderTimelineState, routerId: string): string {
@@ -201,6 +211,7 @@ function deriveOspfEvents(before: BuilderTimelineState, after: BuilderTimelineSt
           routedRefs(prior.a, prior.b, before.sourceId, before.destinationId),
           [prior.id, event.kind],
           previousKey,
+          ospfProjection(event.kind),
         ));
         previousKey = key;
       }
@@ -463,8 +474,10 @@ export function deriveBuilderCanonicalEventSpecs(
   deriveIpv6Events(before, after, output);
   deriveProbeEvents(before, after, output);
 
-  return output
-    .filter((entry, index, all) => all.findIndex((candidate) => candidate.key === entry.key) === index)
-    .sort((a, b) => (a.offsetMs ?? 0) - (b.offsetMs ?? 0) || (a.key ?? '').localeCompare(b.key ?? ''))
-    .slice(0, 120);
+  const unique = output.filter((entry, index, all) => all.findIndex((candidate) => candidate.key === entry.key) === index);
+  return unique
+    .map((entry,index)=>({entry,index}))
+    .sort((a,b)=>(a.entry.offsetMs??0)-(b.entry.offsetMs??0)||a.index-b.index)
+    .map(({entry})=>entry)
+    .slice(0,120);
 }
