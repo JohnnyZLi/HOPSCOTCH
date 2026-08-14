@@ -474,22 +474,22 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] ACL configuration persists while per-flow decisions remain derived
 
 ### 11K — NAT / PAT
-- [ ] static one-to-one NAT and dynamic PAT use explicit inside/outside interfaces
-- [ ] deterministic translation table records original and translated address/port tuples
-- [ ] outbound flows create state; unsolicited inbound flows fail without a matching mapping or static rule
-- [ ] static port forwarding and translation expiration are visible without conflating NAT state with firewall policy
-- [ ] ACL decisions are evaluated at documented pre/post-translation boundaries
-- [ ] probes and application flows can explain whether failure is routing, policy, or translation state
-- [ ] NAT configuration persists while active translation entries remain derived/session state
+- [x] static one-to-one NAT and dynamic PAT use explicit inside/outside interfaces
+- [x] deterministic translation table records original and translated address/port tuples
+- [x] outbound flows create state; unsolicited inbound flows fail without a matching mapping or static rule
+- [x] static port forwarding and translation expiration are visible without conflating NAT state with firewall policy
+- [x] ACL decisions are evaluated at documented pre/post-translation boundaries
+- [x] probes and application flows can explain whether failure is routing, policy, or translation state
+- [x] NAT configuration persists while active translation entries remain derived/session state
 
 ### 11L — DHCP + host bootstrap
-- [ ] endpoints can begin without an IPv4 lease instead of requiring preconfigured addresses
-- [ ] deterministic DISCOVER → OFFER → REQUEST → ACK exchange with transaction/lease state
-- [ ] configurable pools, subnet mask, default gateway, and DNS options
-- [ ] renewal/rebinding and lease expiration
-- [ ] pool exhaustion and invalid/missing option failure states
-- [ ] DHCP relay across routed boundaries without pretending broadcasts cross routers directly
-- [ ] acquired host configuration feeds the same ARP/routing/application models used by statically configured endpoints
+- [x] endpoints can begin without an IPv4 lease instead of requiring preconfigured addresses
+- [x] deterministic DISCOVER → OFFER → REQUEST → ACK exchange with transaction/lease state
+- [x] configurable pools, subnet mask, default gateway, and DNS options
+- [x] renewal/rebinding and lease expiration
+- [x] pool exhaustion and invalid/missing option failure states
+- [x] DHCP relay across routed boundaries without pretending broadcasts cross routers directly
+- [x] acquired host configuration feeds the same ARP/routing/application models used by statically configured endpoints
 
 ### 11M — OSPF depth + real convergence timing
 - [x] explicit Hello/dead timers and adjacency lifecycle rather than instantaneous neighbor loss
@@ -529,16 +529,18 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] STATE covers ARP/ND, FDB, RIB/FIB, OSPF neighbors/LSDB, BGP RIBs, NAT translations, and DHCP leases
 - [x] EVENTS answers what changed, when it changed, and which upstream event caused the change
 - [x] route, packet, adjacency, FDB, and policy objects expose a deterministic “why?” chain
-- [ ] state can be inspected at historical timestamps once Builder-wide time travel exists
+- [x] state can be inspected at historical Builder event timestamps through the canonical time-machine snapshot journal
 
 ## Long-term product roadmap — visual causal debugger
 
 The long-term target is not a browser clone of Packet Tracer or a catalog of vendor commands. HOPSCOTCH should let a user build a network, run real simulated traffic through the canonical model, break any layer, and inspect exactly why the observed behavior follows from configuration and state.
 
 ### Track A — Builder-wide time machine + causal troubleshooting
-- [ ] promote Builder configuration changes, control-plane transitions, forwarding decisions, and flow outcomes into one scrub-able deterministic event timeline
-- [ ] inspect every device’s historical state at any timestamp
-- [ ] before/after state diffs for route tables, FIB, ARP/ND, FDB, STP, ACL counters, NAT state, DHCP leases, and routing databases
+- [x] first slice: immutable Builder snapshots are captured after canonical session events on a deterministic logical event clock, with scrub / step / replay / LIVE controls
+- [x] first slice: the device workbench can inspect historical CONFIG / STATE / EVENTS and deterministic per-device before/after diffs without mutating live truth
+- [ ] promote every Builder configuration change, control-plane transition, forwarding decision, and flow outcome into one fully time-native deterministic event timeline
+- [x] inspect every device’s historical workbench state at captured canonical Builder event timestamps
+- [ ] extend before/after diffs beyond current workbench-exposed CONFIG/STATE rows to time-native ACL counters and complete protocol databases
 - [ ] causal “why?” chains from user-visible failure back through policy, routing, resolution, topology, and configuration
 - [ ] preserve independent truth dimensions such as physical reachability, L2 forwarding, next-hop resolution, route selection, policy permission, translation state, transport state, and application state
 - [ ] never collapse a failure into generic “network down” when the model knows the actual boundary
