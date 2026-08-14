@@ -1,0 +1,50 @@
+name: Track A DHCP lifecycle patch
+
+on:
+  push:
+    branches:
+      - agent/track-a-canonical-event-timeline
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/track-a-canonical-event-timeline
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply DHCP lifecycle patch
+        run: |
+          node --check scripts/track-a-dhcp-lifecycle-patch.mjs
+          node scripts/track-a-dhcp-lifecycle-patch.mjs
+      - name: Install dependencies
+        run: npm ci
+      - name: Canonical event contract
+        run: npm run test:builder-canonical-events-contract
+      - name: DHCP model contract
+        run: npm run test:builder-dhcp-contract
+      - name: Builder timeline contract
+        run: npm run test:builder-timeline-contract
+      - name: Full project check
+        run: npm run check
+      - name: Performance contract
+        run: npm run performance:check
+      - name: Chrome compatibility
+        run: npm run compatibility:chrome
+      - name: Commit implementation
+        run: |
+          rm scripts/track-a-dhcp-lifecycle-patch.mjs
+          rm .github/workflows/track-a-dhcp-lifecycle-patch.yml
+          git add src/builder/device-workbench.ts src/builder/timeline.ts src/BuilderDhcpPanel.tsx src/NetworkBuilder.tsx src/builder/canonical-events.ts scripts/builder-canonical-events-contract-check.mjs docs/ROADMAP.md docs/TRACKA.md scripts/track-a-dhcp-lifecycle-patch.mjs .github/workflows/track-a-dhcp-lifecycle-patch.yml
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Track A: make DHCP lifecycle time-native"
+          git push origin HEAD:agent/track-a-canonical-event-timeline
