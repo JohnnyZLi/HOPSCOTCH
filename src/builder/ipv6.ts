@@ -6,7 +6,7 @@ export interface BuilderIpv6InterfaceAddress {
   name: string;
   globalAddress: string;
   linkLocalAddress: string;
-  addressOrigin: 'manual' | 'slaac';
+  addressOrigin: 'manual' | 'slaac' | 'dhcpv6';
 }
 
 export interface BuilderIpv6SegmentAddressing {
@@ -324,7 +324,7 @@ export function validateBuilderIpv6Addressing(graph: BuilderGraph, ipv4: Builder
       if (!isLinkLocal(linkLocalAddress)) throw new Error(`${entry.nodeId} link-local IPv6 address ${linkLocalAddress} must be within fe80::/10.`);
       const priorGlobal = globalOwners.get(globalAddress); if (priorGlobal) throw new Error(`IPv6 global address ${globalAddress} is already assigned to ${priorGlobal}.`); globalOwners.set(globalAddress, `${entry.nodeId} ${entry.name}`);
       const priorLinkLocal = linkLocalOwners.get(linkLocalAddress); if (priorLinkLocal) throw new Error(`Builder link-local address ${linkLocalAddress} is already assigned to ${priorLinkLocal}; this bounded model keeps them globally unique for unambiguous scoped next hops.`); linkLocalOwners.set(linkLocalAddress, `${entry.nodeId} ${entry.name}`);
-      return { nodeId: entry.nodeId, name: expectedName, globalAddress, linkLocalAddress, addressOrigin: entry.addressOrigin === 'slaac' ? 'slaac' : 'manual' };
+      return { nodeId: entry.nodeId, name: expectedName, globalAddress, linkLocalAddress, addressOrigin: entry.addressOrigin === 'slaac' ? 'slaac' : entry.addressOrigin === 'dhcpv6' ? 'dhcpv6' : 'manual' };
     }) as [BuilderIpv6InterfaceAddress, BuilderIpv6InterfaceAddress];
     segments[link.id] = { linkId: link.id, prefix: parsedPrefix.cidr, interfaces };
   }
@@ -426,7 +426,7 @@ export function reconcileBuilderIpv6Config(graph: BuilderGraph, ipv4: BuilderAdd
     const existing = addressing.segments[link.id];
     const endpointsMatch = existing && new Set(existing.interfaces.map((entry) => entry.nodeId)).size === 2 && existing.interfaces.every((entry) => entry.nodeId === link.a || entry.nodeId === link.b);
     if (!endpointsMatch) addressing.segments[link.id] = makeSegment(ipv4, addressing, link);
-    else addressing.segments[link.id] = { ...existing, interfaces: existing.interfaces.map((entry) => ({ ...entry, name: ipv4InterfaceName(ipv4, link.id, entry.nodeId), addressOrigin: entry.addressOrigin === 'slaac' ? 'slaac' : 'manual' })) as [BuilderIpv6InterfaceAddress, BuilderIpv6InterfaceAddress] };
+    else addressing.segments[link.id] = { ...existing, interfaces: existing.interfaces.map((entry) => ({ ...entry, name: ipv4InterfaceName(ipv4, link.id, entry.nodeId), addressOrigin: entry.addressOrigin === 'slaac' ? 'slaac' : entry.addressOrigin === 'dhcpv6' ? 'dhcpv6' : 'manual' })) as [BuilderIpv6InterfaceAddress, BuilderIpv6InterfaceAddress] };
   }
   for (const endpoint of graph.nodes.filter((node) => node.kind === 'endpoint')) {
     const prior = current.addressing.defaultGateways[endpoint.id] ?? null;
