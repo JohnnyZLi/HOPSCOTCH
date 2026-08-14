@@ -1,0 +1,86 @@
+name: Temp UI Audit
+
+on:
+  push:
+    branches:
+      - agent/lab-11p-device-workbench
+    paths:
+      - .github/workflows/_tmp-ui-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Start production preview
+        run: |
+          nohup npm exec vite preview -- --host 127.0.0.1 --port 4173 > /tmp/hopscotch-preview.log 2>&1 &
+          for i in {1..50}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 0.2
+          done
+          cat /tmp/hopscotch-preview.log
+          exit 1
+      - name: Capture route audit
+        shell: bash
+        run: |
+          cat > /tmp/ui-audit.mjs <<'NODE'
+          import { spawn, spawnSync } from 'node:child_process';
+          import { mkdirSync, writeFileSync } from 'node:fs';
+          import { join } from 'node:path';
+
+          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+          const which = (name) => { const r=spawnSync('which',[name],{encoding:'utf8'}); return r.status===0?r.stdout.trim():null; };
+          const chromePath = which('google-chrome-stable') || which('google-chrome') || which('chromium') || which('chromium-browser');
+          if (!chromePath) throw new Error('Chrome/Chromium not found');
+          const port=9333;
+          const chrome=spawn(chromePath,['--headless=new','--no-sandbox','--disable-dev-shm-usage','--no-first-run','--disable-background-networking','--disable-extensions','--disable-sync','--mute-audio',`--remote-debugging-port=${port}`,'--remote-debugging-address=127.0.0.1','--remote-allow-origins=*','about:blank'],{stdio:['ignore','ignore','pipe']});
+          let stderr=''; chrome.stderr.setEncoding('utf8'); chrome.stderr.on('data',d=>stderr=(stderr+d).slice(-12000));
+          let version;
+          for(let i=0;i<80;i++){ try{ const r=await fetch(`http://127.0.0.1:${port}/json/version`); if(r.ok){version=await r.json();break;} }catch{} await sleep(100); }
+          if(!version) throw new Error(`Chrome CDP not ready: ${stderr}`);
+          const tabs=await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+          const pageTarget=tabs.find(t=>t.type==='page'); if(!pageTarget) throw new Error('No page target');
+
+          class CDP {
+            constructor(url){this.ws=new WebSocket(url);this.id=0;this.pending=new Map();this.events=[];this.ready=new Promise((res,rej)=>{this.ws.addEventListener('open',res,{once:true});this.ws.addEventListener('error',()=>rej(new Error('CDP websocket failed')),{once:true});});this.ws.addEventListener('message',async m=>{const raw=typeof m.data==='string'?m.data:Buffer.from(await m.data.arrayBuffer()).toString('utf8');const p=JSON.parse(raw);if(p.id!==undefined){const q=this.pending.get(p.id);if(!q)return;this.pending.delete(p.id);p.error?q.reject(new Error(`${q.method}: ${p.error.message}`)):q.resolve(p.result||{});}else this.events.push(p);});}
+            async call(method,params={}){await this.ready;const id=++this.id;const promise=new Promise((resolve,reject)=>this.pending.set(id,{resolve,reject,method}));this.ws.send(JSON.stringify({id,method,params}));return promise;}
+            async eval(expression){const r=await this.call('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(r.exceptionDetails)throw new Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text||'eval failed');return r.result?.value;}
+          }
+          const c=new CDP(pageTarget.webSocketDebuggerUrl); await c.ready; await c.call('Page.enable'); await c.call('Runtime.enable');
+          const out='artifacts/ui-audit'; mkdirSync(out,{recursive:true});
+          const routes={overview:'/',journey:'/journey',failure:'/labs/failure',builder:'/labs/builder',packet:'/labs/packet',tcp:'/labs/tcp',dns:'/labs/dns',tls:'/labs/tls',http:'/labs/http2-vs-http3',internet:'/internet/as-routing',physical:'/internet/physical',observed:'/internet/observed',measured:'/measured'};
+          const viewports={desktop:[1440,1000],tablet:[1024,768],mobile:[390,844]};
+          const report={commit:process.env.GITHUB_SHA,chrome:version.Browser,results:{}};
+          for(const [vp,[width,height]] of Object.entries(viewports)){
+            await c.call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:vp==='mobile'});
+            await c.call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+            for(const [name,path] of Object.entries(routes)){
+              c.events.length=0;
+              await c.call('Page.navigate',{url:`http://127.0.0.1:4173${path}`});
+              await sleep(1000);
+              const metrics=await c.eval(`(()=>{const vw=innerWidth,vh=innerHeight;const visible=e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&r.width>0&&r.height>0};const all=[...document.querySelectorAll('body *')];const desc=e=>{const r=e.getBoundingClientRect();return{tag:e.tagName,cls:String(e.className||'').slice(0,100),text:String(e.innerText||e.getAttribute('aria-label')||'').trim().replace(/\\s+/g,' ').slice(0,120),left:Math.round(r.left),right:Math.round(r.right),top:Math.round(r.top),bottom:Math.round(r.bottom),w:Math.round(r.width),h:Math.round(r.height)}};const overflow=all.filter(visible).map(desc).filter(x=>x.left<-2||x.right>vw+2).slice(0,80);const tiny=[...document.querySelectorAll('button,a,input,select,textarea,[role=button]')].filter(visible).map(desc).filter(x=>x.w<32||x.h<32).slice(0,80);const unnamed=[...document.querySelectorAll('button,a,[role=button]')].filter(visible).filter(e=>!(e.innerText||e.getAttribute('aria-label')||e.getAttribute('title'))).map(desc).slice(0,50);const unlabeled=[...document.querySelectorAll('input,select,textarea')].filter(visible).filter(e=>{if(e.getAttribute('aria-label')||e.getAttribute('aria-labelledby')||e.getAttribute('title'))return false;if(e.id&&document.querySelector('label[for="'+CSS.escape(e.id)+'"]'))return false;if(e.closest('label'))return false;return true}).map(desc).slice(0,80);const clipped=all.filter(visible).filter(e=>{const s=getComputedStyle(e);return((e.scrollWidth-e.clientWidth>3)&&!['visible','auto','scroll'].includes(s.overflowX))||((e.scrollHeight-e.clientHeight>3)&&!['visible','auto','scroll'].includes(s.overflowY))}).map(desc).slice(0,80);return{url:location.pathname,title:document.title,vw,vh,docW:document.documentElement.scrollWidth,docH:document.documentElement.scrollHeight,overflow,tiny,unnamed,unlabeled,clipped,buttons:document.querySelectorAll('button').length,inputs:document.querySelectorAll('input,select,textarea').length,headings:[...document.querySelectorAll('h1,h2,h3')].filter(visible).map(e=>({tag:e.tagName,text:String(e.innerText||'').trim().replace(/\\s+/g,' ').slice(0,140)})).slice(0,40)}})()`);
+              const lm=await c.call('Page.getLayoutMetrics'); const size=lm.cssContentSize||lm.contentSize; const capH=Math.max(height,Math.min(Math.ceil(size.height),14000)); const capW=Math.max(width,Math.min(Math.ceil(size.width),2000));
+              const shot=await c.call('Page.captureScreenshot',{format:'png',fromSurface:true,captureBeyondViewport:true,clip:{x:0,y:0,width:capW,height:capH,scale:1}}); writeFileSync(join(out,`${vp}-${name}.png`),Buffer.from(shot.data,'base64'));
+              report.results[`${vp}:${name}`]={...metrics,contentW:size.width,contentH:size.height};
+            }
+          }
+          writeFileSync(join(out,'report.json'),JSON.stringify(report,null,2));
+          chrome.kill('SIGKILL');
+          console.log('UI audit captured',Object.keys(report.results).length,'route/viewport combinations');
+          NODE
+          node /tmp/ui-audit.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-ui-audit
+          path: artifacts/ui-audit
+          retention-days: 3
