@@ -22,6 +22,16 @@ jobs:
           cache: npm
       - name: Apply DHCP lifecycle patch
         run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/track-a-dhcp-lifecycle-patch.mjs')
+          text = path.read_text()
+          stale = "DHCP is the next protocol family with native intermediate state. A successful acquisition is replayed through the existing deterministic Builder DHCP model from the pre-action snapshot and expanded into separate DISCOVER, OFFER, REQUEST, and ACK events. DISCOVER/OFFER/REQUEST retain the pre-lease state; ACK is the explicit lease and deterministic-sequence boundary, so effective host IPv4/gateway/DNS state cannot appear before the server ACK. Renewal/rebinding transactions use the same model replay path when their committed lease matches canonical truth. Historical DHCP inspection renders the selected timeline stage instead of leaking the live panel's last-transaction card into the past."
+          current = "DHCP is now the second protocol family with native intermediate history. A successful acquisition replays the existing deterministic DHCP model from the pre-action snapshot and emits DISCOVER → OFFER → REQUEST → ACK as separate causal events, including the canonical local/relay path. DISCOVER/OFFER/REQUEST share the pre-lease state; ACK alone advances the lease table and deterministic DHCP sequence, so the DHCP panel and Device Workbench do not show an address before the ACK boundary. Renewal/rebinding uses the same replay path when a deterministic changed lease matches the existing model."
+          if stale not in text:
+              raise SystemExit('stale TRACKA patch anchor missing from helper')
+          path.write_text(text.replace(stale, current))
+          PY
           node --check scripts/track-a-dhcp-lifecycle-patch.mjs
           node scripts/track-a-dhcp-lifecycle-patch.mjs
       - name: Install dependencies
