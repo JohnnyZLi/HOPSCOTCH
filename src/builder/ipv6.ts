@@ -6,6 +6,7 @@ export interface BuilderIpv6InterfaceAddress {
   name: string;
   globalAddress: string;
   linkLocalAddress: string;
+  addressOrigin: 'manual' | 'slaac';
 }
 
 export interface BuilderIpv6SegmentAddressing {
@@ -38,10 +39,21 @@ export interface BuilderIpv6RoutingConfig {
   staticRoutes: BuilderIpv6StaticRoute[];
 }
 
+export interface BuilderIpv6AutoconfigConfig {
+  raEnabledRouterIds: string[];
+  slaacEndpointIds: string[];
+}
+
+export interface BuilderOspfv3Config {
+  enabledRouterIds: string[];
+}
+
 export interface BuilderIpv6Config {
   enabled: boolean;
   addressing: BuilderIpv6Addressing;
   routing: BuilderIpv6RoutingConfig;
+  autoconfig: BuilderIpv6AutoconfigConfig;
+  ospfv3: BuilderOspfv3Config;
 }
 
 export interface BuilderIpv6Cidr {
@@ -58,8 +70,8 @@ export interface BuilderIpv6RouteTableEntry {
   routerId: string;
   prefix: string;
   prefixLength: number;
-  source: 'connected' | 'static';
-  administrativeDistance: 0 | 1;
+  source: 'connected' | 'static' | 'ospfv3';
+  administrativeDistance: 0 | 1 | 110;
   metric: number;
   nextHop: string | null;
   outgoingInterface: string;
@@ -81,7 +93,7 @@ export interface BuilderIpv6NextHopOption {
 export interface BuilderIpv6ForwardingHop {
   nodeId: string;
   nodeLabel: string;
-  routeSource: 'endpoint-local' | 'default-router' | 'connected' | 'static';
+  routeSource: 'endpoint-local' | 'default-router' | 'connected' | 'static' | 'ospfv3';
   matchedPrefix: string | null;
   nextHop: string | null;
   outgoingInterface: string | null;
@@ -253,8 +265,8 @@ function makeSegment(ipv4: BuilderAddressing, addressing: BuilderIpv6Addressing,
     linkId: link.id,
     prefix,
     interfaces: [
-      { nodeId: link.a, name: ipv4InterfaceName(ipv4, link.id, link.a), globalAddress: addressInPrefix(prefix, 1n), linkLocalAddress: linkLocalFor(segmentNumber, 1) },
-      { nodeId: link.b, name: ipv4InterfaceName(ipv4, link.id, link.b), globalAddress: addressInPrefix(prefix, 2n), linkLocalAddress: linkLocalFor(segmentNumber, 2) },
+      { nodeId: link.a, name: ipv4InterfaceName(ipv4, link.id, link.a), globalAddress: addressInPrefix(prefix, 1n), linkLocalAddress: linkLocalFor(segmentNumber, 1), addressOrigin: 'manual' },
+      { nodeId: link.b, name: ipv4InterfaceName(ipv4, link.id, link.b), globalAddress: addressInPrefix(prefix, 2n), linkLocalAddress: linkLocalFor(segmentNumber, 2), addressOrigin: 'manual' },
     ],
   };
 }
@@ -268,7 +280,7 @@ export function cloneBuilderIpv6Addressing(value: BuilderIpv6Addressing): Builde
 }
 
 export function cloneBuilderIpv6Config(value: BuilderIpv6Config): BuilderIpv6Config {
-  return { enabled: value.enabled, addressing: cloneBuilderIpv6Addressing(value.addressing), routing: { staticRoutes: value.routing.staticRoutes.map((route) => ({ ...route })) } };
+  return { enabled: value.enabled, addressing: cloneBuilderIpv6Addressing(value.addressing), routing: { staticRoutes: value.routing.staticRoutes.map((route) => ({ ...route })) }, autoconfig: { raEnabledRouterIds: [...value.autoconfig.raEnabledRouterIds], slaacEndpointIds: [...value.autoconfig.slaacEndpointIds] }, ospfv3: { enabledRouterIds: [...value.ospfv3.enabledRouterIds] } };
 }
 
 function preferredDefaultGateway(graph: BuilderGraph, addressing: BuilderIpv6Addressing, endpointId: string): BuilderIpv6DefaultGateway | null {
@@ -312,7 +324,7 @@ export function validateBuilderIpv6Addressing(graph: BuilderGraph, ipv4: Builder
       if (!isLinkLocal(linkLocalAddress)) throw new Error(`${entry.nodeId} link-local IPv6 address ${linkLocalAddress} must be within fe80::/10.`);
       const priorGlobal = globalOwners.get(globalAddress); if (priorGlobal) throw new Error(`IPv6 global address ${globalAddress} is already assigned to ${priorGlobal}.`); globalOwners.set(globalAddress, `${entry.nodeId} ${entry.name}`);
       const priorLinkLocal = linkLocalOwners.get(linkLocalAddress); if (priorLinkLocal) throw new Error(`Builder link-local address ${linkLocalAddress} is already assigned to ${priorLinkLocal}; this bounded model keeps them globally unique for unambiguous scoped next hops.`); linkLocalOwners.set(linkLocalAddress, `${entry.nodeId} ${entry.name}`);
-      return { nodeId: entry.nodeId, name: expectedName, globalAddress, linkLocalAddress };
+      return { nodeId: entry.nodeId, name: expectedName, globalAddress, linkLocalAddress, addressOrigin: entry.addressOrigin === 'slaac' ? 'slaac' : 'manual' };
     }) as [BuilderIpv6InterfaceAddress, BuilderIpv6InterfaceAddress];
     segments[link.id] = { linkId: link.id, prefix: parsedPrefix.cidr, interfaces };
   }
@@ -357,10 +369,33 @@ function validateStaticRoutes(graph: BuilderGraph, addressing: BuilderIpv6Addres
   }).sort((a, b) => a.routerId.localeCompare(b.routerId) || a.prefix.localeCompare(b.prefix) || a.id.localeCompare(b.id));
 }
 
+function validateIpv6Autoconfig(graph: BuilderGraph, value: Partial<BuilderIpv6AutoconfigConfig> | undefined): BuilderIpv6AutoconfigConfig {
+  const routers = new Set(graph.nodes.filter((node) => node.kind === 'router').map((node) => node.id));
+  const endpoints = new Set(graph.nodes.filter((node) => node.kind === 'endpoint').map((node) => node.id));
+  const raEnabledRouterIds = [...new Set(value?.raEnabledRouterIds ?? [])].sort();
+  const slaacEndpointIds = [...new Set(value?.slaacEndpointIds ?? [])].sort();
+  if (raEnabledRouterIds.some((id) => !routers.has(id))) throw new Error('IPv6 RA enablement can reference routers only.');
+  if (slaacEndpointIds.some((id) => !endpoints.has(id))) throw new Error('IPv6 SLAAC state can reference endpoints only.');
+  return { raEnabledRouterIds, slaacEndpointIds };
+}
+
+function validateOspfv3Config(graph: BuilderGraph, value: Partial<BuilderOspfv3Config> | undefined): BuilderOspfv3Config {
+  const routers = new Set(graph.nodes.filter((node) => node.kind === 'router').map((node) => node.id));
+  const enabledRouterIds = [...new Set(value?.enabledRouterIds ?? [])].sort();
+  if (enabledRouterIds.some((id) => !routers.has(id))) throw new Error('OSPFv3 enablement can reference routers only.');
+  return { enabledRouterIds };
+}
+
 export function validateBuilderIpv6Config(graph: BuilderGraph, ipv4: BuilderAddressing, value: BuilderIpv6Config): BuilderIpv6Config {
   if (!value || typeof value !== 'object') throw new Error('Builder IPv6 config is invalid.');
   const addressing = validateBuilderIpv6Addressing(graph, ipv4, value.addressing);
-  return { enabled: value.enabled === true, addressing, routing: { staticRoutes: validateStaticRoutes(graph, addressing, value.routing?.staticRoutes ?? []) } };
+  return {
+    enabled: value.enabled === true,
+    addressing,
+    routing: { staticRoutes: validateStaticRoutes(graph, addressing, value.routing?.staticRoutes ?? []) },
+    autoconfig: validateIpv6Autoconfig(graph, value.autoconfig),
+    ospfv3: validateOspfv3Config(graph, value.ospfv3),
+  };
 }
 
 function baseAddressing(graph: BuilderGraph, ipv4: BuilderAddressing): BuilderIpv6Addressing {
@@ -374,7 +409,7 @@ function baseAddressing(graph: BuilderGraph, ipv4: BuilderAddressing): BuilderIp
 }
 
 export function createDefaultBuilderIpv6Config(graph: BuilderGraph, ipv4: BuilderAddressing, enabled = true): BuilderIpv6Config {
-  return { enabled, addressing: baseAddressing(graph, ipv4), routing: { staticRoutes: [] } };
+  return { enabled, addressing: baseAddressing(graph, ipv4), routing: { staticRoutes: [] }, autoconfig: { raEnabledRouterIds: graph.nodes.filter((node) => node.kind === 'router').map((node) => node.id).sort(), slaacEndpointIds: [] }, ospfv3: { enabledRouterIds: [] } };
 }
 
 export function createEmptyBuilderIpv6Config(graph: BuilderGraph, ipv4: BuilderAddressing): BuilderIpv6Config {
@@ -391,7 +426,7 @@ export function reconcileBuilderIpv6Config(graph: BuilderGraph, ipv4: BuilderAdd
     const existing = addressing.segments[link.id];
     const endpointsMatch = existing && new Set(existing.interfaces.map((entry) => entry.nodeId)).size === 2 && existing.interfaces.every((entry) => entry.nodeId === link.a || entry.nodeId === link.b);
     if (!endpointsMatch) addressing.segments[link.id] = makeSegment(ipv4, addressing, link);
-    else addressing.segments[link.id] = { ...existing, interfaces: existing.interfaces.map((entry) => ({ ...entry, name: ipv4InterfaceName(ipv4, link.id, entry.nodeId) })) as [BuilderIpv6InterfaceAddress, BuilderIpv6InterfaceAddress] };
+    else addressing.segments[link.id] = { ...existing, interfaces: existing.interfaces.map((entry) => ({ ...entry, name: ipv4InterfaceName(ipv4, link.id, entry.nodeId), addressOrigin: entry.addressOrigin === 'slaac' ? 'slaac' : 'manual' })) as [BuilderIpv6InterfaceAddress, BuilderIpv6InterfaceAddress] };
   }
   for (const endpoint of graph.nodes.filter((node) => node.kind === 'endpoint')) {
     const prior = current.addressing.defaultGateways[endpoint.id] ?? null;
@@ -400,7 +435,7 @@ export function reconcileBuilderIpv6Config(graph: BuilderGraph, ipv4: BuilderAdd
     catch { addressing.defaultGateways[endpoint.id] = preferredDefaultGateway(graph, addressing, endpoint.id); }
   }
   addressing = validateBuilderIpv6Addressing(graph, ipv4, addressing);
-  const provisional = { enabled: current.enabled, addressing, routing: { staticRoutes: current.routing.staticRoutes.filter((route) => nodeById(graph, route.routerId)?.kind === 'router' && linkIds.has(route.linkId)) } };
+  const provisional = { enabled: current.enabled, addressing, routing: { staticRoutes: current.routing.staticRoutes.filter((route) => nodeById(graph, route.routerId)?.kind === 'router' && linkIds.has(route.linkId)) }, autoconfig: { raEnabledRouterIds: current.autoconfig.raEnabledRouterIds.filter((id) => nodeById(graph, id)?.kind === 'router'), slaacEndpointIds: current.autoconfig.slaacEndpointIds.filter((id) => nodeById(graph, id)?.kind === 'endpoint') }, ospfv3: { enabledRouterIds: current.ospfv3.enabledRouterIds.filter((id) => nodeById(graph, id)?.kind === 'router') } };
   try { return validateBuilderIpv6Config(graph, ipv4, provisional); }
   catch {
     const staticRoutes = provisional.routing.staticRoutes.filter((route) => {
@@ -416,6 +451,66 @@ export function interfacesForBuilderNodeIpv6(addressing: BuilderIpv6Addressing, 
 
 export function primaryBuilderIpv6Address(addressing: BuilderIpv6Addressing, nodeId: string): string | null {
   return interfacesForBuilderNodeIpv6(addressing, nodeId)[0]?.globalAddress ?? null;
+}
+
+export function builderIpv6SolicitedNodeMulticast(address: string): string {
+  const low24 = parseIpv6AddressValue(address) & 0xffffffn;
+  return formatIpv6Value(parseIpv6AddressValue('ff02::1:ff00:0') | low24);
+}
+
+export function builderIpv6SolicitedNodeMulticastMac(address: string): string {
+  const low24 = Number(parseIpv6AddressValue(address) & 0xffffffn);
+  return [0x33, 0x33, 0xff, (low24 >>> 16) & 0xff, (low24 >>> 8) & 0xff, low24 & 0xff].map((byte) => byte.toString(16).padStart(2, '0')).join(':');
+}
+
+function stableSlaacInterfaceId(endpointId: string, linkId: string): bigint {
+  const text = `${endpointId}:${linkId}:slaac`;
+  let hash = 0xcbf29ce484222325n;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= BigInt(text.charCodeAt(index));
+    hash = (hash * 0x100000001b3n) & 0xffffffffffffffffn;
+  }
+  hash = (hash & 0xfdffffffffffffffn) | 0x0200000000000000n;
+  return hash === 0n || hash === 1n || hash === 2n ? hash + 0x100n : hash;
+}
+
+export function setBuilderIpv6RaRouterEnabled(graph: BuilderGraph, ipv4: BuilderAddressing, config: BuilderIpv6Config, routerId: string, enabled: boolean): BuilderIpv6Config {
+  if (nodeById(graph, routerId)?.kind !== 'router') throw new Error(`${routerId} is not a router.`);
+  const next = cloneBuilderIpv6Config(config);
+  next.autoconfig.raEnabledRouterIds = enabled ? [...new Set([...next.autoconfig.raEnabledRouterIds, routerId])].sort() : next.autoconfig.raEnabledRouterIds.filter((id) => id !== routerId);
+  return validateBuilderIpv6Config(graph, ipv4, next);
+}
+
+export function applyBuilderIpv6Slaac(graph: BuilderGraph, ipv4: BuilderAddressing, config: BuilderIpv6Config, endpointId: string, routerId: string, linkId: string): BuilderIpv6Config {
+  if (!config.enabled) throw new Error('Enable IPv6 before running SLAAC.');
+  if (nodeById(graph, endpointId)?.kind !== 'endpoint') throw new Error(`${endpointId} is not an endpoint.`);
+  if (nodeById(graph, routerId)?.kind !== 'router') throw new Error(`${routerId} is not a router.`);
+  if (!config.autoconfig.raEnabledRouterIds.includes(routerId)) throw new Error(`${routerId} is not sending Router Advertisements.`);
+  const link = linkById(graph, linkId);
+  if (!link || link.failed || ![link.a, link.b].includes(endpointId) || ![link.a, link.b].includes(routerId)) throw new Error(`${endpointId} and ${routerId} must share a live link.`);
+  const next = cloneBuilderIpv6Config(config);
+  const segment = next.addressing.segments[linkId];
+  const endpointInterface = segment?.interfaces.find((entry) => entry.nodeId === endpointId);
+  const routerInterface = segment?.interfaces.find((entry) => entry.nodeId === routerId);
+  if (!segment || !endpointInterface || !routerInterface) throw new Error('SLAAC requires endpoint and router IPv6 interfaces on the same /64.');
+  endpointInterface.globalAddress = addressInPrefix(segment.prefix, stableSlaacInterfaceId(endpointId, linkId));
+  endpointInterface.addressOrigin = 'slaac';
+  next.addressing.defaultGateways[endpointId] = { address: routerInterface.linkLocalAddress, linkId };
+  next.autoconfig.slaacEndpointIds = [...new Set([...next.autoconfig.slaacEndpointIds, endpointId])].sort();
+  return validateBuilderIpv6Config(graph, ipv4, next);
+}
+
+export function setBuilderOspfv3RouterEnabled(graph: BuilderGraph, ipv4: BuilderAddressing, config: BuilderIpv6Config, routerId: string, enabled: boolean): BuilderIpv6Config {
+  if (nodeById(graph, routerId)?.kind !== 'router') throw new Error(`${routerId} is not a router.`);
+  const next = cloneBuilderIpv6Config(config);
+  next.ospfv3.enabledRouterIds = enabled ? [...new Set([...next.ospfv3.enabledRouterIds, routerId])].sort() : next.ospfv3.enabledRouterIds.filter((id) => id !== routerId);
+  return validateBuilderIpv6Config(graph, ipv4, next);
+}
+
+export function setBuilderOspfv3Everywhere(graph: BuilderGraph, ipv4: BuilderAddressing, config: BuilderIpv6Config, enabled: boolean): BuilderIpv6Config {
+  const next = cloneBuilderIpv6Config(config);
+  next.ospfv3.enabledRouterIds = enabled ? graph.nodes.filter((node) => node.kind === 'router').map((node) => node.id).sort() : [];
+  return validateBuilderIpv6Config(graph, ipv4, next);
 }
 
 export function replaceBuilderIpv6DefaultGateway(graph: BuilderGraph, ipv4: BuilderAddressing, config: BuilderIpv6Config, nodeId: string, gateway: BuilderIpv6DefaultGateway | null): BuilderIpv6Config {
@@ -452,6 +547,59 @@ export function clearBuilderIpv6StaticRoutes(graph: BuilderGraph, ipv4: BuilderA
   return validateBuilderIpv6Config(graph, ipv4, { ...cloneBuilderIpv6Config(config), routing: { staticRoutes: [] } });
 }
 
+export interface BuilderOspfv3Adjacency {
+  id: string;
+  aRouterId: string;
+  bRouterId: string;
+  linkId: string;
+  state: 'FULL' | 'DOWN';
+  cost: number;
+  reason: string;
+}
+
+export interface BuilderOspfv3Advertisement { routerId: string; prefix: string; linkId: string; }
+export interface BuilderOspfv3State { enabledRouterIds: string[]; adjacencies: BuilderOspfv3Adjacency[]; advertisements: BuilderOspfv3Advertisement[]; fullAdjacencyCount: number; }
+
+export function builderOspfv3State(graph: BuilderGraph, config: BuilderIpv6Config): BuilderOspfv3State {
+  const enabled = new Set(config.enabled ? config.ospfv3.enabledRouterIds : []);
+  const adjacencies = graph.links.flatMap((link): BuilderOspfv3Adjacency[] => {
+    if (nodeById(graph, link.a)?.kind !== 'router' || nodeById(graph, link.b)?.kind !== 'router' || !enabled.has(link.a) || !enabled.has(link.b)) return [];
+    return [{ id: `ospfv3:${link.id}`, aRouterId: link.a, bRouterId: link.b, linkId: link.id, state: link.failed ? 'DOWN' : 'FULL', cost: link.cost, reason: link.failed ? 'LINK DOWN' : 'LINK-LOCAL HELLO + DATABASE SYNC' }];
+  }).sort((a, b) => a.linkId.localeCompare(b.linkId));
+  const advertisements = [...enabled].flatMap((routerId) => interfacesForBuilderNodeIpv6(config.addressing, routerId).map((entry) => ({ routerId, prefix: entry.prefix, linkId: entry.linkId }))).sort((a, b) => a.routerId.localeCompare(b.routerId) || a.prefix.localeCompare(b.prefix));
+  return { enabledRouterIds: [...enabled].sort(), adjacencies, advertisements, fullAdjacencyCount: adjacencies.filter((entry) => entry.state === 'FULL').length };
+}
+
+function ospfv3RoutesForRouter(graph: BuilderGraph, config: BuilderIpv6Config, routerId: string): BuilderIpv6RouteTableEntry[] {
+  const state = builderOspfv3State(graph, config);
+  if (!state.enabledRouterIds.includes(routerId)) return [];
+  const enabled = new Set(state.enabledRouterIds);
+  const ospfGraph: BuilderGraph = {
+    nodes: graph.nodes.filter((node) => node.kind === 'router' && enabled.has(node.id)),
+    links: graph.links.filter((link) => !link.failed && enabled.has(link.a) && enabled.has(link.b) && nodeById(graph, link.a)?.kind === 'router' && nodeById(graph, link.b)?.kind === 'router'),
+  };
+  const localPrefixes = new Set(interfacesForBuilderNodeIpv6(config.addressing, routerId).map((entry) => entry.prefix));
+  const best = new Map<string, BuilderIpv6RouteTableEntry>();
+  for (const advertisement of state.advertisements) {
+    if (advertisement.routerId === routerId || localPrefixes.has(advertisement.prefix)) continue;
+    const path = findShortestPath(ospfGraph, routerId, advertisement.routerId);
+    if (!path.reachable || path.nodeIds.length < 2 || path.linkIds.length < 1 || path.totalCost == null) continue;
+    const firstLinkId = path.linkIds[0];
+    const nextRouterId = path.nodeIds[1];
+    const nextHop = config.addressing.segments[firstLinkId]?.interfaces.find((entry) => entry.nodeId === nextRouterId)?.linkLocalAddress;
+    const local = config.addressing.segments[firstLinkId]?.interfaces.find((entry) => entry.nodeId === routerId);
+    if (!nextHop || !local) continue;
+    const advertisedLink = linkById(graph, advertisement.linkId);
+    const otherNodeId = advertisedLink ? (advertisedLink.a === advertisement.routerId ? advertisedLink.b : advertisedLink.a) : null;
+    const stubCost = otherNodeId && nodeById(graph, otherNodeId)?.kind === 'endpoint' ? advertisedLink?.cost ?? 0 : 0;
+    const parsed = parseBuilderIpv6Cidr(advertisement.prefix);
+    const candidate: BuilderIpv6RouteTableEntry = { id: `ospfv3-route:${routerId}:${parsed.cidr}:${nextRouterId}`, routerId, prefix: parsed.cidr, prefixLength: parsed.prefixLength, source: 'ospfv3', administrativeDistance: 110, metric: path.totalCost + stubCost, nextHop, outgoingInterface: local.name, linkId: firstLinkId, active: true, stateNote: `OSPFV3 AREA 0 · ADV ${advertisement.routerId.toUpperCase()}` };
+    const prior = best.get(candidate.prefix);
+    if (!prior || candidate.metric < prior.metric || (candidate.metric === prior.metric && (candidate.nextHop ?? '') < (prior.nextHop ?? ''))) best.set(candidate.prefix, candidate);
+  }
+  return [...best.values()];
+}
+
 export function routeTableForBuilderIpv6Router(graph: BuilderGraph, config: BuilderIpv6Config, routerId: string): BuilderIpv6RouteTableEntry[] {
   if (!config.enabled || nodeById(graph, routerId)?.kind !== 'router') return [];
   const connected: BuilderIpv6RouteTableEntry[] = interfacesForBuilderNodeIpv6(config.addressing, routerId).map((entry) => {
@@ -465,7 +613,8 @@ export function routeTableForBuilderIpv6Router(graph: BuilderGraph, config: Buil
     const local = config.addressing.segments[route.linkId]?.interfaces.find((entry) => entry.nodeId === routerId);
     return { id: route.id, routerId, prefix: parsed.cidr, prefixLength: parsed.prefixLength, source: 'static', administrativeDistance: 1, metric: route.metric, nextHop: route.nextHop, outgoingInterface: local?.name ?? '—', linkId: route.linkId, active, stateNote: active ? (route.description || 'STATIC IPV6') : 'NEXT-HOP LINK DOWN' };
   });
-  return [...connected, ...statics].sort((a, b) => b.prefixLength - a.prefixLength || a.administrativeDistance - b.administrativeDistance || a.metric - b.metric || a.id.localeCompare(b.id));
+  const ospfv3 = ospfv3RoutesForRouter(graph, config, routerId);
+  return [...connected, ...statics, ...ospfv3].sort((a, b) => b.prefixLength - a.prefixLength || a.administrativeDistance - b.administrativeDistance || a.metric - b.metric || a.id.localeCompare(b.id));
 }
 
 export function selectBuilderIpv6Route(entries: readonly BuilderIpv6RouteTableEntry[], destinationAddress: string): BuilderIpv6RouteTableEntry | null {
@@ -529,7 +678,7 @@ export function traceBuilderIpv6Forwarding(graph: BuilderGraph, config: BuilderI
     if (!link || link.failed) return failure(graph, sourceNodeId, destinationNodeId, sourceAddress, destinationAddress, hops, currentNodeId, `Selected IPv6 route uses failed link ${selected.linkId}.`);
     let nextNodeId: string | null = null;
     let nextHop: string | null = selected.nextHop;
-    if (selected.source === 'static') {
+    if (selected.source === 'static' || selected.source === 'ospfv3') {
       const owner = selected.nextHop ? ownerOfAddress(config.addressing, selected.nextHop) : null;
       if (!owner || owner.linkId !== selected.linkId) return failure(graph, sourceNodeId, destinationNodeId, sourceAddress, destinationAddress, hops, currentNodeId, `Static IPv6 next hop ${selected.nextHop} cannot be resolved on ${selected.linkId}.`);
       nextNodeId = owner.nodeId;

@@ -6,8 +6,8 @@ import { createDefaultBuilderAclConfig, traceBuilderPolicy, type BuilderAclConfi
 import { createEmptyBuilderNatConfig, runBuilderNatInboundFlow, runBuilderNatOutboundFlow, runBuilderNatRelatedIcmpInbound, type BuilderNatConfig, type BuilderNatFlowResult, type BuilderNatSessionTable } from './nat.ts';
 
 export type BuilderProbeKind = 'ping' | 'traceroute';
-export type BuilderProbeStatus = 'echo-reply' | 'time-exceeded' | 'timeout' | 'unreachable';
-export interface BuilderProbePacketSeed { id:string; label:string; family:'ipv4'|'ipv6'; sourceAddress:string; destinationAddress:string; sourceMac:string; destinationMac:string; ttl:number; }
+export type BuilderProbeStatus = 'echo-reply' | 'time-exceeded' | 'packet-too-big' | 'timeout' | 'unreachable';
+export interface BuilderProbePacketSeed { id:string; label:string; family:'ipv4'|'ipv6'; sourceAddress:string; destinationAddress:string; sourceMac:string; destinationMac:string; ttl:number; icmpType?:number; icmpCode?:number; icmpMtu?:number; payloadBytes?:number; }
 export interface BuilderProbeAttempt {
   index:number; ttl:number; status:BuilderProbeStatus; responderNodeId:string|null; responderAddress:string|null;
   requestNodeIds:string[]; requestLinkIds:string[]; responseNodeIds:string[]; responseLinkIds:string[]; detail:string; packet:BuilderProbePacketSeed|null;
