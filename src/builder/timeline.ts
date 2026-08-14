@@ -1,9 +1,18 @@
 import { buildBuilderDeviceWorkbench, type BuilderDeviceRef, type BuilderDeviceWorkbenchInput, type BuilderDeviceWorkbenchSnapshot, type BuilderWorkbenchEventJournal, type BuilderWorkbenchRow } from './device-workbench.ts';
+import type { BuilderIpv6LifecycleState } from './ipv6-lifecycle.ts';
+import type { BuilderLinkProfiles } from './link-characteristics.ts';
+import type { BuilderLayout } from './model.ts';
 
 export const BUILDER_TIMELINE_TICK_MS = 1000;
 export const BUILDER_TIMELINE_LIMIT = 160;
 
-export type BuilderTimelineState = Omit<BuilderDeviceWorkbenchInput, 'events'>;
+export type BuilderTimelineState = Omit<BuilderDeviceWorkbenchInput, 'events'> & {
+  layout: BuilderLayout;
+  linkProfiles: BuilderLinkProfiles;
+  ipv6LifecycleState: BuilderIpv6LifecycleState;
+};
+
+export type BuilderTimelineCaptureInput = BuilderDeviceWorkbenchInput & Pick<BuilderTimelineState, 'layout' | 'linkProfiles' | 'ipv6LifecycleState'>;
 
 export interface BuilderTimelineSnapshot {
   eventId: string;
@@ -45,7 +54,7 @@ function cloneTimelineState(state: BuilderTimelineState): BuilderTimelineState {
   return JSON.parse(JSON.stringify(state)) as BuilderTimelineState;
 }
 
-function stateFromInput(input: BuilderDeviceWorkbenchInput): BuilderTimelineState {
+function stateFromInput(input: BuilderTimelineCaptureInput): BuilderTimelineState {
   const { events: _events, ...state } = input;
   return state;
 }
@@ -54,7 +63,7 @@ export function createBuilderTimeline(): BuilderTimeline {
   return { snapshots: [] };
 }
 
-export function captureBuilderTimelineSnapshot(timeline: BuilderTimeline, journal: BuilderWorkbenchEventJournal, input: BuilderDeviceWorkbenchInput): BuilderTimeline {
+export function captureBuilderTimelineSnapshot(timeline: BuilderTimeline, journal: BuilderWorkbenchEventJournal, input: BuilderTimelineCaptureInput): BuilderTimeline {
   const event = journal.at(-1);
   if (!event) return timeline;
   if (timeline.snapshots.some((snapshot) => snapshot.eventId === event.id)) return timeline;
