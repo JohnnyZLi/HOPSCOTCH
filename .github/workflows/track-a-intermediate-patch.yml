@@ -25,7 +25,7 @@ jobs:
         run: |
           node --check scripts/track-a-intermediate-patch.mjs
           node scripts/track-a-intermediate-patch.mjs
-      - name: Align control-plane transition with Lab 11M timing
+      - name: Preserve canonical same-time OSPF ordering
         run: |
           node --input-type=module <<'NODE'
           import { readFileSync, writeFileSync } from 'node:fs';
@@ -40,9 +40,14 @@ jobs:
             "if (kind === 'DEAD_TIMER_EXPIRED') return { control: 'after' };",
           );
           replaceOnce(
+            'src/builder/canonical-events.ts',
+            "  return output\n    .filter((entry, index, all) => all.findIndex((candidate) => candidate.key === entry.key) === index)\n    .sort((a, b) => (a.offsetMs ?? 0) - (b.offsetMs ?? 0) || (a.key ?? '').localeCompare(b.key ?? ''))\n    .slice(0, 120);",
+            "  const unique = output.filter((entry, index, all) => all.findIndex((candidate) => candidate.key === entry.key) === index);\n  return unique\n    .map((entry,index)=>({entry,index}))\n    .sort((a,b)=>(a.entry.offsetMs??0)-(b.entry.offsetMs??0)||a.index-b.index)\n    .map(({entry})=>entry)\n    .slice(0,120);",
+          );
+          replaceOnce(
             'scripts/builder-canonical-events-contract-check.mjs',
             "assert.equal(helloSnapshot.state,deadSnapshot.state,'dead-timer expiry alone must not allocate a duplicate scene state');\nassert.equal(failed(adjacencySnapshot.state.truthGraphs.controlGraph),true,'ADJACENCY DOWN must advance control-plane truth to the failed topology');\nassert.equal(failed(adjacencySnapshot.state.truthGraphs.ribGraph),false,'RIB must still be stale after control-plane convergence begins');",
-            "assert.equal(failed(deadSnapshot.state.truthGraphs.controlGraph),true,'DEAD TIMER EXPIRED must advance control-plane truth at the exact Lab 11M model boundary');\nassert.equal(failed(deadSnapshot.state.truthGraphs.ribGraph),false,'RIB must remain stale when the dead timer expires');\nassert.equal(deadSnapshot.state,adjacencySnapshot.state,'ADJACENCY DOWN occurs at the same model instant and should share the control-plane snapshot');\nassert.equal(failed(adjacencySnapshot.state.truthGraphs.ribGraph),false,'RIB must still be stale after the adjacency leaves FULL');",
+            "assert.equal(dead.atMs,40000+action.atMs,'dead timer remains at the canonical Lab 11M boundary');\nconst adjacency=journal.find((event)=>event.summary==='OSPF · ADJACENCY DOWN');\nassert.ok(adjacency);\nassert.equal(adjacency.atMs,dead.atMs,'dead expiry and adjacency down occur at the same model instant');\nassert.ok(dead.sequence<adjacency.sequence,'same-time canonical events must preserve Lab 11M emission order instead of sorting lexically by key');\nassert.equal(failed(deadSnapshot.state.truthGraphs.controlGraph),true,'DEAD TIMER EXPIRED must advance control-plane truth at the exact Lab 11M model boundary');\nassert.equal(failed(deadSnapshot.state.truthGraphs.ribGraph),false,'RIB must remain stale when the dead timer expires');\nassert.equal(deadSnapshot.state,adjacencySnapshot.state,'ADJACENCY DOWN occurs at the same model instant and should share the control-plane snapshot');\nassert.equal(failed(adjacencySnapshot.state.truthGraphs.ribGraph),false,'RIB must still be stale after the adjacency leaves FULL');",
           );
           replaceOnce(
             'docs/TRACKA.md',
