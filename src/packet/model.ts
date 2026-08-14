@@ -19,6 +19,7 @@ export type PacketConfig = {
   icmpCode?: number;
   icmpIdentifier?: number;
   icmpSequence?: number;
+  icmpMtu?: number;
 };
 
 export type PacketField = { id: string; label: string; value: string; offset: number; length: number; derived?: boolean; note?: string };
@@ -154,15 +155,16 @@ function buildTransport(config: PacketConfig, payload: readonly number[], source
     const code = clampInteger(config.icmpCode ?? 0, 0, 255);
     const identifier = clampInteger(config.icmpIdentifier ?? 0x484f, 0, 65535);
     const sequence = clampInteger(config.icmpSequence ?? 1, 0, 65535);
-    const bytes = [type, code, 0, 0, ...word16(identifier), ...word16(sequence)];
+    const packetTooBig = config.family === 'ipv6' && type === 2;
+    const mtu = clampInteger(config.icmpMtu ?? 1280, 1280, 0xffffffff);
+    const bytes = packetTooBig ? [type, code, 0, 0, ...word32(mtu)] : [type, code, 0, 0, ...word16(identifier), ...word16(sequence)];
     const checksumInput = config.family === 'ipv4' ? [...bytes, ...payload] : [...pseudoHeader(config, 8, sourceIpv4, destinationIpv4, sourceIpv6, destinationIpv6), ...bytes, ...payload];
     const checksum = checksum16(checksumInput); bytes[2] = (checksum >>> 8) & 0xff; bytes[3] = checksum & 0xff;
     return { bytes, checksum, fields: [
-      { id: 'icmp-type', label: 'Type', value: config.family === 'ipv4' && type === 8 ? '8 · Echo Request' : config.family === 'ipv6' && type === 128 ? '128 · Echo Request' : String(type), offset: 0, length: 1 },
+      { id: 'icmp-type', label: 'Type', value: config.family === 'ipv4' && type === 8 ? '8 · Echo Request' : config.family === 'ipv6' && type === 128 ? '128 · Echo Request' : packetTooBig ? '2 · Packet Too Big' : String(type), offset: 0, length: 1 },
       { id: 'icmp-code', label: 'Code', value: String(code), offset: 1, length: 1 },
       { id: 'icmp-checksum', label: 'Checksum', value: hex16(checksum), offset: 2, length: 2, derived: true, note: config.family === 'ipv4' ? 'ICMP message + payload' : 'ICMPv6 message + payload + IPv6 pseudo-header' },
-      { id: 'icmp-id', label: 'Identifier', value: hex16(identifier), offset: 4, length: 2 },
-      { id: 'icmp-seq', label: 'Sequence', value: String(sequence), offset: 6, length: 2 },
+      ...(packetTooBig ? [{ id: 'icmp-mtu', label: 'MTU', value: `${mtu} bytes`, offset: 4, length: 4, derived: true, note: 'IPv6 routers do not fragment transit packets; Packet Too Big carries the constraining next-hop MTU.' }] : [{ id: 'icmp-id', label: 'Identifier', value: hex16(identifier), offset: 4, length: 2 }, { id: 'icmp-seq', label: 'Sequence', value: String(sequence), offset: 6, length: 2 }]),
     ] };
   }
 
