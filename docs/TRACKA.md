@@ -39,4 +39,12 @@ Layout and link-characteristic truth are captured alongside the workbench model 
 
 Historical mode is read-only across the Builder. Authoring controls are disabled, node dragging/deletion is disabled, and the scene is visually marked as historical. Returning to `LIVE` restores the mutable current state; scrubbing never writes a snapshot back into live configuration.
 
-The next Track A depth is event granularity: promote control-plane transitions, forwarding decisions, resolution changes, and flow outcomes into explicit canonical events rather than only snapshotting after the higher-level Builder actions that currently generate the session journal.
+## Canonical event granularity
+
+The third Track A slice stops treating one Builder UI message as the smallest unit of history. A committed Builder action remains the root event, then deterministic derived events are emitted from the canonical model delta for the truths that actually changed: physical topology, OSPF control-plane stages, RIB/FIB selection, BGP state, STP, ARP/ND/NUD/DAD resolution, NAT translations, DHCP leases, IPv6 control/lifecycle state, routed probe forwarding, Layer-2 forwarding, and terminal flow outcomes.
+
+Timed OSPF link failure reuses the existing Lab 11M convergence model, including Hello/dead-timer, adjacency, LSA, SPF, RIB, FIB, and traffic-recovery events. The Builder event clock now accepts those model timestamps instead of pretending every event is exactly one second apart. Probe/LAN events are derived from the already-computed forwarding and resolution results; they never recalculate a second answer.
+
+One React commit can therefore append several timeline events. The timeline captures every new event in that batch while sharing one immutable post-action state snapshot across the batch, so event granularity does not multiply the large Builder-state allocation. Cause links keep derived events rooted in the action that produced them, with the OSPF timed chain preserving its internal causal order.
+
+This is the event-granularity foundation, not the claim that every protocol database is fully time-native yet. DHCP transaction stages, full protocol-database row diffs/counters, and per-stage historical scene projection remain follow-on Track A depth.

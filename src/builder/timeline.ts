@@ -1,4 +1,4 @@
-import { buildBuilderDeviceWorkbench, type BuilderDeviceRef, type BuilderDeviceWorkbenchInput, type BuilderDeviceWorkbenchSnapshot, type BuilderWorkbenchEventJournal, type BuilderWorkbenchRow } from './device-workbench.ts';
+import { buildBuilderDeviceWorkbench, type BuilderDeviceRef, type BuilderDeviceWorkbenchInput, type BuilderDeviceWorkbenchSnapshot, type BuilderWorkbenchEventJournal, type BuilderWorkbenchEventKind, type BuilderWorkbenchRow } from './device-workbench.ts';
 import type { BuilderIpv6LifecycleState } from './ipv6-lifecycle.ts';
 import type { BuilderLinkProfiles } from './link-characteristics.ts';
 import type { BuilderLayout } from './model.ts';
@@ -19,6 +19,7 @@ export interface BuilderTimelineSnapshot {
   sequence: number;
   atMs: number;
   category: string;
+  kind: BuilderWorkbenchEventKind;
   summary: string;
   detail: string;
   state: BuilderTimelineState;
@@ -64,19 +65,21 @@ export function createBuilderTimeline(): BuilderTimeline {
 }
 
 export function captureBuilderTimelineSnapshot(timeline: BuilderTimeline, journal: BuilderWorkbenchEventJournal, input: BuilderTimelineCaptureInput): BuilderTimeline {
-  const event = journal.at(-1);
-  if (!event) return timeline;
-  if (timeline.snapshots.some((snapshot) => snapshot.eventId === event.id)) return timeline;
-  const snapshot: BuilderTimelineSnapshot = {
-    eventId: event.id,
-    sequence: event.sequence,
-    atMs: event.sequence * BUILDER_TIMELINE_TICK_MS,
-    category: event.category,
-    summary: event.summary,
-    detail: event.detail,
-    state: cloneTimelineState(stateFromInput(input)),
-  };
-  return { snapshots: [...timeline.snapshots, snapshot].slice(-BUILDER_TIMELINE_LIMIT) };
+  const lastSequence=timeline.snapshots.at(-1)?.sequence??-1;
+  const uncaptured=journal.filter((event)=>event.sequence>lastSequence);
+  if(uncaptured.length===0)return timeline;
+  const state=cloneTimelineState(stateFromInput(input));
+  const snapshots=uncaptured.map((event):BuilderTimelineSnapshot=>({
+    eventId:event.id,
+    sequence:event.sequence,
+    atMs:event.atMs??event.sequence*BUILDER_TIMELINE_TICK_MS,
+    category:event.category,
+    kind:event.kind??'action',
+    summary:event.summary,
+    detail:event.detail,
+    state,
+  }));
+  return { snapshots: [...timeline.snapshots,...snapshots].slice(-BUILDER_TIMELINE_LIMIT) };
 }
 
 export function builderTimelineSnapshotAtSequence(timeline: BuilderTimeline, sequence: number): BuilderTimelineSnapshot | null {

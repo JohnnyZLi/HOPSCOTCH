@@ -72,7 +72,8 @@ import { applyBuilderDhcpState, clearBuilderDhcpLeases, cloneBuilderDhcpConfig, 
 import { BuilderDhcpPanel } from './BuilderDhcpPanel.tsx';
 import { BuilderDeviceWorkbench } from './BuilderDeviceWorkbench.tsx';
 import { BuilderTimeMachine } from './BuilderTimeMachine.tsx';
-import { appendBuilderWorkbenchMessageEvent, buildBuilderDeviceWorkbench, builderWorkbenchDeviceOptions, classifyBuilderWorkbenchMessage, createBuilderWorkbenchEventJournal, type BuilderDeviceRef, type BuilderDeviceWorkbenchInput, type BuilderWorkbenchEventJournal } from './builder/device-workbench.ts';
+import { appendBuilderWorkbenchEventBatch, appendBuilderWorkbenchMessageEvent, buildBuilderDeviceWorkbench, builderWorkbenchDeviceOptions, classifyBuilderWorkbenchMessage, createBuilderWorkbenchEventJournal, type BuilderDeviceRef, type BuilderDeviceWorkbenchInput, type BuilderWorkbenchEventJournal } from './builder/device-workbench.ts';
+import { deriveBuilderCanonicalEventSpecs } from './builder/canonical-events.ts';
 import { builderTimelineJournalThroughSequence, builderTimelineSnapshotAtSequence, captureBuilderTimelineSnapshot, createBuilderTimeline, diffBuilderTimelineDevice, type BuilderTimeline } from './builder/timeline.ts';
 import './NetworkBuilder.css';
 
@@ -145,8 +146,20 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const liveTimelineInput = useMemo(() => ({ ...liveWorkbenchInput, layout, linkProfiles, ipv6LifecycleState }), [liveWorkbenchInput, layout, linkProfiles, ipv6LifecycleState]);
   useEffect(() => {
     if (stressLabel) return;
-    setTimeline((current) => captureBuilderTimelineSnapshot(current, workbenchEvents, liveTimelineInput));
-  }, [stressLabel, workbenchEvents, liveTimelineInput]);
+    const latestEvent=workbenchEvents.at(-1);
+    if(!latestEvent)return;
+    const lastCapturedSequence=timeline.snapshots.at(-1)?.sequence??-1;
+    if(latestEvent.sequence<=lastCapturedSequence)return;
+    if(latestEvent.kind==='action'){
+      const previousState=timeline.snapshots.at(-1)?.state??null;
+      const derived=deriveBuilderCanonicalEventSpecs(previousState,liveTimelineInput,latestEvent);
+      if(derived.length>0){
+        setWorkbenchEvents((current)=>current.at(-1)?.id===latestEvent.id?appendBuilderWorkbenchEventBatch(current,derived):current);
+        return;
+      }
+    }
+    setTimeline((current)=>captureBuilderTimelineSnapshot(current,workbenchEvents,liveTimelineInput));
+  }, [stressLabel, workbenchEvents, liveTimelineInput, timeline.snapshots]);
   const historicalTimelineSnapshot = timelineCursor == null ? null : builderTimelineSnapshotAtSequence(timeline, timelineCursor);
   const isHistorical = historicalTimelineSnapshot != null;
   const sceneState = historicalTimelineSnapshot?.state ?? liveTimelineInput;

@@ -42,10 +42,26 @@ export interface BuilderWorkbenchSection {
 }
 
 export type BuilderWorkbenchEventCategory = 'session' | 'topology' | 'config' | 'routing' | 'policy' | 'neighbor' | 'switching' | 'nat' | 'dhcp' | 'probe' | 'ipv6';
+export type BuilderWorkbenchEventKind = 'session' | 'action' | 'physical' | 'control-plane' | 'rib' | 'fib' | 'resolution' | 'forwarding' | 'policy' | 'translation' | 'flow';
+
+export interface BuilderWorkbenchEventSpec {
+  key?: string;
+  kind: BuilderWorkbenchEventKind;
+  category: BuilderWorkbenchEventCategory;
+  summary: string;
+  detail: string;
+  deviceRefs?: BuilderDeviceRef[];
+  objectIds?: string[];
+  offsetMs?: number;
+  causeId?: string | null;
+  causeKey?: string | null;
+}
 
 export interface BuilderWorkbenchEvent {
   id: string;
   sequence: number;
+  atMs?: number;
+  kind?: BuilderWorkbenchEventKind;
   category: BuilderWorkbenchEventCategory;
   summary: string;
   detail: string;
@@ -118,7 +134,7 @@ export function builderWorkbenchDeviceOptions(graph:BuilderGraph,ethernet:Builde
 }
 
 export function createBuilderWorkbenchEventJournal():BuilderWorkbenchEventJournal{
-  return [{id:'wb-event-0000',sequence:0,category:'session',summary:'BUILDER SESSION INITIALIZED',detail:'Canonical configuration loaded. Derived runtime state and the event journal are session-only.',deviceRefs:[],causeId:null,objectIds:[]}];
+  return [{id:'wb-event-0000',sequence:0,atMs:0,kind:'session',category:'session',summary:'BUILDER SESSION INITIALIZED',detail:'Canonical configuration loaded. Derived runtime state and the event journal are session-only.',deviceRefs:[],causeId:null,objectIds:[]}];
 }
 
 export function classifyBuilderWorkbenchMessage(message:string):BuilderWorkbenchEventCategory{
@@ -141,11 +157,45 @@ function causalCategory(category:BuilderWorkbenchEventCategory):boolean{return['
 export function appendBuilderWorkbenchMessageEvent(journal:BuilderWorkbenchEventJournal,message:string,deviceRefs:readonly BuilderDeviceRef[]=[]):BuilderWorkbenchEventJournal{
   const category=classifyBuilderWorkbenchMessage(message);
   const sequence=(journal.at(-1)?.sequence??-1)+1;
+  const previous=journal.at(-1)??null;
+  const priorAtMs=previous?.atMs??((previous?.sequence??0)*1000);
   const cause=causalCategory(category)?[...journal].reverse().find((event)=>['topology','config','routing','policy','nat','dhcp','ipv6'].includes(event.category))??null:null;
   const summary=(message.split('·')[0]?.trim()||message.trim()||'BUILDER EVENT').slice(0,96);
   const objectIds=[...new Set((message.match(/[A-Za-z][A-Za-z0-9_-]{2,}/g)??[]).filter((value)=>value.length<=64))].slice(0,12);
-  const event:BuilderWorkbenchEvent={id:`wb-event-${String(sequence).padStart(4,'0')}`,sequence,category,summary,detail:message,deviceRefs:uniqueRefs(deviceRefs),causeId:cause?.id??null,objectIds};
+  const event:BuilderWorkbenchEvent={id:'wb-event-'+String(sequence).padStart(4,'0'),sequence,atMs:priorAtMs+1000,kind:'action',category,summary,detail:message,deviceRefs:uniqueRefs(deviceRefs),causeId:cause?.id??null,objectIds};
   return [...journal,event].slice(-160);
+}
+
+export function appendBuilderWorkbenchEventBatch(journal:BuilderWorkbenchEventJournal,specs:readonly BuilderWorkbenchEventSpec[]):BuilderWorkbenchEventJournal{
+  if(specs.length===0)return journal;
+  const baseEvent=journal.at(-1)??null;
+  const baseAtMs=baseEvent?.atMs??((baseEvent?.sequence??0)*1000);
+  const ordered=specs.map((entry,index)=>({entry,index})).sort((a,b)=>(a.entry.offsetMs??0)-(b.entry.offsetMs??0)||a.index-b.index);
+  const idsByKey=new Map<string,string>();
+  let next=[...journal];
+  for(const item of ordered){
+    const entry=item.entry;
+    const sequence=(next.at(-1)?.sequence??-1)+1;
+    const previous=next.at(-1)??baseEvent;
+    const requestedAtMs=baseAtMs+Math.max(0,Math.round(entry.offsetMs??item.index+1));
+    const atMs=Math.max(previous?.atMs??baseAtMs,requestedAtMs);
+    const id='wb-event-'+String(sequence).padStart(4,'0');
+    let causeId: string|null;
+    if(entry.causeId!==undefined)causeId=entry.causeId;
+    else if(entry.causeKey)causeId=idsByKey.get(entry.causeKey)??baseEvent?.id??null;
+    else causeId=baseEvent?.id??null;
+    const event:BuilderWorkbenchEvent={
+      id,sequence,atMs,kind:entry.kind,category:entry.category,
+      summary:(entry.summary.trim()||'BUILDER EVENT').slice(0,96),
+      detail:entry.detail.trim()||entry.summary.trim()||'Builder state changed.',
+      deviceRefs:uniqueRefs(entry.deviceRefs??[]),
+      causeId,
+      objectIds:[...new Set((entry.objectIds??[]).filter(Boolean))].slice(0,16),
+    };
+    next.push(event);
+    if(entry.key)idsByKey.set(entry.key,id);
+  }
+  return next.slice(-160);
 }
 
 export function builderWorkbenchEventCausalChain(journal:BuilderWorkbenchEventJournal,eventId:string,maxDepth=8):BuilderWorkbenchEvent[]{
