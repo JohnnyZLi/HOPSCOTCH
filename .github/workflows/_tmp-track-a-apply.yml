@@ -25,14 +25,24 @@ jobs:
           cache: npm
       - name: Apply Track A slice
         run: python3 scripts/_tmp_apply_track_a.py
-      - name: Adjust measured JS bundle ceiling
+      - name: Tighten history boundary copy and measured ceilings
         run: |
           python3 - <<'PY'
           import json
           from pathlib import Path
+
+          component = Path('src/BuilderTimeMachine.tsx')
+          text = component.read_text()
+          old = 'DETERMINISTIC EVENT CLOCK · ONE LOGICAL SECOND PER CANONICAL BUILDER EVENT · HISTORY IS READ-ONLY AND NEVER MUTATES LIVE CONFIGURATION.'
+          new = 'DETERMINISTIC EVENT CLOCK · WORKBENCH HISTORY ONLY IN THIS FOUNDATION SLICE · CANVAS + AUTHORING STAY LIVE · ANY REAL ACTION RETURNS TO LIVE.'
+          if text.count(old) != 1:
+              raise SystemExit('Builder time-machine boundary copy not found exactly once')
+          component.write_text(text.replace(old, new, 1))
+
           path = Path('config/performance-budget.json')
           data = json.loads(path.read_text())
           data['budgets']['maxJsGzipBytes'] = 426000
+          data['stressBudgets']['builder-density']['maxHeapUsedBytes'] = 7405568
           path.write_text(json.dumps(data, indent=2) + '\n')
           PY
       - name: Remove temporary patch machinery
