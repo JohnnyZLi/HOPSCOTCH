@@ -422,6 +422,21 @@ button {
 }
 
 @media (min-width: 1181px) and (max-height: 820px) {
+  .hero-copy {
+    margin-top: 44px;
+  }
+
+  .hero-copy h1 {
+    margin: 10px 0 16px;
+    font-size: clamp(3.25rem, 5.8vw, 5.9rem);
+  }
+
+  .lede {
+    max-width: 590px;
+    font-size: 0.96rem;
+    line-height: 1.48;
+  }
+
   .scale-rail {
     top: 110px;
     transform: none;
