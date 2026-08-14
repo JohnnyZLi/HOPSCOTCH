@@ -502,11 +502,11 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 
 ### 11N — IPv6 + dual stack
 - [x] IPv6 global and link-local interface addressing
-- [ ] Neighbor Discovery replaces ARP for IPv6 next-hop resolution
-- [ ] Router Solicitation / Router Advertisement and SLAAC host bootstrap
-- [ ] ICMPv6 control behavior including Packet Too Big / path-MTU discovery
+- [x] Neighbor Discovery replaces ARP for IPv6 next-hop resolution
+- [x] Router Solicitation / Router Advertisement and SLAAC host bootstrap
+- [x] ICMPv6 control behavior including Packet Too Big / path-MTU discovery
 - [x] IPv6 connected/static forwarding and default routes
-- [ ] OSPFv3 integration after the IPv6 forwarding model is stable
+- [x] OSPFv3 Area 0 integration with link-local adjacencies and failure reconvergence
 - [x] dual-stack application/probe selection keeps IPv4 and IPv6 truth independent
 
 ### 11O — BGP inside Network Builder
