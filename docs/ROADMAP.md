@@ -524,11 +524,11 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] Builder BGP state can project into the Internet-scale AS view and back without changing truth
 
 ### 11P — Device CONFIG / STATE / EVENTS workspace
-- [ ] every device exposes canonical configuration separately from derived runtime state
-- [ ] CONFIG covers interfaces, VLANs, routes, dynamic routing, ACLs, NAT, DHCP, and later service configuration
-- [ ] STATE covers ARP/ND, FDB, RIB/FIB, OSPF neighbors/LSDB, BGP RIBs, NAT translations, and DHCP leases
-- [ ] EVENTS answers what changed, when, and which upstream event caused it
-- [ ] route, packet, adjacency, FDB, and policy objects expose a deterministic “why?” chain
+- [x] every device exposes canonical configuration separately from derived runtime state
+- [x] CONFIG covers interfaces, VLANs, routes, dynamic routing, ACLs, NAT, DHCP, and later service configuration
+- [x] STATE covers ARP/ND, FDB, RIB/FIB, OSPF neighbors/LSDB, BGP RIBs, NAT translations, and DHCP leases
+- [x] EVENTS answers what changed, when it changed, and which upstream event caused the change
+- [x] route, packet, adjacency, FDB, and policy objects expose a deterministic “why?” chain
 - [ ] state can be inspected at historical timestamps once Builder-wide time travel exists
 
 ## Long-term product roadmap — visual causal debugger
