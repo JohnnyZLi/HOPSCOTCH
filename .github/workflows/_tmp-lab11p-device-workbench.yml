@@ -19,6 +19,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - run: python3 scripts/_tmp_prepare_lab11p.py
       - run: python3 scripts/_tmp_patch_lab11p.py
       - run: python3 scripts/_tmp_patch_lab11p_package.py
       - run: npm ci
@@ -34,6 +35,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/NetworkBuilder.tsx src/BuilderDeviceWorkbench.tsx src/BuilderDeviceWorkbench.css src/builder/device-workbench.ts scripts/builder-device-workbench-contract-check.mjs package.json docs/ROADMAP.md docs/LAB11P.md
-          git rm scripts/_tmp_patch_lab11p.py scripts/_tmp_patch_lab11p_package.py .github/workflows/_tmp-lab11p-device-workbench.yml
+          git rm scripts/_tmp_prepare_lab11p.py scripts/_tmp_patch_lab11p.py scripts/_tmp_patch_lab11p_package.py .github/workflows/_tmp-lab11p-device-workbench.yml
           git commit -m 'Lab 11P: add per-device CONFIG STATE EVENTS workbench [lab11p-finalized]'
           git push origin HEAD:$BRANCH
