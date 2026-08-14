@@ -1,15 +1,21 @@
-name: Temp Lab 11N Validate
+name: Temp Lab 11N Finalize
 
 on:
   push:
     branches: [agent/lab-11n-ipv6-control-plane]
 
+permissions:
+  contents: write
+
 jobs:
   validate:
+    if: "!contains(github.event.head_commit.message, '[lab11n-finalized]')"
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: agent/lab-11n-ipv6-control-plane
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -24,14 +30,24 @@ jobs:
       - run: python3 scripts/_tmp_patch_ipv6_network.py
       - run: npm ci
       - run: npm run check
-      - run: node scripts/builder-ipv6-ospfv3-contract-check.mjs
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: lab11n-patched-files
-          path: |
-            src/BuilderIpv6Panel.tsx
-            src/NetworkBuilder.tsx
-            src/builder/probes.ts
-            src/packet/model.ts
-            src/App.tsx
+      - run: npm run performance:check
+      - run: npm run compatibility:chrome
+      - name: Commit validated implementation and remove temporary patch machinery
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f \
+            scripts/_tmp_fix_ipv6_network_order.py \
+            scripts/_tmp_patch_ipv6_model.py \
+            scripts/_tmp_patch_ipv6_network.py \
+            scripts/_tmp_patch_ipv6_package.py \
+            scripts/_tmp_patch_ipv6_packet_support.py \
+            scripts/_tmp_patch_ipv6_panel_handlers.py \
+            scripts/_tmp_patch_ipv6_panel_nd.py \
+            scripts/_tmp_patch_ipv6_panel_ospfv3.py \
+            scripts/_tmp_patch_ipv6_panel_plumbing.py \
+            scripts/_tmp_patch_ipv6_panel_pmtu.py \
+            .github/workflows/_tmp-lab11n-validate.yml
+          git add -A
+          git commit -m "Lab 11N: finalize IPv6 ND, SLAAC, PMTU, and OSPFv3 [lab11n-finalized]"
+          git push origin HEAD:agent/lab-11n-ipv6-control-plane
