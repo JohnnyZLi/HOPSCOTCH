@@ -31,8 +31,12 @@ For a historical event, the workbench derives a deterministic diff against the i
 
 This already covers the workbench projections for route/RIB/FIB state, OSPF/OSPFv3/BGP state, ARP/ND, FDB/STP, NAT translations, DHCP leases/effective addressing, policy decisions, probes, interfaces, and persisted configuration. Counters and protocol databases that are not yet fully represented as time-native workbench rows remain future Track A depth.
 
-## Truth boundary
+## Synchronized scene projection
 
-This first slice does **not** claim that the entire Builder canvas has been rewound. The topology canvas and authoring controls remain the live system while the Device Workbench is in historical inspection mode. The UI states that boundary directly.
+The second Track A slice promotes the selected timeline snapshot from a Device Workbench-only projection to the render source for the entire Network Builder scene. The routed topology canvas, failed/restored links, weighted route, L3 forwarding overlay, policy result, probe snapshot, Ethernet/VLAN/STP/ARP view, route tables, OSPF/OSPFv3/BGP panels, ACL/NAT/DHCP state, IPv6 state, and Device Workbench now consume one selected immutable scene state.
 
-The next Track A slice should promote remaining control-plane transitions and forwarding decisions into explicit canonical events, then let the main Builder scene render from the same selected historical snapshot so the entire workspace—not only the workbench—becomes a synchronized time projection.
+Layout and link-characteristic truth are captured alongside the workbench model so a historical device can reappear at its historical position and a historical link can recover its prior physical characteristics. UI selection remains a camera concern: if the currently selected object did not exist at that event, inspection falls back deterministically to an object that did.
+
+Historical mode is read-only across the Builder. Authoring controls are disabled, node dragging/deletion is disabled, and the scene is visually marked as historical. Returning to `LIVE` restores the mutable current state; scrubbing never writes a snapshot back into live configuration.
+
+The next Track A depth is event granularity: promote control-plane transitions, forwarding decisions, resolution changes, and flow outcomes into explicit canonical events rather than only snapshotting after the higher-level Builder actions that currently generate the session journal.

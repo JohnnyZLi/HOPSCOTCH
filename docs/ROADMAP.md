@@ -538,6 +538,7 @@ The long-term target is not a browser clone of Packet Tracer or a catalog of ven
 ### Track A — Builder-wide time machine + causal troubleshooting
 - [x] first slice: immutable Builder snapshots are captured after canonical session events on a deterministic logical event clock, with scrub / step / replay / LIVE controls
 - [x] first slice: the device workbench can inspect historical CONFIG / STATE / EVENTS and deterministic per-device before/after diffs without mutating live truth
+- [x] second slice: the entire Builder scene renders from the selected immutable historical snapshot, including topology/link failures, route/forwarding overlays, LAN/STP/ARP, protocol panels, NAT/DHCP/IPv6 state, layout, and link characteristics; authoring is locked until LIVE
 - [ ] promote every Builder configuration change, control-plane transition, forwarding decision, and flow outcome into one fully time-native deterministic event timeline
 - [x] inspect every device’s historical workbench state at captured canonical Builder event timestamps
 - [ ] extend before/after diffs beyond current workbench-exposed CONFIG/STATE rows to time-native ACL counters and complete protocol databases

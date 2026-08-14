@@ -41,6 +41,6 @@ export function BuilderTimeMachine({timeline,cursor,onSeek}:{timeline:BuilderTim
       <button type="button" className={isLive?'active':''} onClick={()=>{setPlaying(false);onSeek(null);}}>LIVE</button>
     </div>
     <div className="builder-time-markers" aria-hidden="true">{snapshots.slice(-20).map((snapshot)=><i key={snapshot.eventId} className={snapshot.sequence<=selected.sequence?'passed':''} title={`#${snapshot.sequence} ${snapshot.summary}`}/>)}</div>
-    <small className="builder-routing-note">DETERMINISTIC EVENT CLOCK · WORKBENCH HISTORY ONLY IN THIS FOUNDATION SLICE · CANVAS + AUTHORING STAY LIVE · ANY REAL ACTION RETURNS TO LIVE.</small>
+    <small className="builder-routing-note">DETERMINISTIC EVENT CLOCK · THE ENTIRE BUILDER SCENE IS PROJECTED FROM THIS SNAPSHOT · AUTHORING IS LOCKED UNTIL LIVE.</small>
   </section>;
 }
