@@ -12,6 +12,7 @@ import './tcp-audit.css';
 import './dns.css';
 import './dns-audit.css';
 import './tls.css';
+import './http-comparison.css';
 import './journey-audit.css';
 
 const stressProfile = typeof window === 'undefined' ? null : stressProfileFromSearch(window.location.search);

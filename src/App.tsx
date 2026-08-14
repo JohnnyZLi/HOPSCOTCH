@@ -396,7 +396,7 @@ export default function App() {
               <small>{layer === 'packet' ? 'PACKET MICROSCOPE READY' : layer === 'transport' ? 'TCP PROTOCOL THEATER READY' : layer === 'application' ? 'HTTP + TLS + DNS THEATER READY' : layer === 'routing' ? 'DYNAMIC NETWORK BUILDER READY' : 'PHYSICAL + SIMULATED + OBSERVED INTERNET MODES READY'}</small>
             </motion.aside>
 
-            <footer className="timeline-preview"><div className="timeline-labels"><span>TIME MACHINE</span><span>00:00.000</span></div><div className="timeline-track" aria-hidden="true"><i /><b /></div><span className="timeline-note">Lab 01 failure · Lab 02 packet · Lab 03 protocols · Lab 04 builder · Lab 05 Internet · Lab 06 Journey · Lab 09 measured</span></footer>
+            <footer className="timeline-preview"><div className="timeline-labels"><span>TIME MACHINE</span><span>00:00.000</span></div><div className="timeline-track" aria-hidden="true"><i /><b /></div><span className="timeline-note">Lab 01 failure · Lab 02 packet · Lab 03 protocols · Lab 04 builder · Lab 05 Internet · Lab 07 Journey · Lab 09 measured</span></footer>
           </motion.div>
         ) : activeLab === 'journey' ? (
           <JourneyTheater key={`lab06-${journeyRenderKey}`} hostname={journeyHostname} timeMs={journeyTimeMs} startPlaying={journeyStartPlaying} evidence={journeyEvidence} measuredState={measuredSession} onHostnameChange={setJourneyHostname} onTimeChange={setJourneyTimeMs} onEvidenceChange={setJourneyEvidence} onOpenDetail={openJourneyDetail} onExit={exitLabs} />

@@ -649,6 +649,16 @@
     min-height: 410px;
   }
 
+  .lab-mode {
+    min-height: 38px;
+    padding: 10px 12px;
+  }
+
+  .time-controls button {
+    width: 38px;
+    height: 38px;
+  }
+
   .lab-stage-meta {
     right: 12px;
     left: 12px;

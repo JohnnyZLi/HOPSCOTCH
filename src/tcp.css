@@ -328,8 +328,8 @@
   .tcp-heading-actions { justify-content:flex-start; }
   .tcp-model-badge { order:3; }
   .tcp-stage { grid-template-columns:1fr; grid-template-rows:auto 360px auto auto; }
-  .tcp-stage-meta { gap:14px; overflow-x:auto; }
-  .tcp-stage-meta > div { min-width:max-content; }
+  .tcp-stage-meta { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; overflow:visible; }
+  .tcp-stage-meta > div { min-width:0; }
   .tcp-wire-stage { grid-column:1; border-right:0; }
   .tcp-endpoint { width:112px; padding:12px 10px; }
   .endpoint-client { left:10px; }

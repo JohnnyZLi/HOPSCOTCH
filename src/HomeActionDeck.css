@@ -223,6 +223,13 @@
   .home-action-utilities {
     gap: 2px 14px;
   }
+
+  .home-action-utilities button,
+  .home-action-utilities a {
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+  }
 }
 
 @media (max-width: 420px) {
