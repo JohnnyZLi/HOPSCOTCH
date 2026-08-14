@@ -25,6 +25,17 @@ jobs:
           cache: npm
       - name: Apply synchronized historical scene
         run: python3 scripts/_tmp_apply_track_a_scene.py
+      - name: Correct generated scene wrapper
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/NetworkBuilder.tsx')
+          text = path.read_text()
+          bad = "data-link-count={graph.links.length}\""
+          if bad not in text:
+              raise SystemExit('expected generated wrapper marker not found')
+          path.write_text(text.replace(bad, "data-link-count={graph.links.length}", 1))
+          PY
       - name: Remove temporary patch machinery
         run: rm scripts/_tmp_apply_track_a_scene.py .github/workflows/_tmp-track-a-scene-apply.yml
       - name: Install locked dependencies
