@@ -91,8 +91,8 @@ export function captureBuilderTimelineSnapshot(timeline: BuilderTimeline, journa
 
   const beforeGraph=cloneValue(priorState!.graph);
   const afterGraph=finalState.graph;
-  const stageDhcpLeases=uncaptured.some((event)=>event.projection?.dhcpLeases==='after');
-  const stageDhcpSequence=uncaptured.some((event)=>event.projection?.dhcpSequence==='after');
+  const stageDhcpLeases=uncaptured.some((event)=>event.projection?.dhcpLeases==='after'||Boolean(event.projection?.dhcpRemoveLeaseIds?.length));
+  const stageDhcpSequence=uncaptured.some((event)=>event.projection?.dhcpSequence!==undefined);
   let truthGraphs={controlGraph:beforeGraph,ribGraph:beforeGraph,fibGraph:beforeGraph};
   let state:BuilderTimelineState={
     ...finalState,
@@ -110,8 +110,13 @@ export function captureBuilderTimelineSnapshot(timeline: BuilderTimeline, journa
       if(projection.control==='after')nextTruth.controlGraph=afterGraph;
       if(projection.rib==='after')nextTruth.ribGraph=afterGraph;
       if(projection.fib==='after')nextTruth.fibGraph=afterGraph;
-      const dhcpLeases=projection.dhcpLeases==='after'?finalState.dhcpLeases:state.dhcpLeases;
-      const dhcpSequence=projection.dhcpSequence==='after'?finalState.dhcpSequence:state.dhcpSequence;
+      let dhcpLeases=state.dhcpLeases;
+      if(projection.dhcpRemoveLeaseIds?.length){
+        const removed=new Set(projection.dhcpRemoveLeaseIds);
+        dhcpLeases=dhcpLeases.filter((lease)=>!removed.has(lease.id));
+      }
+      if(projection.dhcpLeases==='after')dhcpLeases=finalState.dhcpLeases;
+      const dhcpSequence=projection.dhcpSequence==='after'?finalState.dhcpSequence:(typeof projection.dhcpSequence==='number'?projection.dhcpSequence:state.dhcpSequence);
       truthGraphs=nextTruth;
       state={...state,graph,truthGraphs,dhcpLeases,dhcpSequence};
     }

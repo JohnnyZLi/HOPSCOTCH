@@ -234,7 +234,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const workbenchSnapshot = useMemo(() => stressLabel ? null : buildBuilderDeviceWorkbench(displayedWorkbenchInput, effectiveWorkbenchDevice), [stressLabel, displayedWorkbenchInput, effectiveWorkbenchDevice.plane, effectiveWorkbenchDevice.id]);
   const workbenchTimelineDiff = useMemo(() => historicalTimelineSnapshot ? diffBuilderTimelineDevice(timeline, workbenchEvents, historicalTimelineSnapshot.sequence, effectiveWorkbenchDevice) : null, [historicalTimelineSnapshot, timeline, workbenchEvents, effectiveWorkbenchDevice.plane, effectiveWorkbenchDevice.id]);
   const displayedMessage = historicalTimelineSnapshot ? `HISTORY #${String(historicalTimelineSnapshot.sequence).padStart(3,'0')} · ${historicalTimelineSnapshot.summary} · ${historicalTimelineSnapshot.detail}` : message;
-  const setMessage = (nextMessage: string) => {
+  const setMessage = (nextMessage: string, explicitEthernetIds: readonly string[] = []) => {
     setTimelineCursor(null);
     setMessageState(nextMessage);
     const category = classifyBuilderWorkbenchMessage(nextMessage);
@@ -248,7 +248,8 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
       ...(ethernet.devices.some((device) => device.id === ethernetDestinationId) ? [{ plane: 'ethernet' as const, id: ethernetDestinationId }] : []),
       ...((selectedEthernetLink ? [selectedEthernetLink.a, selectedEthernetLink.b] : []).map((id) => ({ plane: 'ethernet' as const, id }))),
     ];
-    const refs = ['dhcp','neighbor','switching'].includes(category) ? lanRefs : routedRefs;
+    const explicitRefs:BuilderDeviceRef[]=explicitEthernetIds.filter((id)=>ethernet.devices.some((device)=>device.id===id)).map((id)=>({plane:'ethernet' as const,id}));
+    const refs = explicitRefs.length>0?explicitRefs:(['dhcp','neighbor','switching'].includes(category) ? lanRefs : routedRefs);
     setWorkbenchEvents((current) => appendBuilderWorkbenchMessageEvent(current, nextMessage, refs));
   };
 

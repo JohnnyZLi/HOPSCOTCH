@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  pruneBuilderDhcpLeases,
   releaseBuilderDhcpLease,
   renewBuilderDhcpLease,
   runBuilderDhcpAcquire,
@@ -21,7 +22,7 @@ interface BuilderDhcpPanelProps {
   onLeasesChange: (next: BuilderDhcpLeaseTable) => void;
   sequence: number;
   onSequenceChange: (next: number) => void;
-  onMessage: (message: string) => void;
+  onMessage: (message: string, deviceIds?: string[]) => void;
   historical?: boolean;
   historicalStage?: { summary: string; detail: string } | null;
 }
@@ -43,12 +44,12 @@ export function BuilderDhcpPanel({ethernet,config,onConfigChange,leases,onLeases
   const pool=useMemo(()=>vlanId==null?null:config.pools.find((entry)=>entry.vlanId===vlanId)??null,[config.pools,vlanId]);
 
   const commitMode=(enabled:boolean)=>{
-    try{const next=setBuilderDhcpClient(ethernet,config,effectiveClientId,enabled);onConfigChange(next);if(!enabled){const released=releaseBuilderDhcpLease(leases,effectiveClientId,sequence);onLeasesChange(released.leases);}setLastTransaction(null);onMessage(`${labelFor(ethernet,effectiveClientId)} · ${enabled?'DHCP CLIENT ENABLED · NO IPV4 UNTIL ACK':'STATIC IPV4 RESTORED'}.`);}catch(error){onMessage(`DHCP CONFIG REJECTED · ${error instanceof Error?error.message:'Invalid DHCP client configuration.'}`);}
+    try{const next=setBuilderDhcpClient(ethernet,config,effectiveClientId,enabled);onConfigChange(next);let releasedServer:string|undefined;if(!enabled){const released=releaseBuilderDhcpLease(leases,effectiveClientId,sequence);releasedServer=released.event?.destinationDeviceId??undefined;onLeasesChange(released.leases);}setLastTransaction(null);onMessage(`${labelFor(ethernet,effectiveClientId)} · ${enabled?'DHCP CLIENT ENABLED · NO IPV4 UNTIL ACK':'STATIC IPV4 RESTORED'}.`,[effectiveClientId,...(releasedServer?[releasedServer]:[])]);}catch(error){onMessage(`DHCP CONFIG REJECTED · ${error instanceof Error?error.message:'Invalid DHCP client configuration.'}`,[effectiveClientId]);}
   };
-  const acquire=()=>{try{const result=runBuilderDhcpAcquire(ethernet,config,leases,effectiveClientId,sequence);onLeasesChange(result.leases);setLastTransaction(result);onSequenceChange(sequence+1);onMessage(`DHCP ${result.success?'ACK':'FAILED'} · ${result.summary}`);}catch(error){onMessage(`DHCP FAILED · ${error instanceof Error?error.message:'Unable to acquire lease.'}`);}};
-  const renew=()=>{try{const result=renewBuilderDhcpLease(ethernet,config,leases,effectiveClientId,sequence);onLeasesChange(result.leases);setLastTransaction(result);onSequenceChange(sequence+1);onMessage(`DHCP ${result.success?'RENEW':'TIMEOUT'} · ${result.summary}`);}catch(error){onMessage(`DHCP RENEW FAILED · ${error instanceof Error?error.message:'Unable to renew lease.'}`);}};
-  const release=()=>{const result=releaseBuilderDhcpLease(leases,effectiveClientId,sequence);onLeasesChange(result.leases);setLastTransaction(result.event?{id:`release-${sequence}`,sequence,clientDeviceId:effectiveClientId,success:true,configurationReady:false,relayed:false,events:[result.event],lease:null,leases:result.leases,optionsIssues:[],failureReason:null,summary:result.event.detail}:null);onSequenceChange(sequence+1);onMessage(result.event?`DHCP RELEASE · ${result.event.detail}`:'DHCP RELEASE · no active lease.');};
-  const advance=(steps:number)=>{const next=sequence+steps;onSequenceChange(next);onMessage(`DHCP CLOCK · advanced to sequence ${next}. Lease expiration is evaluated from deterministic sequence time.`);};
+  const acquire=()=>{try{const result=runBuilderDhcpAcquire(ethernet,config,leases,effectiveClientId,sequence);onLeasesChange(result.leases);setLastTransaction(result);onSequenceChange(sequence+1);const serverId=result.lease?.serverDeviceId??result.events.find((event)=>event.destinationDeviceId)?.destinationDeviceId??undefined;onMessage(`DHCP ${result.success?'ACK':'FAILED'} · ${result.summary}`,[effectiveClientId,...(serverId?[serverId]:[])]);}catch(error){onMessage(`DHCP FAILED · ${error instanceof Error?error.message:'Unable to acquire lease.'}`,[effectiveClientId]);}};
+  const renew=()=>{try{const result=renewBuilderDhcpLease(ethernet,config,leases,effectiveClientId,sequence);onLeasesChange(result.leases);setLastTransaction(result);onSequenceChange(sequence+1);const serverId=result.lease?.serverDeviceId??result.events.find((event)=>event.destinationDeviceId)?.destinationDeviceId??undefined;onMessage(`DHCP ${result.success?'RENEW':'TIMEOUT'} · ${result.summary}`,[effectiveClientId,...(serverId?[serverId]:[])]);}catch(error){onMessage(`DHCP RENEW FAILED · ${error instanceof Error?error.message:'Unable to renew lease.'}`,[effectiveClientId]);}};
+  const release=()=>{const result=releaseBuilderDhcpLease(leases,effectiveClientId,sequence);onLeasesChange(result.leases);setLastTransaction(result.event?{id:`release-${sequence}`,sequence,clientDeviceId:effectiveClientId,success:true,configurationReady:false,relayed:false,events:[result.event],lease:null,leases:result.leases,optionsIssues:[],failureReason:null,summary:result.event.detail}:null);onSequenceChange(sequence+1);onMessage(result.event?`DHCP RELEASE · ${result.event.detail}`:'DHCP RELEASE · no active lease.',[effectiveClientId,...(result.event?.destinationDeviceId?[result.event.destinationDeviceId]:[])]);};
+  const advance=(steps:number)=>{const next=sequence+steps;const nextLeases=pruneBuilderDhcpLeases(leases,next);const expired=leases.filter((lease)=>!nextLeases.some((entry)=>entry.id===lease.id));onLeasesChange(nextLeases);onSequenceChange(next);onMessage(`DHCP CLOCK · advanced to sequence ${next}. Lease expiration is evaluated from deterministic sequence time.`,[effectiveClientId,...expired.flatMap((entry)=>[entry.clientDeviceId,entry.serverDeviceId])]);};
 
   const patchPool=(patch:Partial<{serverDeviceId:string;startAddress:string;endAddress:string;gateway:string|null;dnsServers:string[];leaseSteps:number}>)=>{
     if(!pool)return;

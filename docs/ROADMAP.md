@@ -543,7 +543,8 @@ The long-term target is not a browser clone of Packet Tracer or a catalog of ven
   - [x] third-slice foundation: canonical model deltas emit deterministic physical/control-plane/RIB/FIB/resolution/forwarding/translation/flow events, including timed OSPF convergence and probe/L2 outcomes
   - [x] timed OSPF intermediate history projects physical, control-plane, RIB, and FIB truth independently, so stale control/route/forwarding state remains inspectable during convergence
   - [x] protocol-native DHCP acquisition history exposes DISCOVER → OFFER → REQUEST → ACK as separate causal events; ACK is the lease/effective-address state boundary, with deterministic renewal/rebinding replay when applicable
-  - [ ] complete protocol databases/counters, DHCP failure/expiry episode depth, and extend per-stage historical scene projection to the remaining protocols
+  - [x] DHCP lifecycle/failure history exposes model-native renewal/rebind TIMEOUT/EXPIRE outcomes, explicit RELEASE, T1/T2 clock crossings, incremental expiry, and exact deterministic sequence projection without retaining stale live leases
+  - [ ] complete protocol databases/counters and extend equivalent per-stage historical scene projection to the remaining protocols
 - [x] inspect every device’s historical workbench state at captured canonical Builder event timestamps
 - [ ] extend before/after diffs beyond current workbench-exposed CONFIG/STATE rows to time-native ACL counters and complete protocol databases
 - [ ] causal “why?” chains from user-visible failure back through policy, routing, resolution, topology, and configuration

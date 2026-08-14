@@ -4,7 +4,7 @@ import { createDefaultBuilderAddressing } from '../src/builder/addressing.ts';
 import { createDefaultBuilderAclConfig } from '../src/builder/acl.ts';
 import { clearBuilderArpCache, resolveBuilderEthernetFlowArp } from '../src/builder/arp.ts';
 import { deriveBuilderCanonicalEventSpecs } from '../src/builder/canonical-events.ts';
-import { createDefaultBuilderDhcpConfig, runBuilderDhcpAcquire, setBuilderDhcpClient } from '../src/builder/dhcp.ts';
+import { applyBuilderDhcpState, createDefaultBuilderDhcpConfig, pruneBuilderDhcpLeases, releaseBuilderDhcpLease, renewBuilderDhcpLease, runBuilderDhcpAcquire, setBuilderDhcpClient, upsertBuilderDhcpPool } from '../src/builder/dhcp.ts';
 import { appendBuilderWorkbenchEventBatch, appendBuilderWorkbenchMessageEvent, builderWorkbenchEventCausalChain, createBuilderWorkbenchEventJournal } from '../src/builder/device-workbench.ts';
 import { createDefaultBuilderEthernetConfig, runBuilderEthernetFlow } from '../src/builder/ethernet.ts';
 import { createBuilderIpv6ControlState } from '../src/builder/ipv6-control-plane.ts';
@@ -135,8 +135,81 @@ const dhcpChain=builderWorkbenchEventCausalChain(dhcpJournal,dhcpAckEvent.id,10)
 assert.equal(dhcpChain[0].id,dhcpAction.id,'ACK causal chain must lead back to the user-visible DHCP action');
 assert.ok(dhcpChain.some((event)=>event.summary.startsWith('DHCP · DISCOVER ·')),'ACK causal chain must retain DISCOVER provenance');
 
+// DHCP release must be a protocol-native state boundary, not a generic lease disappearance.
+const releaseBefore=dhcpAfter;
+const releaseResult=releaseBuilderDhcpLease(releaseBefore.dhcpLeases,'lan-a',releaseBefore.dhcpSequence);
+const releaseAfter={...releaseBefore,dhcpLeases:releaseResult.leases,dhcpSequence:releaseBefore.dhcpSequence+1};
+let releaseJournal=createBuilderWorkbenchEventJournal();
+let releaseTimeline=createBuilderTimeline();
+releaseTimeline=captureBuilderTimelineSnapshot(releaseTimeline,releaseJournal,{...releaseBefore,events:releaseJournal});
+releaseJournal=appendBuilderWorkbenchMessageEvent(releaseJournal,'DHCP RELEASE · '+releaseResult.event.detail,[{plane:'ethernet',id:'lan-a'},{plane:'ethernet',id:dhcpTransaction.lease.serverDeviceId}]);
+const releaseAction=releaseJournal.at(-1);
+const releaseSpecs=deriveBuilderCanonicalEventSpecs(releaseBefore,releaseAfter,releaseAction);
+assert.equal(releaseSpecs.filter((entry)=>entry.summary.startsWith('DHCP · RELEASE · ')).length,1,'release must emit one protocol-native RELEASE event');
+const releaseSpec=releaseSpecs.find((entry)=>entry.summary.startsWith('DHCP · RELEASE · '));
+assert.deepEqual(releaseSpec.projection?.dhcpRemoveLeaseIds,[dhcpTransaction.lease.id],'RELEASE removes only the released lease at its own event boundary');
+releaseJournal=appendBuilderWorkbenchEventBatch(releaseJournal,releaseSpecs);
+releaseTimeline=captureBuilderTimelineSnapshot(releaseTimeline,releaseJournal,{...releaseAfter,events:releaseJournal});
+const releaseActionSnapshot=releaseTimeline.snapshots.find((snapshot)=>snapshot.eventId===releaseAction.id);
+const releasedSnapshot=releaseTimeline.snapshots.find((snapshot)=>snapshot.summary.startsWith('DHCP · RELEASE · '));
+assert.ok(releaseActionSnapshot&&releasedSnapshot);
+assert.equal(releaseActionSnapshot.state.dhcpLeases.length,1,'root release action remains inspectable before protocol state mutation');
+assert.equal(releasedSnapshot.state.dhcpLeases.length,0,'RELEASE event removes the lease');
+assert.equal(releasedSnapshot.state.dhcpSequence,3,'RELEASE advances deterministic DHCP sequence');
+assert.equal(applyBuilderDhcpState(ethernet,dhcpConfig,releasedSnapshot.state.dhcpLeases,releasedSnapshot.state.dhcpSequence).devices.find((device)=>device.id==='lan-a')?.interfaces[0]?.address,'0.0.0.0','effective host IPv4 disappears at RELEASE');
+
+// A clock jump must expose T1, T2, and expiry at their own sequence boundaries.
+const defaultPool=dhcpConfig.pools.find((pool)=>pool.vlanId===ethernet.devices.find((device)=>device.id==='lan-a')?.interfaces[0]?.vlanId);
+assert.ok(defaultPool);
+const shortDhcpConfig=upsertBuilderDhcpPool(ethernet,dhcpConfig,{...defaultPool,leaseSteps:4});
+const shortTransaction=runBuilderDhcpAcquire(ethernet,shortDhcpConfig,[],'lan-a',1);
+assert.ok(shortTransaction.success&&shortTransaction.lease);
+const clockBefore={...dhcpBefore,dhcp:shortDhcpConfig,dhcpLeases:shortTransaction.leases,dhcpSequence:2};
+const clockAfter={...clockBefore,dhcpLeases:pruneBuilderDhcpLeases(clockBefore.dhcpLeases,10),dhcpSequence:10};
+let clockJournal=createBuilderWorkbenchEventJournal();
+let clockTimeline=createBuilderTimeline();
+clockTimeline=captureBuilderTimelineSnapshot(clockTimeline,clockJournal,{...clockBefore,events:clockJournal});
+clockJournal=appendBuilderWorkbenchMessageEvent(clockJournal,'DHCP CLOCK · advanced to sequence 10. Lease expiration is evaluated from deterministic sequence time.',[{plane:'ethernet',id:'lan-a'}]);
+const clockAction=clockJournal.at(-1);
+const clockSpecs=deriveBuilderCanonicalEventSpecs(clockBefore,clockAfter,clockAction);
+for(const prefix of ['DHCP · T1 REACHED · ','DHCP · T2 REACHED · ','DHCP · EXPIRE · ','DHCP · CLOCK · SEQ 10'])assert.ok(clockSpecs.some((entry)=>entry.summary.startsWith(prefix)),'missing DHCP lifecycle event '+prefix);
+clockJournal=appendBuilderWorkbenchEventBatch(clockJournal,clockSpecs);
+clockTimeline=captureBuilderTimelineSnapshot(clockTimeline,clockJournal,{...clockAfter,events:clockJournal});
+const t1Snapshot=clockTimeline.snapshots.find((snapshot)=>snapshot.summary.startsWith('DHCP · T1 REACHED · '));
+const t2Snapshot=clockTimeline.snapshots.find((snapshot)=>snapshot.summary.startsWith('DHCP · T2 REACHED · '));
+const expireSnapshot=clockTimeline.snapshots.find((snapshot)=>snapshot.summary.startsWith('DHCP · EXPIRE · '));
+const clockFinalSnapshot=clockTimeline.snapshots.find((snapshot)=>snapshot.summary==='DHCP · CLOCK · SEQ 10');
+assert.ok(t1Snapshot&&t2Snapshot&&expireSnapshot&&clockFinalSnapshot);
+assert.equal(t1Snapshot.state.dhcpSequence,shortTransaction.lease.renewAtSequence,'T1 snapshot uses the exact DHCP model sequence');
+assert.equal(t1Snapshot.state.dhcpLeases.length,1,'T1 does not remove the active lease');
+assert.equal(t2Snapshot.state.dhcpSequence,shortTransaction.lease.rebindAtSequence,'T2 snapshot uses the exact DHCP model sequence');
+assert.equal(t2Snapshot.state.dhcpLeases.length,1,'T2 does not remove the active lease');
+assert.equal(expireSnapshot.state.dhcpSequence,shortTransaction.lease.expiresAtSequence+1,'expiry becomes effective on the first sequence after the inclusive lease-valid boundary');
+assert.equal(expireSnapshot.state.dhcpLeases.length,0,'EXPIRE removes the lease exactly at the expiry transition');
+assert.equal(applyBuilderDhcpState(ethernet,shortDhcpConfig,expireSnapshot.state.dhcpLeases,expireSnapshot.state.dhcpSequence).devices.find((device)=>device.id==='lan-a')?.interfaces[0]?.address,'0.0.0.0','expired historical state returns host IPv4 to unconfigured');
+assert.equal(clockFinalSnapshot.state.dhcpSequence,10,'clock timeline reaches the user-requested final deterministic sequence');
+assert.equal(clockFinalSnapshot.state.dhcpLeases.length,0,'final clock state preserves pruned lease truth');
+
+// Failed renewal replays the canonical model and exposes TIMEOUT instead of collapsing to generic failure.
+const renewSequence=dhcpTransaction.lease.renewAtSequence;
+const renewPathLink=dhcpTransaction.events.find((event)=>event.kind==='REQUEST')?.linkIds[0]??dhcpTransaction.events[0]?.linkIds[0];
+assert.ok(renewPathLink);
+const brokenEthernet={...ethernet,links:ethernet.links.map((link)=>link.id===renewPathLink?{...link,failed:true}:link)};
+const timeoutResult=renewBuilderDhcpLease(brokenEthernet,dhcpConfig,dhcpTransaction.leases,'lan-a',renewSequence);
+assert.equal(timeoutResult.success,false,'fixture must produce a deterministic renewal timeout');
+assert.equal(timeoutResult.events.at(-1)?.kind,'TIMEOUT');
+const timeoutBefore={...dhcpAfter,ethernet:brokenEthernet,dhcpSequence:renewSequence,dhcpLeases:dhcpTransaction.leases};
+const timeoutAfter={...timeoutBefore,dhcpSequence:renewSequence+1,dhcpLeases:timeoutResult.leases};
+const timeoutAction=appendBuilderWorkbenchMessageEvent(createBuilderWorkbenchEventJournal(),'DHCP TIMEOUT · '+timeoutResult.summary,[{plane:'ethernet',id:'lan-a'},{plane:'ethernet',id:dhcpTransaction.lease.serverDeviceId}]).at(-1);
+const timeoutSpecs=deriveBuilderCanonicalEventSpecs(timeoutBefore,timeoutAfter,timeoutAction);
+const timeoutSpec=timeoutSpecs.find((entry)=>entry.summary.startsWith('DHCP · TIMEOUT · '));
+assert.ok(timeoutSpec,'failed renewal must expose the model TIMEOUT event');
+assert.equal(timeoutSpec.projection?.dhcpSequence,'after','TIMEOUT commits the attempted transaction sequence without fabricating lease removal');
+assert.equal(timeoutSpec.projection?.dhcpLeases,undefined,'renew timeout keeps the still-valid lease structurally shared');
+
 const dhcpPanelSource=readFileSync(new URL('../src/BuilderDhcpPanel.tsx',import.meta.url),'utf8');
 assert.match(dhcpPanelSource,/HISTORICAL DHCP STAGE/,'DHCP panel must render the selected historical stage instead of leaking live transaction UI');
+assert.ok(dhcpPanelSource.includes('pruneBuilderDhcpLeases(leases,next)'),'advancing the live DHCP clock must prune expired leases immediately instead of leaving stale panel state');
 
 const probe=runBuilderProbe(graph,addressing,routing,'ping','client','app',1,base.linkProfiles,base.acl,base.nat,[]);
 const probeAction=appendBuilderWorkbenchMessageEvent(createBuilderWorkbenchEventJournal(),'PING · '+probe.summary,[{plane:'routed',id:'client'},{plane:'routed',id:'app'}]).at(-1);
@@ -154,4 +227,4 @@ assert.ok(lanSpecs.some((entry)=>entry.kind==='resolution'&&entry.category==='ne
 assert.ok(lanSpecs.some((entry)=>entry.kind==='forwarding'&&entry.category==='switching'),'LAN flow must emit L2 forwarding truth');
 assert.ok(lanSpecs.some((entry)=>entry.kind==='flow'&&entry.category==='switching'),'LAN flow must emit terminal outcome truth');
 
-console.log('Builder canonical-event contract passed: timed OSPF truth dimensions and protocol-native DHCP DORA stages preserve canonical order, causality, intermediate state, and bounded structural sharing.');
+console.log('Builder canonical-event contract passed: timed OSPF truth dimensions plus DHCP acquisition, renewal failure, release, T1/T2, expiry, and clock projection preserve canonical causality and intermediate state.');

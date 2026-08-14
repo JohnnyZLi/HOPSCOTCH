@@ -50,7 +50,8 @@ export interface BuilderWorkbenchEventProjection {
   rib?: 'after';
   fib?: 'after';
   dhcpLeases?: 'after';
-  dhcpSequence?: 'after';
+  dhcpSequence?: 'after' | number;
+  dhcpRemoveLeaseIds?: string[];
 }
 
 export interface BuilderWorkbenchEventSpec {
@@ -209,7 +210,7 @@ export function appendBuilderWorkbenchEventBatch(journal:BuilderWorkbenchEventJo
       deviceRefs:uniqueRefs(entry.deviceRefs??[]),
       causeId,
       objectIds:[...new Set((entry.objectIds??[]).filter(Boolean))].slice(0,16),
-      projection:entry.projection?{...entry.projection}:undefined,
+      projection:entry.projection?{...entry.projection,dhcpRemoveLeaseIds:entry.projection.dhcpRemoveLeaseIds?[...entry.projection.dhcpRemoveLeaseIds]:undefined}:undefined,
     };
     next.push(event);
     if(entry.key)idsByKey.set(entry.key,id);
