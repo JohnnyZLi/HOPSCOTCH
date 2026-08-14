@@ -49,6 +49,8 @@ export interface BuilderWorkbenchEventProjection {
   control?: 'after';
   rib?: 'after';
   fib?: 'after';
+  dhcpLeases?: 'after';
+  dhcpSequence?: 'after';
 }
 
 export interface BuilderWorkbenchEventSpec {

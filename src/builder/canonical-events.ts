@@ -1,4 +1,5 @@
 import { builderBgpState } from './bgp.ts';
+import { renewBuilderDhcpLease, runBuilderDhcpAcquire, type BuilderDhcpTransaction } from './dhcp.ts';
 import { builderStpState } from './stp.ts';
 import { createBuilderOspfLinkFailureScenario, type BuilderOspfConvergenceEventKind } from './ospf-timing.ts';
 import { builderOspfState, routeTableForBuilderRouter } from './routing.ts';
@@ -354,6 +355,46 @@ function deriveNatEvents(before: BuilderTimelineState, after: BuilderTimelineSta
   }
 }
 
+function replayDhcpTransaction(before: BuilderTimelineState, clientDeviceId: string, expectedLease: BuilderTimelineState['dhcpLeases'][number], renewal: boolean): BuilderDhcpTransaction | null {
+  try {
+    const transaction = renewal
+      ? renewBuilderDhcpLease(before.ethernet, before.dhcp, before.dhcpLeases, clientDeviceId, before.dhcpSequence)
+      : runBuilderDhcpAcquire(before.ethernet, before.dhcp, before.dhcpLeases, clientDeviceId, before.dhcpSequence);
+    if (!transaction.success || !transaction.lease || stable(transaction.lease) !== stable(expectedLease)) return null;
+    return transaction;
+  } catch {
+    return null;
+  }
+}
+
+function appendDhcpTransactionEvents(transaction: BuilderDhcpTransaction, state: BuilderTimelineState, output: BuilderWorkbenchEventSpec[], startOffset: number): number {
+  let previousKey: string | null = null;
+  for (let index = 0; index < transaction.events.length; index += 1) {
+    const event = transaction.events[index];
+    const key = 'dhcp:transaction:' + transaction.id + ':' + String(index).padStart(2, '0') + ':' + event.kind.toLowerCase();
+    const path = event.nodeIds.map((id) => labelForEthernet(state, id)).join(' → ');
+    const detail = event.detail + (path ? ' · PATH ' + path : '') + (event.relayed ? ' · RELAYED' : '');
+    const projection: BuilderWorkbenchEventProjection | undefined = event.kind === 'ACK' && transaction.success
+      ? { dhcpLeases: 'after', dhcpSequence: 'after' }
+      : undefined;
+    const objectIds = [transaction.id, ...event.linkIds, transaction.lease?.id ?? '', transaction.lease?.poolId ?? '', transaction.lease?.address ?? ''].filter((value) => value.length > 0);
+    output.push(spec(
+      key,
+      'control-plane',
+      'dhcp',
+      'DHCP · ' + event.kind + ' · VLAN ' + event.vlanId,
+      detail,
+      startOffset + index,
+      ethernetRefs(event.sourceDeviceId, event.destinationDeviceId, ...event.nodeIds),
+      objectIds,
+      previousKey,
+      projection,
+    ));
+    previousKey = key;
+  }
+  return startOffset + Math.max(1, transaction.events.length) + 1;
+}
+
 function deriveDhcpEvents(before: BuilderTimelineState, after: BuilderTimelineState, output: BuilderWorkbenchEventSpec[]): void {
   const prior = mapById(before.dhcpLeases);
   const next = mapById(after.dhcpLeases);
@@ -361,12 +402,39 @@ function deriveDhcpEvents(before: BuilderTimelineState, after: BuilderTimelineSt
   for (const [id, entry] of next) {
     const old = prior.get(id);
     if (!old || stable(old) !== stable(entry)) {
-      output.push(spec('dhcp:' + id, 'control-plane', 'dhcp', 'DHCP LEASE · ' + entry.address, labelForEthernet(after, entry.clientDeviceId) + ' holds ' + entry.address + ' from ' + labelForEthernet(after, entry.serverDeviceId) + ' · renew ' + entry.renewAtSequence + ' · rebind ' + entry.rebindAtSequence + ' · expire ' + entry.expiresAtSequence + '.', offset++, ethernetRefs(entry.clientDeviceId, entry.serverDeviceId), [entry.id, entry.poolId, entry.address]));
+      const transaction = replayDhcpTransaction(before, entry.clientDeviceId, entry, Boolean(old));
+      if (transaction) {
+        offset = appendDhcpTransactionEvents(transaction, after, output, offset);
+        continue;
+      }
+      output.push(spec(
+        'dhcp:' + id,
+        'control-plane',
+        'dhcp',
+        'DHCP LEASE · ' + entry.address,
+        labelForEthernet(after, entry.clientDeviceId) + ' holds ' + entry.address + ' from ' + labelForEthernet(after, entry.serverDeviceId) + ' · renew ' + entry.renewAtSequence + ' · rebind ' + entry.rebindAtSequence + ' · expire ' + entry.expiresAtSequence + '.',
+        offset++,
+        ethernetRefs(entry.clientDeviceId, entry.serverDeviceId),
+        [entry.id, entry.poolId, entry.address],
+        undefined,
+        { dhcpLeases: 'after', dhcpSequence: 'after' },
+      ));
     }
   }
   for (const [id, entry] of prior) {
     if (next.has(id)) continue;
-    output.push(spec('dhcp:removed:' + id, 'control-plane', 'dhcp', 'DHCP LEASE REMOVED · ' + entry.address, labelForEthernet(before, entry.clientDeviceId) + ' no longer has lease ' + entry.id + '.', offset++, ethernetRefs(entry.clientDeviceId, entry.serverDeviceId), [entry.id, entry.address]));
+    output.push(spec(
+      'dhcp:removed:' + id,
+      'control-plane',
+      'dhcp',
+      'DHCP LEASE REMOVED · ' + entry.address,
+      labelForEthernet(before, entry.clientDeviceId) + ' no longer has lease ' + entry.id + '.',
+      offset++,
+      ethernetRefs(entry.clientDeviceId, entry.serverDeviceId),
+      [entry.id, entry.address],
+      undefined,
+      { dhcpLeases: 'after', dhcpSequence: 'after' },
+    ));
   }
 }
 

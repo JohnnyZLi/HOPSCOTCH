@@ -4,7 +4,7 @@ import { createDefaultBuilderAddressing } from '../src/builder/addressing.ts';
 import { createDefaultBuilderAclConfig } from '../src/builder/acl.ts';
 import { clearBuilderArpCache, resolveBuilderEthernetFlowArp } from '../src/builder/arp.ts';
 import { deriveBuilderCanonicalEventSpecs } from '../src/builder/canonical-events.ts';
-import { createDefaultBuilderDhcpConfig } from '../src/builder/dhcp.ts';
+import { createDefaultBuilderDhcpConfig, runBuilderDhcpAcquire, setBuilderDhcpClient } from '../src/builder/dhcp.ts';
 import { appendBuilderWorkbenchEventBatch, appendBuilderWorkbenchMessageEvent, builderWorkbenchEventCausalChain, createBuilderWorkbenchEventJournal } from '../src/builder/device-workbench.ts';
 import { createDefaultBuilderEthernetConfig, runBuilderEthernetFlow } from '../src/builder/ethernet.ts';
 import { createBuilderIpv6ControlState } from '../src/builder/ipv6-control-plane.ts';
@@ -98,6 +98,46 @@ assert.match(builderSource,/sceneState\.truthGraphs\?\.controlGraph \?\? sceneGr
 assert.match(builderSource,/routeTableForBuilderRouter\(sceneRibGraph/);
 assert.match(builderSource,/traceBuilderForwarding\(sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId, sceneFibGraph\)/);
 
+const dhcpConfig=setBuilderDhcpClient(ethernet,createDefaultBuilderDhcpConfig(ethernet),'lan-a',true);
+const dhcpBefore={...base,dhcp:dhcpConfig,dhcpLeases:[],dhcpSequence:1};
+const dhcpTransaction=runBuilderDhcpAcquire(ethernet,dhcpConfig,[], 'lan-a', 1);
+assert.equal(dhcpTransaction.success,true,'DORA contract requires a successful deterministic acquisition');
+assert.ok(dhcpTransaction.lease);
+const dhcpAfter={...dhcpBefore,dhcpLeases:dhcpTransaction.leases,dhcpSequence:2};
+let dhcpJournal=createBuilderWorkbenchEventJournal();
+let dhcpTimeline=createBuilderTimeline();
+dhcpTimeline=captureBuilderTimelineSnapshot(dhcpTimeline,dhcpJournal,{...dhcpBefore,events:dhcpJournal});
+dhcpJournal=appendBuilderWorkbenchMessageEvent(dhcpJournal,'DHCP ACK · '+dhcpTransaction.summary,[{plane:'ethernet',id:'lan-a'},{plane:'ethernet',id:dhcpTransaction.lease.serverDeviceId}]);
+const dhcpAction=dhcpJournal.at(-1);
+const dhcpSpecs=deriveBuilderCanonicalEventSpecs(dhcpBefore,dhcpAfter,dhcpAction);
+const dora=dhcpSpecs.filter((entry)=>entry.category==='dhcp'&&entry.summary.startsWith('DHCP · '));
+assert.deepEqual(dora.map((entry)=>entry.summary.split(' · ')[1]),['DISCOVER','OFFER','REQUEST','ACK'],'DHCP acquisition must expose canonical DORA stage order');
+assert.ok(dora.every((entry)=>entry.kind==='control-plane'),'DORA stages are DHCP control-plane transitions');
+assert.equal(dora.at(-1).projection?.dhcpLeases,'after','ACK must be the lease-install boundary');
+assert.equal(dora.at(-1).projection?.dhcpSequence,'after','ACK must advance the deterministic DHCP sequence state');
+dhcpJournal=appendBuilderWorkbenchEventBatch(dhcpJournal,dhcpSpecs);
+dhcpTimeline=captureBuilderTimelineSnapshot(dhcpTimeline,dhcpJournal,{...dhcpAfter,events:dhcpJournal});
+const doraSnapshots=Object.fromEntries(['DISCOVER','OFFER','REQUEST','ACK'].map((kind)=>[kind,dhcpTimeline.snapshots.find((snapshot)=>snapshot.summary.startsWith('DHCP · '+kind+' ·'))]));
+assert.ok(doraSnapshots.DISCOVER&&doraSnapshots.OFFER&&doraSnapshots.REQUEST&&doraSnapshots.ACK);
+assert.equal(doraSnapshots.DISCOVER.state.dhcpLeases.length,0,'DISCOVER must not install a lease');
+assert.equal(doraSnapshots.OFFER.state.dhcpLeases.length,0,'OFFER must not install a lease');
+assert.equal(doraSnapshots.REQUEST.state.dhcpLeases.length,0,'REQUEST must not install a lease');
+assert.equal(doraSnapshots.DISCOVER.state.dhcpSequence,1,'DORA pre-ACK stages stay on the transaction sequence');
+assert.equal(doraSnapshots.REQUEST.state.dhcpSequence,1,'REQUEST still precedes lease commit');
+assert.equal(doraSnapshots.ACK.state.dhcpLeases[0]?.address,dhcpTransaction.lease.address,'ACK installs the canonical lease');
+assert.equal(doraSnapshots.ACK.state.dhcpSequence,2,'ACK advances the Builder DHCP sequence to the committed state');
+assert.equal(doraSnapshots.DISCOVER.state,doraSnapshots.OFFER.state,'DORA stages without state mutation structurally share the same historical state');
+assert.equal(doraSnapshots.OFFER.state,doraSnapshots.REQUEST.state,'REQUEST must not allocate a duplicate scene state before ACK');
+assert.notEqual(doraSnapshots.REQUEST.state,doraSnapshots.ACK.state,'ACK creates the state boundary where the lease becomes visible');
+const dhcpAckEvent=dhcpJournal.find((event)=>event.summary.startsWith('DHCP · ACK ·'));
+assert.ok(dhcpAckEvent);
+const dhcpChain=builderWorkbenchEventCausalChain(dhcpJournal,dhcpAckEvent.id,10);
+assert.equal(dhcpChain[0].id,dhcpAction.id,'ACK causal chain must lead back to the user-visible DHCP action');
+assert.ok(dhcpChain.some((event)=>event.summary.startsWith('DHCP · DISCOVER ·')),'ACK causal chain must retain DISCOVER provenance');
+
+const dhcpPanelSource=readFileSync(new URL('../src/BuilderDhcpPanel.tsx',import.meta.url),'utf8');
+assert.match(dhcpPanelSource,/HISTORICAL DHCP STAGE/,'DHCP panel must render the selected historical stage instead of leaking live transaction UI');
+
 const probe=runBuilderProbe(graph,addressing,routing,'ping','client','app',1,base.linkProfiles,base.acl,base.nat,[]);
 const probeAction=appendBuilderWorkbenchMessageEvent(createBuilderWorkbenchEventJournal(),'PING · '+probe.summary,[{plane:'routed',id:'client'},{plane:'routed',id:'app'}]).at(-1);
 const probeSpecs=deriveBuilderCanonicalEventSpecs(base,{...base,probeHistory:[probe],natSessions:probe.natSessions},probeAction);
@@ -114,4 +154,4 @@ assert.ok(lanSpecs.some((entry)=>entry.kind==='resolution'&&entry.category==='ne
 assert.ok(lanSpecs.some((entry)=>entry.kind==='forwarding'&&entry.category==='switching'),'LAN flow must emit L2 forwarding truth');
 assert.ok(lanSpecs.some((entry)=>entry.kind==='flow'&&entry.category==='switching'),'LAN flow must emit terminal outcome truth');
 
-console.log('Builder canonical-event contract passed: canonical model events preserve timing and causality while timed OSPF history independently projects physical, control-plane, RIB, and FIB truth with bounded structural sharing.');
+console.log('Builder canonical-event contract passed: timed OSPF truth dimensions and protocol-native DHCP DORA stages preserve canonical order, causality, intermediate state, and bounded structural sharing.');

@@ -91,8 +91,16 @@ export function captureBuilderTimelineSnapshot(timeline: BuilderTimeline, journa
 
   const beforeGraph=cloneValue(priorState!.graph);
   const afterGraph=finalState.graph;
+  const stageDhcpLeases=uncaptured.some((event)=>event.projection?.dhcpLeases==='after');
+  const stageDhcpSequence=uncaptured.some((event)=>event.projection?.dhcpSequence==='after');
   let truthGraphs={controlGraph:beforeGraph,ribGraph:beforeGraph,fibGraph:beforeGraph};
-  let state:BuilderTimelineState={...finalState,graph:beforeGraph,truthGraphs};
+  let state:BuilderTimelineState={
+    ...finalState,
+    graph:beforeGraph,
+    truthGraphs,
+    ...(stageDhcpLeases?{dhcpLeases:cloneValue(priorState!.dhcpLeases)}:{}),
+    ...(stageDhcpSequence?{dhcpSequence:priorState!.dhcpSequence}:{}),
+  };
   const snapshots=uncaptured.map((event):BuilderTimelineSnapshot=>{
     const projection=event.projection;
     if(projection){
@@ -102,8 +110,10 @@ export function captureBuilderTimelineSnapshot(timeline: BuilderTimeline, journa
       if(projection.control==='after')nextTruth.controlGraph=afterGraph;
       if(projection.rib==='after')nextTruth.ribGraph=afterGraph;
       if(projection.fib==='after')nextTruth.fibGraph=afterGraph;
+      const dhcpLeases=projection.dhcpLeases==='after'?finalState.dhcpLeases:state.dhcpLeases;
+      const dhcpSequence=projection.dhcpSequence==='after'?finalState.dhcpSequence:state.dhcpSequence;
       truthGraphs=nextTruth;
-      state={...state,graph,truthGraphs};
+      state={...state,graph,truthGraphs,dhcpLeases,dhcpSequence};
     }
     return {
       eventId:event.id,
