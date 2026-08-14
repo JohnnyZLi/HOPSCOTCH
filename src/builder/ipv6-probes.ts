@@ -1,6 +1,7 @@
 import type { BuilderGraph } from './model.ts';
 import { builderPathCharacteristics, builderRoundTripCharacteristics, createDefaultBuilderLinkProfiles, deterministicBuilderPathDrop, type BuilderLinkProfiles } from './link-characteristics.ts';
-import { primaryBuilderIpv6Address, traceBuilderIpv6Forwarding, type BuilderIpv6Config, type BuilderIpv6ForwardingTrace } from './ipv6.ts';
+import { primaryBuilderIpv6Address, traceBuilderIpv6Forwarding, type BuilderIpv6Config, type BuilderIpv6ForwardingTrace, type BuilderIpv6RouteOverlay } from './ipv6.ts';
+import { builderOspfv3DepthRouteOverlay, evaluateBuilderIpv6Policy, reconcileBuilderIpv6RoutingDepthState, type BuilderIpv6IcmpType, type BuilderIpv6RoutingDepthState } from './ipv6-routing-depth.ts';
 import { checkBuilderIpv6Pmtu, resolveBuilderIpv6TraceNeighbors, type BuilderIpv6ControlState } from './ipv6-control-plane.ts';
 import { getBuilderIpv6ProbePacketBytes, getBuilderIpv6SessionState, setBuilderIpv6SessionState } from './ipv6-session.ts';
 import type { BuilderNatSessionTable } from './nat.ts';
@@ -123,8 +124,8 @@ function ptbResult(graph: BuilderGraph, config: BuilderIpv6Config, kind: 'ping' 
   });
 }
 
-function runPing(graph: BuilderGraph, config: BuilderIpv6Config, sourceNodeId: string, destinationNodeId: string, sequence: number, profiles: BuilderLinkProfiles, natSessions: BuilderNatSessionTable, currentControl: BuilderIpv6ControlState, requestedPacketBytes: number): BuilderIpv6ProbeResult {
-  const request = traceBuilderIpv6Forwarding(graph, config, sourceNodeId, destinationNodeId);
+function runPing(graph: BuilderGraph, config: BuilderIpv6Config, sourceNodeId: string, destinationNodeId: string, sequence: number, profiles: BuilderLinkProfiles, natSessions: BuilderNatSessionTable, currentControl: BuilderIpv6ControlState, requestedPacketBytes: number, routeOverlay?: BuilderIpv6RouteOverlay): BuilderIpv6ProbeResult {
+  const request = traceBuilderIpv6Forwarding(graph, config, sourceNodeId, destinationNodeId, routeOverlay);
   const sourceAddress = request.sourceAddress ?? primaryBuilderIpv6Address(config.addressing, sourceNodeId);
   const destinationAddress = request.destinationAddress ?? primaryBuilderIpv6Address(config.addressing, destinationNodeId);
   const requestLinks = linkPath(request);
@@ -155,7 +156,7 @@ function runPing(graph: BuilderGraph, config: BuilderIpv6Config, sourceNodeId: s
         status = 'timeout';
         detail = `ICMPv6 Echo Request was deterministically dropped on ${dropLinkId}. ${ndSummary(ndRequest.resolutions)}`;
       } else {
-        reply = traceBuilderIpv6Forwarding(graph, config, destinationNodeId, sourceNodeId);
+        reply = traceBuilderIpv6Forwarding(graph, config, destinationNodeId, sourceNodeId, routeOverlay);
         if (!reply.reachable) {
           status = 'timeout'; responderNodeId = destinationNodeId;
           detail = `Echo Request reached ${labelFor(graph, destinationNodeId)}, but the Echo Reply cannot return: ${reply.failureReason ?? 'reverse IPv6 route unavailable'}.`;
@@ -189,8 +190,8 @@ function runPing(graph: BuilderGraph, config: BuilderIpv6Config, sourceNodeId: s
   });
 }
 
-function runTraceroute(graph: BuilderGraph, config: BuilderIpv6Config, sourceNodeId: string, destinationNodeId: string, sequence: number, profiles: BuilderLinkProfiles, natSessions: BuilderNatSessionTable, currentControl: BuilderIpv6ControlState, requestedPacketBytes: number): BuilderIpv6ProbeResult {
-  const forward = traceBuilderIpv6Forwarding(graph, config, sourceNodeId, destinationNodeId);
+function runTraceroute(graph: BuilderGraph, config: BuilderIpv6Config, sourceNodeId: string, destinationNodeId: string, sequence: number, profiles: BuilderLinkProfiles, natSessions: BuilderNatSessionTable, currentControl: BuilderIpv6ControlState, requestedPacketBytes: number, routeOverlay?: BuilderIpv6RouteOverlay): BuilderIpv6ProbeResult {
+  const forward = traceBuilderIpv6Forwarding(graph, config, sourceNodeId, destinationNodeId, routeOverlay);
   const sourceAddress = forward.sourceAddress ?? primaryBuilderIpv6Address(config.addressing, sourceNodeId);
   const destinationAddress = forward.destinationAddress ?? primaryBuilderIpv6Address(config.addressing, destinationNodeId);
   const nodes = nodePath(forward);
@@ -217,7 +218,7 @@ function runTraceroute(graph: BuilderGraph, config: BuilderIpv6Config, sourceNod
     const ndRequest = resolveBuilderIpv6TraceNeighbors(graph, config, forward, control, sequence, nodeIndex);
     control = ndRequest.state;
     const requestDrop = ndRequest.success ? deterministicBuilderPathDrop(profiles, requestLinks, `trace6:${sequence}:${hopLimit}:request`) : null;
-    const response = traceBuilderIpv6Forwarding(graph, config, nodeId, sourceNodeId);
+    const response = traceBuilderIpv6Forwarding(graph, config, nodeId, sourceNodeId, routeOverlay);
     const ndResponse = !requestDrop && response.reachable ? resolveBuilderIpv6TraceNeighbors(graph, config, response, control, sequence) : null;
     if (ndResponse) control = ndResponse.state;
     const responseLinks = response.reachable ? linkPath(response) : [];
@@ -230,7 +231,7 @@ function runTraceroute(graph: BuilderGraph, config: BuilderIpv6Config, sourceNod
 
   const ndDestination = resolveBuilderIpv6TraceNeighbors(graph, config, forward, control, sequence);
   control = ndDestination.state;
-  const reply = traceBuilderIpv6Forwarding(graph, config, destinationNodeId, sourceNodeId);
+  const reply = traceBuilderIpv6Forwarding(graph, config, destinationNodeId, sourceNodeId, routeOverlay);
   const ndReply = reply.reachable ? resolveBuilderIpv6TraceNeighbors(graph, config, reply, control, sequence) : null;
   if (ndReply) control = ndReply.state;
   const responseLinks = reply.reachable ? linkPath(reply) : [];
@@ -243,8 +244,39 @@ function runTraceroute(graph: BuilderGraph, config: BuilderIpv6Config, sourceNod
   return finish({ id: `probe6-${sequence}-traceroute`, sequence, kind: 'traceroute', plane: 'ROUTED IPV6', sourceNodeId, destinationNodeId, sourceAddress, destinationAddress, success, attempts, summary: success ? `ICMPv6 traceroute reached ${labelFor(graph, destinationNodeId)} after ${Math.max(0, attempts.length - 1)} routed hop${attempts.length - 1 === 1 ? '' : 's'} · ND/PMTU state active.` : 'IPv6 traceroute terminated without a returning destination Echo Reply.', snapshotNote: 'Hop Limit decrements only at routers. Each request/reply next hop uses Neighbor Discovery; cached PMTU can constrain the probe size. OSPFv3 routes are ordinary IPv6 FIB inputs at AD 110.', natApplied: false, natTranslationId: null, natSessions, ipv6ControlState: control, requestedPacketBytes: requested, effectivePacketBytes });
 }
 
-export function runBuilderIpv6Probe(graph: BuilderGraph, config: BuilderIpv6Config, kind: 'ping' | 'traceroute', sourceNodeId: string, destinationNodeId: string, sequence = 1, profiles: BuilderLinkProfiles = createDefaultBuilderLinkProfiles(graph), natSessions: BuilderNatSessionTable = [], controlState: BuilderIpv6ControlState = getBuilderIpv6SessionState(), requestedPacketBytes = getBuilderIpv6ProbePacketBytes()): BuilderIpv6ProbeResult {
-  return kind === 'ping'
-    ? runPing(graph, config, sourceNodeId, destinationNodeId, sequence, profiles, natSessions, controlState, requestedPacketBytes)
-    : runTraceroute(graph, config, sourceNodeId, destinationNodeId, sequence, profiles, natSessions, controlState, requestedPacketBytes);
+function applyPolicyToProbe(graph: BuilderGraph, config: BuilderIpv6Config, result: BuilderIpv6ProbeResult, depth: BuilderIpv6RoutingDepthState): BuilderIpv6ProbeResult {
+  const sourceAddress = result.sourceAddress;
+  const destinationAddress = result.destinationAddress;
+  if (!sourceAddress || !destinationAddress) return result;
+  let denied = false;
+  const attempts = result.attempts.map((attempt) => {
+    let denyDetail: string | null = null;
+    for (const nodeId of attempt.requestNodeIds) {
+      if (graph.nodes.find((node) => node.id === nodeId)?.kind !== 'router') continue;
+      const decision = evaluateBuilderIpv6Policy(depth.policy, nodeId, sourceAddress, destinationAddress, 'echo-request');
+      if (decision.action === 'deny') { denyDetail = `${nodeId.toUpperCase()} denied ICMPv6 Echo Request · ${decision.detail}`; break; }
+    }
+    if (!denyDetail && attempt.responseNodeIds.length) {
+      const responseType: BuilderIpv6IcmpType = attempt.status === 'time-exceeded' ? 'time-exceeded' : result.summary.includes('PACKET TOO BIG') ? 'packet-too-big' : 'echo-reply';
+      const responseSource = responseType === 'echo-reply' ? destinationAddress : (attempt.responderNodeId ? primaryBuilderIpv6Address(config.addressing, attempt.responderNodeId) : destinationAddress) ?? destinationAddress;
+      for (const nodeId of attempt.responseNodeIds) {
+        if (graph.nodes.find((node) => node.id === nodeId)?.kind !== 'router') continue;
+        const decision = evaluateBuilderIpv6Policy(depth.policy, nodeId, responseSource, sourceAddress, responseType);
+        if (decision.action === 'deny') { denyDetail = `${nodeId.toUpperCase()} denied ICMPv6 ${responseType.replaceAll('-', ' ').toUpperCase()} · ${decision.detail}`; break; }
+      }
+    }
+    if (!denyDetail) return attempt;
+    denied = true;
+    return { ...attempt, status: attempt.status === 'time-exceeded' || attempt.status === 'echo-reply' ? 'timeout' as const : 'unreachable' as const, detail: `IPV6 POLICY · ${denyDetail}` };
+  });
+  return denied ? { ...result, success: false, attempts, summary: 'IPV6 POLICY DENY · routing/ND may be healthy while ICMPv6 policy independently blocks the selected direction or control reply.', snapshotNote: `${result.snapshotNote} IPv6 ACL/firewall policy is evaluated separately with first-match semantics.` } : result;
+}
+
+export function runBuilderIpv6Probe(graph: BuilderGraph, config: BuilderIpv6Config, kind: 'ping' | 'traceroute', sourceNodeId: string, destinationNodeId: string, sequence = 1, profiles: BuilderLinkProfiles = createDefaultBuilderLinkProfiles(graph), natSessions: BuilderNatSessionTable = [], controlState: BuilderIpv6ControlState = getBuilderIpv6SessionState(), requestedPacketBytes = getBuilderIpv6ProbePacketBytes(), routingDepth?: BuilderIpv6RoutingDepthState): BuilderIpv6ProbeResult {
+  const depth = routingDepth ? reconcileBuilderIpv6RoutingDepthState(graph, routingDepth) : null;
+  const routeOverlay = depth ? builderOspfv3DepthRouteOverlay(graph, config, depth) : undefined;
+  const result = kind === 'ping'
+    ? runPing(graph, config, sourceNodeId, destinationNodeId, sequence, profiles, natSessions, controlState, requestedPacketBytes, routeOverlay)
+    : runTraceroute(graph, config, sourceNodeId, destinationNodeId, sequence, profiles, natSessions, controlState, requestedPacketBytes, routeOverlay);
+  return depth ? applyPolicyToProbe(graph, config, result, depth) : result;
 }

@@ -80,6 +80,8 @@ export interface BuilderIpv6RouteTableEntry {
   stateNote: string;
 }
 
+export type BuilderIpv6RouteOverlay = Record<string, BuilderIpv6RouteTableEntry[]>;
+
 export interface BuilderIpv6NextHopOption {
   nodeId: string;
   nodeLabel: string;
@@ -600,7 +602,7 @@ function ospfv3RoutesForRouter(graph: BuilderGraph, config: BuilderIpv6Config, r
   return [...best.values()];
 }
 
-export function routeTableForBuilderIpv6Router(graph: BuilderGraph, config: BuilderIpv6Config, routerId: string): BuilderIpv6RouteTableEntry[] {
+export function routeTableForBuilderIpv6Router(graph: BuilderGraph, config: BuilderIpv6Config, routerId: string, routeOverlay?: BuilderIpv6RouteOverlay): BuilderIpv6RouteTableEntry[] {
   if (!config.enabled || nodeById(graph, routerId)?.kind !== 'router') return [];
   const connected: BuilderIpv6RouteTableEntry[] = interfacesForBuilderNodeIpv6(config.addressing, routerId).map((entry) => {
     const link = linkById(graph, entry.linkId)!;
@@ -613,7 +615,7 @@ export function routeTableForBuilderIpv6Router(graph: BuilderGraph, config: Buil
     const local = config.addressing.segments[route.linkId]?.interfaces.find((entry) => entry.nodeId === routerId);
     return { id: route.id, routerId, prefix: parsed.cidr, prefixLength: parsed.prefixLength, source: 'static', administrativeDistance: 1, metric: route.metric, nextHop: route.nextHop, outgoingInterface: local?.name ?? '—', linkId: route.linkId, active, stateNote: active ? (route.description || 'STATIC IPV6') : 'NEXT-HOP LINK DOWN' };
   });
-  const ospfv3 = ospfv3RoutesForRouter(graph, config, routerId);
+  const ospfv3 = routeOverlay?.[routerId] ?? ospfv3RoutesForRouter(graph, config, routerId);
   return [...connected, ...statics, ...ospfv3].sort((a, b) => b.prefixLength - a.prefixLength || a.administrativeDistance - b.administrativeDistance || a.metric - b.metric || a.id.localeCompare(b.id));
 }
 
@@ -634,7 +636,7 @@ function ownerOfAddress(addressing: BuilderIpv6Addressing, address: string): { n
   return null;
 }
 
-export function traceBuilderIpv6Forwarding(graph: BuilderGraph, config: BuilderIpv6Config, sourceNodeId: string, destinationNodeId: string): BuilderIpv6ForwardingTrace {
+export function traceBuilderIpv6Forwarding(graph: BuilderGraph, config: BuilderIpv6Config, sourceNodeId: string, destinationNodeId: string, routeOverlay?: BuilderIpv6RouteOverlay): BuilderIpv6ForwardingTrace {
   const sourceAddress = primaryBuilderIpv6Address(config.addressing, sourceNodeId);
   const destinationAddress = primaryBuilderIpv6Address(config.addressing, destinationNodeId);
   if (!config.enabled) return failure(graph, sourceNodeId, destinationNodeId, sourceAddress, destinationAddress, [], sourceNodeId, 'IPv6 is disabled for this Builder scenario.');
@@ -672,7 +674,7 @@ export function traceBuilderIpv6Forwarding(graph: BuilderGraph, config: BuilderI
       continue;
     }
 
-    const selected = selectBuilderIpv6Route(routeTableForBuilderIpv6Router(graph, config, currentNodeId), destinationAddress);
+    const selected = selectBuilderIpv6Route(routeTableForBuilderIpv6Router(graph, config, currentNodeId, routeOverlay), destinationAddress);
     if (!selected) return failure(graph, sourceNodeId, destinationNodeId, sourceAddress, destinationAddress, hops, currentNodeId, `No active IPv6 route matches ${destinationAddress}.`);
     const link = linkById(graph, selected.linkId);
     if (!link || link.failed) return failure(graph, sourceNodeId, destinationNodeId, sourceAddress, destinationAddress, hops, currentNodeId, `Selected IPv6 route uses failed link ${selected.linkId}.`);

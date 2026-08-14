@@ -102,3 +102,15 @@ The next IPv6 slice adds state that only becomes visible over time rather than a
 - DHCPv6 leases, DAD/NUD observations, and lifetime clocks are session state rather than persisted configuration. A saved scenario therefore cannot fabricate a lease that was never renewed after restore.
 
 Timed/multi-area OSPFv3 and IPv6 ACL policy remain separate follow-on slices.
+
+## Routing-depth slice
+
+Lab 11N now carries IPv6 routing beyond a single instantaneous Area 0 view:
+
+- every routed Builder link can be assigned an OSPFv3 area; routers attached to Area 0 and at least one nonzero area are derived as ABRs;
+- inter-area `O6 IA` reachability is computed through an explicit Area 0 backbone state graph rather than treating all enabled routers as one flat SPF domain;
+- physical failure, dead-timer expiry, LSA flood, SPF, RIB installation, and FIB programming are distinct deterministic moments; before FIB programming, the route overlay can remain stale and point at a physically failed link;
+- IPv6 ACL/firewall policy is a separate first-match dimension with per-router defaults and explicit ICMPv6 Echo Request, Echo Reply, Time Exceeded, and Packet Too Big types;
+- active IPv6 Ping/Traceroute consumes the area/timing route overlay and policy result, so healthy routing can still produce an explicit policy failure and a failed physical link can still be selected by stale control-plane state.
+
+The advanced OSPFv3 timing/area assignment and IPv6 policy workspace are session state in this slice. Canonical interface addressing and existing scenario-v9 configuration remain backward compatible.

@@ -512,8 +512,8 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] Neighbor Unreachability Detection lifecycle: REACHABLE → STALE → DELAY → PROBE → FAILED / recovery
 - [x] RA preferred/valid/router lifetimes with deprecation, expiry, and deterministic /64 renumbering
 - [x] stateful DHCPv6 SOLICIT → ADVERTISE → REQUEST → REPLY leases kept distinct from RA default-router discovery
-- [ ] timed + multi-area OSPFv3 with ABRs and inter-area IPv6 route reasoning
-- [ ] IPv6 ACL/firewall policy with independent forward/reverse ICMPv6 evaluation
+- [x] timed + multi-area OSPFv3 with ABRs and inter-area IPv6 route reasoning
+- [x] IPv6 ACL/firewall policy with independent forward/reverse ICMPv6 evaluation
 
 ### 11O — BGP inside Network Builder
 - [ ] author routers with documentation ASNs and explicit eBGP/iBGP sessions
