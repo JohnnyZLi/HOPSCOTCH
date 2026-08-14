@@ -90,3 +90,15 @@ IPv6 configuration remains an additive field inside Builder scenario schema v9.
 - IPv6 extension-header and fragmentation teaching depth
 
 The important boundary is unchanged: HOPSCOTCH only animates protocol behavior that the deterministic model has actually derived. IPv6 UI, animation, and Packet Microscope views do not decide forwarding truth.
+
+## Lifecycle depth slice
+
+The next IPv6 slice adds state that only becomes visible over time rather than at initial configuration:
+
+- Duplicate Address Detection explicitly tests tentative addresses before use and can demonstrate a deterministic duplicate without corrupting canonical addressing.
+- Neighbor Unreachability Detection tracks REACHABLE, STALE, DELAY, PROBE, and FAILED states over a session clock. Reusing a stale entry drives the state machine; live Neighbor Advertisement can recover it.
+- Router Advertisement state now carries preferred, valid, and router lifetimes. Prefixes become deprecated before expiry, and deterministic renumbering keeps the old prefix valid for a bounded grace period while a new documentation `/64` becomes preferred.
+- Stateful DHCPv6 models SOLICIT → ADVERTISE → REQUEST → REPLY, T1/T2/valid lease timers, and runtime address materialization. The model deliberately does **not** learn the default router from DHCPv6; RA remains the source of default-router truth.
+- DHCPv6 leases, DAD/NUD observations, and lifetime clocks are session state rather than persisted configuration. A saved scenario therefore cannot fabricate a lease that was never renewed after restore.
+
+Timed/multi-area OSPFv3 and IPv6 ACL policy remain separate follow-on slices.

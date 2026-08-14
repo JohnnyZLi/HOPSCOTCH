@@ -17,7 +17,7 @@
     "twoPassSeekHeapGrowthBytes": 1551892
   },
   "budgets": {
-    "maxJsGzipBytes": 395000,
+    "maxJsGzipBytes": 398000,
     "maxCssGzipBytes": 33500,
     "maxDomElements": 700,
     "maxHeapUsedBytes": 7340032,

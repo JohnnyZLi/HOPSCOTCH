@@ -19,10 +19,12 @@ import {
   type BuilderIpv6Config,
 } from './builder/ipv6.ts';
 import { clearBuilderIpv6NeighborCache, clearBuilderIpv6PmtuCache, runBuilderIpv6RouterSolicitation, type BuilderIpv6ControlState } from './builder/ipv6-control-plane.ts';
+import { materializeBuilderIpv6RuntimeConfig, recordBuilderIpv6RaLifetime, type BuilderIpv6LifecycleState } from './builder/ipv6-lifecycle.ts';
+import { BuilderIpv6LifecyclePanel } from './BuilderIpv6LifecyclePanel.tsx';
 
 function labelFor(graph: BuilderGraph, id: string): string { return graph.nodes.find((node) => node.id === id)?.label ?? id.toUpperCase(); }
 
-export function BuilderIpv6Panel({ graph, ipv4, ipv6, selectedNodeId, selectedLinkId, sourceId, destinationId, controlState, onControlStateChange, probePacketBytes, onProbePacketBytesChange, onChange, onMessage }: {
+export function BuilderIpv6Panel({ graph, ipv4, ipv6, selectedNodeId, selectedLinkId, sourceId, destinationId, controlState, onControlStateChange, lifecycleState, onLifecycleStateChange, probePacketBytes, onProbePacketBytesChange, onChange, onMessage }: {
   graph: BuilderGraph;
   ipv4: BuilderAddressing;
   ipv6: BuilderIpv6Config;
@@ -32,6 +34,8 @@ export function BuilderIpv6Panel({ graph, ipv4, ipv6, selectedNodeId, selectedLi
   destinationId: string;
   controlState: BuilderIpv6ControlState;
   onControlStateChange: (next: BuilderIpv6ControlState) => void;
+  lifecycleState: BuilderIpv6LifecycleState;
+  onLifecycleStateChange: (next: BuilderIpv6LifecycleState) => void;
   probePacketBytes: number;
   onProbePacketBytesChange: (bytes: number) => void;
   onChange: (next: BuilderIpv6Config) => void;
@@ -48,7 +52,8 @@ export function BuilderIpv6Panel({ graph, ipv4, ipv6, selectedNodeId, selectedLi
   const nextHops = selectedNode?.kind === 'router' ? nextHopOptionsForBuilderIpv6Router(graph, ipv6, selectedNode.id) : [];
   const effectiveNextHop = nextHops.find((entry) => `${entry.linkId}|${entry.address}` === staticNextHopKey) ?? nextHops[0] ?? null;
   const destinationPrefix = interfacesForBuilderNodeIpv6(ipv6.addressing, destinationId)[0]?.prefix ?? '::/0';
-  const trace = useMemo(() => traceBuilderIpv6Forwarding(graph, ipv6, sourceId, destinationId), [graph, ipv6, sourceId, destinationId]);
+  const runtimeIpv6 = useMemo(() => materializeBuilderIpv6RuntimeConfig(ipv6, lifecycleState), [ipv6, lifecycleState]);
+  const trace = useMemo(() => traceBuilderIpv6Forwarding(graph, runtimeIpv6, sourceId, destinationId), [graph, runtimeIpv6, sourceId, destinationId]);
   const ospfv3 = useMemo(() => builderOspfv3State(graph, ipv6), [graph, ipv6]);
   const selectedOspfv3Enabled = Boolean(selectedNode?.kind === 'router' && ipv6.ospfv3.enabledRouterIds.includes(selectedNode.id));
   const selectedRaEnabled = Boolean(selectedNode?.kind === 'router' && ipv6.autoconfig.raEnabledRouterIds.includes(selectedNode.id));
@@ -85,7 +90,7 @@ export function BuilderIpv6Panel({ graph, ipv4, ipv6, selectedNodeId, selectedLi
     if (!selectedNode || selectedNode.kind !== 'endpoint') { onMessage('Select an endpoint before sending Router Solicitation.'); return; }
     try {
       const result = runBuilderIpv6RouterSolicitation(graph, ipv4, ipv6, selectedNode.id, controlState);
-      onChange(result.config); onControlStateChange(result.state);
+      onChange(result.config); onControlStateChange(result.state); onLifecycleStateChange(recordBuilderIpv6RaLifetime(lifecycleState, result.event));
       onMessage(result.event.success ? `RA / SLAAC · ${result.event.detail}` : `RA MISSED · ${result.event.detail}`);
     } catch (error) { onMessage(`SLAAC REJECTED · ${error instanceof Error ? error.message : 'Unable to apply SLAAC.'}`); }
   };
@@ -112,6 +117,7 @@ export function BuilderIpv6Panel({ graph, ipv4, ipv6, selectedNodeId, selectedLi
     {selectedNode?.kind === 'endpoint' ? <div className="button-row"><button type="button" disabled={!ipv6.enabled} onClick={runSlaac}>RUN RS / SLAAC</button><button type="button" disabled={controlState.neighborCache.length===0} onClick={()=>{onControlStateChange(clearBuilderIpv6NeighborCache(controlState));onMessage('IPV6 NEIGHBOR CACHE CLEARED · next probe emits NS/NA again.');}}>CLEAR ND CACHE</button></div> : selectedNode?.kind === 'router' ? <div className="button-row"><button type="button" disabled={!ipv6.enabled} onClick={toggleRa}>{selectedRaEnabled?'DISABLE RA':'ENABLE RA'}</button><button type="button" disabled={controlState.neighborCache.length===0} onClick={()=>{onControlStateChange(clearBuilderIpv6NeighborCache(controlState));onMessage('IPV6 NEIGHBOR CACHE CLEARED.');}}>CLEAR ND CACHE</button></div> : null}
     {lastRa&&<small className="builder-routing-note">LAST RS/RA · {lastRa.success?`${labelFor(graph,lastRa.endpointId)} ← ${labelFor(graph,lastRa.routerId??'')} · ${lastRa.prefix} · SLAAC ${lastRa.slaacAddress}`:lastRa.detail}</small>}
     <div className="builder-interface-list">{selectedNeighbors.length===0?<small>NO CACHED IPV6 NEIGHBORS ON SELECTED DEVICE</small>:selectedNeighbors.map((entry)=><div key={entry.id}><span>{entry.address}</span><strong>{entry.mac}</strong><small>{labelFor(graph,entry.targetNodeId)} · {entry.linkId.toUpperCase()} · LEARNED {entry.source}</small></div>)}</div>
+    <BuilderIpv6LifecyclePanel graph={graph} ipv4={ipv4} ipv6={ipv6} selectedNodeId={selectedNodeId} selectedLinkId={selectedLinkId} controlState={controlState} lifecycleState={lifecycleState} onLifecycleStateChange={onLifecycleStateChange} onIpv6Change={onChange} onMessage={onMessage}/>
     <div className="control-title"><span>PATH MTU DISCOVERY</span><strong>{controlState.pmtuCache.length} CACHED</strong></div>
     <label>IPV6 PROBE PACKET BYTES<input type="number" min={80} max={9216} value={probePacketBytes} onChange={(event)=>onProbePacketBytesChange(Math.max(80,Math.min(9216,Math.round(Number(event.currentTarget.value)||1280))))}/></label>
     <div className="button-row"><button type="button" disabled={controlState.pmtuCache.length===0} onClick={()=>{onControlStateChange(clearBuilderIpv6PmtuCache(controlState));onMessage('IPV6 PMTU CACHE CLEARED · oversized probes can trigger Packet Too Big again.');}}>CLEAR PMTU CACHE</button></div>
