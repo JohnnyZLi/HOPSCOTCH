@@ -21,6 +21,7 @@ jobs:
           cache: npm
       - run: python3 scripts/_tmp_write_ipv6_routing_depth.py
       - run: python3 scripts/_tmp_patch_ipv6_routing_depth.py
+      - run: python3 scripts/_tmp_fix_ipv6_routing_depth.py
       - run: npm ci
       - run: npm run check
       - run: npm run performance:check
@@ -32,6 +33,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/BuilderIpv6RoutingDepthPanel.tsx src/BuilderIpv6Panel.tsx src/NetworkBuilder.tsx src/builder/ipv6-routing-depth.ts src/builder/ipv6-probes.ts src/builder/ipv6.ts scripts/builder-ipv6-routing-depth-contract-check.mjs package.json docs/ROADMAP.md docs/LAB11N.md
-          git rm scripts/_tmp_write_ipv6_routing_depth.py scripts/_tmp_patch_ipv6_routing_depth.py .github/workflows/_tmp-lab11n-ospfv3-policy.yml
+          git rm scripts/_tmp_write_ipv6_routing_depth.py scripts/_tmp_patch_ipv6_routing_depth.py scripts/_tmp_fix_ipv6_routing_depth.py .github/workflows/_tmp-lab11n-ospfv3-policy.yml
           git commit -m 'Lab 11N: add timed multi-area OSPFv3 and IPv6 policy [lab11n-ospfv3-policy-finalized]'
           git push origin HEAD:$BRANCH
