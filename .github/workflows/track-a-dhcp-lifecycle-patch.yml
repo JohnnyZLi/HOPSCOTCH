@@ -34,6 +34,16 @@ jobs:
           PY
           node --check scripts/track-a-dhcp-lifecycle-patch.mjs
           node scripts/track-a-dhcp-lifecycle-patch.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/builder-canonical-events-contract-check.mjs')
+          text = path.read_text()
+          broken = "assert.match(dhcpPanelSource,/pruneBuilderDhcpLeases(leases,next)/,'advancing the live DHCP clock must prune expired leases immediately instead of leaving stale panel state');"
+          fixed = "assert.ok(dhcpPanelSource.includes('pruneBuilderDhcpLeases(leases,next)'),'advancing the live DHCP clock must prune expired leases immediately instead of leaving stale panel state');"
+          if broken not in text:
+              raise SystemExit('generated DHCP panel source assertion not found')
+          path.write_text(text.replace(broken, fixed))
+          PY
       - name: Install dependencies
         run: npm ci
       - name: Canonical event contract
