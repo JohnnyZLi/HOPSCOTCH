@@ -521,7 +521,7 @@ Browser-visible evidence is intentionally limited. A future native measurement s
 - [x] expose `AS_PATH`, `LOCAL_PREF`, `MED`, `NEXT_HOP`, communities, and best-path reasoning
 - [x] prefix lists and route-policy controls affect import/export independently from physical reachability
 - [x] route leaks and hijack-style teaching scenarios reuse the same relationship-export policy truth as Lab 05 instead of creating a second BGP model
-- [ ] Builder BGP state can project into the Internet-scale AS view and back without changing truth
+- [x] Builder BGP state can project into the Internet-scale AS view and back without changing truth
 
 ### 11P — Device CONFIG / STATE / EVENTS workspace
 - [ ] every device exposes canonical configuration separately from derived runtime state
