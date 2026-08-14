@@ -71,3 +71,7 @@ Schema v9 remains unchanged. Scenario serialization continues to contain configu
 ## Deferred historical state
 
 Lab 11P establishes the per-device CONFIG / STATE / EVENTS projection and causal object model, but it does not fabricate historical snapshots. Inspecting a device at an arbitrary past Builder timestamp remains part of the Builder-wide time-machine track. When that lands, historical workbench views should replay the same canonical reducer/event model rather than maintaining independent snapshots inside the workbench.
+
+## Performance boundary
+
+The workbench is deliberately not instantiated or derived inside the synthetic stress Builder. The normal product bundle grows because Lab 11P adds the structured projection model, causal explanations, event journal, and inspection UI; the enforced production ceilings move narrowly from 410,000 to 424,000 JS gzip bytes and from 33,500 to 34,500 CSS gzip bytes. DOM and heap ceilings are not relaxed for the feature.
