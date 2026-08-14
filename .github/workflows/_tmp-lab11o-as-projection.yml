@@ -1,0 +1,36 @@
+name: Temp Lab 11O AS Projection
+
+on:
+  push:
+    branches: [agent/lab-11o-as-projection]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/lab-11o-as-projection
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: python3 scripts/_tmp_patch_bgp_projection.py
+      - run: npm ci
+      - run: npm run check
+      - run: npm run performance:check
+      - run: npm run compatibility:chrome
+      - name: Commit validated BGP projection bridge
+        env:
+          BRANCH: agent/lab-11o-as-projection
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/builder/bgp.ts src/BuilderBgpPanel.tsx src/NetworkBuilder.tsx src/InternetScaleTheater.tsx src/App.tsx scripts/builder-bgp-projection-contract-check.mjs package.json docs/ROADMAP.md docs/LAB11O.md
+          git rm scripts/_tmp_patch_bgp_projection.py .github/workflows/_tmp-lab11o-as-projection.yml
+          git commit -m 'Lab 11O: add exact Builder BGP AS projection bridge [lab11o-projection-finalized]'
+          git push origin HEAD:$BRANCH
