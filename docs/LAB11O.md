@@ -35,4 +35,6 @@ Best BGP paths project into the IPv4 route table as `B` / `B i`. A BGP route is 
 
 ## Internet-scale projection
 
-The BGP model already derives an AS-level projection from Builder ASNs and eBGP relationships. The follow-up 11O projection slice will carry that exact state into Lab 05 and back, preserving selected BGP path truth rather than asking the AS theater to recompute a different story.
+The BGP model derives an AS-level projection from the exact Builder ASN/session graph and the currently selected best BGP route. `OPEN AS PROJECTION` snapshots the complete schema-v9 Builder configuration and opens Lab 05 at AS scale with that selected path locked as display truth. Lab 05 does not run its own policy enumerator in projection mode, does not permit relationship failures or endpoint changes, and shows the Builder route attributes that produced the path.
+
+`RETURN TO BUILDER` reconstructs the Builder from the captured graph, layout, IPv4/IPv6 addressing, routing/BGP, Ethernet/VLAN, link profiles, ACL, NAT, and DHCP configuration. Session-only observations such as ARP, NAT translations, probe history, FDB entries, DHCP leases, and IPv6 lifecycle timers are intentionally not promoted into persisted truth just to make the cross-lab transition look stateful.

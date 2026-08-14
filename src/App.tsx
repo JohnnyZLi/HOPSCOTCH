@@ -15,6 +15,8 @@ import { encodeJourneyQuery, type PortableJourneyScenario } from './journey/scen
 import { LabNetworkField } from './LabNetworkField';
 import { NetworkBuilder } from './NetworkBuilder';
 import type { BuilderProbePacketSeed } from './builder/probes.ts';
+import type { BuilderScenarioV8 } from './builder/scenario.ts';
+import type { BuilderBgpAsProjection } from './builder/bgp.ts';
 import { NetworkField } from './NetworkField';
 import { canonicalUrlForRoute, pathForDestination, resolveAppRoute } from './navigation';
 import { ObservedInternet } from './ObservedInternet';
@@ -89,6 +91,7 @@ export default function App() {
   const [journeyScenarioName, setJourneyScenarioName] = useState(initialSharedJourney?.name ?? '');
   const [journeyRenderKey, setJourneyRenderKey] = useState(0);
   const [builderPacketSeed, setBuilderPacketSeed] = useState<BuilderProbePacketSeed | null>(null);
+  const [builderBgpProjection, setBuilderBgpProjection] = useState<{ projection: BuilderBgpAsProjection; scenario: BuilderScenarioV8 } | null>(null);
   const reduceMotion = useReducedMotion();
   const active = layers.find((item) => item.id === layer) ?? layers[0];
   const labState = useMemo(() => lab01StateAt(timeMs), [timeMs]);
@@ -136,6 +139,7 @@ export default function App() {
 
       if (route.destination === null) {
         setLayer('internet');
+        setBuilderBgpProjection(null);
         setActiveLab(null);
         return;
       }
@@ -197,9 +201,11 @@ export default function App() {
   const openDnsLab = () => { pushBrowserRoute('dns'); setPlaying(false); setLayer('application'); setActiveLab('dns'); };
   const openTlsLab = () => { pushBrowserRoute('tls'); setPlaying(false); setLayer('application'); setActiveLab('tls'); };
   const openHttpLab = () => { pushBrowserRoute('http'); setPlaying(false); setLayer('application'); setActiveLab('http'); };
-  const openBuilderLab = () => { pushBrowserRoute('builder'); setPlaying(false); setLayer('routing'); setActiveLab('builder'); };
+  const openBuilderLab = () => { setBuilderBgpProjection(null); pushBrowserRoute('builder'); setPlaying(false); setLayer('routing'); setActiveLab('builder'); };
+  const openBuilderBgpProjection = (payload: { projection: BuilderBgpAsProjection; scenario: BuilderScenarioV8 }) => { setBuilderBgpProjection(payload); pushBrowserRoute('internet'); setPlaying(false); setLayer('internet'); setActiveLab('internet'); };
+  const returnToProjectedBuilder = () => { if (!builderBgpProjection) { openBuilderLab(); return; } pushBrowserRoute('builder'); setPlaying(false); setLayer('routing'); setActiveLab('builder'); };
   const openPhysicalInternet = () => { pushBrowserRoute('physical'); setPlaying(false); setLayer('internet'); setActiveLab('physical'); };
-  const openInternetLab = () => { pushBrowserRoute('internet'); setPlaying(false); setLayer('internet'); setActiveLab('internet'); };
+  const openInternetLab = () => { setBuilderBgpProjection(null); pushBrowserRoute('internet'); setPlaying(false); setLayer('internet'); setActiveLab('internet'); };
   const openObservedInternet = () => { pushBrowserRoute('observed'); setPlaying(false); setLayer('internet'); setActiveLab('observed'); };
   const openMeasuredNetwork = () => { pushBrowserRoute('measured'); setPlaying(false); setLayer('internet'); setActiveLab('measured'); };
   const openJourney = () => {
@@ -282,7 +288,7 @@ export default function App() {
     setActiveLab('journey');
     setJourneyRenderKey((current) => current + 1);
   };
-  const exitLabs = () => { pushBrowserRoute(null); setPlaying(false); setJourneyReturnPending(false); setExploreOpen(false); setActiveLab(null); };
+  const exitLabs = () => { pushBrowserRoute(null); setPlaying(false); setJourneyReturnPending(false); setExploreOpen(false); setBuilderBgpProjection(null); setActiveLab(null); };
   const exitActiveLab = () => {
     setPlaying(false);
     if (journeyReturnPending && activeLab !== 'journey') {
@@ -411,11 +417,11 @@ export default function App() {
         ) : activeLab === 'http' ? (
           <HttpComparisonTheater key="lab03-http" onExit={exitActiveLab} onOpenTls={openTlsLab} />
         ) : activeLab === 'builder' ? (
-          <NetworkBuilder key="lab04" onExit={exitActiveLab} onOpenFailureStory={() => openFailureLab(0, true)} onOpenProbePacket={openPacketLab} />
+          <NetworkBuilder key={`lab04-${builderBgpProjection?.scenario.updatedAt??'default'}`} onExit={exitActiveLab} onOpenFailureStory={() => openFailureLab(0, true)} onOpenProbePacket={openPacketLab} onOpenBgpProjection={openBuilderBgpProjection} initialGraph={builderBgpProjection?.scenario.graph} initialLayout={builderBgpProjection?.scenario.layout} initialAddressing={builderBgpProjection?.scenario.addressing} initialRouting={builderBgpProjection?.scenario.routing} initialEthernet={builderBgpProjection?.scenario.ethernet} initialLinkProfiles={builderBgpProjection?.scenario.linkProfiles} initialAcl={builderBgpProjection?.scenario.acl} initialNat={builderBgpProjection?.scenario.nat} initialDhcp={builderBgpProjection?.scenario.dhcp} initialIpv6={builderBgpProjection?.scenario.ipv6} initialSourceId={builderBgpProjection?.scenario.sourceId} initialDestinationId={builderBgpProjection?.scenario.destinationId} initialScenarioName={builderBgpProjection?.scenario.name}/>
         ) : activeLab === 'physical' ? (
           <PhysicalInternetGlobe key="lab05-physical" onExit={exitActiveLab} onOpenSimulated={openInternetLab} onOpenObserved={openObservedInternet} />
         ) : activeLab === 'internet' ? (
-          <InternetScaleTheater key="lab05-simulated" onExit={exitActiveLab} onOpenObserved={openObservedInternet} />
+          <InternetScaleTheater key={`lab05-simulated-${builderBgpProjection?'builder-bgp':'default'}`} onExit={exitActiveLab} onOpenObserved={openObservedInternet} builderProjection={builderBgpProjection?.projection} onReturnToBuilder={builderBgpProjection?returnToProjectedBuilder:undefined} />
         ) : activeLab === 'observed' ? (
           <ObservedInternet key="lab05-observed" onExit={exitActiveLab} onOpenSimulated={openInternetLab} />
         ) : activeLab === 'measured' ? (

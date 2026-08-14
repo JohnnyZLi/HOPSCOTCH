@@ -6,10 +6,12 @@ import {
   enumeratePolicyPaths,
   relationshipEndpoints,
   relationshipLabel,
+  traversalFor,
   simulatedAsGraph,
   type AsRelationship,
   type SimulatedAsGraph,
 } from './internet/asModel';
+import type { BuilderBgpAsProjection } from './builder/bgp.ts';
 import './InternetScaleTheater.css';
 
 function asLabel(asn: number): string { return `AS${asn}`; }
@@ -28,20 +30,53 @@ function distanceToSegment(px: number, py: number, ax: number, ay: number, bx: n
   return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
-export function InternetScaleTheater({ onExit, onOpenObserved, graph = simulatedAsGraph, initialSource = DEFAULT_AS_SOURCE, initialDestination = DEFAULT_AS_DESTINATION, stressLabel }: { onExit: () => void; onOpenObserved: () => void; graph?: SimulatedAsGraph; initialSource?: number; initialDestination?: number; stressLabel?: string }) {
+export function InternetScaleTheater({ onExit, onOpenObserved, graph: inputGraph = simulatedAsGraph, initialSource = DEFAULT_AS_SOURCE, initialDestination = DEFAULT_AS_DESTINATION, builderProjection, onReturnToBuilder, stressLabel }: { onExit: () => void; onOpenObserved: () => void; graph?: SimulatedAsGraph; initialSource?: number; initialDestination?: number; builderProjection?: BuilderBgpAsProjection | null; onReturnToBuilder?: () => void; stressLabel?: string }) {
+  const graph = builderProjection?.graph ?? inputGraph;
+  const projectionLocked = Boolean(builderProjection);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const reduceMotion = useReducedMotion();
-  const [source, setSource] = useState(initialSource);
-  const [destination, setDestination] = useState(initialDestination);
+  const [source, setSource] = useState(builderProjection?.sourceAsn ?? initialSource);
+  const [destination, setDestination] = useState(builderProjection?.destinationAsn ?? initialDestination);
   const [failed, setFailed] = useState<Set<string>>(() => new Set());
   const [selectedRelationshipId, setSelectedRelationshipId] = useState(() => graph.relationships[0]?.id ?? '');
   const [pickMode, setPickMode] = useState<'source' | 'destination' | null>(null);
   const [zoom, setZoom] = useState(1);
   const [dense, setDense] = useState(false);
-  const candidates = useMemo(() => enumeratePolicyPaths(graph, source, destination, failed), [graph, source, destination, failed]);
+  const projectedWinner = useMemo(() => {
+    if (!builderProjection || builderProjection.selectedPathAsns.length === 0 || !builderProjection.selectedRoute) return null;
+    const relationshipIds: string[] = [];
+    const hops = [] as Array<{ relationshipId: string; from: number; to: number; traversal: 'up' | 'peer' | 'down' }>;
+    for (let index = 0; index < builderProjection.selectedPathAsns.length - 1; index += 1) {
+      const from = builderProjection.selectedPathAsns[index];
+      const to = builderProjection.selectedPathAsns[index + 1];
+      const relationship = graph.relationships.find((entry) => relationshipEndpoints(entry).includes(from) && relationshipEndpoints(entry).includes(to));
+      if (!relationship) continue;
+      const traversal = traversalFor(relationship, from, to);
+      if (!traversal) continue;
+      relationshipIds.push(relationship.id);
+      hops.push({ relationshipId: relationship.id, from, to, traversal });
+    }
+    return {
+      asns: [...builderProjection.selectedPathAsns],
+      relationshipIds,
+      hops,
+      localPreference: builderProjection.selectedRoute.localPref,
+      scoreLabel: `BUILDER BGP BEST · ${builderProjection.prefix ?? 'NLRI'}`,
+    };
+  }, [builderProjection, graph]);
+  const candidates = useMemo(() => builderProjection ? (projectedWinner ? [projectedWinner] : []) : enumeratePolicyPaths(graph, source, destination, failed), [builderProjection, projectedWinner, graph, source, destination, failed]);
   const winner = candidates[0];
   const selectedRelationship = graph.relationships.find((item) => item.id === selectedRelationshipId) ?? graph.relationships[0];
   const activeRelationships = new Set(winner?.relationshipIds ?? []);
+
+  useEffect(() => {
+    if (!builderProjection) return;
+    if (builderProjection.sourceAsn != null) setSource(builderProjection.sourceAsn);
+    if (builderProjection.destinationAsn != null) setDestination(builderProjection.destinationAsn);
+    setFailed(new Set());
+    setPickMode(null);
+    setSelectedRelationshipId(builderProjection.graph.relationships[0]?.id ?? '');
+  }, [builderProjection]);
 
   useEffect(() => {
     const canvas = canvasRef.current; if (!canvas) return;
@@ -92,7 +127,7 @@ export function InternetScaleTheater({ onExit, onOpenObserved, graph = simulated
 
   const onCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current; if (!canvas) return; const rect = canvas.getBoundingClientRect(); const px = event.clientX - rect.left; const py = event.clientY - rect.top;
-    if (pickMode) {
+    if (pickMode && !projectionLocked) {
       const nearest = graph.nodes.map((node) => ({ node, point: pointFor(graph, node.asn, rect.width, rect.height, zoom) })).sort((a,b)=>Math.hypot(px-a.point.x,py-a.point.y)-Math.hypot(px-b.point.x,py-b.point.y))[0];
       if (nearest && Math.hypot(px-nearest.point.x,py-nearest.point.y) < 30) { if (pickMode === 'source') setSource(nearest.node.asn); else setDestination(nearest.node.asn); setPickMode(null); }
       return;
@@ -102,17 +137,18 @@ export function InternetScaleTheater({ onExit, onOpenObserved, graph = simulated
   };
 
   const toggleRelationship = (relationship: AsRelationship) => {
+    if (projectionLocked) return;
     setFailed((current) => { const next = new Set(current); if (next.has(relationship.id)) next.delete(relationship.id); else next.add(relationship.id); return next; });
   };
 
   return <motion.section className="internet-scale" data-stress-label={stressLabel} data-node-count={graph.nodes.length} data-relationship-count={graph.relationships.length} initial={reduceMotion ? {opacity:1}:{opacity:0,scale:.985}} animate={{opacity:1,scale:1}} exit={{opacity:0}}>
-    <header className="internet-heading"><div><p className="eyebrow">Lab 05A · Internet scale</p><h1>POLICY MAKES<br/><span>THE PATH.</span></h1></div><div className="internet-heading-actions"><span>SIMULATED · DOCUMENTATION ASNs ONLY</span><button className="lab-mode" type="button" onClick={onOpenObserved}>OBSERVED / INFERRED ↗</button><button className="lab-mode" type="button" onClick={onExit}>EXIT LAB</button></div></header>
+    <header className="internet-heading"><div><p className="eyebrow">{projectionLocked?'Lab 11O → 05A · BGP projection':'Lab 05A · Internet scale'}</p><h1>{projectionLocked?<>BUILDER BGP.<br/><span>AS SCALE.</span></>:<>POLICY MAKES<br/><span>THE PATH.</span></>}</h1></div><div className="internet-heading-actions"><span>{projectionLocked?'BUILDER BGP PROJECTION · DOCUMENTATION ASNs':'SIMULATED · DOCUMENTATION ASNs ONLY'}</span>{projectionLocked&&onReturnToBuilder&&<button className="lab-mode" type="button" onClick={onReturnToBuilder}>RETURN TO BUILDER ↗</button>}{!projectionLocked&&<button className="lab-mode" type="button" onClick={onOpenObserved}>OBSERVED / INFERRED ↗</button>}<button className="lab-mode" type="button" onClick={onExit}>EXIT LAB</button></div></header>
     <div className="internet-main">
-      <section className="internet-stage"><div className="internet-stage-meta"><div><span>SOURCE</span><strong>{asLabel(source)}</strong></div><div><span>DESTINATION</span><strong>{asLabel(destination)}</strong></div><div><span>CANDIDATES</span><strong>{candidates.length}</strong></div><div><span>SELECTED</span><strong>{winner ? `${winner.relationshipIds.length} AS HOPS` : 'UNREACHABLE'}</strong></div></div><div className={`internet-canvas-wrap ${pickMode ? 'picking':''}`}><canvas ref={canvasRef} onClick={onCanvasClick}/><div className="internet-canvas-note">{pickMode ? `CLICK AN AS TO SET ${pickMode.toUpperCase()}` : 'CLICK A RELATIONSHIP TO INSPECT / FAIL IT'}</div></div>{winner?<div className="internet-winner"><span>SIMULATED WINNER</span><strong>{winner.asns.map(asLabel).join(' → ')}</strong><p>{winner.scoreLabel} · stable ASN-path tie break. Curated valley-free teaching policy, not universal BGP best-path behavior.</p></div>:<div className="internet-winner unreachable"><span>SIMULATED WINNER</span><strong>NO POLICY-COMPLIANT PATH</strong><p>Current failed relationships partition the selected source/destination under this teaching model.</p></div>}</section>
-      <aside className="internet-panel"><section><div className="internet-panel-title"><span>ENDPOINTS</span><strong>PICK FROM CANVAS</strong></div><label>SOURCE<select value={source} onChange={(e)=>setSource(Number(e.currentTarget.value))}>{graph.nodes.map((node)=><option key={node.asn} value={node.asn}>{node.label} · {node.role}</option>)}</select></label><label>DESTINATION<select value={destination} onChange={(e)=>setDestination(Number(e.currentTarget.value))}>{graph.nodes.map((node)=><option key={node.asn} value={node.asn}>{node.label} · {node.role}</option>)}</select></label><div className="internet-buttons"><button type="button" onClick={()=>setPickMode('source')}>PICK SOURCE</button><button type="button" onClick={()=>setPickMode('destination')}>PICK DEST</button></div></section>
-      <section><div className="internet-panel-title"><span>RELATIONSHIP</span><strong>{selectedRelationship?.id.toUpperCase()}</strong></div>{selectedRelationship&&<><p className="relationship-copy">{relationshipEndpoints(selectedRelationship).map(asLabel).join(' ↔ ')} · {relationshipLabel(selectedRelationship)}</p><button className={failed.has(selectedRelationship.id)?'restore':''} type="button" onClick={()=>toggleRelationship(selectedRelationship)}>{failed.has(selectedRelationship.id)?'RESTORE RELATIONSHIP':'FAIL RELATIONSHIP'}</button></>}</section>
-      <section><div className="internet-panel-title"><span>CANDIDATE PATHS</span><strong>POLICY ORDER</strong></div><div className="candidate-list">{candidates.length===0?<small>NO VIABLE CANDIDATES</small>:candidates.slice(0,6).map((candidate,index)=><div key={candidate.asns.join('-')} className={index===0?'winner':''}><span>{String(index+1).padStart(2,'0')}</span><p><strong>{candidate.asns.map(asLabel).join(' → ')}</strong><small>{candidate.scoreLabel}</small></p></div>)}</div></section>
-      <section><div className="internet-panel-title"><span>VIEW</span><strong>CANVAS 2D</strong></div><label>ZOOM<input type="range" min="0.78" max="1.24" step="0.02" value={zoom} onChange={(e)=>setZoom(Number(e.currentTarget.value))}/></label><div className="internet-buttons"><button type="button" onClick={()=>setDense((value)=>!value)}>{dense?'SHOW LABELS':'DENSE MODE'}</button><button type="button" onClick={()=>{setFailed(new Set());setSource(DEFAULT_AS_SOURCE);setDestination(DEFAULT_AS_DESTINATION);setZoom(1);}}>RESET</button></div></section></aside>
+      <section className="internet-stage"><div className="internet-stage-meta"><div><span>SOURCE</span><strong>{asLabel(source)}</strong></div><div><span>DESTINATION</span><strong>{asLabel(destination)}</strong></div><div><span>{projectionLocked?'TRUTH':'CANDIDATES'}</span><strong>{projectionLocked?'BUILDER BEST':candidates.length}</strong></div><div><span>SELECTED</span><strong>{winner ? `${winner.relationshipIds.length} AS HOPS` : 'UNREACHABLE'}</strong></div></div><div className={`internet-canvas-wrap ${pickMode ? 'picking':''}`}><canvas ref={canvasRef} onClick={onCanvasClick}/><div className="internet-canvas-note">{projectionLocked?'CLICK A RELATIONSHIP TO INSPECT · RETURN TO BUILDER TO MUTATE':pickMode ? `CLICK AN AS TO SET ${pickMode.toUpperCase()}` : 'CLICK A RELATIONSHIP TO INSPECT / FAIL IT'}</div></div>{winner?<div className="internet-winner"><span>{projectionLocked?'BUILDER BGP BEST PATH':'SIMULATED WINNER'}</span><strong>{winner.asns.map(asLabel).join(' → ')}</strong><p>{projectionLocked?'Exact Builder BGP decision projected at AS scale. Lab 05 is not recomputing a different winner.':`${winner.scoreLabel} · stable ASN-path tie break. Curated valley-free teaching policy, not universal BGP best-path behavior.`}</p></div>:<div className="internet-winner unreachable"><span>{projectionLocked?'BUILDER BGP PROJECTION':'SIMULATED WINNER'}</span><strong>{projectionLocked?'NO PROJECTABLE BEST PATH':'NO POLICY-COMPLIANT PATH'}</strong><p>{projectionLocked?'Return to Builder and select a concrete BEST BGP route.':'Current failed relationships partition the selected source/destination under this teaching model.'}</p></div>}</section>
+      <aside className="internet-panel"><section><div className="internet-panel-title"><span>{projectionLocked?'BUILDER TRUTH':'ENDPOINTS'}</span><strong>{projectionLocked?'LOCKED PROJECTION':'PICK FROM CANVAS'}</strong></div>{projectionLocked?<><p className="relationship-copy">PREFIX · {builderProjection?.prefix??'—'}</p><p className="relationship-copy">SOURCE {asLabel(source)} · ORIGIN {asLabel(destination)}</p>{builderProjection?.selectedRoute&&<p className="relationship-copy">LOCAL_PREF {builderProjection.selectedRoute.localPref} · AS_PATH {builderProjection.selectedRoute.asPath.join(' → ')||'LOCAL'} · MED {builderProjection.selectedRoute.med} · NEXT_HOP {builderProjection.selectedRoute.nextHopAddress} · COMM {builderProjection.selectedRoute.communities.join(' ')||'NONE'}{builderProjection.selectedRoute.policyAnomaly?' · POLICY ANOMALY':''}</p>}</>:<><label>SOURCE<select value={source} onChange={(e)=>setSource(Number(e.currentTarget.value))}>{graph.nodes.map((node)=><option key={node.asn} value={node.asn}>{node.label} · {node.role}</option>)}</select></label><label>DESTINATION<select value={destination} onChange={(e)=>setDestination(Number(e.currentTarget.value))}>{graph.nodes.map((node)=><option key={node.asn} value={node.asn}>{node.label} · {node.role}</option>)}</select></label><div className="internet-buttons"><button type="button" onClick={()=>setPickMode('source')}>PICK SOURCE</button><button type="button" onClick={()=>setPickMode('destination')}>PICK DEST</button></div></>}</section>
+      <section><div className="internet-panel-title"><span>RELATIONSHIP</span><strong>{selectedRelationship?.id.toUpperCase()}</strong></div>{selectedRelationship&&<><p className="relationship-copy">{relationshipEndpoints(selectedRelationship).map(asLabel).join(' ↔ ')} · {relationshipLabel(selectedRelationship)}</p>{projectionLocked?<small>READ ONLY · return to Builder to mutate sessions, relationships, or policy.</small>:<button className={failed.has(selectedRelationship.id)?'restore':''} type="button" onClick={()=>toggleRelationship(selectedRelationship)}>{failed.has(selectedRelationship.id)?'RESTORE RELATIONSHIP':'FAIL RELATIONSHIP'}</button>}</>}</section>
+      <section><div className="internet-panel-title"><span>{projectionLocked?'PROJECTED PATH':'CANDIDATE PATHS'}</span><strong>{projectionLocked?'NO RECOMPUTE':'POLICY ORDER'}</strong></div><div className="candidate-list">{candidates.length===0?<small>NO VIABLE CANDIDATES</small>:candidates.slice(0,6).map((candidate,index)=><div key={candidate.asns.join('-')} className={index===0?'winner':''}><span>{String(index+1).padStart(2,'0')}</span><p><strong>{candidate.asns.map(asLabel).join(' → ')}</strong><small>{candidate.scoreLabel}</small></p></div>)}</div></section>
+      <section><div className="internet-panel-title"><span>VIEW</span><strong>CANVAS 2D</strong></div><label>ZOOM<input type="range" min="0.78" max="1.24" step="0.02" value={zoom} onChange={(e)=>setZoom(Number(e.currentTarget.value))}/></label><div className="internet-buttons"><button type="button" onClick={()=>setDense((value)=>!value)}>{dense?'SHOW LABELS':'DENSE MODE'}</button><button type="button" onClick={()=>{setFailed(new Set());if(!projectionLocked){setSource(DEFAULT_AS_SOURCE);setDestination(DEFAULT_AS_DESTINATION);}setZoom(1);}}>RESET VIEW</button></div></section></aside>
     </div>
   </motion.section>;
 }

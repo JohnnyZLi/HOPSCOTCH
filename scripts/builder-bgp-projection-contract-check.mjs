@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import { createDefaultBuilderAddressing } from '../src/builder/addressing.ts';
+import { cloneBuilderGraph, defaultBuilderGraph, defaultBuilderLayout } from '../src/builder/model.ts';
+import { createDefaultBuilderRoutingConfig } from '../src/builder/routing.ts';
+import { createBuilderScenario, deserializeBuilderScenario, serializeBuilderScenario } from '../src/builder/scenario.ts';
+import { createDefaultBuilderEthernetConfig } from '../src/builder/ethernet.ts';
+import { createDefaultBuilderLinkProfiles } from '../src/builder/link-characteristics.ts';
+import { createDefaultBuilderAclConfig } from '../src/builder/acl.ts';
+import { createDefaultBuilderNatConfig } from '../src/builder/nat.ts';
+import { createDefaultBuilderDhcpConfig } from '../src/builder/dhcp.ts';
+import { createDefaultBuilderIpv6Config } from '../src/builder/ipv6.ts';
+import { builderBgpState, projectBuilderBgpToAsGraph, setBuilderBgpRouterAsn, updateBuilderBgpSession, upsertBuilderBgpOrigin, upsertBuilderBgpSession } from '../src/builder/bgp.ts';
+
+const graph=cloneBuilderGraph(defaultBuilderGraph),addressing=createDefaultBuilderAddressing(graph);let routing=createDefaultBuilderRoutingConfig();
+let bgp=routing.bgp;bgp=setBuilderBgpRouterAsn(graph,bgp,'edge',64496);bgp=setBuilderBgpRouterAsn(graph,bgp,'r1',64500);bgp=setBuilderBgpRouterAsn(graph,bgp,'r2',64500);bgp=setBuilderBgpRouterAsn(graph,bgp,'core',65538);
+bgp=upsertBuilderBgpSession(graph,bgp,'edge-r1','customer-provider');let session=bgp.sessions.find((entry)=>entry.linkId==='edge-r1');assert.ok(session);bgp=updateBuilderBgpSession(graph,bgp,session.id,{customerRouterId:'edge'});
+bgp=upsertBuilderBgpSession(graph,bgp,'r1-r2','peer');session=bgp.sessions.find((entry)=>entry.linkId==='r1-r2');assert.ok(session);bgp=updateBuilderBgpSession(graph,bgp,session.id,{nextHopSelf:true});
+bgp=upsertBuilderBgpSession(graph,bgp,'r2-core','customer-provider');session=bgp.sessions.find((entry)=>entry.linkId==='r2-core');assert.ok(session);bgp=updateBuilderBgpSession(graph,bgp,session.id,{customerRouterId:'r2'});
+const prefix=addressing.segments['core-app'].cidr;bgp=upsertBuilderBgpOrigin(graph,bgp,{routerId:'core',prefix,med:7,communities:['65538:777'],description:'projection target'});routing={...routing,bgp};
+const state=builderBgpState(graph,addressing,bgp),best=state.bestRoutes.find((route)=>route.routerId==='edge'&&route.prefix===prefix);assert.ok(best);const projection=projectBuilderBgpToAsGraph(graph,bgp,state,'edge',undefined,prefix);
+assert.deepEqual(projection.selectedPathAsns,[64496,...best.asPath]);assert.equal(projection.sourceAsn,64496);assert.equal(projection.destinationAsn,best.originAsn);assert.equal(projection.selectedRoute?.id,best.id);assert.deepEqual(projection.selectedRoute?.communities,best.communities);assert.equal(projection.selectedRoute?.localPref,best.localPref);assert.equal(projection.graph.relationships.length,projection.selectedPathAsns.length-1);
+const ethernet=createDefaultBuilderEthernetConfig(),dhcp=createDefaultBuilderDhcpConfig(ethernet),scenario=createBuilderScenario('BGP projection round trip',graph,'client','app',defaultBuilderLayout,addressing,routing,undefined,ethernet,createDefaultBuilderLinkProfiles(graph),createDefaultBuilderAclConfig(),createDefaultBuilderNatConfig(graph),dhcp,createDefaultBuilderIpv6Config(graph,addressing));
+const restored=deserializeBuilderScenario(serializeBuilderScenario(scenario));assert.deepEqual(restored.routing.bgp,scenario.routing.bgp);assert.deepEqual(restored.graph,scenario.graph);assert.deepEqual(restored.addressing,scenario.addressing);assert.deepEqual(restored.ethernet,scenario.ethernet);assert.deepEqual(restored.linkProfiles,scenario.linkProfiles);assert.deepEqual(restored.acl,scenario.acl);assert.deepEqual(restored.nat,scenario.nat);assert.deepEqual(restored.dhcp,scenario.dhcp);assert.deepEqual(restored.ipv6,scenario.ipv6);
+const restoredState=builderBgpState(restored.graph,restored.addressing,restored.routing.bgp),restoredProjection=projectBuilderBgpToAsGraph(restored.graph,restored.routing.bgp,restoredState,'edge',undefined,prefix);assert.deepEqual(restoredProjection.selectedPathAsns,projection.selectedPathAsns);assert.equal(restoredProjection.selectedRoute?.bestReason,projection.selectedRoute?.bestReason);assert.deepEqual(restoredProjection.selectedRoute?.communities,projection.selectedRoute?.communities);
+console.log('Builder BGP projection contract passed: exact selected path/attributes project to AS scale and the complete scenario/BGP truth round-trips unchanged.');
