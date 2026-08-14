@@ -145,7 +145,7 @@ export function HttpComparisonTheater({ onExit, onOpenTls }: { onExit: () => voi
       <footer className="time-machine http-time-machine">
         <div className="time-controls"><button type="button" onClick={togglePlayback}>{playing?'Ⅱ':'▶'}</button><button type="button" onClick={() => seek(0)}>↺</button></div>
         <div className="time-readout"><span>HTTP A/B TIME MACHINE</span><strong>{formatTime(timeMs)}</strong></div>
-        <div className="scrubber-wrap"><div className="timeline-markers">{httpComparisonEvents.map(event => <i key={event.id} className={event.atMs <= timeMs?'passed':''} style={{left:`${event.atMs/HTTP_COMPARISON_DURATION_MS*100}%`}} />)}</div><input type="range" min="0" max={HTTP_COMPARISON_DURATION_MS} step="10" value={Math.round(timeMs)} onChange={e=>seek(Number(e.currentTarget.value))} /></div>
+        <div className="scrubber-wrap"><div className="timeline-markers">{httpComparisonEvents.map(event => <i key={event.id} className={event.atMs <= timeMs?'passed':''} style={{left:`${event.atMs/HTTP_COMPARISON_DURATION_MS*100}%`}} />)}</div><input aria-label="HTTP comparison timeline" type="range" min="0" max={HTTP_COMPARISON_DURATION_MS} step="10" value={Math.round(timeMs)} onChange={e=>seek(Number(e.currentTarget.value))} /></div>
         <span className="time-duration">{formatTime(HTTP_COMPARISON_DURATION_MS)}</span>
       </footer>
     </motion.section>

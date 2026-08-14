@@ -87,15 +87,25 @@ export function TcpTheater({ onExit, onOpenPacket }: { onExit: () => void; onOpe
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || reduceMotion) return;
+    if (!root) return;
     const animations: Array<ReturnType<typeof animate>> = [];
     const token = root.querySelector<HTMLElement>('.tcp-message-token');
+    const wireStage = root.querySelector<HTMLElement>('.tcp-wire-stage');
     const windowCells = root.querySelectorAll('.tcp-window-cell.is-active');
 
-    if (activeEvent.direction !== 'local' && token) {
+    if (reduceMotion) {
+      if (token) {
+        token.style.left = '50%';
+        token.style.opacity = activeEvent.direction === 'local' ? '0' : '1';
+      }
+      return;
+    }
+
+    if (activeEvent.direction !== 'local' && token && wireStage) {
       const leftToRight = activeEvent.direction === 'client-to-server';
-      const start = leftToRight ? '11%' : '89%';
-      const end = leftToRight ? '89%' : '11%';
+      const safeInset = Math.min(34, Math.max(11, ((token.offsetWidth / 2 + 10) / Math.max(wireStage.clientWidth, 1)) * 100));
+      const start = leftToRight ? `${safeInset}%` : `${100 - safeInset}%`;
+      const end = leftToRight ? `${100 - safeInset}%` : `${safeInset}%`;
       const lost = activeEvent.kind === 'data.loss';
 
       animations.push(

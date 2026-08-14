@@ -649,11 +649,12 @@
   }
 
   .packet-object {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
     min-height: 104px;
-    overflow-x: auto;
+    overflow: visible;
     padding: 12px 0 5px;
-    scrollbar-width: none;
   }
 
   .packet-object::-webkit-scrollbar {
@@ -661,8 +662,23 @@
   }
 
   .packet-layer-shell {
-    min-width: 98px;
-    flex: 0 0 98px !important;
+    min-width: 0;
+    width: 100%;
+    flex: none !important;
+    padding: 14px 9px 12px;
+  }
+
+  .packet-layer-shell strong {
+    font-size: 0.75rem;
+  }
+
+  .packet-ttl-control {
+    grid-template-columns: auto 34px 30px 34px;
+  }
+
+  .packet-ttl-control button {
+    width: 34px;
+    height: 34px;
   }
 
   .packet-relations,

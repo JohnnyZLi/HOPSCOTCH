@@ -67,7 +67,7 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || reduceMotion) return;
+    if (!root) return;
     const token = root.querySelector<HTMLElement>('.dns-message-token');
     const from = root.querySelector<HTMLElement>(`[data-dns-actor="${activeEvent.from}"]`);
     const to = root.querySelector<HTMLElement>(`[data-dns-actor="${activeEvent.to}"]`);
@@ -78,10 +78,25 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
     const stageRect = stage.getBoundingClientRect();
     const fromRect = from.getBoundingClientRect();
     const toRect = to.getBoundingClientRect();
-    const startX = fromRect.left + fromRect.width / 2 - stageRect.left;
-    const startY = fromRect.top + fromRect.height / 2 - stageRect.top;
-    const endX = toRect.left + toRect.width / 2 - stageRect.left;
-    const endY = toRect.top + toRect.height / 2 - stageRect.top;
+    const rawStartX = fromRect.left + fromRect.width / 2 - stageRect.left;
+    const rawStartY = fromRect.top + fromRect.height / 2 - stageRect.top;
+    const rawEndX = toRect.left + toRect.width / 2 - stageRect.left;
+    const rawEndY = toRect.top + toRect.height / 2 - stageRect.top;
+    const halfWidth = Math.min(stageRect.width / 2 - 4, token.offsetWidth / 2 + 8);
+    const halfHeight = Math.min(stageRect.height / 2 - 4, token.offsetHeight / 2 + 8);
+    const clampX = (value: number) => Math.max(halfWidth, Math.min(stageRect.width - halfWidth, value));
+    const clampY = (value: number) => Math.max(halfHeight, Math.min(stageRect.height - halfHeight, value));
+    const startX = clampX(rawStartX);
+    const startY = clampY(rawStartY);
+    const endX = clampX(rawEndX);
+    const endY = clampY(rawEndY);
+
+    if (reduceMotion) {
+      token.style.left = `${endX}px`;
+      token.style.top = `${endY}px`;
+      token.style.opacity = '0';
+      return;
+    }
 
     token.style.left = `${startX}px`;
     token.style.top = `${startY}px`;
