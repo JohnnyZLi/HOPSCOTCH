@@ -32,6 +32,26 @@ scenario / measurement / public-data source
 
 Modifiers are scenario truth. They never live in animation callbacks.
 
+Captured evidence follows a parallel, non-simulation pipeline:
+
+```text
+user-selected PCAP / PCAPNG bytes
+                  ↓
+        bounded container parser
+                  ↓
+       immutable captured frames
+                  ↓
+ bounded protocol decode + indexes
+                  ↓
+ capture-bounded events / time projection
+                  ↓
+       evidence-first renderer
+                  ↓
+      Motion / Anime.js choreography
+```
+
+For this path, `same capture bytes + same capture timestamp = same semantic projection`. Captured bytes never enter canonical configuration or a simulator reducer.
+
 ## 1. Canonical models
 
 Pure TypeScript owns topology, packet, protocol, Journey, and scenario state. The model layer knows nothing about React, Motion, Anime.js, SVG, Canvas, WebGL, or Cloudflare.
@@ -161,6 +181,7 @@ This enables:
 - detail-lab jumps that return to the same Journey timestamp
 - composed GOD MODE scenarios that remain seekable
 - reduced-motion rendering without semantic changes
+- capture-time replay where the wall clock advances only a requested timestamp and indexed evidence owns the projection
 
 Animation clocks are not simulation clocks.
 
@@ -230,6 +251,7 @@ HOPSCOTCH does not collapse different evidence classes into one fake ground trut
 Current provenance labels:
 
 - `SIMULATED` — deterministic HOPSCOTCH scenario/model state
+- `CAPTURED` — immutable bytes and directly decoded fields from an explicitly user-selected packet capture
 - `EDGE OBSERVED` — facts Cloudflare attaches to the current request
 - `PUBLIC COLLECTOR` — routing state observed from public collector vantage points
 - `PUBLIC DATA` — published infrastructure facts such as facility coordinates
@@ -237,6 +259,8 @@ Current provenance labels:
 - `LOCAL MEASURED` — a native/local observation bounded to one host vantage, declared target, adapter/tool identity, and capture interval
 
 A public collector path is not the viewer's packet path. Optional live evidence can decorate a simulated Journey but cannot silently rewrite transport, DNS, modifiers, forwarding path, or the causal event log.
+
+`CAPTURED` is session-scoped evidence from one capture vantage point. Conversation normalization and transport interpretations are separately `INFERRED`; absent packets, physical topology, path, packet loss, and encrypted content remain unknown. Container parsing, protocol decoding, conversation/event construction, time projection, and event→frame→field→byte lineage live in pure TypeScript outside React. Captured Packet Microscope mode is a read-only projection and cannot mutate the underlying frame.
 
 `LOCAL MEASURED` is observational, not global truth. Native measurement schema v1 requires `vantage = local-host`, `completeness = bounded`, `globalComplete = false`, explicit limitations, adapter/tool identity, a bounded capture interval, and per-fact timestamps/targets. Arbitrary nested model objects are rejected as measured values so a native adapter cannot launder Journey events, modifiers, inferred topology, or other canonical state into the measured evidence channel.
 
@@ -279,6 +303,13 @@ URL Journey:
 - canonical modifier/config model: pure TypeScript
 - v1/v2 schema + migration: pure TypeScript
 - sessionStorage, JSON files, and share URLs: adapters
+
+Captured replay:
+
+- immutable frame/evidence model: pure TypeScript
+- deterministic conversation/time/lineage indexes: pure TypeScript
+- user-selected PCAP/PCAPNG bytes: explicit in-memory session input only
+- no localStorage, sessionStorage, IndexedDB, upload, or Worker ingestion
 
 A restored scenario is rebuilt through the canonical builder rather than reviving serialized reducer state.
 
@@ -334,6 +365,8 @@ Current validation layers:
 22. **Measured workspace contract + production browser audit** — source checks prohibit persistence/upload/Journey coupling while compatibility-only Chrome profiles attach real valid/invalid JSON files to the actual input, prove previous-valid preservation and Clear behavior, verify target/provenance/value rendering, and enforce desktop/mobile/reduced-motion overflow/runtime invariants across default/SwiftShader/WebGL-disabled modes.
 23. **Measured semantic-sidecar contract + production browser audit** — pure target compatibility separates matched target, local context, and other-target evidence; source contracts keep Journey model/modifiers free of measured-state dependencies; compatibility-only Chrome imports a real report, crosses Lab 09 → Journey, proves routing/DNS/transport sidecar semantics, hides mismatched values, verifies Clear removes sidecars, and enforces viewport/runtime invariants on desktop, exact 390 px mobile, and reduced motion.
 24. **Loopback bridge transport + browser contract** — pure contracts reject non-loopback origins before fetch, enforce the fixed v1 handshake/report surface and no-credential bounded requests, require the existing 09C ingestion path, and keep Journey truth byte-identical; production Chrome then mocks network failure, rejected handshake, valid/invalid refresh, Clear, Disconnect, and request-option invariants on desktop, exact 390 px mobile, and reduced motion across default/SwiftShader/WebGL-disabled modes.
+25. **Captured replay parser/model contracts** — endian/micro/nanosecond PCAP, bounded PCAPNG blocks/interfaces/resolutions, Ethernet/IP/transport/DNS/TLS fields and byte ranges, hostile-input failures, deterministic conversations/events/time, provenance, immutability, and event→frame→field→byte lineage use synthetic documentation-address fixtures.
+26. **Captured replay production browser audit** — the real built application attaches generated PCAP, PCAPNG, and malformed files; proves valid replacement/invalid preservation/Clear, conversation and time controls, captured read-only Packet Microscope, exact-byte focus, deep linking, bounded DOM/byte rendering, desktop/exact-390-px/reduced-motion behavior, and console health.
 
 ## Performance rules
 

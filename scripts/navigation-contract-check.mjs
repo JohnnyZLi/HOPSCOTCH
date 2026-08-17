@@ -23,6 +23,7 @@ const expected = {
   physical: '/internet/physical',
   observed: '/internet/observed',
   measured: '/measured',
+  capture: '/capture',
 };
 
 assert.deepEqual(DESTINATION_PATHS, expected);
@@ -72,4 +73,4 @@ assert.match(app, /addEventListener\('popstate'/);
 assert.match(app, /resolveAppRoute\(window\.location\.pathname, window\.location\.search\)/);
 assert.match(app, /pathForDestination\(/);
 
-console.log('Lab 10B navigation contract OK: 12 canonical deep links, legacy Journey migration, SPA fallback, and browser history wiring.');
+console.log('Lab 10B navigation contract OK: 13 canonical deep links, legacy Journey migration, SPA fallback, and browser history wiring.');

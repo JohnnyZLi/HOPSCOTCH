@@ -22,6 +22,15 @@ It is not a Packet Tracer clone. HOPSCOTCH treats **time, causality, abstraction
 - raw-byte ↔ header-field mapping
 - animated length/checksum relationships
 
+### Captured-data replay · Track T
+
+- explicit local-only `.pcap` / `.pcapng` import with no upload or silent persistence
+- immutable `CAPTURED` frame evidence separated from `INFERRED` conversation/transport interpretations
+- deterministic conversation index, semantic event rail, capture time machine, and FOLLOW FLOW focus
+- Ethernet/VLAN, IPv4/IPv6, TCP/UDP, ICMP, DNS, and capture-visible TLS metadata decoding
+- event → frame → protocol field → exact captured byte lineage
+- read-only captured mode in Packet Microscope; generated teaching packets remain explicitly `SIMULATED`
+
 ### Protocol theater
 
 - TCP handshake, loss, fast retransmit, congestion response, and teardown
@@ -94,13 +103,14 @@ Animation reacts to state. It never determines state.
 HOPSCOTCH keeps provenance explicit:
 
 - `SIMULATED`
+- `CAPTURED` — immutable bytes and fields decoded from a user-selected packet capture
 - `EDGE OBSERVED`
 - `PUBLIC COLLECTOR`
 - `PUBLIC DATA`
 - `INFERRED`
 - `LOCAL MEASURED` — local-host, capture-bounded evidence that never becomes simulated Journey truth
 
-See `docs/ARCHITECTURE.md` for the full system boundary and `docs/ROADMAP.md` for completed and upcoming work.
+See `docs/ARCHITECTURE.md` for the full system boundary, `docs/TRACKT.md` for captured replay, and `docs/ROADMAP.md` for completed and upcoming work.
 
 ## Stack
 
@@ -153,6 +163,6 @@ npm run deploy
 
 ## Project status
 
-The core product architecture and the full curated Lab 07 GOD MODE modifier series are implemented: deterministic routing, packet inspection, protocol theater, topology authoring, Internet-scale policy/physical views, the cross-scale URL Journey, portable scenarios, multi-cause composition, recoverable cross-layer failures, congestion, application/DNS failures, terminal partition state, and BGP policy anomalies all exist as integrated experiences.
+The core product architecture and the full curated Lab 07 GOD MODE modifier series are implemented: deterministic routing, packet inspection, protocol theater, topology authoring, Internet-scale policy/physical views, the cross-scale URL Journey, portable scenarios, multi-cause composition, recoverable cross-layer failures, congestion, application/DNS failures, terminal partition state, and BGP policy anomalies all exist as integrated experiences. Track T now adds the first deterministic captured-data vertical slice from local PCAP/PCAPNG import through conversation/time/event/frame/field/exact-byte lineage without turning evidence into simulation.
 
 Production performance budgets, deterministic high-density stress profiles, and a production-artifact browser/GPU matrix now cover the normal product, the 160/220 AS Canvas fixture, Builder at its real 32/96 ceiling, a 2,000-point SIMULATED WebGL fixture, repeated Journey churn, Chrome default/SwiftShader/WebGL-disabled rendering, and Firefox/Gecko semantic compatibility with an honest WebGL fallback. Native measurement now has a strict `LOCAL MEASURED` provenance/schema contract, a separate measured-state projection, whitelist-only Network Diagnostics Suite report-v2 ingestion, an explicit session-only measured workspace, and optional target-scoped Journey sidecars without entering simulated truth. Lab 09 can acquire the same validated report either by explicit JSON import or through an explicit loopback-only Network Diagnostics bridge with fixed endpoints, no credentials, no scanning/discovery, and no background polling. The remaining native-side work is **an optional companion bridge/server implementation outside HOPSCOTCH; the web app already has the bounded acquisition contract it needs**.

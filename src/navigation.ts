@@ -24,6 +24,7 @@ export const DESTINATION_PATHS: Readonly<Record<ExploreDestination, string>> = O
   physical: '/internet/physical',
   observed: '/internet/observed',
   measured: '/measured',
+  capture: '/capture',
 });
 
 const PATH_DESTINATIONS = new Map<string, ExploreDestination>(

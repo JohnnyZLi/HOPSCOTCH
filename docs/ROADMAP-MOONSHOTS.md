@@ -129,14 +129,14 @@ A user should eventually be able to build, observe, break, fork, query, verify, 
 
 ## Track T — cinematic captured-data replay
 
-- [ ] elevate PCAP/PCAPNG import into a flagship capture-replay experience rather than a table viewer
-- [ ] reconstruct capture-bounded flows, TCP relationships, DNS exchanges, ICMP, retransmissions, RTT observations, and TLS metadata into a scrub-able event timeline
-- [ ] `CAPTURED` packets remain immutable evidence; inferred relationships are separately marked `INFERRED`
-- [ ] replay capture activity through Packet Microscope, protocol theater, flow timelines, and aggregate traffic views without fabricating unseen topology
-- [ ] packet lineage links application/protocol interpretation back to exact captured frame numbers and bytes
+- [x] first flagship vertical slice elevates explicit local PCAP/PCAPNG import into a capture-replay experience rather than a table viewer
+- [ ] extend the shipped flow/TCP/DNS/ICMP/retransmission/TLS event timeline with stream reassembly and RTT observations
+- [x] `CAPTURED` packets remain immutable evidence; inferred relationships are separately marked `INFERRED`
+- [ ] extend the shipped flow timeline + read-only Packet Microscope projection into truthful captured Protocol Theater and aggregate traffic views without fabricating unseen topology
+- [x] packet lineage links protocol interpretation back to exact captured frame numbers, fields, byte ranges, and bytes
 - [ ] support comparison between two captures, before/after captures, or captured evidence versus a simulated counterfactual while keeping provenance visually obvious
-- [ ] large captures use indexing/aggregation so users can move from traffic weather to flow to packet without rendering every packet at once
-- [ ] capture replay can produce deterministic cinematic FOLLOW FLOW / FOLLOW FAILURE presentations
+- [x] accepted captures use stable frame/flow/time/protocol/lineage indexes plus bounded flow/event/byte rendering; traffic-weather semantic zoom remains future work
+- [ ] deterministic cinematic FOLLOW FLOW is shipped; FOLLOW FAILURE remains future work
 
 ## Cross-cutting moonshot systems
 
@@ -146,7 +146,7 @@ A user should eventually be able to build, observe, break, fork, query, verify, 
 - [ ] NAT lineage shows original/translated tuples and translation state responsible for each packet
 - [ ] routing lineage links a forwarding decision to FIB entry → selected route → control-plane origin → causal protocol events
 - [ ] policy lineage links a permit/drop to the exact ordered ACL/policy rule and pre/post-translation values used for matching
-- [ ] captured evidence lineage never invents ancestors that are absent from the capture
+- [x] captured evidence lineage never invents ancestors that are absent from the capture
 
 ### Network MRI / dependency cross-section
 - [ ] for any source/destination/application tuple, show a layered dependency stack across physical, L2, next-hop resolution, routing, policy, translation, DNS, transport, TLS, and application

@@ -21,6 +21,7 @@ const destinations = [
   'physical',
   'observed',
   'measured',
+  'capture',
 ];
 
 for (const destination of destinations) {
@@ -63,7 +64,7 @@ assert(
   'Explore must be reachable from both the persistent header and the overview product surface.',
 );
 assert(
-  home.includes('Explore all 12 labs') && home.includes('onClick={onExplore}'),
+  home.includes('Explore all 13 workspaces') && home.includes('onClick={onExplore}'),
   'Overview product surface must keep an explicit entry to the full Explore catalog.',
 );
 assert(
