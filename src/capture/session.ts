@@ -548,12 +548,13 @@ function finalizeConversations(drafts: readonly ConversationDraft[], events: rea
       : draft.transportKind === 'tcp' ? 'TCP'
         : draft.transportKind === 'udp' ? 'UDP'
           : draft.transportKind === 'icmp' ? 'ICMP' : 'ICMPV6';
+    const applicationProtocol: CaptureConversation['applicationProtocol'] = hasDns ? 'DNS' : hasTls ? 'TLS' : null;
     const tcpHasSyn = draft.frames.some((frame) => frame.transport?.tcp?.flags.syn);
-    return deepFreeze({
+    return deepFreeze<CaptureConversation>({
       id: draft.id,
       key: draft.key,
       protocol,
-      applicationProtocol: hasDns ? 'DNS' : hasTls ? 'TLS' : null,
+      applicationProtocol,
       endpointA: draft.endpointA,
       endpointB: draft.endpointB,
       frameReferences: [...draft.frameReferences].sort((a, b) => a.relativeTimeNanoseconds < b.relativeTimeNanoseconds ? -1 : a.relativeTimeNanoseconds > b.relativeTimeNanoseconds ? 1 : a.frameNumber - b.frameNumber),

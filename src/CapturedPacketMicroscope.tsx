@@ -84,7 +84,9 @@ export function CapturedPacketMicroscope({
       duration: 360,
       ease: 'outExpo',
     });
-    return () => animation.cancel();
+    return () => {
+      animation.cancel();
+    };
   }, [reduceMotion, safePage, selectedFieldId]);
 
   const chooseLayer = (layer: CapturedLayer) => {
