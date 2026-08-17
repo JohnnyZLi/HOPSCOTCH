@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, extname, join, normalize, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import {
   dnsQuery,
@@ -14,6 +14,7 @@ import {
   tlsClientHello,
   udpIpv4Frame,
 } from './capture-fixtures.mjs';
+import { serveProductionArtifact } from './production-artifact-server.mjs';
 
 const root = process.cwd();
 const distDir = resolve(root, 'dist');
@@ -37,43 +38,6 @@ function findChrome() {
     if (existsSync(candidate)) return candidate;
   }
   throw new Error('Chrome/Chromium not found. Set CHROME_PATH to an installed Chrome-compatible browser.');
-}
-
-function mimeType(path) {
-  return ({
-    '.html': 'text/html; charset=utf-8',
-    '.js': 'text/javascript; charset=utf-8',
-    '.css': 'text/css; charset=utf-8',
-    '.svg': 'image/svg+xml',
-    '.png': 'image/png',
-    '.json': 'application/json; charset=utf-8',
-  })[extname(path)] ?? 'application/octet-stream';
-}
-
-async function serveProductionArtifact() {
-  const indexPath = join(distDir, 'index.html');
-  if (!existsSync(indexPath)) throw new Error('dist/index.html is missing. Run `npm run build` first.');
-  const server = createServer((request, response) => {
-    try {
-      const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://127.0.0.1').pathname);
-      const relative = normalize(pathname).replace(/^[/\\]+/, '');
-      const candidate = resolve(distDir, relative || 'index.html');
-      const safeCandidate = candidate.startsWith(`${distDir}/`) || candidate === distDir ? candidate : indexPath;
-      const filePath = existsSync(safeCandidate) && statSync(safeCandidate).isFile() ? safeCandidate : indexPath;
-      response.writeHead(200, { 'content-type': mimeType(filePath), 'cache-control': 'no-store' });
-      response.end(readFileSync(filePath));
-    } catch (error) {
-      response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
-      response.end(error instanceof Error ? error.message : String(error));
-    }
-  });
-  await new Promise((resolvePromise, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', resolvePromise);
-  });
-  const address = server.address();
-  assert.ok(address && typeof address === 'object');
-  return { server, origin: `http://127.0.0.1:${address.port}` };
 }
 
 async function freePort() {
@@ -271,7 +235,7 @@ async function main() {
   const fixtureDirectory = mkdtempSync(join(tmpdir(), 'hopscotch-capture-fixtures-'));
   const userDataDirectory = mkdtempSync(join(tmpdir(), 'hopscotch-capture-chrome-'));
   const fixtures = makeFixtures(fixtureDirectory);
-  const production = await serveProductionArtifact();
+  const production = await serveProductionArtifact(distDir);
   const debuggingPort = await freePort();
   const chrome = spawn(chromePath, [
     '--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--disable-background-networking', '--disable-default-apps', '--disable-extensions', '--disable-sync', '--mute-audio',

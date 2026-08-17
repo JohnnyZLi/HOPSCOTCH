@@ -22,7 +22,6 @@ import { canonicalUrlForRoute, pathForDestination, resolveAppRoute } from './nav
 import { ObservedInternet } from './ObservedInternet';
 import { MeasuredNetworkWorkspace } from './MeasuredNetworkWorkspace';
 import type { MeasuredSnapshotState } from './measurement/state.ts';
-import { PacketMicroscope } from './PacketMicroscope';
 import type { CaptureReplayContext } from './CaptureReplayWorkspace.tsx';
 import type { CaptureSessionIndex } from './capture/session.ts';
 import type { CapturedFrameEvidence } from './capture/types.ts';
@@ -37,6 +36,7 @@ type DisplayMode = 'overview' | 'xray';
 type ActiveLab = ExploreDestination | null;
 
 const CaptureReplayWorkspace = lazy(() => import('./CaptureReplayWorkspace.tsx').then((module) => ({ default: module.CaptureReplayWorkspace })));
+const PacketMicroscope = lazy(() => import('./PacketMicroscope.tsx').then((module) => ({ default: module.PacketMicroscope })));
 
 const layers: Array<{ id: NetworkLayer; label: string; kicker: string; description: string }> = [
   { id: 'internet', label: 'Internet', kicker: 'Scale 05', description: 'Physical interconnection infrastructure, autonomous systems, public routing evidence, and clearly labeled inference.' },
@@ -437,14 +437,16 @@ export default function App() {
         ) : activeLab === 'journey' ? (
           <JourneyTheater key={`lab06-${journeyRenderKey}`} hostname={journeyHostname} timeMs={journeyTimeMs} startPlaying={journeyStartPlaying} evidence={journeyEvidence} measuredState={measuredSession} onHostnameChange={setJourneyHostname} onTimeChange={setJourneyTimeMs} onEvidenceChange={setJourneyEvidence} onOpenDetail={openJourneyDetail} onExit={exitLabs} />
         ) : activeLab === 'packet' ? (
-          <PacketMicroscope
-            key={`lab02-${capturedMicroscopeFrame?.record.id ?? builderPacketSeed?.id ?? 'default'}`}
-            onExit={exitActiveLab}
-            onOpenSourceEvent={capturedMicroscopeFrame ? openCaptureReplay : builderPacketSeed ? () => openBuilderLab() : () => openFailureLab(5400, false)}
-            capturedFrame={capturedMicroscopeFrame ?? undefined}
-            initialConfig={builderPacketSeed ? { family: builderPacketSeed.family, transport: 'icmp', payloadBytes: builderPacketSeed.payloadBytes ?? 32, ttl: builderPacketSeed.ttl, ...(builderPacketSeed.family === 'ipv4' ? { sourceIpv4: builderPacketSeed.sourceAddress, destinationIpv4: builderPacketSeed.destinationAddress } : { sourceIpv6: builderPacketSeed.sourceAddress, destinationIpv6: builderPacketSeed.destinationAddress }), sourceMac: builderPacketSeed.sourceMac, destinationMac: builderPacketSeed.destinationMac, icmpType: builderPacketSeed.icmpType ?? (builderPacketSeed.family === 'ipv4' ? 8 : 128), icmpCode: builderPacketSeed.icmpCode ?? 0, icmpMtu: builderPacketSeed.icmpMtu, icmpSequence: Math.max(1, builderPacketSeed.ttl) } : undefined}
-            origin={capturedMicroscopeFrame ? { label: `${captureSourceName ?? 'LOCAL CAPTURE'} · FRAME ${capturedMicroscopeFrame.record.number}`, timestamp: capturedMicroscopeFrame.record.timestamp.iso8601 ?? `t+${capturedMicroscopeFrame.record.relativeTimeMs.toFixed(3)} ms`, actionLabel: 'RETURN TO CAPTURE ↗' } : builderPacketSeed ? { label: `${builderPacketSeed.family === 'ipv4' ? 'LAB 11D' : 'LAB 11N'} · ${builderPacketSeed.label}`, timestamp: `${builderPacketSeed.family === 'ipv4' ? 'TTL' : 'HOP LIMIT'} ${builderPacketSeed.ttl}`, actionLabel: 'RETURN TO BUILDER ↗' } : undefined}
-          />
+          <Suspense fallback={<section className="lab-loading" aria-live="polite">LOADING PACKET MICROSCOPE…</section>}>
+            <PacketMicroscope
+              key={`lab02-${capturedMicroscopeFrame?.record.id ?? builderPacketSeed?.id ?? 'default'}`}
+              onExit={exitActiveLab}
+              onOpenSourceEvent={capturedMicroscopeFrame ? openCaptureReplay : builderPacketSeed ? () => openBuilderLab() : () => openFailureLab(5400, false)}
+              capturedFrame={capturedMicroscopeFrame ?? undefined}
+              initialConfig={builderPacketSeed ? { family: builderPacketSeed.family, transport: 'icmp', payloadBytes: builderPacketSeed.payloadBytes ?? 32, ttl: builderPacketSeed.ttl, ...(builderPacketSeed.family === 'ipv4' ? { sourceIpv4: builderPacketSeed.sourceAddress, destinationIpv4: builderPacketSeed.destinationAddress } : { sourceIpv6: builderPacketSeed.sourceAddress, destinationIpv6: builderPacketSeed.destinationAddress }), sourceMac: builderPacketSeed.sourceMac, destinationMac: builderPacketSeed.destinationMac, icmpType: builderPacketSeed.icmpType ?? (builderPacketSeed.family === 'ipv4' ? 8 : 128), icmpCode: builderPacketSeed.icmpCode ?? 0, icmpMtu: builderPacketSeed.icmpMtu, icmpSequence: Math.max(1, builderPacketSeed.ttl) } : undefined}
+              origin={capturedMicroscopeFrame ? { label: `${captureSourceName ?? 'LOCAL CAPTURE'} · FRAME ${capturedMicroscopeFrame.record.number}`, timestamp: capturedMicroscopeFrame.record.timestamp.iso8601 ?? `t+${capturedMicroscopeFrame.record.relativeTimeMs.toFixed(3)} ms`, actionLabel: 'RETURN TO CAPTURE ↗' } : builderPacketSeed ? { label: `${builderPacketSeed.family === 'ipv4' ? 'LAB 11D' : 'LAB 11N'} · ${builderPacketSeed.label}`, timestamp: `${builderPacketSeed.family === 'ipv4' ? 'TTL' : 'HOP LIMIT'} ${builderPacketSeed.ttl}`, actionLabel: 'RETURN TO BUILDER ↗' } : undefined}
+            />
+          </Suspense>
         ) : activeLab === 'capture' ? (
           <Suspense fallback={<section className="capture-loading" aria-live="polite">LOADING CAPTURE WORKSPACE…</section>}>
             <CaptureReplayWorkspace

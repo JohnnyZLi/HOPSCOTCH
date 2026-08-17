@@ -2,6 +2,7 @@ import { animate, stagger } from 'animejs';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { CapturedFrameEvidence } from './capture/types.ts';
+import './packet.css';
 import {
   buildPacket,
   defaultPacketConfig,

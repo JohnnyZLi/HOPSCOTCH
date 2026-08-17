@@ -52,6 +52,15 @@ button {
     #05070a;
 }
 
+.lab-loading {
+  display: grid;
+  min-height: 68vh;
+  place-items: center;
+  color: var(--cyan);
+  font: 800 0.65rem/1.2 "IBM Plex Mono", monospace;
+  letter-spacing: 0.16em;
+}
+
 .network-field,
 .grid-field,
 .scene-vignette {
