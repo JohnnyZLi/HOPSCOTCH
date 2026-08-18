@@ -39,7 +39,7 @@ const capture = pcapCapture([
   { bytes: aToB(encoder.encode('HELLO'), { sequence: 1001, acknowledgment: 9001, flags: 0x18 }), fraction: 3000 },
   { bytes: bToA(new Uint8Array(), { sequence: 9001, acknowledgment: 1006, flags: 0x10 }), fraction: 7000 },
   { bytes: aToB(encoder.encode('HELLO'), { sequence: 1001, acknowledgment: 9001, flags: 0x18 }), fraction: 8000 },
-  { bytes: aToB(encoder.encode('XY'), { sequence: 1004, acknowledgment: 9001, flags: 0x18 }), fraction: 9000 },
+  { bytes: aToB(encoder.encode('XYZW'), { sequence: 1004, acknowledgment: 9001, flags: 0x18 }), fraction: 9000 },
   { bytes: aToB(encoder.encode('LATE'), { sequence: 1012, acknowledgment: 9001, flags: 0x18 }), fraction: 10_000 },
   { bytes: aToB(encoder.encode('MID'), { sequence: 1008, acknowledgment: 9001, flags: 0x18 }), fraction: 11_000 },
   { bytes: bToA(new Uint8Array(), { sequence: 9001, acknowledgment: 1016, flags: 0x10 }), fraction: 15_000 },
