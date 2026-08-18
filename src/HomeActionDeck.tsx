@@ -91,7 +91,7 @@ export function HomeActionDeck({
       </div>
 
       <nav className="home-action-utilities" aria-label="HOPSCOTCH utilities">
-        <button type="button" onClick={onExplore}>Explore all 12 labs</button>
+        <button type="button" onClick={onExplore}>Explore all 13 workspaces</button>
         <button type="button" onClick={onMeasured}>Inspect measured report</button>
         <button type="button" onClick={onToggleXray}>{xrayActive ? 'Hide X-ray' : 'Preview X-ray'}</button>
         <a href="https://github.com/JohnnyZLi/HOPSCOTCH">Source</a>

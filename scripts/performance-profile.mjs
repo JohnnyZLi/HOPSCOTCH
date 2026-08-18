@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import net from 'node:net';
 import { performance } from 'node:perf_hooks';
+import { serveProductionArtifact } from './production-artifact-server.mjs';
 
 const enforce = process.argv.includes('--enforce');
 const compatibility = process.argv.includes('--compatibility');
@@ -216,7 +217,7 @@ class CdpClient {
 function readProductionArtifact() {
   const indexPath = join(distDir, 'index.html');
   if (!existsSync(indexPath)) throw new Error('dist/index.html is missing. Run `npm run build` first.');
-  let html = readFileSync(indexPath, 'utf8');
+  const html = readFileSync(indexPath, 'utf8');
   const scriptMatch = html.match(/<script\b[^>]*\bsrc="([^"]+\.js)"[^>]*><\/script>/i);
   const cssMatch = html.match(/<link\b[^>]*\bhref="([^"]+\.css)"[^>]*>/i);
   if (!scriptMatch || !cssMatch) throw new Error('Unable to resolve generated Vite JS/CSS assets from dist/index.html.');
@@ -224,15 +225,7 @@ function readProductionArtifact() {
   const cssPath = join(distDir, cssMatch[1].replace(/^\//, ''));
   const script = readFileSync(scriptPath);
   const css = readFileSync(cssPath);
-  const scriptText = script.toString('utf8');
-  const inlineStyle = `<style>${css.toString('utf8').replaceAll('</style>', '<\\/style>')}</style>`;
-  html = html
-    .replace(scriptMatch[0], '')
-    .replace(cssMatch[0], inlineStyle)
-    .replace(/<link\b[^>]*\brel="icon"[^>]*>/i, '');
   return {
-    html,
-    scriptText,
     bundle: {
       scriptFile: scriptMatch[1],
       styleFile: cssMatch[1],
@@ -905,7 +898,7 @@ async function exerciseMeasuredJourneySidecars(cdp, profile) {
   };
 }
 
-async function loadProfile(cdp, artifact, profile) {
+async function loadProfile(cdp, origin, profile) {
   cdp.clearEvents();
   await cdp.call('Emulation.setDeviceMetricsOverride', {
     width: profile.width,
@@ -916,14 +909,8 @@ async function loadProfile(cdp, artifact, profile) {
   await cdp.call('Emulation.setEmulatedMedia', {
     features: [{ name: 'prefers-reduced-motion', value: profile.reducedMotion ? 'reduce' : 'no-preference' }],
   });
-  await cdp.call('Page.navigate', { url: `about:blank${profile.query}` });
-  await sleep(50);
-  const frameTree = await cdp.call('Page.getFrameTree');
-  const frameId = frameTree.frameTree.frame.id;
   const startedAt = performance.now();
-  await cdp.call('Page.setDocumentContent', { frameId, html: artifact.html });
-  await cdp.evaluate(`(()=>{try{sessionStorage.setItem('__hopscotch_perf__','1');sessionStorage.removeItem('__hopscotch_perf__')}catch{const values=new Map();Object.defineProperty(window,'sessionStorage',{configurable:true,value:{getItem:key=>values.has(key)?values.get(key):null,setItem:(key,value)=>values.set(key,String(value)),removeItem:key=>values.delete(key),clear:()=>values.clear()}})}})()`);
-  await cdp.evaluate(artifact.scriptText);
+  await cdp.call('Page.navigate', { url: `${origin}/${profile.query}` });
   await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(profile.readySelector ?? '.journey-workspace')}))`);
   await sleep(550);
   const builderOspfInteraction = profile.builderOspf ? await exerciseBuilderOspf(cdp, profile) : null;
@@ -1037,7 +1024,7 @@ async function loadProfile(cdp, artifact, profile) {
   };
 }
 
-async function seekStress(cdp, artifact, cycles = stressConfig.seekCycles, id = 'max-composed-seek-stress') {
+async function seekStress(cdp, origin, cycles = stressConfig.seekCycles, id = 'max-composed-seek-stress') {
   const profile = {
     id,
     width: 1440,
@@ -1046,7 +1033,7 @@ async function seekStress(cdp, artifact, cycles = stressConfig.seekCycles, id = 
     query: query({ journey: '2', host: 'example.test', transport: 'quic-h3', dns: 'cache-miss', mods: maxModifierSet, t: '0' }),
     expected: ['DNS FAIL + ROUTE + LEAK + SERVER + LOSS + LATENCY + CONGESTION + PARTITION'],
   };
-  await loadProfile(cdp, artifact, profile);
+  await loadProfile(cdp, origin, profile);
   await cdp.call('HeapProfiler.collectGarbage');
   const before = await cdp.call('Runtime.getHeapUsage');
   const beforeState = await cdp.evaluate(`(()=>({
@@ -1101,6 +1088,7 @@ async function main() {
   const chromePath = findChrome();
   let launch = null;
   let cdp = null;
+  let production = null;
   const report = {
     schema: 'hopscotch.performance-profile',
     version: 1,
@@ -1118,6 +1106,7 @@ async function main() {
   };
 
   try {
+    production = await serveProductionArtifact(distDir);
     launch = await launchChrome(chromePath);
     report.browser.version = launch.version.Browser ?? null;
     report.browser.launchAttempts = launch.attempts;
@@ -1133,10 +1122,10 @@ async function main() {
     await cdp.call('Performance.enable');
     await cdp.call('HeapProfiler.enable');
 
-    for (const profile of profiles) report.profiles.push(await loadProfile(cdp, artifact, profile));
+    for (const profile of profiles) report.profiles.push(await loadProfile(cdp, production.origin, profile));
     if (!compatibility) {
-      report.seekStress = await seekStress(cdp, artifact);
-      report.highDensitySeekStress = await seekStress(cdp, artifact, stressBudgets.highDensitySeek?.cycles ?? 12, 'high-density-seek-stress');
+      report.seekStress = await seekStress(cdp, production.origin);
+      report.highDensitySeekStress = await seekStress(cdp, production.origin, stressBudgets.highDensitySeek?.cycles ?? 12, 'high-density-seek-stress');
 
     addBudgetFailure(report.failures, artifact.bundle.jsGzipBytes <= budgets.maxJsGzipBytes, `JS gzip ${artifact.bundle.jsGzipBytes} exceeds ${budgets.maxJsGzipBytes}.`);
     addBudgetFailure(report.failures, artifact.bundle.cssGzipBytes <= budgets.maxCssGzipBytes, `CSS gzip ${artifact.bundle.cssGzipBytes} exceeds ${budgets.maxCssGzipBytes}.`);
@@ -1174,6 +1163,7 @@ async function main() {
     }
     if (launch?.chrome && !launch.chrome.killed) launch.chrome.kill('SIGKILL');
     if (launch?.userDataDir) rmSync(launch.userDataDir, { recursive: true, force: true });
+    if (production) await new Promise((resolvePromise) => production.server.close(resolvePromise));
     report.browser.stderrTail = launch?.state.stderr || null;
     mkdirSync(dirname(reportPath), { recursive: true });
     writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);

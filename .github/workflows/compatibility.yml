@@ -59,3 +59,25 @@ jobs:
           path: artifacts/firefox-compatibility.json
           if-no-files-found: error
           retention-days: 3
+
+  capture-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Exercise local PCAP and PCAPNG replay in the production artifact
+        run: npm run compatibility:capture
+      - name: Upload captured-replay browser report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-capture-browser
+          path: artifacts/capture-browser.json
+          if-no-files-found: error
+          retention-days: 3

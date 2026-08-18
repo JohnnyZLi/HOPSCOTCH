@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import net from 'node:net';
 import { performance } from 'node:perf_hooks';
+import { serveProductionArtifact } from './production-artifact-server.mjs';
 
 const root = process.cwd();
 const distDir = resolve(root, 'dist');
@@ -28,22 +29,6 @@ function commandVersion(executable) {
   if (!executable) return null;
   const result = spawnSync(executable, ['--version'], { encoding: 'utf8', timeout: 10000 });
   return (result.stdout || result.stderr || '').trim() || null;
-}
-
-function readProductionArtifact() {
-  const indexPath = join(distDir, 'index.html');
-  if (!existsSync(indexPath)) throw new Error('dist/index.html is missing. Run `npm run build` first.');
-  let html = readFileSync(indexPath, 'utf8');
-  const scriptMatch = html.match(/<script\b[^>]*\bsrc="([^"]+\.js)"[^>]*><\/script>/i);
-  const cssMatch = html.match(/<link\b[^>]*\bhref="([^"]+\.css)"[^>]*>/i);
-  if (!scriptMatch || !cssMatch) throw new Error('Unable to resolve generated Vite JS/CSS assets from dist/index.html.');
-  const scriptText = readFileSync(join(distDir, scriptMatch[1].replace(/^\//, '')), 'utf8');
-  const cssText = readFileSync(join(distDir, cssMatch[1].replace(/^\//, '')), 'utf8');
-  html = html
-    .replace(scriptMatch[0], '')
-    .replace(cssMatch[0], `<style>${cssText.replaceAll('</style>', '<\\/style>')}</style>`)
-    .replace(/<link\b[^>]*\brel="icon"[^>]*>/i, '');
-  return { html, scriptText };
 }
 
 async function freePort() {
@@ -181,7 +166,6 @@ const profiles = [
 
 async function main() {
   if (typeof WebSocket === 'undefined') throw new Error('Node 24 WebSocket support is required.');
-  const artifact = readProductionArtifact();
   const firefox = findExecutable(['firefox', 'firefox-esr'], ['/usr/bin/firefox', '/usr/bin/firefox-esr']);
   const geckodriver = findExecutable(['geckodriver'], ['/usr/bin/geckodriver']);
   if (!firefox) throw new Error('Firefox executable is not available.');
@@ -204,7 +188,9 @@ async function main() {
   let sessionId = null;
   let bidi = null;
   let bidiContext = null;
+  let production = null;
   try {
+    production = await serveProductionArtifact(distDir);
     driver = spawn(geckodriver, ['--host', '127.0.0.1', '--port', String(port)], { stdio: ['ignore', 'ignore', 'pipe'] });
     driver.stderr.setEncoding('utf8');
     driver.stderr.on('data', (chunk) => { driverStderr = `${driverStderr}${chunk}`.slice(-24000); });
@@ -259,10 +245,7 @@ async function main() {
       if (bidi && bidiContext) {
         await bidi.call('browsingContext.setViewport', { context: bidiContext, viewport: { width: profile.width, height: profile.height }, devicePixelRatio: 1 });
       }
-      await webdriver('POST', '/url', { url: `about:blank${profile.query}` });
-      await execute("document.open(); document.write(arguments[0]); document.close(); return true;", [artifact.html]);
-      await execute("try{sessionStorage.setItem('__hopscotch_firefox__','1');sessionStorage.removeItem('__hopscotch_firefox__')}catch{const values=new Map();Object.defineProperty(window,'sessionStorage',{configurable:true,value:{getItem:key=>values.has(key)?values.get(key):null,setItem:(key,value)=>values.set(key,String(value)),removeItem:key=>values.delete(key),clear:()=>values.clear()}})} return true;");
-      await execute('eval(arguments[0]); return true;', [artifact.scriptText]);
+      await webdriver('POST', '/url', { url: `${production.origin}/${profile.query}` });
 
       const deadline = performance.now() + 8000;
       let ready = false;
@@ -327,6 +310,7 @@ async function main() {
     }
     bidi?.close();
     if (driver && !driver.killed) driver.kill('SIGKILL');
+    if (production) await new Promise((resolvePromise) => production.server.close(resolvePromise));
     report.driver.stderrTail = driverStderr || null;
     mkdirSync(dirname(reportPath), { recursive: true });
     writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { DnsTheater } from './DnsTheater';
 import { ExploreLauncher, type ExploreDestination } from './ExploreLauncher';
 import { HttpComparisonTheater } from './HttpComparisonTheater';
@@ -22,7 +22,9 @@ import { canonicalUrlForRoute, pathForDestination, resolveAppRoute } from './nav
 import { ObservedInternet } from './ObservedInternet';
 import { MeasuredNetworkWorkspace } from './MeasuredNetworkWorkspace';
 import type { MeasuredSnapshotState } from './measurement/state.ts';
-import { PacketMicroscope } from './PacketMicroscope';
+import type { CaptureReplayContext } from './CaptureReplayWorkspace.tsx';
+import type { CaptureSessionIndex } from './capture/session.ts';
+import type { CapturedFrameEvidence } from './capture/types.ts';
 import { PhysicalInternetGlobe } from './PhysicalInternetGlobe';
 import { TcpTheater } from './TcpTheater';
 import { TlsTheater } from './TlsTheater';
@@ -32,6 +34,9 @@ import { latestEventAtOrBefore, type NetworkLayer } from './simulation/model';
 
 type DisplayMode = 'overview' | 'xray';
 type ActiveLab = ExploreDestination | null;
+
+const CaptureReplayWorkspace = lazy(() => import('./CaptureReplayWorkspace.tsx').then((module) => ({ default: module.CaptureReplayWorkspace })));
+const PacketMicroscope = lazy(() => import('./PacketMicroscope.tsx').then((module) => ({ default: module.PacketMicroscope })));
 
 const layers: Array<{ id: NetworkLayer; label: string; kicker: string; description: string }> = [
   { id: 'internet', label: 'Internet', kicker: 'Scale 05', description: 'Physical interconnection infrastructure, autonomous systems, public routing evidence, and clearly labeled inference.' },
@@ -54,6 +59,7 @@ const DESTINATION_LAYERS: Readonly<Record<ExploreDestination, NetworkLayer>> = {
   physical: 'internet',
   observed: 'internet',
   measured: 'internet',
+  capture: 'packet',
 };
 
 const browserHistoryRoutingAvailable = typeof window !== 'undefined'
@@ -92,6 +98,11 @@ export default function App() {
   const [journeyRenderKey, setJourneyRenderKey] = useState(0);
   const [builderPacketSeed, setBuilderPacketSeed] = useState<BuilderProbePacketSeed | null>(null);
   const [builderBgpProjection, setBuilderBgpProjection] = useState<{ projection: BuilderBgpAsProjection; scenario: BuilderScenarioV8 } | null>(null);
+  const [captureSession, setCaptureSession] = useState<CaptureSessionIndex | null>(null);
+  const [captureSourceName, setCaptureSourceName] = useState<string | null>(null);
+  const [captureContext, setCaptureContext] = useState<CaptureReplayContext | null>(null);
+  const [capturedMicroscopeFrame, setCapturedMicroscopeFrame] = useState<CapturedFrameEvidence | null>(null);
+  const [captureReturnPending, setCaptureReturnPending] = useState(false);
   const reduceMotion = useReducedMotion();
   const active = layers.find((item) => item.id === layer) ?? layers[0];
   const labState = useMemo(() => lab01StateAt(timeMs), [timeMs]);
@@ -136,6 +147,7 @@ export default function App() {
       setExploreOpen(false);
       setPlaying(false);
       setJourneyReturnPending(false);
+      setCaptureReturnPending(false);
 
       if (route.destination === null) {
         setLayer('internet');
@@ -196,7 +208,7 @@ export default function App() {
     pushBrowserRoute('failure');
     setLayer('routing'); setTimeMs(atMs); setActiveLab('failure'); setPlaying(autoplay);
   };
-  const openPacketLab = (seed?: BuilderProbePacketSeed) => { setBuilderPacketSeed(seed ?? null); pushBrowserRoute('packet'); setPlaying(false); setLayer('packet'); setActiveLab('packet'); };
+  const openPacketLab = (seed?: BuilderProbePacketSeed) => { setCapturedMicroscopeFrame(null); setCaptureReturnPending(false); setBuilderPacketSeed(seed ?? null); pushBrowserRoute('packet'); setPlaying(false); setLayer('packet'); setActiveLab('packet'); };
   const openTcpLab = () => { pushBrowserRoute('tcp'); setPlaying(false); setLayer('transport'); setActiveLab('tcp'); };
   const openDnsLab = () => { pushBrowserRoute('dns'); setPlaying(false); setLayer('application'); setActiveLab('dns'); };
   const openTlsLab = () => { pushBrowserRoute('tls'); setPlaying(false); setLayer('application'); setActiveLab('tls'); };
@@ -208,6 +220,17 @@ export default function App() {
   const openInternetLab = () => { setBuilderBgpProjection(null); pushBrowserRoute('internet'); setPlaying(false); setLayer('internet'); setActiveLab('internet'); };
   const openObservedInternet = () => { pushBrowserRoute('observed'); setPlaying(false); setLayer('internet'); setActiveLab('observed'); };
   const openMeasuredNetwork = () => { pushBrowserRoute('measured'); setPlaying(false); setLayer('internet'); setActiveLab('measured'); };
+  const openCaptureReplay = () => { setCapturedMicroscopeFrame(null); setCaptureReturnPending(false); pushBrowserRoute('capture'); setPlaying(false); setLayer('packet'); setActiveLab('capture'); };
+  const openCapturedFrame = (frame: CapturedFrameEvidence, context: CaptureReplayContext) => {
+    setBuilderPacketSeed(null);
+    setCapturedMicroscopeFrame(frame);
+    setCaptureContext(context);
+    setCaptureReturnPending(true);
+    pushBrowserRoute('packet');
+    setPlaying(false);
+    setLayer('packet');
+    setActiveLab('packet');
+  };
   const openJourney = () => {
     pushBrowserRoute('journey');
     setPlaying(false);
@@ -252,6 +275,7 @@ export default function App() {
       physical: openPhysicalInternet,
       observed: openObservedInternet,
       measured: openMeasuredNetwork,
+      capture: openCaptureReplay,
     };
     setExploreOpen(false);
     openers[destination]();
@@ -288,7 +312,7 @@ export default function App() {
     setActiveLab('journey');
     setJourneyRenderKey((current) => current + 1);
   };
-  const exitLabs = () => { pushBrowserRoute(null); setPlaying(false); setJourneyReturnPending(false); setExploreOpen(false); setBuilderBgpProjection(null); setActiveLab(null); };
+  const exitLabs = () => { pushBrowserRoute(null); setPlaying(false); setJourneyReturnPending(false); setCaptureReturnPending(false); setCapturedMicroscopeFrame(null); setExploreOpen(false); setBuilderBgpProjection(null); setActiveLab(null); };
   const exitActiveLab = () => {
     setPlaying(false);
     if (journeyReturnPending && activeLab !== 'journey') {
@@ -296,6 +320,14 @@ export default function App() {
       setJourneyStartPlaying(false);
       pushBrowserRoute('journey');
       setActiveLab('journey');
+      return;
+    }
+    if (captureReturnPending && activeLab === 'packet') {
+      setCaptureReturnPending(false);
+      setCapturedMicroscopeFrame(null);
+      pushBrowserRoute('capture');
+      setLayer('packet');
+      setActiveLab('capture');
       return;
     }
     exitLabs();
@@ -308,7 +340,9 @@ export default function App() {
   };
   const seek = (nextTime: number) => { setPlaying(false); setTimeMs(nextTime); };
 
-  const buildLabel = activeLab === 'measured'
+  const buildLabel = activeLab === 'capture'
+    ? 'TRACK T'
+    : activeLab === 'measured'
     ? 'LAB 09'
     : activeLab === 'journey'
     ? 'LAB 07'
@@ -323,7 +357,9 @@ export default function App() {
           : activeLab === 'physical' || activeLab === 'internet' || activeLab === 'observed'
             ? 'LAB 05'
             : 'LAB 00';
-  const buildStatus = activeLab === 'measured'
+  const buildStatus = activeLab === 'capture'
+    ? 'CAPTURED EVIDENCE ACTIVE'
+    : activeLab === 'measured'
     ? 'LOCAL MEASURED ACTIVE'
     : activeLab === 'journey'
     ? 'GOD MODE JOURNEY ACTIVE'
@@ -361,7 +397,7 @@ export default function App() {
           <strong>HOPSCOTCH</strong>
         </button>
         <div className="topbar-meta">
-          <button className="explore-trigger" type="button" onClick={() => setExploreOpen(true)}>EXPLORE <span>12 LABS</span></button>
+          <button className="explore-trigger" type="button" onClick={() => setExploreOpen(true)}>EXPLORE <span>13 WORKSPACES</span></button>
           <div className="build-state"><span>{buildLabel}</span><span className={`status-dot${failureLabActive ? ` phase-${labState.phase}` : ''}`}>{buildStatus}</span></div>
           {activeLab === 'journey' && <JourneyScenarioMenu hostname={journeyHostname} timeMs={journeyTimeMs} name={journeyScenarioName} onNameChange={setJourneyScenarioName} onImportScenario={importJourneyScenario} />}
         </div>
@@ -401,13 +437,28 @@ export default function App() {
         ) : activeLab === 'journey' ? (
           <JourneyTheater key={`lab06-${journeyRenderKey}`} hostname={journeyHostname} timeMs={journeyTimeMs} startPlaying={journeyStartPlaying} evidence={journeyEvidence} measuredState={measuredSession} onHostnameChange={setJourneyHostname} onTimeChange={setJourneyTimeMs} onEvidenceChange={setJourneyEvidence} onOpenDetail={openJourneyDetail} onExit={exitLabs} />
         ) : activeLab === 'packet' ? (
-          <PacketMicroscope
-            key={`lab02-${builderPacketSeed?.id ?? 'default'}`}
-            onExit={exitActiveLab}
-            onOpenSourceEvent={builderPacketSeed ? () => openBuilderLab() : () => openFailureLab(5400, false)}
-            initialConfig={builderPacketSeed ? { family: builderPacketSeed.family, transport: 'icmp', payloadBytes: builderPacketSeed.payloadBytes ?? 32, ttl: builderPacketSeed.ttl, ...(builderPacketSeed.family === 'ipv4' ? { sourceIpv4: builderPacketSeed.sourceAddress, destinationIpv4: builderPacketSeed.destinationAddress } : { sourceIpv6: builderPacketSeed.sourceAddress, destinationIpv6: builderPacketSeed.destinationAddress }), sourceMac: builderPacketSeed.sourceMac, destinationMac: builderPacketSeed.destinationMac, icmpType: builderPacketSeed.icmpType ?? (builderPacketSeed.family === 'ipv4' ? 8 : 128), icmpCode: builderPacketSeed.icmpCode ?? 0, icmpMtu: builderPacketSeed.icmpMtu, icmpSequence: Math.max(1, builderPacketSeed.ttl) } : undefined}
-            origin={builderPacketSeed ? { label: `${builderPacketSeed.family === 'ipv4' ? 'LAB 11D' : 'LAB 11N'} · ${builderPacketSeed.label}`, timestamp: `${builderPacketSeed.family === 'ipv4' ? 'TTL' : 'HOP LIMIT'} ${builderPacketSeed.ttl}`, actionLabel: 'RETURN TO BUILDER ↗' } : undefined}
-          />
+          <Suspense fallback={<section className="lab-loading" aria-live="polite">LOADING PACKET MICROSCOPE…</section>}>
+            <PacketMicroscope
+              key={`lab02-${capturedMicroscopeFrame?.record.id ?? builderPacketSeed?.id ?? 'default'}`}
+              onExit={exitActiveLab}
+              onOpenSourceEvent={capturedMicroscopeFrame ? openCaptureReplay : builderPacketSeed ? () => openBuilderLab() : () => openFailureLab(5400, false)}
+              capturedFrame={capturedMicroscopeFrame ?? undefined}
+              initialConfig={builderPacketSeed ? { family: builderPacketSeed.family, transport: 'icmp', payloadBytes: builderPacketSeed.payloadBytes ?? 32, ttl: builderPacketSeed.ttl, ...(builderPacketSeed.family === 'ipv4' ? { sourceIpv4: builderPacketSeed.sourceAddress, destinationIpv4: builderPacketSeed.destinationAddress } : { sourceIpv6: builderPacketSeed.sourceAddress, destinationIpv6: builderPacketSeed.destinationAddress }), sourceMac: builderPacketSeed.sourceMac, destinationMac: builderPacketSeed.destinationMac, icmpType: builderPacketSeed.icmpType ?? (builderPacketSeed.family === 'ipv4' ? 8 : 128), icmpCode: builderPacketSeed.icmpCode ?? 0, icmpMtu: builderPacketSeed.icmpMtu, icmpSequence: Math.max(1, builderPacketSeed.ttl) } : undefined}
+              origin={capturedMicroscopeFrame ? { label: `${captureSourceName ?? 'LOCAL CAPTURE'} · FRAME ${capturedMicroscopeFrame.record.number}`, timestamp: capturedMicroscopeFrame.record.timestamp.iso8601 ?? `t+${capturedMicroscopeFrame.record.relativeTimeMs.toFixed(3)} ms`, actionLabel: 'RETURN TO CAPTURE ↗' } : builderPacketSeed ? { label: `${builderPacketSeed.family === 'ipv4' ? 'LAB 11D' : 'LAB 11N'} · ${builderPacketSeed.label}`, timestamp: `${builderPacketSeed.family === 'ipv4' ? 'TTL' : 'HOP LIMIT'} ${builderPacketSeed.ttl}`, actionLabel: 'RETURN TO BUILDER ↗' } : undefined}
+            />
+          </Suspense>
+        ) : activeLab === 'capture' ? (
+          <Suspense fallback={<section className="capture-loading" aria-live="polite">LOADING CAPTURE WORKSPACE…</section>}>
+            <CaptureReplayWorkspace
+              session={captureSession}
+              sourceName={captureSourceName}
+              initialContext={captureContext}
+              onSessionChange={(nextSession, nextSourceName) => { setCaptureSession(nextSession); setCaptureSourceName(nextSourceName); if (!nextSession) setCaptureContext(null); }}
+              onContextChange={setCaptureContext}
+              onOpenFrame={openCapturedFrame}
+              onExit={exitActiveLab}
+            />
+          </Suspense>
         ) : activeLab === 'tcp' ? (
           <TcpTheater key="lab03-tcp" onExit={exitActiveLab} onOpenPacket={openPacketLab} />
         ) : activeLab === 'dns' ? (

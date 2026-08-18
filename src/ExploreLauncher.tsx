@@ -16,7 +16,8 @@ export type ExploreDestination =
   | 'internet'
   | 'physical'
   | 'observed'
-  | 'measured';
+  | 'measured'
+  | 'capture';
 
 type ExploreItem = {
   id: ExploreDestination;
@@ -125,6 +126,13 @@ const INTERNET_ITEMS: readonly ExploreItem[] = [
 
 const EVIDENCE_ITEMS: readonly ExploreItem[] = [
   {
+    id: 'capture',
+    lab: 'TRACK T',
+    title: 'Capture replay',
+    description: 'Import a local PCAP or PCAPNG, follow deterministic conversations through time, and trace each interpretation to exact captured bytes.',
+    meta: 'CAPTURED · LOCAL ONLY · LINEAGE',
+  },
+  {
     id: 'measured',
     lab: 'LAB 09',
     title: 'Measured network',
@@ -146,7 +154,7 @@ const GROUPS: ReadonlyArray<{ label: string; description: string; items: readonl
   },
   {
     label: 'Evidence',
-    description: 'Keep measured observations inspectable without turning them into simulated truth.',
+    description: 'Keep captured and measured evidence inspectable without turning either into simulated truth.',
     items: EVIDENCE_ITEMS,
   },
 ];

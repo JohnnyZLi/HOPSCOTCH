@@ -1,6 +1,8 @@
 import { animate, stagger } from 'animejs';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import type { CapturedFrameEvidence } from './capture/types.ts';
+import './packet.css';
 import {
   buildPacket,
   defaultPacketConfig,
@@ -11,6 +13,8 @@ import {
   type PacketLayerId,
   type TransportProtocol,
 } from './packet/model';
+
+const CapturedPacketMicroscope = lazy(() => import('./CapturedPacketMicroscope.tsx').then((module) => ({ default: module.CapturedPacketMicroscope })));
 
 const layerKickers: Record<PacketLayerId, string> = {
   ethernet: 'L2',
@@ -29,17 +33,36 @@ function byteInField(index: number, segmentOffset: number, field: PacketField | 
   return index >= start && index < start + field.length;
 }
 
-export function PacketMicroscope({
-  onExit,
-  onOpenSourceEvent,
-  initialConfig,
-  origin,
-}: {
+type PacketMicroscopeProps = {
   onExit: () => void;
   onOpenSourceEvent?: () => void;
   initialConfig?: Partial<PacketConfig>;
   origin?: { label: string; timestamp?: string; actionLabel?: string };
-}) {
+  capturedFrame?: CapturedFrameEvidence;
+};
+
+export function PacketMicroscope(props: PacketMicroscopeProps) {
+  if (props.capturedFrame) {
+    return (
+      <Suspense fallback={<section className="packet-captured-loading" aria-live="polite">LOADING CAPTURED FRAME…</section>}>
+        <CapturedPacketMicroscope
+          frame={props.capturedFrame}
+          onExit={props.onExit}
+          onOpenSourceEvent={props.onOpenSourceEvent}
+          origin={props.origin}
+        />
+      </Suspense>
+    );
+  }
+  return <SimulatedPacketMicroscope {...props} />;
+}
+
+function SimulatedPacketMicroscope({
+  onExit,
+  onOpenSourceEvent,
+  initialConfig,
+  origin,
+}: PacketMicroscopeProps) {
   const [config, setConfig] = useState<PacketConfig>(() => ({ ...defaultPacketConfig, ...initialConfig }));
   const [selectedLayer, setSelectedLayer] = useState<PacketLayerId>('network');
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>('ip-length');
@@ -110,7 +133,8 @@ export function PacketMicroscope({
   return (
     <motion.section
       ref={rootRef}
-      className="packet-microscope"
+      className="packet-microscope packet-microscope-simulated"
+      data-packet-provenance="SIMULATED"
       initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.985 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.015 }}
@@ -153,7 +177,7 @@ export function PacketMicroscope({
       <div className="packet-stage">
         <div className="packet-origin-strip">
           <div>
-            <span>CAPTURE SOURCE</span>
+            <span>SCENARIO SOURCE</span>
             <strong>{origin?.label ?? 'LAB 01 · TRAFFIC RECOVERS'}</strong>
           </div>
           <div>
@@ -165,7 +189,7 @@ export function PacketMicroscope({
 
         <div className="packet-object-wrap">
           <div className="packet-object-labels">
-            <span>CAPTURED FRAME</span>
+            <span>SIMULATED FRAME</span>
             <strong>{snapshot.frameBytes} BYTES · FCS NOT CAPTURED</strong>
           </div>
           <div className="packet-object" role="group" aria-label="Packet encapsulation layers">

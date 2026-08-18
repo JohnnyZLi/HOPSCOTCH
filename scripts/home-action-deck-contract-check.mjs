@@ -17,7 +17,7 @@ for (const text of [
   'Play URL journey',
   'Run failure story',
   'Open network builder',
-  'Explore all 12 labs',
+  'Explore all 13 workspaces',
   'Inspect measured report',
   'Preview X-ray',
   'Source',

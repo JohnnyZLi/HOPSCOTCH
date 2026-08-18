@@ -597,12 +597,12 @@ The long-term target is not a browser clone of Packet Tracer or a catalog of ven
 - [ ] EVPN MAC/IP control-plane learning after VXLAN and BGP foundations are mature
 
 ### Track H — real evidence import + replay
-- [ ] PCAP/PCAPNG import as `CAPTURED` evidence, never simulated truth
-- [ ] reconstruct conversations, DNS, TCP streams, retransmissions, RTT observations, ICMP, and TLS metadata from capture-bounded facts
-- [ ] replay captured evidence through HOPSCOTCH visualizations while preserving capture provenance and uncertainty
+- [x] first vertical slice: explicit local PCAP/PCAPNG import as immutable `CAPTURED` evidence, never simulated truth
+- [ ] extend the shipped deterministic conversations, DNS, TCP relationships, retransmission observations, ICMP, and TLS-visible metadata with TCP stream reassembly and RTT observations
+- [x] replay captured evidence through a capture time machine, semantic flow timeline, exact-byte lineage, and read-only Packet Microscope while preserving provenance and uncertainty
 - [ ] traceroute, route-table, interface, and device-state snapshot imports
 - [ ] optional parsed Cisco/Juniper/FRR configuration import with `PARSED CONFIG` provenance distinct from observed runtime state
-- [ ] never infer a complete network topology from partial evidence without marking the result `INFERRED`
+- [x] first-slice capture model never infers a network topology; normalized conversations and capture-bounded interpretations are explicitly `INFERRED`
 
 ### Track I — native companion integration
 - [ ] use the existing loopback-only Network Diagnostics bridge contract as the boundary for richer local measurements
