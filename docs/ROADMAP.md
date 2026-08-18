@@ -57,23 +57,25 @@ Track H promoted the original captured-data moonshot into a complete evidence-an
 
 `docs/TRACKT.md` remains the historical first-slice record. `docs/TRACKH.md` is the Track H closeout architecture and validation record.
 
+### Completed active track — Track D end-to-end application traffic inside Builder
+
+Track D now projects one deterministic application transaction through existing Builder network truth and canonical Journey/Packet models instead of maintaining a parallel application simulator.
+
+- [x] endpoints can host deterministic DNS, HTTP/HTTPS, SSH, generic TCP, and generic UDP services
+- [x] one Builder application request consumes the existing DHCP/addressing → ARP/ND → Ethernet/VLAN/STP → routing → ACL/NAT → transport → TLS → application truth
+- [x] Builder TCP/QUIC sessions reuse the canonical Lab 03/Journey protocol models instead of creating a second transport simulator
+- [x] any frame/packet/segment can open Packet Microscope with exact originating Builder state and bytes
+- [x] the same transaction can move between Builder, Protocol Theater, Journey, and Packet Microscope as different cameras on shared canonical truth
+
+The integrated Builder workspace keeps later layers `NOT_REACHED` after the first broken truth boundary, writes ARP/NAT/DHCP/IPv6-control session state back into the same live Builder session, and lazy-loads the Track D workspace so initial production bundle budgets remain unchanged. `docs/TRACKD.md` is the closeout architecture and validation record.
+
 ---
 
 ## Current priority order
 
 The product no longer needs another pile of disconnected protocol demos. The highest-value work is **integration of the systems that already exist**.
 
-### 1. Track D — end-to-end application traffic inside Builder
-
-This is the largest missing integration layer in the simulator itself and is the next active track.
-
-- [ ] endpoints can host deterministic DNS, HTTP/HTTPS, SSH, generic TCP, and generic UDP services
-- [ ] one Builder application request consumes the existing DHCP/addressing → ARP/ND → Ethernet/VLAN/STP → routing → ACL/NAT → transport → TLS → application truth
-- [ ] Builder TCP/QUIC sessions reuse the canonical Lab 03/Journey protocol models instead of creating a second transport simulator
-- [ ] any frame/packet/segment can open Packet Microscope with exact originating Builder state and bytes
-- [ ] the same transaction can move between Builder, Protocol Theater, Journey, and Packet Microscope as different cameras on shared canonical truth
-
-### 2. Track A — Builder-wide time machine + causal troubleshooting
+### 1. Track A — Builder-wide time machine + causal troubleshooting
 
 **Shipped foundation**
 
@@ -95,7 +97,7 @@ This is the largest missing integration layer in the simulator itself and is the
 
 `docs/TRACKA.md` remains the implementation-level record for the shipped slices.
 
-### 3. Track B — Builder authoring environment
+### 2. Track B — Builder authoring environment
 
 **Foundations already shipped**
 
