@@ -27,7 +27,14 @@ export async function serveProductionArtifact(distDirectory) {
       const withinDist = fromDist !== '' && !fromDist.startsWith('..') && !isAbsolute(fromDist);
       const safeCandidate = withinDist ? candidate : indexPath;
       const filePath = existsSync(safeCandidate) && statSync(safeCandidate).isFile() ? safeCandidate : indexPath;
-      response.writeHead(200, { 'content-type': mimeType(filePath), 'cache-control': 'no-store' });
+      const headers = { 'content-type': mimeType(filePath), 'cache-control': 'no-store' };
+      if (filePath === indexPath) {
+        // Production-artifact profiles are independent test cases. Real HTTP navigation gives the app
+        // a persistent origin and makes prior documents eligible for Chrome's back/forward cache, so
+        // clear browser-owned profile state before the next app boot while preserving real chunk loading.
+        headers['clear-site-data'] = '"cache", "storage"';
+      }
+      response.writeHead(200, headers);
       response.end(readFileSync(filePath));
     } catch (error) {
       response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
