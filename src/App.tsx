@@ -341,7 +341,7 @@ export default function App() {
   const seek = (nextTime: number) => { setPlaying(false); setTimeMs(nextTime); };
 
   const buildLabel = activeLab === 'capture'
-    ? 'TRACK T'
+    ? 'TRACK H'
     : activeLab === 'measured'
     ? 'LAB 09'
     : activeLab === 'journey'
