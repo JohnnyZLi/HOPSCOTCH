@@ -8,13 +8,13 @@ The invariant never changes: simulation truth remains deterministic, causal, ins
 
 ---
 
-## Promotion note — former Track T
+## Promotion note — former Track T / completed Track H
 
-The old moonshot **Track T — cinematic captured-data replay** is no longer maintained here as a second roadmap.
+The old moonshot **Track T — cinematic captured-data replay** was promoted into the active roadmap as **Track H — captured evidence + replay** and is now complete.
 
-Its first flagship slice shipped: local PCAP/PCAPNG import, deterministic capture replay, semantic events, provenance, exact-byte lineage, read-only Packet Microscope, and FOLLOW FLOW. Remaining capture work—TCP stream reconstruction, RTT observations, captured Protocol Theater, aggregate traffic views, worker/off-main-thread parsing, and capture comparison—is now consolidated into **Track H — captured evidence + replay** in `docs/ROADMAP.md`.
+The completed track includes local PCAP/PCAPNG replay, deterministic capture time, semantic events, exact-byte lineage, read-only Packet Microscope, FOLLOW FLOW, bounded TCP stream reconstruction, capture-visible RTT observations, truthful captured Protocol Theater states, aggregate capture-visible traffic, worker-backed parsing/indexing, capture comparison, provenance-separated simulated counterfactual comparison, strict runtime-evidence sidecars, and bounded Cisco/Juniper/FRR `PARSED CONFIG` import.
 
-`docs/TRACKT.md` remains the implementation record for the shipped first slice.
+`docs/TRACKT.md` remains the historical first-slice implementation record and `docs/TRACKH.md` is the closeout architecture/validation record. Future capture-related moonshots should be scoped as new work with their own truth boundary rather than reviving Track T as a second roadmap.
 
 ---
 
