@@ -164,7 +164,7 @@ export function validateBuilderHostedServices(graph: BuilderGraph, services: rea
     if (!['dns', 'http', 'https', 'ssh', 'tcp', 'udp'].includes(raw.kind)) throw new Error(`Hosted service ${raw.id} has an unsupported kind.`);
     if (!Number.isInteger(raw.port) || raw.port < 1 || raw.port > 65535) throw new Error(`Hosted service ${raw.id} port must be 1–65535.`);
     if (!Number.isInteger(raw.responseBytes) || raw.responseBytes < 0 || raw.responseBytes > 16 * 1024 * 1024) throw new Error(`Hosted service ${raw.id} responseBytes is outside the bounded 0–16 MiB range.`);
-    const transportProfile = raw.kind === 'https' ? (raw.transportProfile === 'quic-h3' ? 'quic-h3' : 'tcp-h2') : raw.transportProfile === 'quic-h3' ? 'quic-h3' : raw.transportProfile === 'tcp-h2' ? 'tcp-h2' : null;
+    const transportProfile: JourneyTransportProfile | null = raw.kind === 'https' ? (raw.transportProfile === 'quic-h3' ? 'quic-h3' : 'tcp-h2') : raw.transportProfile === 'quic-h3' ? 'quic-h3' : raw.transportProfile === 'tcp-h2' ? 'tcp-h2' : null;
     ids.add(raw.id);
     return { id: raw.id, nodeId: raw.nodeId, kind: raw.kind, label: String(raw.label || raw.kind.toUpperCase()).slice(0, 80), hostname: normalizeHostname(raw.hostname), port: raw.port, enabled: raw.enabled !== false, transportProfile, responseBytes: raw.responseBytes };
   }).sort((left, right) => left.nodeId.localeCompare(right.nodeId) || left.port - right.port || left.id.localeCompare(right.id));
@@ -339,7 +339,7 @@ export function runBuilderApplicationTransaction(context: BuilderApplicationCont
         if (!sourceGateway || !destinationRouterAddress) firstBroken = 'RESOLUTION';
         else {
           const sourceResolution = resolveBuilderArp(sourceAccess.config, sourceNodeId, sourceAccess.vlanId, sourceGateway, arpCache); arpCache = sourceResolution.cache; l2.sourceResolution = sourceResolution.resolution;
-          const destinationResolution = resolveBuilderArp(destinationAccess.config, destinationAccess.routerId, destinationAccess.vlanId, destinationAddress, arpCache); arpCache = destinationResolution.cache; l2.destinationResolution = destinationResolution.resolution;
+          const destinationResolution = resolveBuilderArp(destinationAccess.config, destinationAccess.routerId, destinationAccess.vlanId, destinationAddress as string, arpCache); arpCache = destinationResolution.cache; l2.destinationResolution = destinationResolution.resolution;
           if (!sourceResolution.resolution.success || !destinationResolution.resolution.success) firstBroken = 'RESOLUTION';
         }
       }
