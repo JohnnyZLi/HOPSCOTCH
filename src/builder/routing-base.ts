@@ -1,0 +1,1007 @@
+import {
+  interfacesForBuilderNode,
+  normalizeBuilderIpv4,
+  parseBuilderIpv4Cidr,
+  type BuilderAddressing,
+  type BuilderInterfaceAddress,
+} from './addressing.ts';
+import { findShortestPath, type BuilderGraph } from './model.ts';
+import { builderBgpState, cloneBuilderBgpConfig, createDefaultBuilderBgpConfig, reconcileBuilderBgpConfig, validateBuilderBgpConfig, type BuilderBgpConfig, type BuilderBgpRoute } from './bgp.ts';
+import {
+  BUILDER_OSPF_BACKBONE_AREA,
+  builderOspfAbrRouterIds,
+  builderOspfAreaComponents,
+  builderOspfAreaForLink,
+  builderOspfAreasForRouter,
+  builderOspfPathCandidates,
+  builderOspfPrefixContains,
+  normalizeBuilderOspfAreaId,
+  reconcileBuilderOspfAreaConfig,
+  validateBuilderOspfAreaConfig,
+  type BuilderOspfSummary,
+} from './ospf-areas.ts';
+export type { BuilderOspfSummary } from './ospf-areas.ts';
+
+export interface BuilderStaticRoute {
+  id: string;
+  routerId: string;
+  prefix: string;
+  nextHop: string;
+  metric: number;
+}
+
+export interface BuilderOspfConfig {
+  enabledRouterIds: string[];
+  linkAreas?: Record<string, string>;
+  summaries?: BuilderOspfSummary[];
+}
+
+export interface BuilderRoutingConfig {
+  staticRoutes: BuilderStaticRoute[];
+  ospf: BuilderOspfConfig;
+  bgp: BuilderBgpConfig;
+}
+
+export type BuilderRouteSource = 'connected' | 'static' | 'ospf' | 'bgp';
+
+export interface BuilderRouteTableEntry {
+  id: string;
+  routerId: string;
+  prefix: string;
+  prefixLength: number;
+  source: BuilderRouteSource;
+  administrativeDistance: number;
+  metric: number;
+  nextHop: string | null;
+  outgoingInterface: string;
+  linkId: string;
+  active: boolean;
+  stateNote: string;
+  ospfRouteType?: 'intra-area' | 'inter-area';
+  ospfAreaId?: string;
+  ospfAbrRouterId?: string | null;
+  ospfSummaryId?: string | null;
+  bgpLearnedVia?: 'ebgp' | 'ibgp';
+  bgpAsPath?: number[];
+  bgpLocalPref?: number;
+  bgpMed?: number;
+  bgpCommunities?: string[];
+  bgpProtocolNextHop?: string;
+  bgpPolicyAnomaly?: boolean;
+}
+
+export interface BuilderForwardingHop {
+  nodeId: string;
+  nodeLabel: string;
+  routeSource: 'endpoint-local' | 'default-gateway' | BuilderRouteSource;
+  matchedPrefix: string | null;
+  nextHop: string | null;
+  outgoingInterface: string | null;
+  linkId: string | null;
+  nextNodeId: string | null;
+  ecmpCandidateCount?: number;
+  ecmpSelectedIndex?: number | null;
+  ecmpFlowHash?: number | null;
+  ecmpFlowKey?: string | null;
+}
+
+export interface BuilderForwardingTrace {
+  reachable: boolean;
+  sourceNodeId: string;
+  destinationNodeId: string;
+  destinationAddress: string | null;
+  hops: BuilderForwardingHop[];
+  failureNodeId: string | null;
+  failureReason: string | null;
+  explanation: string;
+}
+
+export interface BuilderFlowKey {
+  sourceAddress?: string | null;
+  destinationAddress?: string | null;
+  protocol?: string | null;
+  sourcePort?: number | null;
+  destinationPort?: number | null;
+  discriminator?: string | number | null;
+}
+
+export interface BuilderRouteSelection {
+  route: BuilderRouteTableEntry | null;
+  candidates: BuilderRouteTableEntry[];
+  flowKey: string | null;
+  flowHash: number | null;
+  selectedIndex: number | null;
+}
+
+export interface BuilderStaticPathInstallResult {
+  routing: BuilderRoutingConfig;
+  prefix: string;
+  installedRouterIds: string[];
+  weightedPathNodeIds: string[];
+}
+
+export interface BuilderOspfAdjacency {
+  id: string;
+  linkId: string;
+  areaId: string;
+  aRouterId: string;
+  bRouterId: string;
+  cost: number;
+  state: 'FULL' | 'DOWN';
+  reason: string;
+}
+
+export interface BuilderOspfAdvertisement {
+  id: string;
+  routerId: string;
+  areaId: string;
+  prefix: string;
+  linkId: string;
+  metric: number;
+}
+
+export interface BuilderOspfState {
+  areaId: '0.0.0.0';
+  areaIds: string[];
+  enabledRouterIds: string[];
+  abrRouterIds: string[];
+  areaComponents: Record<string, string[][]>;
+  adjacencies: BuilderOspfAdjacency[];
+  advertisements: BuilderOspfAdvertisement[];
+  components: string[][];
+  fullAdjacencyCount: number;
+  downAdjacencyCount: number;
+}
+
+interface RoutePrefix {
+  cidr: string;
+  prefixLength: number;
+  network: number;
+  broadcast: number;
+}
+
+interface OspfRouterFirstHop {
+  nextRouterId: string;
+  linkId: string;
+}
+
+interface OspfRouterPathSet {
+  reachable: boolean;
+  totalCost: number;
+  firstHops: OspfRouterFirstHop[];
+}
+
+function ipv4ToInt(value: string): number {
+  const normalized = normalizeBuilderIpv4(value);
+  return normalized.split('.').reduce((result, part) => ((result << 8) | Number(part)) >>> 0, 0) >>> 0;
+}
+
+function intToIpv4(value: number): string {
+  const normalized = value >>> 0;
+  return [24, 16, 8, 0].map((shift) => (normalized >>> shift) & 255).join('.');
+}
+
+function parseRoutePrefix(value: string): RoutePrefix {
+  const normalized = value.trim();
+  const [addressText, prefixText, ...extra] = normalized.split('/');
+  if (!addressText || !prefixText || extra.length > 0 || !/^\d{1,2}$/.test(prefixText)) {
+    throw new Error(`Invalid IPv4 route prefix: ${value}.`);
+  }
+  const prefixLength = Number(prefixText);
+  if (!Number.isInteger(prefixLength) || prefixLength < 0 || prefixLength > 32) {
+    throw new Error('IPv4 route prefixes must be /0 through /32.');
+  }
+  const address = ipv4ToInt(addressText);
+  const mask = prefixLength === 0 ? 0 : (0xffffffff << (32 - prefixLength)) >>> 0;
+  const network = (address & mask) >>> 0;
+  const broadcast = (network | (~mask >>> 0)) >>> 0;
+  return { cidr: `${intToIpv4(network)}/${prefixLength}`, prefixLength, network, broadcast };
+}
+
+function prefixContains(prefix: RoutePrefix, address: string): boolean {
+  const value = ipv4ToInt(address);
+  return value >= prefix.network && value <= prefix.broadcast;
+}
+
+function nodeById(graph: BuilderGraph, nodeId: string) {
+  return graph.nodes.find((node) => node.id === nodeId);
+}
+
+function linkById(graph: BuilderGraph, linkId: string) {
+  return graph.links.find((link) => link.id === linkId);
+}
+
+function stablePathKey(path: readonly string[]): string {
+  return path.join('\u0000');
+}
+
+function enabledOspfSet(routing: BuilderRoutingConfig): Set<string> {
+  return new Set(routing.ospf?.enabledRouterIds ?? []);
+}
+
+function ospfAdjacencyMap(
+  graph: BuilderGraph,
+  routing: BuilderRoutingConfig,
+): Map<string, Array<{ neighbor: string; linkId: string; cost: number }>> {
+  const enabled = enabledOspfSet(routing);
+  const adjacency = new Map<string, Array<{ neighbor: string; linkId: string; cost: number }>>();
+  for (const routerId of enabled) adjacency.set(routerId, []);
+  for (const link of graph.links) {
+    if (link.failed || !enabled.has(link.a) || !enabled.has(link.b)) continue;
+    if (nodeById(graph, link.a)?.kind !== 'router' || nodeById(graph, link.b)?.kind !== 'router') continue;
+    adjacency.get(link.a)?.push({ neighbor: link.b, linkId: link.id, cost: link.cost });
+    adjacency.get(link.b)?.push({ neighbor: link.a, linkId: link.id, cost: link.cost });
+  }
+  for (const neighbors of adjacency.values()) neighbors.sort((a, b) => a.neighbor.localeCompare(b.neighbor) || a.linkId.localeCompare(b.linkId));
+  return adjacency;
+}
+
+function ospfDistances(
+  adjacency: Map<string, Array<{ neighbor: string; linkId: string; cost: number }>>,
+  startRouterId: string,
+): Map<string, number> {
+  const distances = new Map<string, number>();
+  const settled = new Set<string>();
+  for (const routerId of adjacency.keys()) distances.set(routerId, Number.POSITIVE_INFINITY);
+  if (!adjacency.has(startRouterId)) return distances;
+  distances.set(startRouterId, 0);
+  while (settled.size < adjacency.size) {
+    let currentId: string | null = null;
+    let currentCost = Number.POSITIVE_INFINITY;
+    for (const [routerId, cost] of distances) {
+      if (settled.has(routerId)) continue;
+      if (cost < currentCost || (cost === currentCost && currentId !== null && routerId.localeCompare(currentId) < 0)) {
+        currentId = routerId;
+        currentCost = cost;
+      }
+    }
+    if (currentId === null || !Number.isFinite(currentCost)) break;
+    settled.add(currentId);
+    for (const edge of adjacency.get(currentId) ?? []) {
+      const nextCost = currentCost + edge.cost;
+      if (nextCost < (distances.get(edge.neighbor) ?? Number.POSITIVE_INFINITY)) distances.set(edge.neighbor, nextCost);
+    }
+  }
+  return distances;
+}
+
+function ospfRouterFirstHops(
+  graph: BuilderGraph,
+  routing: BuilderRoutingConfig,
+  sourceRouterId: string,
+  destinationRouterId: string,
+): OspfRouterPathSet {
+  if (sourceRouterId === destinationRouterId) return { reachable: true, totalCost: 0, firstHops: [] };
+  const enabled = enabledOspfSet(routing);
+  if (!enabled.has(sourceRouterId) || !enabled.has(destinationRouterId)) return { reachable: false, totalCost: 0, firstHops: [] };
+  const adjacency = ospfAdjacencyMap(graph, routing);
+  const fromSource = ospfDistances(adjacency, sourceRouterId);
+  const toDestination = ospfDistances(adjacency, destinationRouterId);
+  const totalCost = fromSource.get(destinationRouterId) ?? Number.POSITIVE_INFINITY;
+  if (!Number.isFinite(totalCost)) return { reachable: false, totalCost: 0, firstHops: [] };
+  const firstHops = (adjacency.get(sourceRouterId) ?? [])
+    .filter((edge) => edge.cost + (toDestination.get(edge.neighbor) ?? Number.POSITIVE_INFINITY) === totalCost)
+    .map((edge) => ({ nextRouterId: edge.neighbor, linkId: edge.linkId }))
+    .sort((a, b) => a.nextRouterId.localeCompare(b.nextRouterId) || a.linkId.localeCompare(b.linkId));
+  return { reachable: firstHops.length > 0, totalCost, firstHops };
+}
+
+function remoteInterfaceForNextHop(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routerId: string,
+  nextHop: string,
+): { linkId: string; local: BuilderInterfaceAddress; remote: BuilderInterfaceAddress } | null {
+  const normalizedNextHop = normalizeBuilderIpv4(nextHop);
+  for (const link of graph.links) {
+    if (link.a !== routerId && link.b !== routerId) continue;
+    const segment = addressing.segments[link.id];
+    if (!segment) continue;
+    const local = segment.interfaces.find((entry) => entry.nodeId === routerId);
+    const remote = segment.interfaces.find((entry) => entry.nodeId !== routerId && entry.address === normalizedNextHop);
+    if (local && remote) return { linkId: link.id, local, remote };
+  }
+  return null;
+}
+
+function interfaceOwner(addressing: BuilderAddressing, address: string): { nodeId: string; linkId: string; interfaceName: string } | null {
+  const normalized = normalizeBuilderIpv4(address);
+  for (const segment of Object.values(addressing.segments)) {
+    const entry = segment.interfaces.find((candidate) => candidate.address === normalized);
+    if (entry) return { nodeId: entry.nodeId, linkId: segment.linkId, interfaceName: entry.name };
+  }
+  return null;
+}
+
+function primaryInterfaceForNode(addressing: BuilderAddressing, nodeId: string) {
+  return interfacesForBuilderNode(addressing, nodeId)[0] ?? null;
+}
+
+export function createDefaultBuilderRoutingConfig(): BuilderRoutingConfig {
+  return { staticRoutes: [], ospf: { enabledRouterIds: [], linkAreas: {}, summaries: [] }, bgp: createDefaultBuilderBgpConfig() };
+}
+
+export function validateBuilderRoutingConfig(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  value: BuilderRoutingConfig,
+): BuilderRoutingConfig {
+  if (!value || typeof value !== 'object' || !Array.isArray(value.staticRoutes)) throw new Error('Builder routing config must contain a staticRoutes array.');
+  const routeIds = new Set<string>();
+  const seenRouterPrefix = new Set<string>();
+  const staticRoutes = value.staticRoutes.map((raw, index): BuilderStaticRoute => {
+    if (!raw || typeof raw !== 'object') throw new Error(`Static route ${index + 1} is invalid.`);
+    const id = String(raw.id ?? '').trim();
+    if (!id || id.length > 120 || !/^[a-zA-Z0-9_.:-]+$/.test(id)) throw new Error(`Static route ${index + 1} has an invalid id.`);
+    if (routeIds.has(id)) throw new Error(`Duplicate static route id ${id}.`);
+    routeIds.add(id);
+    const routerId = String(raw.routerId ?? '').trim();
+    const router = nodeById(graph, routerId);
+    if (!router || router.kind !== 'router') throw new Error(`Static route ${id} must belong to a router node.`);
+    const prefix = parseRoutePrefix(String(raw.prefix ?? '')).cidr;
+    const routeKey = `${routerId}\u0000${prefix}`;
+    if (seenRouterPrefix.has(routeKey)) throw new Error(`${routerId} already has a static route for ${prefix}.`);
+    seenRouterPrefix.add(routeKey);
+    const nextHop = normalizeBuilderIpv4(String(raw.nextHop ?? ''));
+    if (!remoteInterfaceForNextHop(graph, addressing, routerId, nextHop)) {
+      throw new Error(`${routerId} static next hop ${nextHop} must be an interface on a directly connected neighbor.`);
+    }
+    const metric = Number(raw.metric);
+    if (!Number.isInteger(metric) || metric < 1 || metric > 999) throw new Error(`Static route ${id} metric must be an integer from 1 to 999.`);
+    return { id, routerId, prefix, nextHop, metric };
+  });
+  const rawEnabled = value.ospf?.enabledRouterIds ?? [];
+  if (!Array.isArray(rawEnabled)) throw new Error('Builder OSPF config must contain an enabledRouterIds array.');
+  const enabledRouterIds = [...new Set(rawEnabled.map((id) => String(id).trim()))].sort();
+  if (enabledRouterIds.some((id) => !id)) throw new Error('OSPF router ids must be non-empty Builder node ids.');
+  for (const routerId of enabledRouterIds) {
+    const router = nodeById(graph, routerId);
+    if (!router || router.kind !== 'router') throw new Error(`OSPF can only be enabled on router nodes; ${routerId} is not a router.`);
+  }
+
+  const areaConfig = validateBuilderOspfAreaConfig(graph, { ...(value.ospf ?? { enabledRouterIds }), enabledRouterIds });
+  const bgp = validateBuilderBgpConfig(graph, value.bgp ?? createDefaultBuilderBgpConfig());
+  return { staticRoutes, ospf: { enabledRouterIds, linkAreas: areaConfig.linkAreas, summaries: areaConfig.summaries }, bgp };
+}
+
+export function cloneBuilderRoutingConfig(value: BuilderRoutingConfig): BuilderRoutingConfig {
+  return {
+    staticRoutes: value.staticRoutes.map((route) => ({ ...route })),
+    ospf: { enabledRouterIds: [...(value.ospf?.enabledRouterIds ?? [])], linkAreas: { ...(value.ospf?.linkAreas ?? {}) }, summaries: (value.ospf?.summaries ?? []).map((summary) => ({ ...summary })) },
+    bgp: cloneBuilderBgpConfig(value.bgp ?? createDefaultBuilderBgpConfig()),
+  };
+}
+
+export function reconcileBuilderRoutingConfig(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  current: BuilderRoutingConfig,
+): BuilderRoutingConfig {
+  const retained = current.staticRoutes.filter((route) => {
+    const router = nodeById(graph, route.routerId);
+    if (!router || router.kind !== 'router') return false;
+    try {
+      parseRoutePrefix(route.prefix);
+      return remoteInterfaceForNextHop(graph, addressing, route.routerId, route.nextHop) !== null;
+    } catch {
+      return false;
+    }
+  });
+  const unique = new Map<string, BuilderStaticRoute>();
+  for (const route of retained) {
+    const key = `${route.routerId}\u0000${parseRoutePrefix(route.prefix).cidr}`;
+    if (!unique.has(key)) unique.set(key, { ...route, prefix: parseRoutePrefix(route.prefix).cidr, nextHop: normalizeBuilderIpv4(route.nextHop) });
+  }
+  const enabledRouterIds = (current.ospf?.enabledRouterIds ?? []).filter((routerId) => nodeById(graph, routerId)?.kind === 'router');
+  const areaConfig = reconcileBuilderOspfAreaConfig(graph, { ...(current.ospf ?? { enabledRouterIds }), enabledRouterIds });
+  return validateBuilderRoutingConfig(graph, addressing, { staticRoutes: [...unique.values()], ospf: { enabledRouterIds, linkAreas: areaConfig.linkAreas, summaries: areaConfig.summaries }, bgp: reconcileBuilderBgpConfig(graph, current.bgp ?? createDefaultBuilderBgpConfig()) });
+}
+
+export function setBuilderOspfRouterEnabled(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routing: BuilderRoutingConfig,
+  routerId: string,
+  enabled: boolean,
+): BuilderRoutingConfig {
+  const router = nodeById(graph, routerId);
+  if (!router || router.kind !== 'router') throw new Error(`OSPF can only be enabled on router nodes; ${routerId} is not a router.`);
+  const ids = new Set(routing.ospf?.enabledRouterIds ?? []);
+  if (enabled) ids.add(routerId);
+  else ids.delete(routerId);
+  const next = cloneBuilderRoutingConfig(routing);
+  next.ospf.enabledRouterIds = [...ids];
+  return validateBuilderRoutingConfig(graph, addressing, next);
+}
+
+export function setBuilderOspfEverywhere(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routing: BuilderRoutingConfig,
+  enabled: boolean,
+): BuilderRoutingConfig {
+  return validateBuilderRoutingConfig(graph, addressing, {
+    ...cloneBuilderRoutingConfig(routing),
+    ospf: { ...(routing.ospf ?? {}), enabledRouterIds: enabled ? graph.nodes.filter((node) => node.kind === 'router').map((node) => node.id) : [] },
+  });
+}
+
+export function setBuilderOspfLinkArea(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routing: BuilderRoutingConfig,
+  linkId: string,
+  areaId: string,
+): BuilderRoutingConfig {
+  if (!linkById(graph, linkId)) throw new Error(`Unknown Builder link ${linkId}.`);
+  const normalizedAreaId = normalizeBuilderOspfAreaId(areaId);
+  const next = cloneBuilderRoutingConfig(routing);
+  const linkAreas = { ...(next.ospf.linkAreas ?? {}) };
+  if (normalizedAreaId === BUILDER_OSPF_BACKBONE_AREA) delete linkAreas[linkId];
+  else linkAreas[linkId] = normalizedAreaId;
+  next.ospf.linkAreas = linkAreas;
+  return validateBuilderRoutingConfig(graph, addressing, next);
+}
+
+export function upsertBuilderOspfSummary(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routing: BuilderRoutingConfig,
+  summary: Omit<BuilderOspfSummary, 'id'> & { id?: string },
+): BuilderRoutingConfig {
+  const fromAreaId = normalizeBuilderOspfAreaId(summary.fromAreaId);
+  const prefix = parseRoutePrefix(summary.prefix).cidr;
+  const id = summary.id?.trim() || `ospf-summary:${summary.abrRouterId}:${fromAreaId}:${prefix}`.replace(/\//g, ':');
+  const next = cloneBuilderRoutingConfig(routing);
+  next.ospf.summaries = [...(next.ospf.summaries ?? []).filter((entry) => entry.id !== id && !(entry.abrRouterId === summary.abrRouterId && entry.fromAreaId === fromAreaId && entry.prefix === prefix)), { id, abrRouterId: summary.abrRouterId, fromAreaId, prefix, metric: summary.metric, description: summary.description }];
+  return validateBuilderRoutingConfig(graph, addressing, next);
+}
+
+export function deleteBuilderOspfSummary(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routing: BuilderRoutingConfig,
+  summaryId: string,
+): BuilderRoutingConfig {
+  const next = cloneBuilderRoutingConfig(routing);
+  next.ospf.summaries = (next.ospf.summaries ?? []).filter((summary) => summary.id !== summaryId);
+  return validateBuilderRoutingConfig(graph, addressing, next);
+}
+
+export function builderOspfState(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routing: BuilderRoutingConfig,
+): BuilderOspfState {
+  const validated = validateBuilderRoutingConfig(graph, addressing, routing);
+  const enabled = enabledOspfSet(validated);
+  const enabledRouterIds = [...enabled].filter((routerId) => nodeById(graph, routerId)?.kind === 'router').sort();
+  const adjacencies: BuilderOspfAdjacency[] = [];
+  for (const link of graph.links) {
+    if (!enabled.has(link.a) || !enabled.has(link.b)) continue;
+    if (nodeById(graph, link.a)?.kind !== 'router' || nodeById(graph, link.b)?.kind !== 'router') continue;
+    const areaId = builderOspfAreaForLink(validated.ospf, link.id);
+    adjacencies.push({
+      id: `ospf-adj:${link.id}`,
+      linkId: link.id,
+      areaId,
+      aRouterId: link.a,
+      bRouterId: link.b,
+      cost: link.cost,
+      state: link.failed ? 'DOWN' : 'FULL',
+      reason: link.failed ? 'LINK DOWN' : `${areaId} ADJACENCY`,
+    });
+  }
+  adjacencies.sort((a, b) => a.areaId.localeCompare(b.areaId) || a.linkId.localeCompare(b.linkId));
+
+  const advertisements: BuilderOspfAdvertisement[] = [];
+  for (const routerId of enabledRouterIds) {
+    for (const entry of interfacesForBuilderNode(addressing, routerId)) {
+      const link = linkById(graph, entry.linkId);
+      if (!link || link.failed) continue;
+      advertisements.push({
+        id: `ospf-lsa:${routerId}:${entry.linkId}`,
+        routerId,
+        areaId: builderOspfAreaForLink(validated.ospf, entry.linkId),
+        prefix: parseBuilderIpv4Cidr(entry.cidr).cidr,
+        linkId: entry.linkId,
+        metric: link.cost,
+      });
+    }
+  }
+  advertisements.sort((a, b) => a.areaId.localeCompare(b.areaId) || a.routerId.localeCompare(b.routerId) || a.prefix.localeCompare(b.prefix) || a.linkId.localeCompare(b.linkId));
+
+  const fullAdjacency = adjacencies.filter((adjacency) => adjacency.state === 'FULL');
+  const adjacencyByRouter = new Map<string, string[]>();
+  for (const routerId of enabledRouterIds) adjacencyByRouter.set(routerId, []);
+  for (const adjacency of fullAdjacency) {
+    adjacencyByRouter.get(adjacency.aRouterId)?.push(adjacency.bRouterId);
+    adjacencyByRouter.get(adjacency.bRouterId)?.push(adjacency.aRouterId);
+  }
+  const unvisited = new Set(enabledRouterIds);
+  const components: string[][] = [];
+  while (unvisited.size > 0) {
+    const seed = [...unvisited].sort()[0];
+    const stack = [seed];
+    const component: string[] = [];
+    unvisited.delete(seed);
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      component.push(current);
+      for (const neighbor of [...(adjacencyByRouter.get(current) ?? [])].sort().reverse()) {
+        if (!unvisited.has(neighbor)) continue;
+        unvisited.delete(neighbor);
+        stack.push(neighbor);
+      }
+    }
+    components.push(component.sort());
+  }
+  components.sort((a, b) => (a[0] ?? '').localeCompare(b[0] ?? ''));
+  const areaIds = [...new Set([BUILDER_OSPF_BACKBONE_AREA, ...adjacencies.map((entry) => entry.areaId), ...advertisements.map((entry) => entry.areaId)])].sort();
+  const areaComponents = Object.fromEntries(areaIds.map((areaId) => [areaId, builderOspfAreaComponents(graph, validated.ospf, areaId)]));
+
+  return {
+    areaId: BUILDER_OSPF_BACKBONE_AREA,
+    areaIds,
+    enabledRouterIds,
+    abrRouterIds: builderOspfAbrRouterIds(graph, validated.ospf),
+    areaComponents,
+    adjacencies,
+    advertisements,
+    components,
+    fullAdjacencyCount: fullAdjacency.length,
+    downAdjacencyCount: adjacencies.length - fullAdjacency.length,
+  };
+}
+
+function ospfRouteEntriesForBuilderRouter(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routing: BuilderRoutingConfig,
+  routerId: string,
+): BuilderRouteTableEntry[] {
+  const enabled = enabledOspfSet(routing);
+  if (!enabled.has(routerId)) return [];
+  const directlyConnected = new Set(interfacesForBuilderNode(addressing, routerId).map((entry) => parseBuilderIpv4Cidr(entry.cidr).cidr));
+  const state = builderOspfState(graph, addressing, routing);
+  const candidates: BuilderRouteTableEntry[] = [];
+
+  for (const advertisement of state.advertisements) {
+    if (advertisement.routerId === routerId || directlyConnected.has(advertisement.prefix)) continue;
+    const paths = builderOspfPathCandidates(graph, routing.ospf, routerId, advertisement.routerId, advertisement.areaId);
+    for (const path of paths) {
+      if (!path.reachable || path.firstHops.length === 0) continue;
+      const matchingSummary = path.routeType === 'inter-area' && path.destinationAbrRouterId
+        ? (routing.ospf.summaries ?? []).find((summary) => summary.abrRouterId === path.destinationAbrRouterId && normalizeBuilderOspfAreaId(summary.fromAreaId) === advertisement.areaId && builderOspfPrefixContains(summary.prefix, advertisement.prefix))
+        : undefined;
+      const learnedPrefix = matchingSummary?.prefix ?? advertisement.prefix;
+      const parsed = parseRoutePrefix(learnedPrefix);
+      const metric = matchingSummary ? path.costToDestinationAbr + matchingSummary.metric : path.totalCost + advertisement.metric;
+      for (const firstHop of path.firstHops) {
+        const segment = addressing.segments[firstHop.linkId];
+        const local = segment?.interfaces.find((entry) => entry.nodeId === routerId);
+        const remote = segment?.interfaces.find((entry) => entry.nodeId === firstHop.nextRouterId);
+        if (!segment || !local || !remote) continue;
+        const routeType = path.routeType;
+        const abrRouterId = matchingSummary?.abrRouterId ?? path.destinationAbrRouterId;
+        const routeLabel = routeType === 'intra-area' ? `OSPF O · AREA ${advertisement.areaId}` : matchingSummary ? `OSPF O IA · SUMMARY ${matchingSummary.prefix} FROM ${advertisement.areaId}` : `OSPF O IA · AREA ${advertisement.areaId}`;
+        candidates.push({
+          id: `ospf:${routerId}:${parsed.cidr}:${advertisement.routerId}:${firstHop.nextRouterId}:${firstHop.linkId}:${matchingSummary?.id ?? 'specific'}`.replace(/\//g, ':'),
+          routerId,
+          prefix: parsed.cidr,
+          prefixLength: parsed.prefixLength,
+          source: 'ospf',
+          administrativeDistance: 110,
+          metric,
+          nextHop: remote.address,
+          outgoingInterface: local.name,
+          linkId: firstHop.linkId,
+          active: true,
+          stateNote: `${routeLabel}${abrRouterId ? ` · ABR ${nodeById(graph, abrRouterId)?.label ?? abrRouterId}` : ''} · ORIGIN ${nodeById(graph, advertisement.routerId)?.label ?? advertisement.routerId}`,
+          ospfRouteType: routeType,
+          ospfAreaId: advertisement.areaId,
+          ospfAbrRouterId: abrRouterId,
+          ospfSummaryId: matchingSummary?.id ?? null,
+        });
+      }
+    }
+  }
+
+  const byPrefix = new Map<string, BuilderRouteTableEntry[]>();
+  for (const candidate of candidates) {
+    const list = byPrefix.get(candidate.prefix) ?? [];
+    list.push(candidate);
+    byPrefix.set(candidate.prefix, list);
+  }
+  const winners: BuilderRouteTableEntry[] = [];
+  for (const prefixCandidates of byPrefix.values()) {
+    const bestOspfRank = Math.min(...prefixCandidates.map((candidate) => candidate.ospfRouteType === 'inter-area' ? 1 : 0));
+    const preferredType = prefixCandidates.filter((candidate) => (candidate.ospfRouteType === 'inter-area' ? 1 : 0) === bestOspfRank);
+    const bestMetric = Math.min(...preferredType.map((candidate) => candidate.metric));
+    const byNextHop = new Map<string, BuilderRouteTableEntry>();
+    for (const candidate of preferredType.filter((entry) => entry.metric === bestMetric).sort((a, b) => a.id.localeCompare(b.id))) {
+      const key = `${candidate.nextHop ?? ''}\u0000${candidate.linkId}`;
+      if (!byNextHop.has(key)) byNextHop.set(key, candidate);
+    }
+    const equal = [...byNextHop.values()].sort((a, b) => a.id.localeCompare(b.id));
+    for (const candidate of equal) winners.push({ ...candidate, stateNote: `${candidate.stateNote}${equal.length > 1 ? ` · ECMP ${equal.length}-WAY` : ''}` });
+  }
+  return winners;
+}
+
+export function upsertBuilderStaticRoute(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routing: BuilderRoutingConfig,
+  route: Omit<BuilderStaticRoute, 'id'> & { id?: string },
+): BuilderRoutingConfig {
+  const prefix = parseRoutePrefix(route.prefix).cidr;
+  const nextHop = normalizeBuilderIpv4(route.nextHop);
+  const id = route.id?.trim() || `static:${route.routerId}:${prefix}:${nextHop}`.replace(/\//g, ':');
+  const next = cloneBuilderRoutingConfig(routing);
+  next.staticRoutes = next.staticRoutes.filter((entry) => !(entry.routerId === route.routerId && parseRoutePrefix(entry.prefix).cidr === prefix));
+  next.staticRoutes.push({ id, routerId: route.routerId, prefix, nextHop, metric: route.metric });
+  return validateBuilderRoutingConfig(graph, addressing, next);
+}
+
+export function deleteBuilderStaticRoute(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routing: BuilderRoutingConfig,
+  routeId: string,
+): BuilderRoutingConfig {
+  return validateBuilderRoutingConfig(graph, addressing, {
+    ...cloneBuilderRoutingConfig(routing),
+    staticRoutes: routing.staticRoutes.filter((route) => route.id !== routeId),
+  });
+}
+
+export function routeTableForBuilderRouter(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routing: BuilderRoutingConfig,
+  routerId: string,
+  ospfTopologyGraph: BuilderGraph = graph,
+): BuilderRouteTableEntry[] {
+  const router = nodeById(graph, routerId);
+  if (!router || router.kind !== 'router') return [];
+  const entries: BuilderRouteTableEntry[] = [];
+  for (const entry of interfacesForBuilderNode(addressing, routerId)) {
+    const link = linkById(graph, entry.linkId);
+    const parsed = parseBuilderIpv4Cidr(entry.cidr);
+    entries.push({
+      id: `connected:${routerId}:${entry.linkId}`,
+      routerId,
+      prefix: parsed.cidr,
+      prefixLength: parsed.prefixLength,
+      source: 'connected',
+      administrativeDistance: 0,
+      metric: 0,
+      nextHop: null,
+      outgoingInterface: entry.name,
+      linkId: entry.linkId,
+      active: Boolean(link && !link.failed),
+      stateNote: link?.failed ? 'LINK DOWN' : 'DIRECTLY CONNECTED',
+    });
+  }
+  for (const route of routing.staticRoutes.filter((entry) => entry.routerId === routerId)) {
+    const attachment = remoteInterfaceForNextHop(graph, addressing, routerId, route.nextHop);
+    const link = attachment ? linkById(graph, attachment.linkId) : null;
+    const parsed = parseRoutePrefix(route.prefix);
+    entries.push({
+      id: route.id,
+      routerId,
+      prefix: parsed.cidr,
+      prefixLength: parsed.prefixLength,
+      source: 'static',
+      administrativeDistance: 1,
+      metric: route.metric,
+      nextHop: route.nextHop,
+      outgoingInterface: attachment?.local.name ?? '—',
+      linkId: attachment?.linkId ?? '—',
+      active: Boolean(attachment && link && !link.failed),
+      stateNote: !attachment ? 'NEXT HOP INVALID' : link?.failed ? 'NEXT-HOP LINK DOWN' : 'STATIC',
+    });
+  }
+  entries.push(...ospfRouteEntriesForBuilderRouter(ospfTopologyGraph, addressing, routing, routerId));
+  const bgpState = builderBgpState(graph, addressing, routing.bgp ?? createDefaultBuilderBgpConfig());
+  for (const path of bgpState.bestRoutes.filter((route): route is BuilderBgpRoute & { learnedVia: 'ebgp' | 'ibgp' } => route.routerId === routerId && route.learnedVia !== 'local')) {
+    const attachment = remoteInterfaceForNextHop(graph, addressing, routerId, path.nextHopAddress);
+    const link = attachment ? linkById(graph, attachment.linkId) : null;
+    const parsed = parseRoutePrefix(path.prefix);
+    entries.push({
+      id: `fib:${path.id}`,
+      routerId,
+      prefix: parsed.cidr,
+      prefixLength: parsed.prefixLength,
+      source: 'bgp',
+      administrativeDistance: path.learnedVia === 'ebgp' ? 20 : 200,
+      metric: path.asPath.length * 1000 + path.med,
+      nextHop: path.nextHopAddress,
+      outgoingInterface: attachment?.local.name ?? '—',
+      linkId: attachment?.linkId ?? '—',
+      active: Boolean(attachment && link && !link.failed),
+      stateNote: `${path.learnedVia.toUpperCase()} · LP ${path.localPref} · AS_PATH ${path.asPath.length ? path.asPath.join(' ') : 'LOCAL'} · MED ${path.med} · BGP NEXT_HOP ${path.nextHopAddress}${path.communities.length ? ` · COMM ${path.communities.join(' ')}` : ''}${path.policyAnomaly ? ' · RELATIONSHIP LEAK' : ''}${!attachment ? ' · NEXT_HOP UNRESOLVED' : ''}`,
+      bgpLearnedVia: path.learnedVia,
+      bgpAsPath: [...path.asPath],
+      bgpLocalPref: path.localPref,
+      bgpMed: path.med,
+      bgpCommunities: [...path.communities],
+      bgpProtocolNextHop: path.nextHopAddress,
+      bgpPolicyAnomaly: path.policyAnomaly,
+    });
+  }
+  return entries.sort((left, right) =>
+    right.prefixLength - left.prefixLength
+    || left.administrativeDistance - right.administrativeDistance
+    || left.metric - right.metric
+    || left.id.localeCompare(right.id));
+}
+
+function ospfRoutePreference(entry: BuilderRouteTableEntry): number { return entry.source !== 'ospf' ? 0 : entry.ospfRouteType === 'inter-area' ? 1 : 0; }
+
+function compareBuilderRoutePreference(left: BuilderRouteTableEntry, right: BuilderRouteTableEntry): number {
+  return right.prefixLength - left.prefixLength
+    || left.administrativeDistance - right.administrativeDistance
+    || ospfRoutePreference(left) - ospfRoutePreference(right)
+    || left.metric - right.metric
+    || left.id.localeCompare(right.id);
+}
+
+export function builderEcmpRoutesForDestination(
+  entries: readonly BuilderRouteTableEntry[],
+  destinationAddress: string,
+): BuilderRouteTableEntry[] {
+  const matches = entries.filter((entry) => entry.active && prefixContains(parseRoutePrefix(entry.prefix), destinationAddress)).sort(compareBuilderRoutePreference);
+  const best = matches[0];
+  if (!best) return [];
+  return matches
+    .filter((entry) => entry.prefix === best.prefix && entry.prefixLength === best.prefixLength && entry.administrativeDistance === best.administrativeDistance && ospfRoutePreference(entry) === ospfRoutePreference(best) && entry.metric === best.metric)
+    .sort((left, right) => left.id.localeCompare(right.id));
+}
+
+export function builderStableFlowHash(value: string): number {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash >>> 0;
+}
+
+function canonicalBuilderFlowKey(flowKey: BuilderFlowKey | string | null | undefined, destinationAddress: string): string | null {
+  if (flowKey == null) return null;
+  if (typeof flowKey === 'string') return flowKey;
+  const protocol = String(flowKey.protocol ?? 'ip').trim().toLowerCase() || 'ip';
+  const sourceAddress = String(flowKey.sourceAddress ?? '').trim();
+  const resolvedDestination = String(flowKey.destinationAddress ?? destinationAddress).trim();
+  const sourcePort = flowKey.sourcePort == null ? '' : String(flowKey.sourcePort);
+  const destinationPort = flowKey.destinationPort == null ? '' : String(flowKey.destinationPort);
+  const discriminator = flowKey.discriminator == null ? '' : String(flowKey.discriminator);
+  return `${protocol}|${sourceAddress}|${resolvedDestination}|${sourcePort}|${destinationPort}|${discriminator}`;
+}
+
+export function selectBuilderRouteWithDecision(
+  entries: readonly BuilderRouteTableEntry[],
+  destinationAddress: string,
+  flowKey: BuilderFlowKey | string | null = null,
+): BuilderRouteSelection {
+  const candidates = builderEcmpRoutesForDestination(entries, destinationAddress);
+  if (candidates.length === 0) return { route: null, candidates: [], flowKey: null, flowHash: null, selectedIndex: null };
+  const canonical = canonicalBuilderFlowKey(flowKey, destinationAddress);
+  if (candidates.length === 1 || canonical === null) return { route: candidates[0], candidates, flowKey: canonical, flowHash: null, selectedIndex: 0 };
+  const flowHash = builderStableFlowHash(canonical);
+  const selectedIndex = flowHash % candidates.length;
+  return { route: candidates[selectedIndex], candidates, flowKey: canonical, flowHash, selectedIndex };
+}
+
+export function selectBuilderRoute(
+  entries: readonly BuilderRouteTableEntry[],
+  destinationAddress: string,
+  flowKey: BuilderFlowKey | string | null = null,
+): BuilderRouteTableEntry | null {
+  return selectBuilderRouteWithDecision(entries, destinationAddress, flowKey).route;
+}
+
+function remoteNodeOnLink(graph: BuilderGraph, linkId: string, nodeId: string): string | null {
+  const link = linkById(graph, linkId);
+  if (!link) return null;
+  if (link.a === nodeId) return link.b;
+  if (link.b === nodeId) return link.a;
+  return null;
+}
+
+function forwardingFailure(
+  sourceNodeId: string,
+  destinationNodeId: string,
+  destinationAddress: string | null,
+  hops: BuilderForwardingHop[],
+  failureNodeId: string,
+  failureReason: string,
+): BuilderForwardingTrace {
+  return {
+    reachable: false,
+    sourceNodeId,
+    destinationNodeId,
+    destinationAddress,
+    hops,
+    failureNodeId,
+    failureReason,
+    explanation: `${failureNodeId.toUpperCase()} stopped forwarding: ${failureReason}.`,
+  };
+}
+
+export function traceBuilderForwarding(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routing: BuilderRoutingConfig,
+  sourceNodeId: string,
+  destinationNodeId: string,
+  ospfTopologyGraph: BuilderGraph = graph,
+  flowKey: BuilderFlowKey | string | null = null,
+): BuilderForwardingTrace {
+  const source = nodeById(graph, sourceNodeId);
+  const destination = nodeById(graph, destinationNodeId);
+  if (!source || !destination) {
+    return {
+      reachable: false,
+      sourceNodeId,
+      destinationNodeId,
+      destinationAddress: null,
+      hops: [],
+      failureNodeId: null,
+      failureReason: 'SOURCE OR DESTINATION DOES NOT EXIST',
+      explanation: 'Choose source and destination devices that still exist in the topology.',
+    };
+  }
+  if (sourceNodeId === destinationNodeId) {
+    return {
+      reachable: true,
+      sourceNodeId,
+      destinationNodeId,
+      destinationAddress: primaryInterfaceForNode(addressing, destinationNodeId)?.address ?? null,
+      hops: [],
+      failureNodeId: null,
+      failureReason: null,
+      explanation: 'Source and destination are the same device.',
+    };
+  }
+  const destinationInterface = primaryInterfaceForNode(addressing, destinationNodeId);
+  if (!destinationInterface) return forwardingFailure(sourceNodeId, destinationNodeId, null, [], destinationNodeId, 'DESTINATION HAS NO IPV4 INTERFACE');
+  const destinationAddress = destinationInterface.address;
+  const hops: BuilderForwardingHop[] = [];
+  const visited = new Set<string>();
+  let currentNodeId = sourceNodeId;
+
+  for (let hopIndex = 0; hopIndex <= graph.nodes.length + 1; hopIndex += 1) {
+    if (currentNodeId === destinationNodeId) {
+      return {
+        reachable: true,
+        sourceNodeId,
+        destinationNodeId,
+        destinationAddress,
+        hops,
+        failureNodeId: null,
+        failureReason: null,
+        explanation: `${source.label} reaches ${destination.label} at ${destinationAddress} in ${hops.length} forwarding hop${hops.length === 1 ? '' : 's'}.`,
+      };
+    }
+    if (visited.has(currentNodeId)) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'FORWARDING LOOP');
+    visited.add(currentNodeId);
+    const current = nodeById(graph, currentNodeId);
+    if (!current) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'DEVICE DISAPPEARED');
+
+    if (current.kind === 'endpoint') {
+      const interfaces = interfacesForBuilderNode(addressing, currentNodeId);
+      const direct = interfaces.find((entry) => prefixContains(parseRoutePrefix(entry.cidr), destinationAddress));
+      if (direct) {
+        const link = linkById(graph, direct.linkId);
+        const owner = interfaceOwner(addressing, destinationAddress);
+        if (!link || link.failed) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'DIRECT LINK DOWN');
+        if (!owner || owner.linkId !== direct.linkId) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'DESTINATION NOT PRESENT ON DIRECT SEGMENT');
+        hops.push({ nodeId: currentNodeId, nodeLabel: current.label, routeSource: 'endpoint-local', matchedPrefix: direct.cidr, nextHop: destinationAddress, outgoingInterface: direct.name, linkId: direct.linkId, nextNodeId: owner.nodeId });
+        currentNodeId = owner.nodeId;
+        continue;
+      }
+      const gateway = addressing.defaultGateways[currentNodeId] ?? null;
+      if (!gateway) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'NO DEFAULT GATEWAY');
+      const owner = interfaceOwner(addressing, gateway);
+      const localAttachment = owner ? interfaces.find((entry) => entry.linkId === owner.linkId) : null;
+      const link = owner ? linkById(graph, owner.linkId) : null;
+      if (!owner || !localAttachment) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'DEFAULT GATEWAY IS NOT DIRECTLY CONNECTED');
+      if (!link || link.failed) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'DEFAULT GATEWAY LINK DOWN');
+      hops.push({ nodeId: currentNodeId, nodeLabel: current.label, routeSource: 'default-gateway', matchedPrefix: '0.0.0.0/0', nextHop: gateway, outgoingInterface: localAttachment.name, linkId: owner.linkId, nextNodeId: owner.nodeId });
+      currentNodeId = owner.nodeId;
+      continue;
+    }
+
+    const table = routeTableForBuilderRouter(graph, addressing, routing, currentNodeId, ospfTopologyGraph);
+    const selection = selectBuilderRouteWithDecision(table, destinationAddress, flowKey);
+    const selected = selection.route;
+    if (!selected) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'NO MATCHING ROUTE');
+    let nextNodeId: string | null = null;
+    let nextHop: string | null = selected.nextHop;
+    if (selected.source === 'connected') {
+      const owner = interfaceOwner(addressing, destinationAddress);
+      if (!owner || owner.linkId !== selected.linkId) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'CONNECTED PREFIX HAS NO DESTINATION NEIGHBOR');
+      nextNodeId = owner.nodeId;
+      nextHop = destinationAddress;
+    } else {
+      const owner = selected.nextHop ? interfaceOwner(addressing, selected.nextHop) : null;
+      if (!owner || owner.linkId !== selected.linkId) {
+        return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, selected.source === 'static' ? 'STATIC NEXT HOP INVALID' : 'OSPF NEXT HOP INVALID');
+      }
+      nextNodeId = owner.nodeId;
+    }
+    const link = linkById(graph, selected.linkId);
+    if (!link || link.failed) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'OUTGOING LINK DOWN');
+    hops.push({ nodeId: currentNodeId, nodeLabel: current.label, routeSource: selected.source, matchedPrefix: selected.prefix, nextHop, outgoingInterface: selected.outgoingInterface, linkId: selected.linkId, nextNodeId, ecmpCandidateCount: selection.candidates.length, ecmpSelectedIndex: selection.selectedIndex, ecmpFlowHash: selection.flowHash, ecmpFlowKey: selection.flowKey });
+    if (!nextNodeId) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'NEXT HOP HAS NO DEVICE');
+    currentNodeId = nextNodeId;
+  }
+
+  return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'HOP LIMIT EXCEEDED');
+}
+
+export function nextHopOptionsForBuilderRouter(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routerId: string,
+): Array<{ address: string; nodeId: string; nodeLabel: string; interfaceName: string; linkId: string; linkFailed: boolean }> {
+  const options: Array<{ address: string; nodeId: string; nodeLabel: string; interfaceName: string; linkId: string; linkFailed: boolean }> = [];
+  for (const link of graph.links) {
+    if (link.a !== routerId && link.b !== routerId) continue;
+    const segment = addressing.segments[link.id];
+    if (!segment) continue;
+    const remote = segment.interfaces.find((entry) => entry.nodeId !== routerId);
+    const node = remote ? nodeById(graph, remote.nodeId) : null;
+    if (!remote || !node) continue;
+    options.push({ address: remote.address, nodeId: remote.nodeId, nodeLabel: node.label, interfaceName: remote.name, linkId: link.id, linkFailed: link.failed });
+  }
+  return options.sort((a, b) => a.nodeLabel.localeCompare(b.nodeLabel) || a.address.localeCompare(b.address));
+}
+
+export function installStaticRoutesForWeightedPath(
+  graph: BuilderGraph,
+  addressing: BuilderAddressing,
+  routing: BuilderRoutingConfig,
+  sourceNodeId: string,
+  destinationNodeId: string,
+): BuilderStaticPathInstallResult {
+  const weighted = findShortestPath(graph, sourceNodeId, destinationNodeId);
+  if (!weighted.reachable || weighted.nodeIds.length < 2) throw new Error('The current weighted graph has no path to install.');
+  const destinationInterface = primaryInterfaceForNode(addressing, destinationNodeId);
+  if (!destinationInterface) throw new Error('Destination has no IPv4 interface to route toward.');
+  const destinationSegment = addressing.segments[destinationInterface.linkId];
+  if (!destinationSegment) throw new Error('Destination IPv4 segment is missing.');
+  const prefix = parseBuilderIpv4Cidr(destinationSegment.cidr).cidr;
+  let nextRouting = cloneBuilderRoutingConfig(routing);
+  const installedRouterIds: string[] = [];
+
+  for (let index = 0; index < weighted.nodeIds.length - 1; index += 1) {
+    const currentId = weighted.nodeIds[index];
+    const nextId = weighted.nodeIds[index + 1];
+    const current = nodeById(graph, currentId);
+    if (!current) throw new Error(`Weighted path references missing device ${currentId}.`);
+    if (current.kind === 'endpoint') {
+      if (index !== 0) throw new Error(`Endpoint ${current.label} cannot forward transit traffic; change the graph path.`);
+      continue;
+    }
+    const table = routeTableForBuilderRouter(graph, addressing, nextRouting, currentId);
+    if (table.some((entry) => entry.source === 'connected' && entry.active && parseRoutePrefix(entry.prefix).cidr === prefix)) continue;
+    const step = weighted.steps[index];
+    if (!step || step.from !== currentId || step.to !== nextId) throw new Error(`Weighted path step ${index + 1} is inconsistent.`);
+    const segment = addressing.segments[step.linkId];
+    const remote = segment?.interfaces.find((entry) => entry.nodeId === nextId);
+    if (!remote) throw new Error(`No next-hop interface exists for ${current.label} → ${nextId}.`);
+    nextRouting = upsertBuilderStaticRoute(graph, addressing, nextRouting, {
+      routerId: currentId,
+      prefix,
+      nextHop: remote.address,
+      metric: step.cost,
+    });
+    installedRouterIds.push(currentId);
+  }
+
+  return { routing: nextRouting, prefix, installedRouterIds, weightedPathNodeIds: [...weighted.nodeIds] };
+}
