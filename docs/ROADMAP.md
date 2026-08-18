@@ -35,45 +35,37 @@ Lab 11 closed with the stub/NSSA + bounded redistribution slice. General connect
 
 Detailed implementation notes remain in the corresponding `docs/LAB*.md` files, especially `docs/LAB11M.md` for the final OSPF closeout.
 
----
+### Completed active track — Track H captured evidence + replay
 
-## Current priority order
-
-The product no longer needs another pile of disconnected protocol demos. The highest-value work is **integration of the systems that already exist**.
-
-### 1. Track H — captured evidence + replay
-
-The original moonshot Track T has shipped far enough that it no longer belongs as a separate speculative roadmap. Its remaining work is consolidated here.
-
-**Shipped foundation**
+Track H promoted the original captured-data moonshot into a complete evidence-analysis product track without weakening the local/session-only boundary.
 
 - [x] explicit local PCAP/PCAPNG import; no upload, sniffing, scanning, credentials, or hidden collection
 - [x] immutable `CAPTURED` frames and separately labeled `INFERRED` relationships
 - [x] deterministic conversations, semantic events, protocol decoding, provenance, exact-byte lineage, capture time machine, FOLLOW FLOW
 - [x] read-only captured Packet Microscope
 - [x] bounded parser/index/render limits and dedicated production-browser capture replay contract
+- [x] bounded TCP byte-stream reconstruction that never invents missing bytes
+- [x] retransmission/overlap/out-of-order/midstream/truncation handling with explicit incomplete-evidence states
+- [x] RTT observations only where visible sequence/ACK or TCP timestamp evidence supports them; ambiguous ACK attribution is excluded
+- [x] captured Protocol Theater projections with `NOT OBSERVED IN CAPTURE`, `CAPTURE STARTED MID-CONVERSATION`, and `INSUFFICIENT CAPTURE EVIDENCE` states
+- [x] aggregate traffic views derived from captured frames/endpoints/conversations without inventing topology
+- [x] primary browser parse/protocol/conversation/event/index work runs in a module Worker with deterministic non-Worker fallback
+- [x] capture-vs-capture deterministic comparison
+- [x] captured evidence vs canonical Journey simulated counterfactual comparison with provenance kept visually separate
+- [x] strict traceroute, route-table, interface, and device-state sidecar imports as `IMPORTED EVIDENCE`
+- [x] bounded Cisco/Juniper/FRR configuration parsing as `PARSED CONFIG`, distinct from observed runtime state
 
-**Next vertical slice**
+`docs/TRACKT.md` remains the historical first-slice record. `docs/TRACKH.md` is the Track H closeout architecture and validation record.
 
-- [ ] bounded TCP byte-stream reconstruction that never invents missing bytes
-- [ ] retransmission/overlap/out-of-order/midstream/truncation handling with explicit incomplete-evidence states
-- [ ] RTT observations only where visible sequence/ACK evidence supports them
-- [ ] captured Protocol Theater projections with `NOT OBSERVED IN CAPTURE`, `CAPTURE STARTED MID-CONVERSATION`, and `INSUFFICIENT CAPTURE EVIDENCE` states
-- [ ] aggregate traffic views derived from captured evidence without inventing topology
-- [ ] move parse/index work off the UI thread where required by the existing 64 MiB / 100k-frame ceilings
+---
 
-**After that**
+## Current priority order
 
-- [ ] capture-vs-capture comparison
-- [ ] captured evidence vs simulated counterfactual comparison with provenance kept visually obvious
-- [ ] traceroute, route-table, interface, and device-state snapshot imports
-- [ ] optional parsed Cisco/Juniper/FRR configuration import as `PARSED CONFIG`, distinct from observed runtime state
+The product no longer needs another pile of disconnected protocol demos. The highest-value work is **integration of the systems that already exist**.
 
-The shipped first-slice implementation record remains in `docs/TRACKT.md`; new planning lives here under Track H.
+### 1. Track D — end-to-end application traffic inside Builder
 
-### 2. Track D — end-to-end application traffic inside Builder
-
-This is the largest missing integration layer in the simulator itself.
+This is the largest missing integration layer in the simulator itself and is the next active track.
 
 - [ ] endpoints can host deterministic DNS, HTTP/HTTPS, SSH, generic TCP, and generic UDP services
 - [ ] one Builder application request consumes the existing DHCP/addressing → ARP/ND → Ethernet/VLAN/STP → routing → ACL/NAT → transport → TLS → application truth
@@ -81,7 +73,7 @@ This is the largest missing integration layer in the simulator itself.
 - [ ] any frame/packet/segment can open Packet Microscope with exact originating Builder state and bytes
 - [ ] the same transaction can move between Builder, Protocol Theater, Journey, and Packet Microscope as different cameras on shared canonical truth
 
-### 3. Track A — Builder-wide time machine + causal troubleshooting
+### 2. Track A — Builder-wide time machine + causal troubleshooting
 
 **Shipped foundation**
 
@@ -103,7 +95,7 @@ This is the largest missing integration layer in the simulator itself.
 
 `docs/TRACKA.md` remains the implementation-level record for the shipped slices.
 
-### 4. Track B — Builder authoring environment
+### 3. Track B — Builder authoring environment
 
 **Foundations already shipped**
 

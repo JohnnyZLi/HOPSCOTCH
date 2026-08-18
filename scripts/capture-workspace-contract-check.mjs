@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import './capture-track-h-contract-check.mjs';
 
 const workspace = readFileSync(new URL('../src/CaptureReplayWorkspace.tsx', import.meta.url), 'utf8');
+const trackHPanel = readFileSync(new URL('../src/CaptureTrackHPanel.tsx', import.meta.url), 'utf8');
+const asyncParser = readFileSync(new URL('../src/capture/parse-async.ts', import.meta.url), 'utf8');
+const workerParser = readFileSync(new URL('../src/capture/parse-worker.ts', import.meta.url), 'utf8');
 const capturedMicroscope = readFileSync(new URL('../src/CapturedPacketMicroscope.tsx', import.meta.url), 'utf8');
 const microscope = readFileSync(new URL('../src/PacketMicroscope.tsx', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
@@ -14,10 +18,21 @@ assert.match(workspace, /file\.arrayBuffer\(\)/);
 assert.ok(workspace.includes('/\\.(pcap|pcapng)$/i'));
 assert.match(workspace, /file\.size > CAPTURE_LIMITS\.maxCaptureBytes/);
 assert.match(workspace, /The previous valid capture remains active\./);
+assert.match(workspace, /parseCaptureSessionAsync\(buffer\)/);
+assert.match(workspace, /<CaptureTrackHPanel session=\{session\} conversationId=\{activeConversation\.id\}/);
+assert.match(workspace, /Track H · Captured evidence \+ replay/);
+assert.doesNotMatch(workspace, /parseCaptureSession\(buffer\)/, 'primary browser ingest must not silently return to synchronous parse/index work');
 
 for (const forbidden of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'sendBeacon', 'localStorage', 'sessionStorage', 'indexedDB']) {
   assert.ok(!workspace.includes(forbidden), `capture workspace crossed the local/session-only boundary with ${forbidden}`);
+  assert.ok(!trackHPanel.includes(forbidden), `Track H evidence panel crossed the local/session-only boundary with ${forbidden}`);
 }
+
+assert.match(asyncParser, /new Worker\(new URL\('\.\/parse-worker\.ts'/);
+assert.match(asyncParser, /worker\.postMessage\(\{ id: requestId, buffer \}, \[buffer\]\)/);
+assert.match(workerParser, /serializeCaptureSessionWire/);
+assert.match(workerParser, /parseCaptureSession\(request\.buffer\)/);
+assert.match(workerParser, /\[wire\.byteSlab\.buffer\]/);
 
 assert.match(workspace, /session\.eventAtOrBefore\(/);
 assert.match(workspace, /SCRUB_UNITS = 100_000n/);
@@ -29,6 +44,18 @@ assert.match(workspace, /eventWindow\(events, currentEventIndex\)/);
 assert.match(workspace, /BYTE_PAGE_SIZE = 256/);
 assert.match(workspace, /FOLLOW FLOW/);
 assert.match(workspace, /OPEN READ-ONLY PACKET MICROSCOPE/);
+
+for (const requiredSurface of [
+  'PROTOCOL THEATER', 'TCP STREAM + RTT', 'TRAFFIC OVERVIEW', 'COMPARE', 'SIDECAR EVIDENCE',
+  'CAPTURE ↔ CAPTURE', 'CAPTURED ↔ SIMULATED COUNTERFACTUAL', 'PARSED DEVICE CONFIG',
+]) assert.ok(trackHPanel.includes(requiredSurface), `Track H UI is missing ${requiredSurface}`);
+assert.match(trackHPanel, /parseCaptureSessionAsync\(await file\.arrayBuffer\(\)\)/);
+assert.match(trackHPanel, /parseCaptureSidecarEvidenceJson/);
+assert.match(trackHPanel, /parseNetworkConfiguration/);
+assert.match(trackHPanel, /compareCaptureSessions/);
+assert.match(trackHPanel, /compareCaptureConversationToSimulation/);
+assert.match(trackHPanel, /HOLES STAY HOLES/);
+assert.match(trackHPanel, /PROVENANCE NEVER MERGES/);
 
 assert.match(capturedMicroscope, /data-packet-provenance="CAPTURED"/);
 assert.match(capturedMicroscope, /CAPTURED · READ ONLY/);
@@ -47,4 +74,4 @@ assert.match(app, /captureReturnPending/);
 assert.match(app, /capturedFrame=\{capturedMicroscopeFrame \?\? undefined\}/);
 assert.match(app, /CAPTURED EVIDENCE ACTIVE/);
 
-console.log('Track T workspace contract passed: explicit local import, preserved valid replacement state, bounded rendering, deterministic session projections, captured read-only microscopy, lineage, and deep-link navigation.');
+console.log('Track H workspace contract passed: explicit local import, worker-backed primary parsing, bounded analysis surfaces, preserved replay/microscopy, local-only comparison and sidecars, and provenance-separated counterfactual inspection.');

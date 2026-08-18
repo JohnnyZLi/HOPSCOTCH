@@ -1,9 +1,11 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { CaptureParseError } from './capture/bytes.ts';
+import { parseCaptureSessionAsync } from './capture/parse-async.ts';
 import { endpointDisplay } from './capture/protocol.ts';
-import { CaptureSessionIndex, parseCaptureSession } from './capture/session.ts';
+import { CaptureSessionIndex } from './capture/session.ts';
 import { CAPTURE_LIMITS, type CapturedField, type CapturedFrameEvidence, type CapturedLayer, type SemanticCapturedEvent } from './capture/types.ts';
+import { CaptureTrackHPanel } from './CaptureTrackHPanel.tsx';
 import './CaptureReplayWorkspace.css';
 
 const FLOW_RENDER_LIMIT = 80;
@@ -135,7 +137,7 @@ function EmptyCapture({
         <h2>{parsing ? 'READING IMMUTABLE EVIDENCE…' : 'DROP PCAP / PCAPNG'}</h2>
         <p>Choose a capture explicitly. HOPSCOTCH reads it in this browser session and never uploads, scans, sniffs, probes, or silently stores it.</p>
         <button type="button" disabled={parsing}>{parsing ? 'VALIDATING BYTES' : 'CHOOSE CAPTURE'}</button>
-        <small>64 MiB · 100,000 FRAME FIRST-SLICE CEILING · ETHERNET II</small>
+        <small>64 MiB · 100,000 FRAME CEILING · WORKER PARSE/INDEX · ETHERNET II</small>
       </div>
       {error && <div className="capture-import-error" role="alert"><strong>IMPORT REJECTED</strong><p>{error}</p></div>}
       <div className="capture-boundary-grid">
@@ -271,8 +273,7 @@ export function CaptureReplayWorkspace({
       if (!/\.(pcap|pcapng)$/i.test(file.name)) throw new CaptureParseError('UNSUPPORTED_FORMAT', 'Choose a file ending in .pcap or .pcapng.');
       if (file.size > CAPTURE_LIMITS.maxCaptureBytes) throw new CaptureParseError('CAPTURE_TOO_LARGE', `${file.name} is ${formatBytes(file.size)}; this slice accepts up to ${formatBytes(CAPTURE_LIMITS.maxCaptureBytes)}.`);
       const buffer = await file.arrayBuffer();
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-      const nextSession = parseCaptureSession(buffer);
+      const nextSession = await parseCaptureSessionAsync(buffer);
       const conversation = nextSession.conversations[0] ?? null;
       const event = conversation ? nextSession.eventsForConversation(conversation.id)[0] ?? null : null;
       const frameId = event?.primaryFrameId ?? conversation?.frameReferences[0]?.frameId ?? nextSession.frames[0]?.record.id ?? null;
@@ -445,7 +446,7 @@ export function CaptureReplayWorkspace({
       />
       <header className="capture-heading">
         <div>
-          <p className="eyebrow">Track T · Captured-data replay</p>
+          <p className="eyebrow">Track H · Captured evidence + replay</p>
           <h1>REPLAY THE EVIDENCE.<br /><span>DESCEND TO THE BYTES.</span></h1>
         </div>
         <div className="capture-heading-actions">
@@ -651,6 +652,7 @@ export function CaptureReplayWorkspace({
               ) : <div className="capture-inspector-empty"><strong>SELECT A CAPTURED FRAME</strong><p>Choose a semantic event or frame to resolve protocol fields and exact byte ranges.</p></div>}
             </aside>
           </div>
+          {activeConversation && <CaptureTrackHPanel session={session} conversationId={activeConversation.id} />}
         </>
       )}
     </motion.section>
