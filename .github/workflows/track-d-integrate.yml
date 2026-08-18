@@ -1,0 +1,34 @@
+name: Track D one-shot integration
+
+on:
+  push:
+    branches:
+      - agent/track-d-closeout
+    paths:
+      - .github/workflows/track-d-integrate.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/track-d-closeout
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Apply Track D integration patch
+        run: node scripts/track-d-integrate.mjs
+      - name: Remove one-shot integration machinery
+        run: git rm .github/workflows/track-d-integrate.yml scripts/track-d-integrate.mjs
+      - name: Commit integrated Builder surface
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/NetworkBuilder.tsx src/builder/application.ts package.json
+          git commit -m "Track D: integrate application workspace into Builder"
+          git push origin HEAD:agent/track-d-closeout
