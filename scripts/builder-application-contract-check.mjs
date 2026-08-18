@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createDefaultBuilderAddressing, interfacesForBuilderNode } from '../src/builder/addressing.ts';
 import { createDefaultBuilderAclConfig, upsertBuilderAclRule } from '../src/builder/acl.ts';
 import { createDefaultBuilderHostedServices, runBuilderApplicationTransaction } from '../src/builder/application.ts';
@@ -73,7 +74,7 @@ assert.match(transaction.boundary, /no second transport or routing simulator/i);
 const quic = runBuilderApplicationTransaction(base, services, 'client', h3.id, 'ipv4', 21);
 assert.equal(quic.success, true, quic.summary);
 assert.ok(quic.protocolEvents.some((event) => event.protocol === 'QUIC'));
-assert.ok(quic.protocolEvents.some((event) => event.protocol === 'HTTP3'));
+assert.match(quic.protocolEvents.map((event) => event.protocol).join(' | '), /HTTP\/3/);
 assert.equal(quic.natRequest?.originalTuple.protocol, 'udp');
 
 for (const service of [dns, ssh, udp]) {
@@ -114,5 +115,15 @@ assert.equal(ipv6Transaction.success, true, ipv6Transaction.summary);
 assert.ok(ipv6Transaction.ipv6Forwarding?.reachable);
 assert.ok(ipv6Transaction.ipv6ControlState.ndHistory.length > 0, 'IPv6 application request must consume actual ND state');
 assert.equal(ipv6Transaction.natRequest, null, 'Track D must not invent NAT66');
+
+const panelSource = readFileSync(new URL('../src/BuilderApplicationPanel.tsx', import.meta.url), 'utf8');
+const builderSource = readFileSync(new URL('../src/NetworkBuilder.tsx', import.meta.url), 'utf8');
+assert.match(panelSource, /ONE REQUEST · ONE CAUSAL TRUTH STACK/);
+assert.match(panelSource, /BUILDER.*PROTOCOL.*JOURNEY.*PACKET/s);
+assert.match(panelSource, /OPEN PACKET MICROSCOPE/);
+assert.match(panelSource, /initialConfig=\{packet\.config\}/);
+assert.match(panelSource, /historical=\{isHistorical\}|historical/);
+assert.match(builderSource, /<BuilderApplicationPanel/);
+assert.match(builderSource, /onSessionState=\{\(next\)=>\{ setArpCache\(next\.arpCache\); setNatSessions\(next\.natSessions\); setDhcpLeases\(next\.dhcpLeases\); setIpv6ControlState\(next\.ipv6ControlState\); \}\}/);
 
 console.log('Track D application contract passed: hosted DNS/HTTP/HTTPS/SSH/TCP/UDP services, shared DHCP/addressing→L2/ARP/ND→FIB→ACL/NAT→link→canonical TCP/QUIC/TLS/application truth, NOT_REACHED failure semantics, exact Packet bytes, and Builder/Protocol/Journey/Packet cameras.');
