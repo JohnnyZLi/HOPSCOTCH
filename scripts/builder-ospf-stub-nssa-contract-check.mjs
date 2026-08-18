@@ -55,13 +55,20 @@ assert.throws(() => setBuilderOspfAreaType(graph, addressing, routing, '0', 'stu
 const serviceInterface = interfacesForBuilderNode(addressing, 'service')[0];
 assert.ok(serviceInterface);
 const servicePrefix = addressing.segments[serviceInterface.linkId].cidr;
+
+const abr1NextHop = addressing.segments['r1-abr1'].interfaces.find((entry) => entry.nodeId === 'abr1')?.address;
+assert.ok(abr1NextHop);
+routing = upsertBuilderStaticRoute(graph, addressing, routing, { routerId: 'r1', prefix: servicePrefix, nextHop: abr1NextHop, metric: 9 });
+const stubStatic = routing.staticRoutes.find((route) => route.routerId === 'r1' && route.prefix === servicePrefix);
+assert.ok(stubStatic);
+assert.throws(() => upsertBuilderOspfRedistribution(graph, addressing, routing, { routerId: 'r1', staticRouteId: stubStatic.id, areaId: '1', metric: 20 }), /cannot originate external routes inside stub area/);
+routing = deleteBuilderStaticRoute(graph, addressing, routing, stubStatic.id);
+
 const edgeNextHop = addressing.segments['asbr-edge'].interfaces.find((entry) => entry.nodeId === 'edge')?.address;
 assert.ok(edgeNextHop);
 routing = upsertBuilderStaticRoute(graph, addressing, routing, { routerId: 'asbr', prefix: servicePrefix, nextHop: edgeNextHop, metric: 7 });
 const redistributedStatic = routing.staticRoutes.find((route) => route.routerId === 'asbr' && route.prefix === servicePrefix);
 assert.ok(redistributedStatic);
-assert.throws(() => upsertBuilderOspfRedistribution(graph, addressing, routing, { routerId: 'r1', staticRouteId: redistributedStatic.id, areaId: '1', metric: 20 }), /must reference a static route owned by r1/);
-
 routing = upsertBuilderOspfRedistribution(graph, addressing, routing, { routerId: 'asbr', staticRouteId: redistributedStatic.id, areaId: '2', metric: 20 });
 const redistribution = routing.ospf.redistributions?.[0];
 assert.ok(redistribution);
@@ -109,10 +116,10 @@ assert.equal(traceBuilderForwarding(graph, addressing, withoutRedistribution, 'c
 const withoutStatic = deleteBuilderStaticRoute(graph, addressing, routing, redistributedStatic.id);
 assert.equal(withoutStatic.ospf.redistributions?.length, 0, 'removing a backing static route must reconcile away its redistribution rule');
 
-let normalAreaRouting = setBuilderOspfAreaType(graph, addressing, routing, '1', 'normal');
+const normalAreaRouting = setBuilderOspfAreaType(graph, addressing, routing, '1', 'normal');
 const r1NormalExternal = selectBuilderRoute(routeTableForBuilderRouter(graph, addressing, normalAreaRouting, 'r1'), serviceInterface.address);
 assert.equal(r1NormalExternal?.ospfRouteType, 'external');
 assert.equal(r1NormalExternal?.ospfExternalLsaType, 5);
 assert.ok(!routeTableForBuilderRouter(graph, addressing, normalAreaRouting, 'r1').some((entry) => entry.prefix === '0.0.0.0/0' && /STUB|NSSA/.test(entry.stateNote)), 'normal area must not retain the stub/NSSA injected default');
 
-console.log('Builder OSPF stub/NSSA closeout contract passed: Area 0 guardrail, stub external suppression + ABR default, NSSA Type-7 origination, Type-5 translation, bounded static redistribution provenance, end-to-end forwarding, scenario-v9 persistence, withdrawal, and reconciliation.');
+console.log('Builder OSPF stub/NSSA closeout contract passed: Area 0 guardrail, stub redistribution rejection + external suppression + ABR default, NSSA Type-7 origination, Type-5 translation, bounded static redistribution provenance, end-to-end forwarding, scenario-v9 persistence, withdrawal, and reconciliation.');
