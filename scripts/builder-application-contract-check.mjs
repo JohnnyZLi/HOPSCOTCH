@@ -8,7 +8,7 @@ import { createDefaultBuilderDhcpConfig, clearBuilderDhcpLeases } from '../src/b
 import { createDefaultBuilderEthernetConfig } from '../src/builder/ethernet.ts';
 import { createBuilderIpv6ControlState } from '../src/builder/ipv6-control-plane.ts';
 import { createDefaultBuilderIpv6RoutingDepthState } from '../src/builder/ipv6-routing-depth.ts';
-import { createDefaultBuilderIpv6Config } from '../src/builder/ipv6.ts';
+import { createDefaultBuilderIpv6Config, setBuilderOspfv3Everywhere } from '../src/builder/ipv6.ts';
 import { createDefaultBuilderLinkProfiles } from '../src/builder/link-characteristics.ts';
 import { defaultBuilderGraph } from '../src/builder/model.ts';
 import { clearBuilderNatSessions, createDefaultBuilderNatConfig } from '../src/builder/nat.ts';
@@ -19,7 +19,7 @@ const graph = defaultBuilderGraph;
 const addressing = createDefaultBuilderAddressing(graph);
 const routing = setBuilderOspfEverywhere(graph, addressing, createDefaultBuilderRoutingConfig(), true);
 const ethernet = createDefaultBuilderEthernetConfig();
-const ipv6 = createDefaultBuilderIpv6Config(graph, addressing, true);
+const ipv6 = setBuilderOspfv3Everywhere(graph, addressing, createDefaultBuilderIpv6Config(graph, addressing, true), true);
 const base = {
   graph,
   addressing,
