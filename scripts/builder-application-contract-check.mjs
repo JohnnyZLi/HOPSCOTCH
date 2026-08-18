@@ -117,13 +117,16 @@ assert.ok(ipv6Transaction.ipv6ControlState.ndHistory.length > 0, 'IPv6 applicati
 assert.equal(ipv6Transaction.natRequest, null, 'Track D must not invent NAT66');
 
 const panelSource = readFileSync(new URL('../src/BuilderApplicationPanel.tsx', import.meta.url), 'utf8');
+const workspaceSource = readFileSync(new URL('../src/BuilderApplicationWorkspace.tsx', import.meta.url), 'utf8');
 const builderSource = readFileSync(new URL('../src/NetworkBuilder.tsx', import.meta.url), 'utf8');
-assert.match(panelSource, /ONE REQUEST · ONE CAUSAL TRUTH STACK/);
-assert.match(panelSource, /BUILDER.*PROTOCOL.*JOURNEY.*PACKET/s);
-assert.match(panelSource, /OPEN PACKET MICROSCOPE/);
-assert.match(panelSource, /initialConfig=\{packet\.config\}/);
-assert.match(panelSource, /historical=\{isHistorical\}|historical/);
+const applicationUi = `${panelSource}\n${workspaceSource}`;
+assert.match(panelSource, /lazy\(\(\) => import\('\.\/BuilderApplicationWorkspace\.tsx'\)/);
+assert.match(applicationUi, /ONE REQUEST · ONE CAUSAL TRUTH STACK/);
+assert.match(applicationUi, /BUILDER.*PROTOCOL.*JOURNEY.*PACKET/s);
+assert.match(applicationUi, /OPEN PACKET MICROSCOPE/);
+assert.match(applicationUi, /initialConfig=\{packet\.config\}/);
+assert.match(applicationUi, /historical/);
 assert.match(builderSource, /<BuilderApplicationPanel/);
 assert.match(builderSource, /onSessionState=\{\(next\)=>\{ setArpCache\(next\.arpCache\); setNatSessions\(next\.natSessions\); setDhcpLeases\(next\.dhcpLeases\); setIpv6ControlState\(next\.ipv6ControlState\); \}\}/);
 
-console.log('Track D application contract passed: hosted DNS/HTTP/HTTPS/SSH/TCP/UDP services, shared DHCP/addressing→L2/ARP/ND→FIB→ACL/NAT→link→canonical TCP/QUIC/TLS/application truth, NOT_REACHED failure semantics, exact Packet bytes, and Builder/Protocol/Journey/Packet cameras.');
+console.log('Track D application contract passed: hosted DNS/HTTP/HTTPS/SSH/TCP/UDP services, shared DHCP/addressing→L2/ARP/ND→FIB→ACL/NAT→link→canonical TCP/QUIC/TLS/application truth, NOT_REACHED failure semantics, exact Packet bytes, lazy product integration, and Builder/Protocol/Journey/Packet cameras.');
