@@ -72,7 +72,8 @@ import { applyBuilderDhcpState, clearBuilderDhcpLeases, cloneBuilderDhcpConfig, 
 import { BuilderDhcpPanel } from './BuilderDhcpPanel.tsx';
 import { BuilderDeviceWorkbench } from './BuilderDeviceWorkbench.tsx';
 import { BuilderTimeMachine } from './BuilderTimeMachine.tsx';
-import { appendBuilderWorkbenchMessageEvent, buildBuilderDeviceWorkbench, builderWorkbenchDeviceOptions, classifyBuilderWorkbenchMessage, createBuilderWorkbenchEventJournal, type BuilderDeviceRef, type BuilderDeviceWorkbenchInput, type BuilderWorkbenchEventJournal } from './builder/device-workbench.ts';
+import { appendBuilderWorkbenchEventBatch, appendBuilderWorkbenchMessageEvent, buildBuilderDeviceWorkbench, builderWorkbenchDeviceOptions, classifyBuilderWorkbenchMessage, createBuilderWorkbenchEventJournal, type BuilderDeviceRef, type BuilderDeviceWorkbenchInput, type BuilderWorkbenchEventJournal } from './builder/device-workbench.ts';
+import { deriveBuilderCanonicalEventSpecs } from './builder/canonical-events.ts';
 import { builderTimelineJournalThroughSequence, builderTimelineSnapshotAtSequence, captureBuilderTimelineSnapshot, createBuilderTimeline, diffBuilderTimelineDevice, type BuilderTimeline } from './builder/timeline.ts';
 import './NetworkBuilder.css';
 
@@ -145,12 +146,27 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const liveTimelineInput = useMemo(() => ({ ...liveWorkbenchInput, layout, linkProfiles, ipv6LifecycleState }), [liveWorkbenchInput, layout, linkProfiles, ipv6LifecycleState]);
   useEffect(() => {
     if (stressLabel) return;
-    setTimeline((current) => captureBuilderTimelineSnapshot(current, workbenchEvents, liveTimelineInput));
-  }, [stressLabel, workbenchEvents, liveTimelineInput]);
+    const latestEvent=workbenchEvents.at(-1);
+    if(!latestEvent)return;
+    const lastCapturedSequence=timeline.snapshots.at(-1)?.sequence??-1;
+    if(latestEvent.sequence<=lastCapturedSequence)return;
+    if(latestEvent.kind==='action'){
+      const previousState=timeline.snapshots.at(-1)?.state??null;
+      const derived=deriveBuilderCanonicalEventSpecs(previousState,liveTimelineInput,latestEvent);
+      if(derived.length>0){
+        setWorkbenchEvents((current)=>current.at(-1)?.id===latestEvent.id?appendBuilderWorkbenchEventBatch(current,derived):current);
+        return;
+      }
+    }
+    setTimeline((current)=>captureBuilderTimelineSnapshot(current,workbenchEvents,liveTimelineInput));
+  }, [stressLabel, workbenchEvents, liveTimelineInput, timeline.snapshots]);
   const historicalTimelineSnapshot = timelineCursor == null ? null : builderTimelineSnapshotAtSequence(timeline, timelineCursor);
   const isHistorical = historicalTimelineSnapshot != null;
   const sceneState = historicalTimelineSnapshot?.state ?? liveTimelineInput;
   const sceneGraph = sceneState.graph;
+  const sceneControlGraph = sceneState.truthGraphs?.controlGraph ?? sceneGraph;
+  const sceneRibGraph = sceneState.truthGraphs?.ribGraph ?? sceneGraph;
+  const sceneFibGraph = sceneState.truthGraphs?.fibGraph ?? sceneGraph;
   const sceneAddressing = sceneState.addressing;
   const sceneRouting = sceneState.routing;
   const sceneIpv6 = sceneState.ipv6;
@@ -181,15 +197,15 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const sceneRenderState = { ...sceneState, selectedNodeId: sceneSelectedNodeId, selectedLinkId: sceneSelectedLinkId, ethernetSourceId: sceneEthernetSourceId, ethernetDestinationId: sceneEthernetDestinationId, selectedEthernetLinkId: sceneSelectedEthernetLinkId };
 
   const route = useMemo(() => findShortestPath(sceneGraph, sceneSourceId, sceneDestinationId), [sceneGraph, sceneSourceId, sceneDestinationId]);
-  const forwardingTrace = useMemo(() => traceBuilderForwarding(sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId), [sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId]);
-  const policyTrace = useMemo(() => traceBuilderPolicy(sceneGraph, sceneAddressing, sceneRouting, sceneAcl, sceneSourceId, sceneDestinationId, 'icmp'), [sceneGraph, sceneAddressing, sceneRouting, sceneAcl, sceneSourceId, sceneDestinationId]);
-  const ospfState = useMemo(() => builderOspfState(sceneGraph, sceneAddressing, sceneRouting), [sceneGraph, sceneAddressing, sceneRouting]);
+  const forwardingTrace = useMemo(() => traceBuilderForwarding(sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId, sceneFibGraph), [sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId, sceneFibGraph]);
+  const policyTrace = useMemo(() => traceBuilderPolicy(sceneGraph, sceneAddressing, sceneRouting, sceneAcl, sceneSourceId, sceneDestinationId, 'icmp', null, null, sceneFibGraph), [sceneGraph, sceneAddressing, sceneRouting, sceneAcl, sceneSourceId, sceneDestinationId, sceneFibGraph]);
+  const ospfState = useMemo(() => builderOspfState(sceneControlGraph, sceneAddressing, sceneRouting), [sceneControlGraph, sceneAddressing, sceneRouting]);
   const selectedLink = sceneGraph.links.find((link) => link.id === sceneSelectedLinkId) ?? sceneGraph.links[0];
   const selectedLinkProfile = selectedLink ? sceneLinkProfiles[selectedLink.id] : undefined;
   const selectedNode = sceneGraph.nodes.find((node) => node.id === sceneSelectedNodeId) ?? sceneGraph.nodes[0];
   const selectedSegment = selectedLink ? sceneAddressing.segments[selectedLink.id] : undefined;
   const selectedNodeInterfaces = selectedNode ? interfacesForBuilderNode(sceneAddressing, selectedNode.id) : [];
-  const selectedRouteTable = selectedNode?.kind === 'router' ? routeTableForBuilderRouter(sceneGraph, sceneAddressing, sceneRouting, selectedNode.id) : [];
+  const selectedRouteTable = selectedNode?.kind === 'router' ? routeTableForBuilderRouter(sceneRibGraph, sceneAddressing, sceneRouting, selectedNode.id) : [];
   const selectedOspfEnabled = Boolean(selectedNode?.kind === 'router' && sceneRouting.ospf.enabledRouterIds.includes(selectedNode.id));
   const selectedOspfAdjacencies = selectedNode?.kind === 'router' ? ospfState.adjacencies.filter((adjacency) => adjacency.aRouterId === selectedNode.id || adjacency.bRouterId === selectedNode.id) : [];
   const selectedOspfComponent = selectedNode?.kind === 'router' ? ospfState.components.find((component) => component.includes(selectedNode.id)) : undefined;
@@ -218,7 +234,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const workbenchSnapshot = useMemo(() => stressLabel ? null : buildBuilderDeviceWorkbench(displayedWorkbenchInput, effectiveWorkbenchDevice), [stressLabel, displayedWorkbenchInput, effectiveWorkbenchDevice.plane, effectiveWorkbenchDevice.id]);
   const workbenchTimelineDiff = useMemo(() => historicalTimelineSnapshot ? diffBuilderTimelineDevice(timeline, workbenchEvents, historicalTimelineSnapshot.sequence, effectiveWorkbenchDevice) : null, [historicalTimelineSnapshot, timeline, workbenchEvents, effectiveWorkbenchDevice.plane, effectiveWorkbenchDevice.id]);
   const displayedMessage = historicalTimelineSnapshot ? `HISTORY #${String(historicalTimelineSnapshot.sequence).padStart(3,'0')} · ${historicalTimelineSnapshot.summary} · ${historicalTimelineSnapshot.detail}` : message;
-  const setMessage = (nextMessage: string) => {
+  const setMessage = (nextMessage: string, explicitEthernetIds: readonly string[] = []) => {
     setTimelineCursor(null);
     setMessageState(nextMessage);
     const category = classifyBuilderWorkbenchMessage(nextMessage);
@@ -232,7 +248,8 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
       ...(ethernet.devices.some((device) => device.id === ethernetDestinationId) ? [{ plane: 'ethernet' as const, id: ethernetDestinationId }] : []),
       ...((selectedEthernetLink ? [selectedEthernetLink.a, selectedEthernetLink.b] : []).map((id) => ({ plane: 'ethernet' as const, id }))),
     ];
-    const refs = ['dhcp','neighbor','switching'].includes(category) ? lanRefs : routedRefs;
+    const explicitRefs:BuilderDeviceRef[]=explicitEthernetIds.filter((id)=>ethernet.devices.some((device)=>device.id===id)).map((id)=>({plane:'ethernet' as const,id}));
+    const refs = explicitRefs.length>0?explicitRefs:(['dhcp','neighbor','switching'].includes(category) ? lanRefs : routedRefs);
     setWorkbenchEvents((current) => appendBuilderWorkbenchMessageEvent(current, nextMessage, refs));
   };
 
@@ -507,7 +524,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
           {!stressLabel&&<BuilderIpv6Panel graph={graph} ipv4={addressing} ipv6={ipv6} selectedNodeId={selectedNodeId} selectedLinkId={selectedLinkId} sourceId={sourceId} destinationId={destinationId} controlState={ipv6ControlState} onControlStateChange={setIpv6ControlState} lifecycleState={ipv6LifecycleState} onLifecycleStateChange={setIpv6LifecycleState} routingDepth={ipv6RoutingDepth} onRoutingDepthChange={setIpv6RoutingDepth} probePacketBytes={ipv6ProbePacketBytes} onProbePacketBytesChange={setIpv6ProbePacketBytes} onChange={setIpv6} onMessage={setMessage}/>}
           <section className="builder-device-section"><div className="control-title"><span>SELECTED DEVICE</span><strong>{selectedNode ? `${selectedNode.kind.toUpperCase()} · ${selectedNodeInterfaces.length} IF` : 'NONE'}</strong></div>{selectedNode && <><div className="builder-interface-list">{selectedNodeInterfaces.length===0?<small>NO INTERFACES · CONNECT THIS DEVICE TO A LINK</small>:selectedNodeInterfaces.map((entry)=><div key={`${entry.linkId}-${entry.name}`}><span>{entry.name}</span><strong>{entry.address}</strong><small>{entry.cidr} · {entry.linkId.toUpperCase()}</small></div>)}</div>{selectedNode.kind==='endpoint'&&<label>DEFAULT GATEWAY<input key={`${selectedNode.id}-${addressing.defaultGateways[selectedNode.id]??'none'}`} defaultValue={addressing.defaultGateways[selectedNode.id]??''} placeholder="NONE" onBlur={(event)=>{try{const next=replaceBuilderDefaultGateway(graph,addressing,selectedNode.id,event.currentTarget.value||null);commitAddressing(next);setMessage(`${selectedNode.label} default gateway ${next.defaultGateways[selectedNode.id]??'cleared'}.`);}catch(error){setMessage(`GATEWAY REJECTED · ${error instanceof Error?error.message:'Invalid default gateway.'}`);event.currentTarget.value=addressing.defaultGateways[selectedNode.id]??'';}}}/></label>}</>}</section>
           <section className="builder-ospf-section"><div className="control-title"><span>OSPF CONTROL PLANE</span><strong>{selectedNode?.kind === 'router' ? (selectedOspfEnabled ? (ospfState.abrRouterIds.includes(selectedNode.id) ? 'ABR · MULTI-AREA' : 'OSPF · ENABLED') : 'DISABLED') : 'ROUTERS ONLY'}</strong></div>{selectedNode?.kind === 'router'?<><div className="button-row"><button type="button" onClick={()=>setSelectedOspf(!selectedOspfEnabled)}>{selectedOspfEnabled?'DISABLE ON ROUTER':'ENABLE ON ROUTER'}</button><button type="button" onClick={()=>setAllOspf(true)}>ENABLE ALL</button><button type="button" onClick={()=>setAllOspf(false)}>DISABLE ALL</button></div>{selectedOspfEnabled?<><div className="builder-ospf-facts"><div><span>LSDB COMPONENT</span><strong>{selectedOspfComponent?.map((id)=>labelFor(graph,id)).join(' · ') || selectedNode.label}</strong></div><div><span>KNOWN PREFIXES</span><strong>{selectedOspfPrefixCount}</strong></div></div><div className="builder-ospf-neighbors">{selectedOspfAdjacencies.length===0?<small>NO OSPF ROUTER NEIGHBORS</small>:selectedOspfAdjacencies.map((adjacency)=>{const neighborId=adjacency.aRouterId===selectedNode.id?adjacency.bRouterId:adjacency.aRouterId;return <div key={adjacency.id} className={adjacency.state==='FULL'?'full':'down'}><span>{adjacency.state}</span><strong>{labelFor(graph,neighborId)}</strong><small>{adjacency.linkId.toUpperCase()} · AREA {adjacency.areaId} · COST {adjacency.cost} · {adjacency.reason}</small></div>;})}</div></>:<small className="builder-routing-note">This router advertises no prefixes and installs no OSPF routes until it joins Area 0.</small>}<small className="builder-routing-note">MULTI-AREA OSPF · AREA 0 BACKBONE + ABRS + O / O IA ROUTES · ECMP REMAINS PER-FLOW INSIDE EQUAL-BEST ROUTE TYPES.</small></>:<small className="builder-routing-note">Endpoints do not run OSPF. Select a router to inspect Area 0 state.</small>}</section>
-          {!stressLabel&&<BuilderDhcpPanel ethernet={ethernet} config={dhcp} onConfigChange={setDhcp} leases={dhcpLeases} onLeasesChange={setDhcpLeases} sequence={dhcpSequence} onSequenceChange={setDhcpSequence} onMessage={setMessage}/>}
+          {!stressLabel&&<BuilderDhcpPanel ethernet={ethernet} config={dhcp} onConfigChange={setDhcp} leases={dhcpLeases} onLeasesChange={setDhcpLeases} sequence={dhcpSequence} onSequenceChange={setDhcpSequence} onMessage={setMessage} historical={isHistorical} historicalStage={historicalTimelineSnapshot?.category==='dhcp'?{summary:historicalTimelineSnapshot.summary,detail:historicalTimelineSnapshot.detail}:null}/>}
           <BuilderOspfAreaPanel graph={graph} addressing={addressing} routing={routing} selectedNodeId={selectedNodeId} selectedLinkId={selectedLinkId} onChange={(next, detail)=>{setRouting(next);setMessage(detail);}}/>
           <BuilderOspfEcmpPanel graph={graph} addressing={addressing} routing={routing} sourceId={sourceId} destinationId={destinationId}/>
           <BuilderOspfTimingPanel graph={graph} addressing={addressing} routing={routing} sourceId={sourceId} destinationId={destinationId}/>

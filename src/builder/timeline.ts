@@ -1,4 +1,4 @@
-import { buildBuilderDeviceWorkbench, type BuilderDeviceRef, type BuilderDeviceWorkbenchInput, type BuilderDeviceWorkbenchSnapshot, type BuilderWorkbenchEventJournal, type BuilderWorkbenchRow } from './device-workbench.ts';
+import { buildBuilderDeviceWorkbench, type BuilderDeviceRef, type BuilderDeviceWorkbenchInput, type BuilderDeviceWorkbenchSnapshot, type BuilderWorkbenchEventJournal, type BuilderWorkbenchEventKind, type BuilderWorkbenchRow } from './device-workbench.ts';
 import type { BuilderIpv6LifecycleState } from './ipv6-lifecycle.ts';
 import type { BuilderLinkProfiles } from './link-characteristics.ts';
 import type { BuilderLayout } from './model.ts';
@@ -19,6 +19,7 @@ export interface BuilderTimelineSnapshot {
   sequence: number;
   atMs: number;
   category: string;
+  kind: BuilderWorkbenchEventKind;
   summary: string;
   detail: string;
   state: BuilderTimelineState;
@@ -49,9 +50,13 @@ export interface BuilderTimelineDeviceDiff {
   stateChanges: number;
 }
 
+function cloneValue<T>(value: T): T {
+  if (typeof structuredClone === 'function') return structuredClone(value);
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 function cloneTimelineState(state: BuilderTimelineState): BuilderTimelineState {
-  if (typeof structuredClone === 'function') return structuredClone(state);
-  return JSON.parse(JSON.stringify(state)) as BuilderTimelineState;
+  return cloneValue(state);
 }
 
 function stateFromInput(input: BuilderTimelineCaptureInput): BuilderTimelineState {
@@ -64,19 +69,69 @@ export function createBuilderTimeline(): BuilderTimeline {
 }
 
 export function captureBuilderTimelineSnapshot(timeline: BuilderTimeline, journal: BuilderWorkbenchEventJournal, input: BuilderTimelineCaptureInput): BuilderTimeline {
-  const event = journal.at(-1);
-  if (!event) return timeline;
-  if (timeline.snapshots.some((snapshot) => snapshot.eventId === event.id)) return timeline;
-  const snapshot: BuilderTimelineSnapshot = {
-    eventId: event.id,
-    sequence: event.sequence,
-    atMs: event.sequence * BUILDER_TIMELINE_TICK_MS,
-    category: event.category,
-    summary: event.summary,
-    detail: event.detail,
-    state: cloneTimelineState(stateFromInput(input)),
+  const lastSequence=timeline.snapshots.at(-1)?.sequence??-1;
+  const uncaptured=journal.filter((event)=>event.sequence>lastSequence);
+  if(uncaptured.length===0)return timeline;
+  const finalState=cloneTimelineState(stateFromInput(input));
+  const priorState=timeline.snapshots.at(-1)?.state??null;
+  const staged=Boolean(priorState&&uncaptured.some((event)=>event.projection));
+  if(!staged){
+    const snapshots=uncaptured.map((event):BuilderTimelineSnapshot=>({
+      eventId:event.id,
+      sequence:event.sequence,
+      atMs:event.atMs??event.sequence*BUILDER_TIMELINE_TICK_MS,
+      category:event.category,
+      kind:event.kind??'action',
+      summary:event.summary,
+      detail:event.detail,
+      state:finalState,
+    }));
+    return { snapshots: [...timeline.snapshots,...snapshots].slice(-BUILDER_TIMELINE_LIMIT) };
+  }
+
+  const beforeGraph=cloneValue(priorState!.graph);
+  const afterGraph=finalState.graph;
+  const stageDhcpLeases=uncaptured.some((event)=>event.projection?.dhcpLeases==='after'||Boolean(event.projection?.dhcpRemoveLeaseIds?.length));
+  const stageDhcpSequence=uncaptured.some((event)=>event.projection?.dhcpSequence!==undefined);
+  let truthGraphs={controlGraph:beforeGraph,ribGraph:beforeGraph,fibGraph:beforeGraph};
+  let state:BuilderTimelineState={
+    ...finalState,
+    graph:beforeGraph,
+    truthGraphs,
+    ...(stageDhcpLeases?{dhcpLeases:cloneValue(priorState!.dhcpLeases)}:{}),
+    ...(stageDhcpSequence?{dhcpSequence:priorState!.dhcpSequence}:{}),
   };
-  return { snapshots: [...timeline.snapshots, snapshot].slice(-BUILDER_TIMELINE_LIMIT) };
+  const snapshots=uncaptured.map((event):BuilderTimelineSnapshot=>{
+    const projection=event.projection;
+    if(projection){
+      const nextTruth={...truthGraphs};
+      let graph=state.graph;
+      if(projection.physical==='after')graph=afterGraph;
+      if(projection.control==='after')nextTruth.controlGraph=afterGraph;
+      if(projection.rib==='after')nextTruth.ribGraph=afterGraph;
+      if(projection.fib==='after')nextTruth.fibGraph=afterGraph;
+      let dhcpLeases=state.dhcpLeases;
+      if(projection.dhcpRemoveLeaseIds?.length){
+        const removed=new Set(projection.dhcpRemoveLeaseIds);
+        dhcpLeases=dhcpLeases.filter((lease)=>!removed.has(lease.id));
+      }
+      if(projection.dhcpLeases==='after')dhcpLeases=finalState.dhcpLeases;
+      const dhcpSequence=projection.dhcpSequence==='after'?finalState.dhcpSequence:(typeof projection.dhcpSequence==='number'?projection.dhcpSequence:state.dhcpSequence);
+      truthGraphs=nextTruth;
+      state={...state,graph,truthGraphs,dhcpLeases,dhcpSequence};
+    }
+    return {
+      eventId:event.id,
+      sequence:event.sequence,
+      atMs:event.atMs??event.sequence*BUILDER_TIMELINE_TICK_MS,
+      category:event.category,
+      kind:event.kind??'action',
+      summary:event.summary,
+      detail:event.detail,
+      state,
+    };
+  });
+  return { snapshots: [...timeline.snapshots,...snapshots].slice(-BUILDER_TIMELINE_LIMIT) };
 }
 
 export function builderTimelineSnapshotAtSequence(timeline: BuilderTimeline, sequence: number): BuilderTimelineSnapshot | null {

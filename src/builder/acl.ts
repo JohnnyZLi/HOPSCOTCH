@@ -132,9 +132,10 @@ export function traceBuilderPolicy(
   protocol: BuilderAclProtocol='ip',
   destinationPort: number|null=null,
   flowKey: BuilderFlowKey | string | null = null,
+  routingGraph: BuilderGraph = graph,
 ): BuilderPolicyTrace {
   const config=validateBuilderAclConfig(graph,acl);
-  const forwarding=traceBuilderForwarding(graph,addressing,routing,sourceNodeId,destinationNodeId,graph,flowKey);
+  const forwarding=traceBuilderForwarding(graph,addressing,routing,sourceNodeId,destinationNodeId,routingGraph,flowKey);
   const sourceAddress=primaryAddress(addressing,sourceNodeId);
   const destinationAddress=forwarding.destinationAddress??primaryAddress(addressing,destinationNodeId);
   if(!forwarding.reachable||!sourceAddress||!destinationAddress)return{forwarding,permitted:false,sourceAddress,destinationAddress,protocol,destinationPort,decisions:[],deniedAtRouterId:null,explanation:forwarding.failureReason??'Forwarding must succeed before ACL policy can be evaluated.'};

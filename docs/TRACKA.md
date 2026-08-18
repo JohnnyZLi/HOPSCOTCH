@@ -4,7 +4,7 @@ Track A starts by making time a first-class inspection axis for Network Builder 
 
 ## Canonical event clock
 
-The existing deterministic Builder event journal remains the event identity source. Each canonical event receives a logical timestamp derived only from its monotonic event sequence (`1 event = 1000 ms` on the teaching clock). This is explicitly **not wall-clock time**.
+The existing deterministic Builder event journal remains the event identity source. Root Builder actions advance a deterministic logical clock; derived model events may carry finer logical offsets or, when a protocol model owns real teaching timers such as OSPF convergence, exact model timestamps. This is explicitly **not wall-clock time** and must not be interpreted as measured network latency.
 
 After React commits the state changes associated with an event, the Builder captures one immutable snapshot of the complete workbench input truth: routed graph/addressing/routing, IPv6 state, Ethernet/VLAN/STP state, ACL/NAT/DHCP configuration and runtime tables, probes, and source/destination context. The event journal itself is stored separately so historical views cannot see future events.
 
@@ -39,4 +39,18 @@ Layout and link-characteristic truth are captured alongside the workbench model 
 
 Historical mode is read-only across the Builder. Authoring controls are disabled, node dragging/deletion is disabled, and the scene is visually marked as historical. Returning to `LIVE` restores the mutable current state; scrubbing never writes a snapshot back into live configuration.
 
-The next Track A depth is event granularity: promote control-plane transitions, forwarding decisions, resolution changes, and flow outcomes into explicit canonical events rather than only snapshotting after the higher-level Builder actions that currently generate the session journal.
+## Canonical event granularity
+
+The third Track A slice stops treating one Builder UI message as the smallest unit of history. A committed Builder action remains the root event, then deterministic derived events are emitted from the canonical model delta for the truths that actually changed: physical topology, OSPF control-plane stages, RIB/FIB selection, BGP state, STP, ARP/ND/NUD/DAD resolution, NAT translations, DHCP leases, IPv6 control/lifecycle state, routed probe forwarding, Layer-2 forwarding, and terminal flow outcomes.
+
+Timed OSPF link failure reuses the existing Lab 11M convergence model, including Hello/dead-timer, adjacency, LSA, SPF, RIB, FIB, and traffic-recovery events. The Builder event clock now accepts those model timestamps instead of pretending every event is exactly one second apart. Probe/LAN events are derived from the already-computed forwarding and resolution results; they never recalculate a second answer.
+
+One React commit can therefore append several timeline events. Ordinary derived events still share one immutable post-action state snapshot. Timed OSPF is the first event family to go deeper: the timeline allocates a new lightweight scene-state shell only when a truth dimension actually advances, while the large unchanged Builder state remains structurally shared.
+
+For timed OSPF link failure, physical topology, control-plane knowledge, RIB selection, and FIB forwarding each have an independent historical graph. LINK DOWN can therefore show carrier loss while the neighbor is still FULL and stale forwarding remains installed; DEAD TIMER EXPIRED advances control-plane truth and the same-instant ADJACENCY DOWN event observes that state; RIB UPDATED advances route selection while the FIB is still stale; and FIB UPDATED finally advances forwarding. The main canvas, OSPF state, route table, policy trace, forwarding overlay, and Device Workbench consume the appropriate truth dimension rather than collapsing all four into the final topology.
+
+DHCP is the next protocol family with native intermediate state. A successful acquisition is replayed through the existing deterministic Builder DHCP model from the pre-action snapshot and expanded into separate DISCOVER, OFFER, REQUEST, and ACK events. DISCOVER/OFFER/REQUEST retain the pre-lease state; ACK is the explicit lease and deterministic-sequence boundary, so effective host IPv4/gateway/DNS state cannot appear before the server ACK. Renewal/rebinding transactions use the same model replay path when their committed lease matches canonical truth. Failed acquisition/renewal attempts retain model-native DISCOVER/TIMEOUT/EXPIRE evidence; the last emitted model event carries terminal failure context, while eventless failures get an explicit FAILED event. RELEASE removes only the released lease at its own event boundary.
+
+Deterministic DHCP clock jumps are also staged rather than collapsed into the final sequence. Crossing T1 or T2 produces separate lifecycle events at the exact lease sequence while the lease remains active; advancing past the inclusive expiry boundary produces an EXPIRE event that removes only that lease and immediately returns effective host IPv4 to unconfigured. A later clock event carries the final requested sequence when necessary. The live DHCP panel now prunes expired leases on clock advance, so live runtime truth and historical truth cannot disagree about an expired address. Historical DHCP inspection renders the selected timeline stage instead of leaking the live panel's last-transaction card into the past.
+
+This is still the event-granularity foundation, not the claim that every protocol database is fully time-native yet. Full protocol-database row diffs/counters, DHCP failure/expiry episode depth, and equivalent per-stage historical projection for the remaining non-OSPF protocols remain follow-on Track A depth.

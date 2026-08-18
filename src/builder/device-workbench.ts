@@ -42,16 +42,44 @@ export interface BuilderWorkbenchSection {
 }
 
 export type BuilderWorkbenchEventCategory = 'session' | 'topology' | 'config' | 'routing' | 'policy' | 'neighbor' | 'switching' | 'nat' | 'dhcp' | 'probe' | 'ipv6';
+export type BuilderWorkbenchEventKind = 'session' | 'action' | 'physical' | 'control-plane' | 'rib' | 'fib' | 'resolution' | 'forwarding' | 'policy' | 'translation' | 'flow';
+
+export interface BuilderWorkbenchEventProjection {
+  physical?: 'after';
+  control?: 'after';
+  rib?: 'after';
+  fib?: 'after';
+  dhcpLeases?: 'after';
+  dhcpSequence?: 'after' | number;
+  dhcpRemoveLeaseIds?: string[];
+}
+
+export interface BuilderWorkbenchEventSpec {
+  key?: string;
+  kind: BuilderWorkbenchEventKind;
+  category: BuilderWorkbenchEventCategory;
+  summary: string;
+  detail: string;
+  deviceRefs?: BuilderDeviceRef[];
+  objectIds?: string[];
+  offsetMs?: number;
+  causeId?: string | null;
+  causeKey?: string | null;
+  projection?: BuilderWorkbenchEventProjection;
+}
 
 export interface BuilderWorkbenchEvent {
   id: string;
   sequence: number;
+  atMs?: number;
+  kind?: BuilderWorkbenchEventKind;
   category: BuilderWorkbenchEventCategory;
   summary: string;
   detail: string;
   deviceRefs: BuilderDeviceRef[];
   causeId: string | null;
   objectIds: string[];
+  projection?: BuilderWorkbenchEventProjection;
 }
 
 export type BuilderWorkbenchEventJournal = BuilderWorkbenchEvent[];
@@ -75,8 +103,15 @@ export interface BuilderDeviceWorkbenchSnapshot {
   stateRowCount: number;
 }
 
+export interface BuilderWorkbenchTruthGraphs {
+  controlGraph: BuilderGraph;
+  ribGraph: BuilderGraph;
+  fibGraph: BuilderGraph;
+}
+
 export interface BuilderDeviceWorkbenchInput {
   graph: BuilderGraph;
+  truthGraphs?: BuilderWorkbenchTruthGraphs;
   addressing: BuilderAddressing;
   routing: BuilderRoutingConfig;
   ipv6: BuilderIpv6Config;
@@ -118,7 +153,7 @@ export function builderWorkbenchDeviceOptions(graph:BuilderGraph,ethernet:Builde
 }
 
 export function createBuilderWorkbenchEventJournal():BuilderWorkbenchEventJournal{
-  return [{id:'wb-event-0000',sequence:0,category:'session',summary:'BUILDER SESSION INITIALIZED',detail:'Canonical configuration loaded. Derived runtime state and the event journal are session-only.',deviceRefs:[],causeId:null,objectIds:[]}];
+  return [{id:'wb-event-0000',sequence:0,atMs:0,kind:'session',category:'session',summary:'BUILDER SESSION INITIALIZED',detail:'Canonical configuration loaded. Derived runtime state and the event journal are session-only.',deviceRefs:[],causeId:null,objectIds:[]}];
 }
 
 export function classifyBuilderWorkbenchMessage(message:string):BuilderWorkbenchEventCategory{
@@ -141,11 +176,46 @@ function causalCategory(category:BuilderWorkbenchEventCategory):boolean{return['
 export function appendBuilderWorkbenchMessageEvent(journal:BuilderWorkbenchEventJournal,message:string,deviceRefs:readonly BuilderDeviceRef[]=[]):BuilderWorkbenchEventJournal{
   const category=classifyBuilderWorkbenchMessage(message);
   const sequence=(journal.at(-1)?.sequence??-1)+1;
+  const previous=journal.at(-1)??null;
+  const priorAtMs=previous?.atMs??((previous?.sequence??0)*1000);
   const cause=causalCategory(category)?[...journal].reverse().find((event)=>['topology','config','routing','policy','nat','dhcp','ipv6'].includes(event.category))??null:null;
   const summary=(message.split('·')[0]?.trim()||message.trim()||'BUILDER EVENT').slice(0,96);
   const objectIds=[...new Set((message.match(/[A-Za-z][A-Za-z0-9_-]{2,}/g)??[]).filter((value)=>value.length<=64))].slice(0,12);
-  const event:BuilderWorkbenchEvent={id:`wb-event-${String(sequence).padStart(4,'0')}`,sequence,category,summary,detail:message,deviceRefs:uniqueRefs(deviceRefs),causeId:cause?.id??null,objectIds};
+  const event:BuilderWorkbenchEvent={id:'wb-event-'+String(sequence).padStart(4,'0'),sequence,atMs:priorAtMs+1000,kind:'action',category,summary,detail:message,deviceRefs:uniqueRefs(deviceRefs),causeId:cause?.id??null,objectIds};
   return [...journal,event].slice(-160);
+}
+
+export function appendBuilderWorkbenchEventBatch(journal:BuilderWorkbenchEventJournal,specs:readonly BuilderWorkbenchEventSpec[]):BuilderWorkbenchEventJournal{
+  if(specs.length===0)return journal;
+  const baseEvent=journal.at(-1)??null;
+  const baseAtMs=baseEvent?.atMs??((baseEvent?.sequence??0)*1000);
+  const ordered=specs.map((entry,index)=>({entry,index})).sort((a,b)=>(a.entry.offsetMs??0)-(b.entry.offsetMs??0)||a.index-b.index);
+  const idsByKey=new Map<string,string>();
+  let next=[...journal];
+  for(const item of ordered){
+    const entry=item.entry;
+    const sequence=(next.at(-1)?.sequence??-1)+1;
+    const previous=next.at(-1)??baseEvent;
+    const requestedAtMs=baseAtMs+Math.max(0,Math.round(entry.offsetMs??item.index+1));
+    const atMs=Math.max(previous?.atMs??baseAtMs,requestedAtMs);
+    const id='wb-event-'+String(sequence).padStart(4,'0');
+    let causeId: string|null;
+    if(entry.causeId!==undefined)causeId=entry.causeId;
+    else if(entry.causeKey)causeId=idsByKey.get(entry.causeKey)??baseEvent?.id??null;
+    else causeId=baseEvent?.id??null;
+    const event:BuilderWorkbenchEvent={
+      id,sequence,atMs,kind:entry.kind,category:entry.category,
+      summary:(entry.summary.trim()||'BUILDER EVENT').slice(0,96),
+      detail:entry.detail.trim()||entry.summary.trim()||'Builder state changed.',
+      deviceRefs:uniqueRefs(entry.deviceRefs??[]),
+      causeId,
+      objectIds:[...new Set((entry.objectIds??[]).filter(Boolean))].slice(0,16),
+      projection:entry.projection?{...entry.projection,dhcpRemoveLeaseIds:entry.projection.dhcpRemoveLeaseIds?[...entry.projection.dhcpRemoveLeaseIds]:undefined}:undefined,
+    };
+    next.push(event);
+    if(entry.key)idsByKey.set(entry.key,id);
+  }
+  return next.slice(-160);
 }
 
 export function builderWorkbenchEventCausalChain(journal:BuilderWorkbenchEventJournal,eventId:string,maxDepth=8):BuilderWorkbenchEvent[]{
@@ -198,9 +268,11 @@ function routedConfigSections(input:BuilderDeviceWorkbenchInput,deviceId:string)
 
 function routedStateSections(input:BuilderDeviceWorkbenchInput,deviceId:string):BuilderWorkbenchSection[]{
   const node=input.graph.nodes.find((candidate)=>candidate.id===deviceId);if(!node)return[];
+  const ribGraph=input.truthGraphs?.ribGraph??input.graph;
+  const controlGraph=input.truthGraphs?.controlGraph??input.graph;
   const routeRows:BuilderWorkbenchRow[]=[];
   if(node.kind==='router'){
-    routeTableForBuilderRouter(input.graph,input.addressing,input.routing,deviceId).forEach((entry)=>routeRows.push(row(`state:route4:${entry.id}`,`IPV4 ${entry.source.toUpperCase()}`,entry.prefix,`${entry.nextHop?`via ${entry.nextHop}`:'DIRECT'} · ${entry.outgoingInterface} · AD ${entry.administrativeDistance} · M ${entry.metric} · ${entry.stateNote}`,entry.active?'good':'bad',routeWhy(input.graph,input.addressing,input.routing,entry))));
+    routeTableForBuilderRouter(ribGraph,input.addressing,input.routing,deviceId).forEach((entry)=>routeRows.push(row(`state:route4:${entry.id}`,`IPV4 ${entry.source.toUpperCase()}`,entry.prefix,`${entry.nextHop?`via ${entry.nextHop}`:'DIRECT'} · ${entry.outgoingInterface} · AD ${entry.administrativeDistance} · M ${entry.metric} · ${entry.stateNote}`,entry.active?'good':'bad',routeWhy(input.graph,input.addressing,input.routing,entry))));
     const overlay=builderOspfv3DepthRouteOverlay(input.graph,input.ipv6,input.ipv6RoutingDepth);
     routeTableForBuilderIpv6Router(input.graph,input.ipv6,deviceId,overlay).forEach((entry)=>routeRows.push(row(`state:route6:${entry.id}`,`IPV6 ${entry.source.toUpperCase()}`,entry.prefix,`${entry.nextHop?`via ${entry.nextHop}`:'DIRECT'} · ${entry.outgoingInterface} · AD ${entry.administrativeDistance} · M ${entry.metric} · ${entry.stateNote}`,entry.active?'good':'bad',[why(`state:route6:${entry.id}:source`,'STATE',entry.source.toUpperCase(),entry.stateNote),why(`state:route6:${entry.id}:selection`,'STATE','ROUTE SELECTION',`Prefix length ${entry.prefixLength} → AD ${entry.administrativeDistance} → metric ${entry.metric}.`),why(`state:route6:${entry.id}:link`,'TOPOLOGY',`LINK ${linkState(input.graph,entry.linkId)}`,`${entry.outgoingInterface} uses ${entry.linkId}.`)])));
   }else{
@@ -208,7 +280,7 @@ function routedStateSections(input:BuilderDeviceWorkbenchInput,deviceId:string):
   }
   const controlRows:BuilderWorkbenchRow[]=[];
   if(node.kind==='router'){
-    const ospf=builderOspfState(input.graph,input.addressing,input.routing);ospf.adjacencies.filter((entry)=>entry.aRouterId===deviceId||entry.bRouterId===deviceId).forEach((entry)=>controlRows.push(row(`state:ospf:${entry.id}`,'OSPF NEIGHBOR',`${routedLabel(input.graph,entry.aRouterId===deviceId?entry.bRouterId:entry.aRouterId)} · ${entry.state}`,`AREA ${entry.areaId} · cost ${entry.cost} · ${entry.reason}`,entry.state==='FULL'?'good':'bad',[why(`state:ospf:${entry.id}:config`,'CONFIG','OSPF ENABLEMENT','Both router endpoints must participate in the configured area.'),why(`state:ospf:${entry.id}:topology`,'TOPOLOGY',`LINK ${linkState(input.graph,entry.linkId)}`,`${entry.linkId} carries the adjacency.`),why(`state:ospf:${entry.id}:state`,'STATE','ADJACENCY RESULT',entry.reason)])));
+    const ospf=builderOspfState(controlGraph,input.addressing,input.routing);ospf.adjacencies.filter((entry)=>entry.aRouterId===deviceId||entry.bRouterId===deviceId).forEach((entry)=>controlRows.push(row(`state:ospf:${entry.id}`,'OSPF NEIGHBOR',`${routedLabel(input.graph,entry.aRouterId===deviceId?entry.bRouterId:entry.aRouterId)} · ${entry.state}`,`AREA ${entry.areaId} · cost ${entry.cost} · ${entry.reason}`,entry.state==='FULL'?'good':'bad',[why(`state:ospf:${entry.id}:config`,'CONFIG','OSPF ENABLEMENT','Both router endpoints must participate in the configured area.'),why(`state:ospf:${entry.id}:topology`,'TOPOLOGY',`LINK ${linkState(input.graph,entry.linkId)}`,`${entry.linkId} carries the adjacency.`),why(`state:ospf:${entry.id}:state`,'STATE','ADJACENCY RESULT',entry.reason)])));
     const advertised=ospf.advertisements.filter((entry)=>entry.routerId===deviceId);if(advertised.length)controlRows.push(row('state:ospf:lsdb','OSPF LSDB / SELF LSA',`${advertised.length} PREFIXES`,advertised.map((entry)=>entry.prefix).join(' · '),'normal',[why('state:ospf:lsdb:why','STATE','LINK-STATE ORIGINATION','Active connected prefixes are originated by the selected router into its current LSDB view.')]));
     const ospfv3=builderOspfv3DepthSummary(input.graph,input.ipv6,input.ipv6RoutingDepth);ospfv3.adjacencies.filter((entry)=>entry.aRouterId===deviceId||entry.bRouterId===deviceId).forEach((entry)=>controlRows.push(row(`state:ospfv3:${entry.id}`,'OSPFV3 NEIGHBOR',`${routedLabel(input.graph,entry.aRouterId===deviceId?entry.bRouterId:entry.aRouterId)} · ${entry.phase}`,`AREA ${entry.area} · ${entry.detail}`,entry.phase==='FULL'?'good':entry.phase==='STALE FULL'?'warn':'bad',[why(`state:ospfv3:${entry.id}:clock`,'STATE',entry.failurePhase??'ADJACENCY',entry.detail),why(`state:ospfv3:${entry.id}:topology`,'TOPOLOGY',`LINK ${linkState(input.graph,entry.linkId)}`,`Physical state and timed control-plane knowledge remain separate.`)])));
     const bgp=builderBgpState(input.graph,input.addressing,input.routing.bgp);bgp.sessions.filter((entry)=>entry.aRouterId===deviceId||entry.bRouterId===deviceId).forEach((entry)=>controlRows.push(row(`state:bgp-session:${entry.id}`,'BGP SESSION',`${entry.mode.toUpperCase()} · ${entry.state}`,`AS${entry.aAsn} ↔ AS${entry.bAsn} · ${entry.relationship.toUpperCase()} · ${entry.reason}`,entry.state==='ESTABLISHED'?'good':'bad',[why(`state:bgp-session:${entry.id}:config`,'CONFIG','PEERING CONFIG',`Session ${entry.id} is authored on ${entry.linkId}.`),why(`state:bgp-session:${entry.id}:state`,'STATE','SESSION STATE',entry.reason),why(`state:bgp-session:${entry.id}:topology`,'TOPOLOGY',`LINK ${linkState(input.graph,entry.linkId)}`,`Peering depends on the direct Builder link.`)])));
