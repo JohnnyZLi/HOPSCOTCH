@@ -27,6 +27,7 @@ jobs:
           else
             python scripts/apply-track-j-bgp-policy.py
           fi
+          python scripts/fix-track-j-bgp-focus.py
       - run: npm ci
       - run: npm run check
       - name: Commit generated product changes
