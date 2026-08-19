@@ -172,12 +172,32 @@ function linkPair(link: BuilderEthernetLink): string {
   return [link.a, link.b].sort().join('\u0000');
 }
 
+
+function validEnterprisePrefix(value: string): boolean { try { normalizePrefix(value); return true; } catch { return false; } }
+
+export function validateBuilderEnterpriseConfig(configInput: BuilderEthernetConfig): BuilderEthernetConfig {
+  const config=validateBuilderEthernetConfig(configInput);
+  const bundles=new Map<string,BuilderEthernetLink[]>();
+  for(const link of config.links)if(link.bundleId){const members=bundles.get(link.bundleId)??[];members.push(link);bundles.set(link.bundleId,members);}
+  for(const [bundleId,members] of bundles){
+    const first=members[0]!;const pair=[first.a,first.b].sort().join('|');const vlans=JSON.stringify([...(first.allowedVlans??[])].sort((a,b)=>a-b));
+    if(members.length<2||members.some((member)=>[member.a,member.b].sort().join('|')!==pair||member.mode!=='trunk'||member.bundleProtocol!==first.bundleProtocol||JSON.stringify([...(member.allowedVlans??[])].sort((a,b)=>a-b))!==vlans||member.nativeVlanA!==first.nativeVlanA||member.nativeVlanB!==first.nativeVlanB))throw new Error(`EtherChannel ${bundleId} members must be parallel trunk links with identical VLAN/native/protocol configuration.`);
+  }
+  const routeIds=new Set<string>();
+  for(const route of config.vrfStaticRoutes??[]){
+    const device=config.devices.find((entry)=>entry.id===route.deviceId),nextHop=config.devices.find((entry)=>entry.id===route.nextHopDeviceId),link=config.links.find((entry)=>entry.id===route.linkId),vrf=vrfId(route.vrfId);
+    if(!route.id||routeIds.has(route.id)||!device||!nextHop||!layer3Device(device)||!layer3Device(nextHop)||!validEnterprisePrefix(route.prefix)||!link||link.mode!=='routed'||!((link.a===route.deviceId&&link.b===route.nextHopDeviceId)||(link.b===route.deviceId&&link.a===route.nextHopDeviceId))||linkVrf(link)!==vrf)throw new Error(`Enterprise VRF static route ${route.id||'UNKNOWN'} must use a unique id, valid prefix, and directly connected routed port in the same VRF.`);
+    routeIds.add(route.id);
+  }
+  return config;
+}
+
 function activeBundleMember(config: BuilderEthernetConfig, bundleId: string): BuilderEthernetLink | null {
   return config.links.filter((link) => link.bundleId === bundleId && !link.failed).sort((a, b) => a.id.localeCompare(b.id))[0] ?? null;
 }
 
 export function builderLacpBundles(configInput: BuilderEthernetConfig): BuilderLacpBundleState[] {
-  const config = validateBuilderEthernetConfig(configInput);
+  const config = validateBuilderEnterpriseConfig(configInput);
   const groups = new Map<string, BuilderEthernetLink[]>();
   for (const link of config.links) {
     if (!link.bundleId) continue;
@@ -205,7 +225,7 @@ export function builderLacpBundles(configInput: BuilderEthernetConfig): BuilderL
 }
 
 export function builderLldpNeighbors(configInput: BuilderEthernetConfig): BuilderLldpNeighbor[] {
-  const config = validateBuilderEthernetConfig(configInput);
+  const config = validateBuilderEnterpriseConfig(configInput);
   const devices = new Map(config.devices.map((device) => [device.id, device]));
   const neighbors: BuilderLldpNeighbor[] = [];
   for (const link of [...config.links].sort((a, b) => a.id.localeCompare(b.id))) {
@@ -227,7 +247,7 @@ function trunkEncoding(link: BuilderEthernetLink, vlanId: number, side: 'a' | 'b
 }
 
 export function builderNativeVlanStates(configInput: BuilderEthernetConfig): BuilderNativeVlanState[] {
-  const config = validateBuilderEthernetConfig(configInput);
+  const config = validateBuilderEnterpriseConfig(configInput);
   return config.links.filter((link) => link.mode === 'trunk').sort((a, b) => a.id.localeCompare(b.id)).map((link) => {
     const carried = [...new Set(link.allowedVlans ?? [])].sort((a, b) => a - b);
     const mismatched = carried.filter((vlanId) => trunkEncoding(link, vlanId, 'a') !== trunkEncoding(link, vlanId, 'b'));
@@ -253,7 +273,7 @@ function logicalStpRepresentative(config: BuilderEthernetConfig, link: BuilderEt
 }
 
 export function builderRstpState(configInput: BuilderEthernetConfig, vlanId: number): BuilderRstpState {
-  const config = validateBuilderEthernetConfig(configInput);
+  const config = validateBuilderEnterpriseConfig(configInput);
   const steady = builderStpState(config, vlanId);
   const protocol = config.stp.protocol ?? 'stp';
   const root = steady.rootBridgeId;
@@ -310,7 +330,7 @@ export function builderRstpState(configInput: BuilderEthernetConfig, vlanId: num
 }
 
 export function builderRstpFailoverPlan(configInput: BuilderEthernetConfig, vlanId: number, failedLinkId: string): BuilderRstpFailoverPlan {
-  const config = validateBuilderEthernetConfig(configInput);
+  const config = validateBuilderEnterpriseConfig(configInput);
   const before = builderRstpState(config, vlanId);
   const next = cloneBuilderEthernetConfig(config);
   const link = next.links.find((entry) => entry.id === failedLinkId);
@@ -342,7 +362,7 @@ function vlanLinkAvailable(config: BuilderEthernetConfig, deviceId: string, vlan
 }
 
 export function builderFirstHopGroups(configInput: BuilderEthernetConfig): BuilderFirstHopGroupState[] {
-  const config = validateBuilderEthernetConfig(configInput);
+  const config = validateBuilderEnterpriseConfig(configInput);
   const groups = new Map<string, Array<{ device: BuilderEthernetDevice; iface: BuilderEthernetInterface }>>();
   for (const device of config.devices.filter((device) => layer3Device(device))) {
     for (const iface of device.interfaces) {
@@ -385,7 +405,7 @@ function routedPrefix(link: BuilderEthernetLink): string | null {
 }
 
 export function builderVrfTables(configInput: BuilderEthernetConfig): BuilderVrfTable[] {
-  const config = validateBuilderEthernetConfig(configInput);
+  const config = validateBuilderEnterpriseConfig(configInput);
   const byKey = new Map<string, BuilderVrfRouteEntry[]>();
   const push = (entry: BuilderVrfRouteEntry) => { const key = `${entry.deviceId}\u0000${entry.vrfId}`; const rows = byKey.get(key) ?? []; rows.push(entry); byKey.set(key, rows); };
   for (const device of config.devices.filter((device) => layer3Device(device))) {
@@ -433,7 +453,7 @@ function enterpriseFail(sourceId: string, destinationId: string, reason: string,
 }
 
 export function runBuilderEnterpriseFlow(configInput: BuilderEthernetConfig, sourceId: string, destinationId: string): BuilderEnterpriseFlowResult {
-  const config = validateBuilderEthernetConfig(configInput);
+  const config = validateBuilderEnterpriseConfig(configInput);
   const source = config.devices.find((device) => device.id === sourceId); const destination = config.devices.find((device) => device.id === destinationId);
   if (!source || !destination || source.kind !== 'endpoint' || destination.kind !== 'endpoint' || source.id === destination.id) return enterpriseFail(sourceId, destinationId, 'Choose two different enterprise endpoints.');
   const sourceIf = source.interfaces[0]; const destinationIf = destination.interfaces[0];
@@ -525,11 +545,11 @@ export function createBuilderEnterpriseDemo(): BuilderEthernetConfig {
       { id: 'red-core-users', deviceId: 'core', vrfId: 'RED', prefix: '10.50.0.0/24', nextHopDeviceId: 'dist-a', linkId: 'dist-a-core-red' },
     ],
   };
-  return validateBuilderEthernetConfig(config);
+  return validateBuilderEnterpriseConfig(config);
 }
 
 export function builderEnterpriseRole(configInput: BuilderEthernetConfig, deviceId: string): 'ACCESS' | 'DISTRIBUTION' | 'CORE' | 'EDGE' | null {
-  const config = validateBuilderEthernetConfig(configInput); const device = config.devices.find((entry) => entry.id === deviceId); if (!networkDevice(device)) return null;
+  const config = validateBuilderEnterpriseConfig(configInput); const device = config.devices.find((entry) => entry.id === deviceId); if (!networkDevice(device)) return null;
   const links = config.links.filter((link) => link.a === deviceId || link.b === deviceId);
   const endpointLinks = links.filter((link) => networkDevice(config.devices.find((entry) => entry.id === (link.a === deviceId ? link.b : link.a))) === false && config.devices.find((entry) => entry.id === (link.a === deviceId ? link.b : link.a))?.kind === 'endpoint').length;
   const routed = links.filter((link) => link.mode === 'routed').length;
@@ -540,7 +560,7 @@ export function builderEnterpriseRole(configInput: BuilderEthernetConfig, device
 }
 
 export function builderEnterpriseBundleRepresentative(configInput: BuilderEthernetConfig, bundleId: string): string | null {
-  const config = validateBuilderEthernetConfig(configInput); return activeBundleMember(config, bundleId)?.id ?? null;
+  const config = validateBuilderEnterpriseConfig(configInput); return activeBundleMember(config, bundleId)?.id ?? null;
 }
 
 export function builderEnterprisePhysicalPairKey(link: BuilderEthernetLink): string {

@@ -18,6 +18,7 @@ import {
   builderVrfTables,
   createBuilderEnterpriseDemo,
   runBuilderEnterpriseFlow,
+  validateBuilderEnterpriseConfig,
 } from '../src/builder/enterprise.ts';
 import { defaultBuilderScenario, deserializeBuilderScenario, serializeBuilderScenario } from '../src/builder/scenario.ts';
 import { createEmptyBuilderDhcpConfig } from '../src/builder/dhcp.ts';
@@ -31,6 +32,10 @@ const demo = createBuilderEnterpriseDemo();
 assert.equal(demo.devices.filter((device) => device.kind === 'l3-switch').length, 3);
 assert.equal(demo.links.filter((link) => link.mode === 'routed').length, 4);
 assert.equal(demo.stp.protocol, 'rstp');
+const badBundle=cloneBuilderEthernetConfig(demo); badBundle.links.find((link)=>link.id==='access-a-dist-a-2').allowedVlans=[110];
+assert.throws(()=>validateBuilderEnterpriseConfig(badBundle),/EtherChannel/);
+const badRoute=cloneBuilderEthernetConfig(demo); badRoute.vrfStaticRoutes[0].vrfId='RED';
+assert.throws(()=>validateBuilderEnterpriseConfig(badRoute),/VRF static route/);
 
 // LACP keeps logical bundle truth separate from physical member truth.
 const bundles = builderLacpBundles(demo);
