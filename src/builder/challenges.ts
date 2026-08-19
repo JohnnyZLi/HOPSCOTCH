@@ -1,7 +1,7 @@
 import { validateBuilderAddressing, type BuilderAddressing } from './addressing.ts';
 import { createBuilderAuthoringSnapshot, type BuilderAuthoringSnapshot } from './authoring.ts';
 import { validateBuilderEthernetConfig, type BuilderEthernetConfig } from './ethernet.ts';
-import { setBuilderOspfEverywhere } from './routing.ts';
+import { installStaticRoutesForWeightedPath, setBuilderOspfEverywhere, setBuilderOspfRouterEnabled, validateBuilderRoutingConfig, type BuilderRoutingConfig } from './routing.ts';
 import { defaultBuilderScenario } from './scenario.ts';
 
 export const BUILDER_CHALLENGE_SCHEMA = 'hopscotch.builder.challenge' as const;
@@ -11,7 +11,7 @@ export const BUILDER_CHALLENGE_EVIDENCE_LIMIT = 40;
 export type BuilderChallengeBoundary = 'ADDRESSING' | 'L2' | 'ROUTING' | 'POLICY' | 'TRANSPORT';
 export type BuilderChallengeDevicePlane = 'routed' | 'ethernet';
 export type BuilderChallengeEvidenceKind = 'ping' | 'traceroute' | 'ethernet-flow' | 'arp-resolution' | 'inspect-config' | 'inspect-state' | 'inspect-events';
-export type BuilderChallengeFamily = 'gateway' | 'access-vlan' | 'trunk-vlan' | 'stp-loop';
+export type BuilderChallengeFamily = 'gateway' | 'access-vlan' | 'trunk-vlan' | 'stp-loop' | 'static-route' | 'ospf-disabled';
 
 export interface BuilderGatewayChallengeFault {
   kind: 'missing-default-gateway';
@@ -51,7 +51,23 @@ export interface BuilderStpChallengeFault {
   expectedEnabled: true;
 }
 
-export type BuilderChallengeFault = BuilderGatewayChallengeFault | BuilderAccessVlanChallengeFault | BuilderTrunkVlanChallengeFault | BuilderStpChallengeFault;
+export interface BuilderStaticRouteChallengeFault {
+  kind: 'missing-static-route';
+  boundary: 'ROUTING';
+  plane: 'routed';
+  nodeId: string;
+  expectedRoute: { id: string; routerId: string; prefix: string; nextHop: string; metric: number };
+}
+
+export interface BuilderOspfDisabledChallengeFault {
+  kind: 'ospf-router-disabled';
+  boundary: 'ROUTING';
+  plane: 'routed';
+  nodeId: string;
+  expectedEnabled: true;
+}
+
+export type BuilderChallengeFault = BuilderGatewayChallengeFault | BuilderAccessVlanChallengeFault | BuilderTrunkVlanChallengeFault | BuilderStpChallengeFault | BuilderStaticRouteChallengeFault | BuilderOspfDisabledChallengeFault;
 
 export interface BuilderChallengeVerification {
   kind: 'routed-probe' | 'ethernet-flow';
@@ -136,6 +152,27 @@ function defaultHealthySnapshot(): BuilderAuthoringSnapshot {
     ipv6: scenario.ipv6,
     sourceId: scenario.sourceId,
     destinationId: scenario.destinationId,
+    layout: scenario.layout,
+  });
+}
+
+function defaultStaticHealthySnapshot(): BuilderAuthoringSnapshot {
+  const scenario = defaultBuilderScenario();
+  let routing = setBuilderOspfEverywhere(scenario.graph, scenario.addressing, scenario.routing, false);
+  routing = installStaticRoutesForWeightedPath(scenario.graph, scenario.addressing, routing, 'client', 'app').routing;
+  routing = installStaticRoutesForWeightedPath(scenario.graph, scenario.addressing, routing, 'app', 'client').routing;
+  return createBuilderAuthoringSnapshot({
+    graph: scenario.graph,
+    addressing: scenario.addressing,
+    routing,
+    ethernet: scenario.ethernet,
+    linkProfiles: scenario.linkProfiles,
+    acl: scenario.acl,
+    nat: scenario.nat,
+    dhcp: scenario.dhcp,
+    ipv6: scenario.ipv6,
+    sourceId: 'client',
+    destinationId: 'app',
     layout: scenario.layout,
   });
 }
@@ -310,12 +347,65 @@ export function createStpLoopChallenge(seedInput: string): BuilderChallenge {
   };
 }
 
+export function createMissingStaticRouteChallenge(seedInput: string): BuilderChallenge {
+  const seed = normalizeSeed(seedInput);
+  const hash = hashSeed(seed);
+  const healthy = defaultStaticHealthySnapshot();
+  const candidates = ['edge', 'core'].map((routerId) => healthy.routing.staticRoutes.find((route) => route.routerId === routerId)).filter((route): route is NonNullable<typeof route> => Boolean(route));
+  if (candidates.length !== 2) throw new Error('The static-route challenge requires canonical forward and reverse edge routes.');
+  const expectedRoute = { ...candidates[hash % candidates.length] };
+  const broken = createBuilderAuthoringSnapshot(healthy);
+  broken.routing = validateBuilderRoutingConfig(broken.graph, broken.addressing, {
+    ...broken.routing,
+    staticRoutes: broken.routing.staticRoutes.filter((route) => route.id !== expectedRoute.id),
+  });
+  return {
+    schema: BUILDER_CHALLENGE_SCHEMA,
+    version: BUILDER_CHALLENGE_VERSION,
+    id: `static-${hash.toString(16).padStart(8, '0')}`,
+    seed,
+    family: 'static-route',
+    title: 'STATIC PATH HAS A HOLE',
+    objective: 'Restore IPv4 reachability from CLIENT to APP in a static-only routed network. Use ordinary Ping / Traceroute, route-table state, and Device Workbench before restoring the missing route.',
+    difficulty: 'FOUNDATION',
+    healthy,
+    broken,
+    verification: { kind: 'routed-probe', sourceId: 'client', destinationId: 'app' },
+    fault: { kind: 'missing-static-route', boundary: 'ROUTING', plane: 'routed', nodeId: expectedRoute.routerId, expectedRoute },
+  };
+}
+
+export function createOspfDisabledChallenge(seedInput: string): BuilderChallenge {
+  const seed = normalizeSeed(seedInput);
+  const hash = hashSeed(seed);
+  const healthy = defaultHealthySnapshot();
+  const nodeId = ['edge', 'core'][hash % 2];
+  const broken = createBuilderAuthoringSnapshot(healthy);
+  broken.routing = setBuilderOspfRouterEnabled(broken.graph, broken.addressing, broken.routing, nodeId, false);
+  return {
+    schema: BUILDER_CHALLENGE_SCHEMA,
+    version: BUILDER_CHALLENGE_VERSION,
+    id: `ospf-${hash.toString(16).padStart(8, '0')}`,
+    seed,
+    family: 'ospf-disabled',
+    title: 'OSPF EDGE FALLS SILENT',
+    objective: 'Restore IPv4 reachability from CLIENT to APP. Physical links remain up; diagnose the routed control plane with ordinary probes, route/neighbor state, and Device Workbench before restoring OSPF participation.',
+    difficulty: 'FOUNDATION',
+    healthy,
+    broken,
+    verification: { kind: 'routed-probe', sourceId: 'client', destinationId: 'app' },
+    fault: { kind: 'ospf-router-disabled', boundary: 'ROUTING', plane: 'routed', nodeId, expectedEnabled: true },
+  };
+}
+
 export function createBuilderChallenge(seedInput: string): BuilderChallenge {
   const seed = normalizeSeed(seedInput);
   const lowered = seed.toLowerCase();
   if (lowered.startsWith('vlan-') || lowered.startsWith('l2-vlan-')) return createAccessVlanChallenge(seed);
   if (lowered.startsWith('trunk-') || lowered.startsWith('l2-trunk-')) return createTrunkVlanChallenge(seed);
   if (lowered.startsWith('stp-') || lowered.startsWith('l2-stp-')) return createStpLoopChallenge(seed);
+  if (lowered.startsWith('static-') || lowered.startsWith('route-')) return createMissingStaticRouteChallenge(seed);
+  if (lowered.startsWith('ospf-')) return createOspfDisabledChallenge(seed);
   return createDefaultGatewayChallenge(seed);
 }
 
@@ -338,7 +428,7 @@ function sameNumberArray(left: readonly number[] | undefined, right: readonly nu
   return normalized.length === right.length && normalized.every((value, index) => value === right[index]);
 }
 
-export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressing: BuilderAddressing, ethernet: BuilderEthernetConfig): boolean {
+export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressing: BuilderAddressing, ethernet: BuilderEthernetConfig, routing: BuilderRoutingConfig): boolean {
   const fault = challenge.fault;
   if (fault.kind === 'missing-default-gateway') return addressing.defaultGateways[fault.nodeId] === fault.expectedGateway;
   if (fault.kind === 'access-vlan-mismatch') {
@@ -349,7 +439,11 @@ export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressi
     const link = ethernet.links.find((entry) => entry.id === fault.linkId);
     return link?.mode === 'trunk' && sameNumberArray(link.allowedVlans, fault.expectedAllowedVlans);
   }
-  return ethernet.stp.enabled === fault.expectedEnabled;
+  if (fault.kind === 'stp-disabled-loop') return ethernet.stp.enabled === fault.expectedEnabled;
+  if (fault.kind === 'missing-static-route') {
+    return routing.staticRoutes.some((route) => route.id === fault.expectedRoute.id && route.routerId === fault.expectedRoute.routerId && route.prefix === fault.expectedRoute.prefix && route.nextHop === fault.expectedRoute.nextHop && route.metric === fault.expectedRoute.metric);
+  }
+  return routing.ospf.enabledRouterIds.includes(fault.nodeId) === fault.expectedEnabled;
 }
 
 export function builderChallengeSolvedExplanation(challenge: BuilderChallenge): string {
@@ -357,7 +451,9 @@ export function builderChallengeSolvedExplanation(challenge: BuilderChallenge): 
   if (fault.kind === 'missing-default-gateway') return `The endpoint had no default gateway. Restoring canonical gateway ${fault.expectedGateway} repaired forwarding, and the post-repair routed probe verified the outcome.`;
   if (fault.kind === 'access-vlan-mismatch') return `The access port ${fault.linkId.toUpperCase()} was assigned to VLAN ${fault.brokenAccessVlan} instead of VLAN ${fault.expectedAccessVlan}. Restoring the canonical access VLAN repaired ARP and Layer-2 forwarding.`;
   if (fault.kind === 'trunk-vlan-pruned') return `VLAN ${fault.vlanId} was pruned from trunk ${fault.linkId.toUpperCase()}. Restoring the canonical allow-list (${fault.expectedAllowedVlans.join(', ')}) repaired the tagged path and the post-repair LAN flow verified it.`;
-  return `STP was disabled while VLAN ${fault.vlanId} had a physical Layer-2 cycle. Re-enabling canonical STP restored a loop-safe forwarding tree and the post-repair LAN flow verified it.`;
+  if (fault.kind === 'stp-disabled-loop') return `STP was disabled while VLAN ${fault.vlanId} had a physical Layer-2 cycle. Re-enabling canonical STP restored a loop-safe forwarding tree and the post-repair LAN flow verified it.`;
+  if (fault.kind === 'missing-static-route') return `${fault.nodeId.toUpperCase()} was missing static route ${fault.expectedRoute.prefix} via ${fault.expectedRoute.nextHop}. Restoring that canonical route repaired forwarding and the post-repair routed probe verified it.`;
+  return `${fault.nodeId.toUpperCase()} was not participating in OSPF. Re-enabling the canonical OSPF process restored route learning and the post-repair routed probe verified reachability.`;
 }
 
 export function appendBuilderChallengeEvidence(
@@ -389,6 +485,7 @@ export function scoreBuilderChallenge(
   hypothesis: BuilderChallengeHypothesis | null,
   addressing: BuilderAddressing,
   ethernet: BuilderEthernetConfig,
+  routing: BuilderRoutingConfig,
 ): BuilderChallengeScore {
   const inspectedState = hasEvidence(evidence, (entry) => entry.kind === 'inspect-state' && isFaultInspection(challenge, entry) && !entry.repaired);
   const inspectedConfig = hasEvidence(evidence, (entry) => entry.kind === 'inspect-config' && isFaultInspection(challenge, entry) && !entry.repaired);
@@ -413,7 +510,7 @@ export function scoreBuilderChallenge(
     ? (hypothesis.boundary === challenge.fault.boundary ? 10 : 0) + (hypothesis.deviceId === challenge.fault.nodeId ? 10 : 0)
     : 0;
 
-  const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet);
+  const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet, routing);
   const verified = challenge.verification.kind === 'routed-probe'
     ? hasEvidence(evidence, (entry) => (entry.kind === 'ping' || entry.kind === 'traceroute') && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired)
     : hasEvidence(evidence, (entry) => entry.kind === 'ethernet-flow' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired);

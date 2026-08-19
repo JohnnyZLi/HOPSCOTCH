@@ -6,6 +6,8 @@ import {
   createAccessVlanChallenge,
   createBuilderChallenge,
   createDefaultGatewayChallenge,
+  createMissingStaticRouteChallenge,
+  createOspfDisabledChallenge,
   createStpLoopChallenge,
   createTrunkVlanChallenge,
   scoreBuilderChallenge,
@@ -14,6 +16,7 @@ import {
 import { resolveBuilderEthernetFlowArp } from '../src/builder/arp.ts';
 import { runBuilderEthernetFlow, validateBuilderEthernetConfig } from '../src/builder/ethernet.ts';
 import { runBuilderProbe } from '../src/builder/probes.ts';
+import { validateBuilderRoutingConfig } from '../src/builder/routing.ts';
 
 function runPing(snapshot, sequence = 1) {
   return runBuilderProbe(
@@ -69,10 +72,10 @@ function scoreLanChallenge(challenge, repairedEthernet) {
   evidence = recordInspection(evidence, challenge, 'config');
 
   const hypothesis = { boundary: 'L2', deviceId: challenge.fault.nodeId };
-  const before = scoreBuilderChallenge(challenge, evidence, hypothesis, challenge.broken.addressing, challenge.broken.ethernet);
+  const before = scoreBuilderChallenge(challenge, evidence, hypothesis, challenge.broken.addressing, challenge.broken.ethernet, challenge.broken.routing);
   assert.deepEqual(before, { evidence: 40, reasoning: 20, repair: 0, verification: 0, total: 60, repaired: false, verified: false, solved: false });
 
-  const fixed = scoreBuilderChallenge(challenge, evidence, hypothesis, challenge.broken.addressing, repairedEthernet);
+  const fixed = scoreBuilderChallenge(challenge, evidence, hypothesis, challenge.broken.addressing, repairedEthernet, challenge.broken.routing);
   assert.equal(fixed.total, 85, 'exact canonical repair earns repair points but still requires verification');
   assert.equal(fixed.solved, false);
 
@@ -80,7 +83,7 @@ function scoreLanChallenge(challenge, repairedEthernet) {
     kind: 'ethernet-flow', sourceId: objective.destinationId, destinationId: objective.sourceId,
     success: true, repaired: true, detail: 'A non-objective LAN flow passed.',
   });
-  assert.equal(scoreBuilderChallenge(challenge, evidence, hypothesis, challenge.broken.addressing, repairedEthernet).verified, false, 'a different endpoint pair cannot verify the challenge objective');
+  assert.equal(scoreBuilderChallenge(challenge, evidence, hypothesis, challenge.broken.addressing, repairedEthernet, challenge.broken.routing).verified, false, 'a different endpoint pair cannot verify the challenge objective');
 
   const repairedAttempt = runLan({ ...challenge.broken, ethernet: repairedEthernet }, objective.sourceId, objective.destinationId);
   assert.equal(repairedAttempt.success, true, `repaired ${challenge.family} objective must pass the normal LAN workflow`);
@@ -88,7 +91,7 @@ function scoreLanChallenge(challenge, repairedEthernet) {
     kind: 'ethernet-flow', sourceId: objective.sourceId, destinationId: objective.destinationId,
     success: true, repaired: true, detail: repairedAttempt.detail,
   });
-  const solved = scoreBuilderChallenge(challenge, evidence, hypothesis, challenge.broken.addressing, repairedEthernet);
+  const solved = scoreBuilderChallenge(challenge, evidence, hypothesis, challenge.broken.addressing, repairedEthernet, challenge.broken.routing);
   assert.deepEqual(solved, { evidence: 40, reasoning: 20, repair: 25, verification: 15, total: 100, repaired: true, verified: true, solved: true });
 }
 
@@ -104,8 +107,8 @@ assert.equal(gateway.fault.boundary, 'ADDRESSING');
 assert.equal(gateway.fault.plane, 'routed');
 assert.equal(gateway.broken.sourceId, gateway.fault.nodeId);
 assert.equal(gateway.broken.addressing.defaultGateways[gateway.fault.nodeId], null);
-assert.equal(builderChallengeIsRepaired(gateway, gateway.broken.addressing, gateway.broken.ethernet), false);
-assert.equal(builderChallengeIsRepaired(gateway, gateway.healthy.addressing, gateway.healthy.ethernet), true);
+assert.equal(builderChallengeIsRepaired(gateway, gateway.broken.addressing, gateway.broken.ethernet, gateway.broken.routing), false);
+assert.equal(builderChallengeIsRepaired(gateway, gateway.healthy.addressing, gateway.healthy.ethernet, gateway.healthy.routing), true);
 
 const restoredGateway = structuredClone(gateway.broken);
 restoredGateway.addressing.defaultGateways[gateway.fault.nodeId] = gateway.fault.expectedGateway;
@@ -128,9 +131,9 @@ gatewayRecord({ kind: 'traceroute', sourceId: gatewayObjective.sourceId, destina
 gatewayRecord({ kind: 'inspect-state', deviceId: gateway.fault.nodeId, devicePlane: 'routed', repaired: false, detail: 'Inspected endpoint state.' });
 gatewayRecord({ kind: 'inspect-config', deviceId: gateway.fault.nodeId, devicePlane: 'routed', repaired: false, detail: 'Inspected endpoint config.' });
 const gatewayHypothesis = { boundary: 'ADDRESSING', deviceId: gateway.fault.nodeId };
-assert.deepEqual(scoreBuilderChallenge(gateway, gatewayEvidence, gatewayHypothesis, gateway.broken.addressing, gateway.broken.ethernet), { evidence: 40, reasoning: 20, repair: 0, verification: 0, total: 60, repaired: false, verified: false, solved: false });
+assert.deepEqual(scoreBuilderChallenge(gateway, gatewayEvidence, gatewayHypothesis, gateway.broken.addressing, gateway.broken.ethernet, gateway.broken.routing), { evidence: 40, reasoning: 20, repair: 0, verification: 0, total: 60, repaired: false, verified: false, solved: false });
 gatewayRecord({ kind: 'ping', sourceId: gatewayObjective.sourceId, destinationId: gatewayObjective.destinationId, success: true, repaired: true, detail: healthyPing.summary });
-assert.deepEqual(scoreBuilderChallenge(gateway, gatewayEvidence, gatewayHypothesis, gateway.healthy.addressing, gateway.healthy.ethernet), { evidence: 40, reasoning: 20, repair: 25, verification: 15, total: 100, repaired: true, verified: true, solved: true });
+assert.deepEqual(scoreBuilderChallenge(gateway, gatewayEvidence, gatewayHypothesis, gateway.healthy.addressing, gateway.healthy.ethernet, gateway.healthy.routing), { evidence: 40, reasoning: 20, repair: 25, verification: 15, total: 100, repaired: true, verified: true, solved: true });
 
 const access = createAccessVlanChallenge('vlan-contract-001');
 assert.equal(access.family, 'access-vlan');
@@ -144,8 +147,8 @@ assert.ok(accessLink && accessLink.mode === 'access');
 accessLink.accessVlan = access.fault.expectedAccessVlan;
 const repairedAccess = validateBuilderEthernetConfig(restoredAccess);
 assert.deepEqual(repairedAccess, access.healthy.ethernet, 'access challenge introduces exactly one canonical switch-port fault');
-assert.equal(builderChallengeIsRepaired(access, access.broken.addressing, access.broken.ethernet), false);
-assert.equal(builderChallengeIsRepaired(access, access.broken.addressing, repairedAccess), true);
+assert.equal(builderChallengeIsRepaired(access, access.broken.addressing, access.broken.ethernet, access.broken.routing), false);
+assert.equal(builderChallengeIsRepaired(access, access.broken.addressing, repairedAccess, access.broken.routing), true);
 scoreLanChallenge(access, repairedAccess);
 
 const trunk = createTrunkVlanChallenge('trunk-contract-001');
@@ -173,9 +176,51 @@ assert.equal(brokenStpAttempt.arp.success, true, 'STP-disabled cycle remains ARP
 assert.equal(brokenStpAttempt.flow?.success, false, 'ordinary Ethernet flow must reject unsafe forwarding while STP is disabled on a cycle');
 scoreLanChallenge(stp, repairedStp);
 
-for (const challenge of [access, trunk, stp]) {
+function scoreRoutedChallenge(challenge, repairedRouting) {
+  const objective = challenge.verification;
+  const healthyPing = runPing(challenge.healthy);
+  const brokenPing = runPing(challenge.broken);
+  assert.equal(healthyPing.success, true, `${challenge.family} healthy baseline must pass`);
+  assert.equal(brokenPing.success, false, `${challenge.family} broken baseline must fail ordinary Ping`);
+  let evidence = [];
+  evidence = appendBuilderChallengeEvidence(evidence, { kind:'ping', sourceId:objective.sourceId, destinationId:objective.destinationId, success:false, repaired:false, detail:brokenPing.summary });
+  evidence = appendBuilderChallengeEvidence(evidence, { kind:'traceroute', sourceId:objective.sourceId, destinationId:objective.destinationId, success:false, repaired:false, detail:'Objective traceroute fails in the broken routed state.' });
+  evidence = recordInspection(evidence, challenge, 'state');
+  evidence = recordInspection(evidence, challenge, 'config');
+  const hypothesis = { boundary:'ROUTING', deviceId:challenge.fault.nodeId };
+  assert.deepEqual(scoreBuilderChallenge(challenge,evidence,hypothesis,challenge.broken.addressing,challenge.broken.ethernet,challenge.broken.routing), { evidence:40, reasoning:20, repair:0, verification:0, total:60, repaired:false, verified:false, solved:false });
+  assert.equal(scoreBuilderChallenge(challenge,evidence,hypothesis,challenge.broken.addressing,challenge.broken.ethernet,repairedRouting).total, 85);
+  evidence = appendBuilderChallengeEvidence(evidence, { kind:'ping', sourceId:objective.destinationId, destinationId:objective.sourceId, success:true, repaired:true, detail:'Unrelated reverse objective.' });
+  assert.equal(scoreBuilderChallenge(challenge,evidence,hypothesis,challenge.broken.addressing,challenge.broken.ethernet,repairedRouting).verified, false);
+  const repairedSnapshot = { ...challenge.broken, routing: repairedRouting };
+  const repairedPing = runPing(repairedSnapshot);
+  assert.equal(repairedPing.success, true, `${challenge.family} repaired objective must pass ordinary Ping`);
+  evidence = appendBuilderChallengeEvidence(evidence, { kind:'ping', sourceId:objective.sourceId, destinationId:objective.destinationId, success:true, repaired:true, detail:repairedPing.summary });
+  assert.deepEqual(scoreBuilderChallenge(challenge,evidence,hypothesis,challenge.broken.addressing,challenge.broken.ethernet,repairedRouting), { evidence:40, reasoning:20, repair:25, verification:15, total:100, repaired:true, verified:true, solved:true });
+}
+
+const staticRoute = createMissingStaticRouteChallenge('static-contract-001');
+assert.equal(staticRoute.family, 'static-route');
+assert.equal(staticRoute.fault.kind, 'missing-static-route');
+assert.deepEqual(staticRoute, createBuilderChallenge('static-contract-001'));
+const restoredStatic = validateBuilderRoutingConfig(staticRoute.broken.graph, staticRoute.broken.addressing, { ...staticRoute.broken.routing, staticRoutes:[...staticRoute.broken.routing.staticRoutes, staticRoute.fault.expectedRoute] });
+assert.deepEqual(restoredStatic, staticRoute.healthy.routing, 'static challenge removes exactly one required canonical route');
+assert.equal(builderChallengeIsRepaired(staticRoute, staticRoute.broken.addressing, staticRoute.broken.ethernet, staticRoute.broken.routing), false);
+assert.equal(builderChallengeIsRepaired(staticRoute, staticRoute.broken.addressing, staticRoute.broken.ethernet, restoredStatic), true);
+scoreRoutedChallenge(staticRoute, restoredStatic);
+
+const ospf = createOspfDisabledChallenge('ospf-contract-001');
+assert.equal(ospf.family, 'ospf-disabled');
+assert.equal(ospf.fault.kind, 'ospf-router-disabled');
+assert.deepEqual(ospf, createBuilderChallenge('ospf-contract-001'));
+assert.equal(ospf.broken.routing.ospf.enabledRouterIds.includes(ospf.fault.nodeId), false);
+assert.equal(builderChallengeIsRepaired(ospf, ospf.broken.addressing, ospf.broken.ethernet, ospf.broken.routing), false);
+assert.equal(builderChallengeIsRepaired(ospf, ospf.healthy.addressing, ospf.healthy.ethernet, ospf.healthy.routing), true);
+scoreRoutedChallenge(ospf, ospf.healthy.routing);
+
+for (const challenge of [access, trunk, stp, staticRoute, ospf]) {
   const challengeToken = builderChallengeToken(challenge);
   assert.deepEqual(createBuilderChallenge(seedFromBuilderChallengeToken(challengeToken)), challenge, `${challenge.family} token must reproduce exact deterministic truth`);
 }
 
-console.log('Builder Track J challenge contract passed: gateway plus seeded access-VLAN, trunk-pruning, and STP-loop faults use canonical truth, ordinary probes/LAN+ARP evidence, exact repair, objective-scoped verification, causal scoring, and reproducible tokens.');
+console.log('Builder Track J challenge contract passed: gateway plus seeded access-VLAN, trunk-pruning, STP-loop, missing-static-route, and OSPF-disabled faults use canonical truth, ordinary probes/LAN+ARP evidence, exact repair, objective-scoped verification, causal scoring, and reproducible tokens.');

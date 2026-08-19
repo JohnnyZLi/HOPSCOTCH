@@ -228,3 +228,13 @@ Remaining canonical fault depth includes:
 Difficulty should come from modeled topology, fault composition, observability, and protocol depth—not from hiding canonical facts or inventing misleading answer text.
 
 The long-horizon procedural challenge generator remains Track S3 in `ROADMAP-MOONSHOTS.md`; Track J is the bounded product path that proves the experience first.
+
+
+## Third slice — routing and OSPF
+
+The routed troubleshooting catalog now includes two additional deterministic canonical fault families:
+
+- `static-*` / `route-*`: a static-only healthy CLIENT ↔ APP baseline loses exactly one required edge/core static route. The ordinary route table and Device Workbench expose the missing route; repair uses the existing ADD / REPLACE STATIC control.
+- `ospf-*`: the healthy all-OSPF baseline disables participation on one required edge/core router while physical links remain up. Ordinary Ping / Traceroute, OSPF neighbor/LSDB state, route tables, and Device Workbench expose the resulting control-plane boundary; repair uses the existing ENABLE ON ROUTER control.
+
+Both families keep the same Track J evidence → hypothesis → exact canonical repair → objective verification scoring contract. No challenge-specific route lookup or OSPF state exists.
