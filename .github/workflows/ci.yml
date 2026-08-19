@@ -25,8 +25,10 @@ jobs:
           if grep -q "'ipv6-pmtu'" src/builder/challenges.ts; then
             echo "Track J MTU slice already applied."
           else
-            sed -i "/^const docs='docs\\/TRACKJ.md';/,$d" scripts/apply-track-j-mtu-neighbor-slice.mjs
-            echo "console.log('Applied Track J IPv6 PMTU + neighbor-resolution challenge slice.');" >> scripts/apply-track-j-mtu-neighbor-slice.mjs
+            DOC_LINE=$(grep -n "^const docs='docs/TRACKJ.md';" scripts/apply-track-j-mtu-neighbor-slice.mjs | head -1 | cut -d: -f1)
+            head -n $((DOC_LINE - 1)) scripts/apply-track-j-mtu-neighbor-slice.mjs > /tmp/track-j-mtu-helper.mjs
+            echo "console.log('Applied Track J IPv6 PMTU + neighbor-resolution challenge slice.');" >> /tmp/track-j-mtu-helper.mjs
+            mv /tmp/track-j-mtu-helper.mjs scripts/apply-track-j-mtu-neighbor-slice.mjs
             node scripts/apply-track-j-mtu-neighbor-slice.mjs
           fi
       - run: npm ci
