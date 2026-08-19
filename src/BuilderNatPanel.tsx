@@ -37,9 +37,10 @@ interface BuilderNatPanelProps {
   sourceId: string;
   destinationId: string;
   onMessage: (message: string) => void;
+  onFlowResult?: (result: BuilderNatFlowResult, sourceId: string, destinationId: string) => void;
 }
 
-export function BuilderNatPanel({ graph, addressing, routing, acl, nat, onNatChange, sessions, onSessionsChange, sourceId, destinationId, onMessage }: BuilderNatPanelProps) {
+export function BuilderNatPanel({ graph, addressing, routing, acl, nat, onNatChange, sessions, onSessionsChange, sourceId, destinationId, onMessage, onFlowResult }: BuilderNatPanelProps) {
   const routers = graph.nodes.filter((node) => node.kind === 'router');
   const [routerId, setRouterId] = useState(() => nat.boundaries[0]?.routerId ?? routers[0]?.id ?? '');
   const [protocol, setProtocol] = useState<BuilderNatProtocol>('tcp');
@@ -87,7 +88,7 @@ export function BuilderNatPanel({ graph, addressing, routing, acl, nat, onNatCha
   const runOutbound = () => {
     try {
       const result = runBuilderNatOutboundFlow(graph, addressing, routing, nat, sessions, sourceId, destinationId, protocol, protocol === 'icmp' ? null : sourcePort, protocol === 'icmp' ? null : destinationPort, sequence, acl);
-      onSessionsChange(result.sessions); setLastResult(result); setSequence((value) => value + 1);
+      onSessionsChange(result.sessions); setLastResult(result); setSequence((value) => value + 1); onFlowResult?.(result, sourceId, destinationId);
       onMessage(`NAT ${result.success ? 'FLOW' : 'FAILED'} · ${result.explanation}`);
     } catch (error) { onMessage(`NAT FLOW REJECTED · ${error instanceof Error ? error.message : 'Unable to run NAT flow.'}`); }
   };
@@ -102,7 +103,7 @@ export function BuilderNatPanel({ graph, addressing, routing, acl, nat, onNatCha
         translation.protocol === 'icmp' ? null : translation.outsidePort,
         sequence, acl,
       );
-      onSessionsChange(result.sessions); setLastResult(result); setSequence((value) => value + 1);
+      onSessionsChange(result.sessions); setLastResult(result); setSequence((value) => value + 1); onFlowResult?.(result, destinationId, sourceId);
       onMessage(`NAT RETURN ${result.success ? 'MATCHED' : 'FAILED'} · ${result.explanation}`);
     } catch (error) { onMessage(`NAT RETURN REJECTED · ${error instanceof Error ? error.message : 'Unable to run return flow.'}`); }
   };
