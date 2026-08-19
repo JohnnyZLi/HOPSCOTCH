@@ -13,7 +13,8 @@ import {
   upsertBuilderBgpSession,
 } from '../src/builder/bgp.ts';
 import { builderIsisState } from '../src/builder/isis.ts';
-import { cloneBuilderGraph, defaultBuilderGraph } from '../src/builder/model.ts';
+import { cloneBuilderGraph, defaultBuilderGraph, defaultBuilderLayout } from '../src/builder/model.ts';
+import { createBuilderScenario, deserializeBuilderScenario, serializeBuilderScenario } from '../src/builder/scenario.ts';
 import {
   builderRedistributionHazards,
   cloneBuilderRoutingPolicyConfig,
@@ -59,6 +60,7 @@ assert.equal(r1External.ospfExternalLsaType, 5);
 
 let redistBgp=createDefaultBuilderBgpConfig();redistBgp=setBuilderBgpRouterAsn(graph,redistBgp,'edge',64496);redistBgp=setBuilderBgpRouterAsn(graph,redistBgp,'r1',64500);redistBgp=upsertBuilderBgpSession(graph,redistBgp,'edge-r1','peer');redistBgp=upsertBuilderBgpOrigin(graph,redistBgp,{routerId:'edge',prefix:'198.51.100.0/24',med:0,communities:['64496:700'],description:'native BGP source'});
 let bgpTargetRouting=validateBuilderRoutingConfig(graph,addressing,{...staticRouting,bgp:redistBgp});let bgpTargetPolicy=upsertBuilderRedistributionRule(bgpTargetRouting.policy,{id:'redist-static-bgp',routerId:'edge',source:'static',target:'bgp',prefix:'203.0.113.0/24',metric:40,routeTag:601,enabled:true,allowFeedback:false,description:'static into BGP'});bgpTargetRouting=setBuilderRoutingPolicyConfig(graph,addressing,bgpTargetRouting,bgpTargetPolicy);const bgpRedistributed=routeTableForBuilderRouter(graph,addressing,bgpTargetRouting,'r1').find((entry)=>entry.source==='bgp'&&entry.prefix==='203.0.113.0/24');assert.ok(bgpRedistributed,'static→BGP redistribution must enter the same canonical route table');assert.equal(bgpRedistributed.redistributedFrom,'static');assert.equal(bgpRedistributed.redistributionRuleId,'redist-static-bgp');assert.equal(bgpRedistributed.routeTag,601);assert.match(bgpRedistributed.stateNote,/REDISTRIBUTED STATIC/);
+const policyScenario=createBuilderScenario('Track F policy',graph,'client','app',defaultBuilderLayout,addressing,bgpTargetRouting);const policyRoundTrip=deserializeBuilderScenario(serializeBuilderScenario(policyScenario));assert.equal(policyRoundTrip.version,9,'Track F routing policy must remain additive to scenario v9');assert.equal(policyRoundTrip.routing.policy.redistributions.some((entry)=>entry.id==='redist-static-bgp'),true);assert.equal(policyRoundTrip.routing.bgp.sessions.some((entry)=>entry.holdTimeMs===90000),true,'new BGP session timing must survive canonical scenario round trip');
 let bgpSourceRouting=validateBuilderRoutingConfig(graph,addressing,{...setBuilderOspfEverywhere(graph,addressing,createDefaultBuilderRoutingConfig(),true),bgp:redistBgp});let bgpSourcePolicy=upsertBuilderRedistributionRule(bgpSourceRouting.policy,{id:'redist-bgp-ospf',routerId:'edge',source:'bgp',target:'ospf',prefix:'198.51.100.0/24',metric:50,routeTag:602,enabled:true,allowFeedback:false,description:'native BGP into OSPF'});bgpSourceRouting=setBuilderRoutingPolicyConfig(graph,addressing,bgpSourceRouting,bgpSourcePolicy);const bgpIntoOspf=routeTableForBuilderRouter(graph,addressing,bgpSourceRouting,'r1').find((entry)=>entry.source==='ospf'&&entry.prefix==='198.51.100.0/24'&&entry.redistributionRuleId==='redist-bgp-ospf');assert.ok(bgpIntoOspf,'locally originated native BGP must be eligible for explicit redistribution into OSPF');assert.equal(bgpIntoOspf.redistributedFrom,'bgp');assert.equal(bgpIntoOspf.routeTag,602);
 
 let hazardPolicy = cloneBuilderRoutingPolicyConfig(defaultRouting.policy);

@@ -137,33 +137,39 @@ Track E only runs on the exact link IDs from a successful Track D application tr
 
 ---
 
-## Current priority order
+### Completed active track — Track F routing + policy depth
 
-With captured evidence, end-to-end application truth, causal replay, authoring, enterprise L2/L3 depth, and data-plane realism closed, the next highest-value work is deeper routing and policy composition on the canonical Builder RIB/FIB foundations.
+Track F deepens the existing canonical Builder RIB/FIB and protocol state instead of adding another forwarding simulator.
 
-### 1. Track F — routing + policy depth
+- [x] general redistribution between connected/static/OSPF/BGP/IS-IS with explicit source/rule/tag provenance and bounded reciprocal-loop hazards
+- [x] policy-based routing that preserves the normal destination FIB decision while recording the policy next-hop override separately
+- [x] configurable per-router ECMP hash depth (L3 / L4 / full discriminator) and bounded max-path width
+- [x] route summarization with explicit low-preference discard aggregates and intentional black-hole outcomes
+- [x] deeper BGP policy: community match/add/remove, NO_EXPORT / NO_ADVERTISE, bounded AS prepend, route-reflector clients, and hold-timer withdrawal/recompute projection
+- [x] custom OSPF interface Hello/Dead timers with timer mismatch represented as control-plane adjacency failure while the physical link stays independent
+- [x] bounded vendor-neutral IS-IS L1/L2/L1L2 over the same Builder graph/addressing/link-cost truth
 
-- [ ] general redistribution between connected/static/OSPF/BGP with explicit provenance and loop hazards; Lab 11M's bounded static→OSPF slice is only the foundation
-- [ ] policy-based routing without replacing destination-based forwarding truth
-- [ ] ECMP forwarding/hash depth where additional protocol-specific behavior is useful
-- [ ] route summarization and intentional black-hole scenarios
-- [ ] deeper BGP policy, communities, withdrawal timing, and route-reflector concepts
-- [ ] custom OSPF timer policy or DR/BDR broadcast-network behavior only when it materially improves troubleshooting
-- [ ] IS-IS only after existing OSPF/BGP depth makes another IGP worthwhile
+Redistribution reads protocol-native routes by default so a route created only by redistribution does not recursively become another protocol's source. OSPF Type-5/Type-7, BGP, and IS-IS route rows retain redistribution provenance. PBR records both the selected FIB route and the actual policy next hop. Summary discard is an explicit failure boundary rather than generic no-route. Track F intentionally ships the roadmap's OSPF timer-policy branch instead of DR/BDR because the current routed Builder topology is point-to-point; a broadcast election without a canonical shared L3 segment would invent topology. Track F remains additive to scenario v9 and advanced UI stays lazy. `docs/TRACKF.md` is the closeout architecture and validation record.
 
 ---
 
-## Remaining regular tracks
+## Current priority order
 
-These remain real product work. They should follow Track F unless a bounded dependency requires a different order.
+With captured evidence, end-to-end application truth, causal replay, authoring, enterprise L2/L3 depth, data-plane realism, and routing-policy depth closed, the next highest-value work is explicit underlay/overlay and service-provider behavior.
 
-### Track G — service-provider + overlay networking
+### 1. Track G — service-provider + overlay networking
 
 - [ ] GRE / IP-in-IP with explicit underlay/overlay separation
 - [ ] IPsec-style and WireGuard-style encrypted-tunnel semantics without pretending to implement production cryptography
 - [ ] MPLS label push/swap/pop, LSP state, and label forwarding tables
 - [ ] VXLAN VNI/VTEP overlays with distinct underlay and overlay reachability
 - [ ] EVPN MAC/IP learning after VXLAN/BGP foundations are mature
+
+---
+
+## Remaining regular tracks
+
+These remain real product work. They should follow Track G unless a bounded dependency requires a different order.
 
 ### Track I — native companion integration
 
