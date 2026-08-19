@@ -103,29 +103,29 @@ Track B makes the existing Builder model practical to author at scale without cr
 
 Selection, camera, sites, annotations, clipboard state, templates, undo cursor, and branch catalog remain authoring/session metadata. Scenario schema stays v9. `docs/TRACKB.md` is the architecture and validation record.
 
+### Completed active track — Track C enterprise Layer 2 / Layer 3 depth
+
+Track C extends the canonical Builder Ethernet fabric into bounded enterprise switching/routing behavior without adding a vendor emulator or parallel forwarding model.
+
+- [x] RSTP role/state projection with deterministic rapid-failover stages while classic STP remains available
+- [x] LACP / static EtherChannel with physical members preserved and one deterministic logical forwarding edge
+- [x] LLDP-style neighbor state derived only from active direct physical adjacency
+- [x] Layer-3 switches, SVIs, routed ports, and access/distribution/core role projection
+- [x] vendor-neutral virtual first-hop ownership and deterministic priority-based failover
+- [x] VRF-scoped route tables with overlapping address space, explicit connected/static routes, and no implicit route leaking
+- [x] native/tagged/untagged trunk semantics that fail closed when the two ends disagree about VLAN encoding
+- [x] additive scenario-v9 persistence and deep-cloned enterprise configuration in authoring snapshots
+- [x] enterprise-only validation/routing depth remains behind the lazy Track B authoring boundary instead of becoming universal startup cost
+
+Ethernet forwarding and spanning tree consume the same logical VLAN-carriage truth, bundle state consumes canonical physical link state, and LLDP/design roles remain derived. `docs/TRACKC.md` is the closeout architecture and validation record.
+
 ---
 
 ## Current priority order
 
-With captured evidence, end-to-end application truth, causal replay, and the Builder authoring environment closed, the next highest-value work is deeper enterprise network behavior on top of those shared foundations.
+With captured evidence, end-to-end application truth, causal replay, scalable authoring, and enterprise L2/L3 depth closed, the next highest-value work is making Builder forwarding react to real queue/capacity/MTU data-plane state.
 
-### 1. Track C — enterprise Layer 2 / Layer 3 depth
-
-- [ ] RSTP with explicit faster role/state transitions
-- [ ] LACP / EtherChannel with logical bundle vs physical-member truth
-- [ ] LLDP-style derived neighbor state
-- [ ] Layer-3 switches, SVIs, routed switch ports, access/distribution/core designs
-- [ ] vendor-neutral VRRP-style first-hop redundancy
-- [ ] VRFs with genuinely separate routing tables and overlapping address space
-- [ ] native/tagged/untagged VLAN behavior only when it preserves current VLAN truth
-
----
-
-## Remaining regular tracks
-
-These remain real product work. They should follow Track C unless a bounded dependency requires a different order.
-
-### Track E — data-plane realism
+### 1. Track E — data-plane realism
 
 - [ ] packet queues, serialization delay, occupancy, capacity, deterministic scheduling
 - [ ] tail drop / ECN integrated with existing congestion concepts
@@ -134,6 +134,12 @@ These remain real product work. They should follow Track C unless a bounded depe
 - [ ] IPv4 fragmentation, DF, ICMP Fragmentation Needed, IPv6 Packet Too Big, PMTU caches
 - [ ] PMTUD black-hole scenarios
 - [ ] transport congestion/recovery driven by actual Builder link/queue truth
+
+---
+
+## Remaining regular tracks
+
+These remain real product work. They should follow Track E unless a bounded dependency requires a different order.
 
 ### Track F — routing + policy depth
 
