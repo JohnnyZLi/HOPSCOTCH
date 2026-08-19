@@ -236,14 +236,23 @@ export function runBuilderTrafficScenario(profiles: BuilderLinkProfiles, input: 
   const flowById = new Map(scenario.flows.map((flow) => [flow.id, flow]));
 
   for (let atMs = 0; atMs < scenario.durationMs; atMs += scenario.tickMs) {
-    for (const flow of scenario.flows) {
-      if (!activeAt(flow, atMs)) continue;
+    const pending = scenario.flows.map((flow) => {
+      if (!activeAt(flow, atMs)) return { flow, packets: 0 };
       const packetsExact = flow.offeredRateMbps * 1_000_000 / 8 * (scenario.tickMs / 1000) / flow.packetBytes + (generatedRemainder.get(flow.id) ?? 0);
       const packets = Math.min(2000, Math.floor(packetsExact));
       generatedRemainder.set(flow.id, packetsExact - packets);
-      const firstLinkId = flow.pathLinkIds[0];
-      const firstRuntime = runtime.get(firstLinkId)!;
-      for (let index = 0; index < packets; index += 1) enqueuePacket({ token: { flowId: flow.id, bytes: flow.packetBytes, queuedAtMs: atMs, hopIndex: 0, ecnMarked: false }, linkId: firstLinkId, runtime: firstRuntime, profiles, atMs, flow, events, flowDrops, flowMarks });
+      return { flow, packets };
+    });
+    let pendingPackets = pending.reduce((sum, entry) => sum + entry.packets, 0);
+    while (pendingPackets > 0) {
+      for (const entry of pending) {
+        if (entry.packets <= 0) continue;
+        const flow = entry.flow;
+        const firstLinkId = flow.pathLinkIds[0];
+        enqueuePacket({ token: { flowId: flow.id, bytes: flow.packetBytes, queuedAtMs: atMs, hopIndex: 0, ecnMarked: false }, linkId: firstLinkId, runtime: runtime.get(firstLinkId)!, profiles, atMs, flow, events, flowDrops, flowMarks });
+        entry.packets -= 1;
+        pendingPackets -= 1;
+      }
     }
 
     for (const linkId of allLinkIds) {
