@@ -29,6 +29,8 @@ assert.equal(validateBuilderEthernetConfig(legacy).stp.protocol, undefined);
 assert.equal(runBuilderEthernetFlow(legacy, 'lan-a', 'lan-c').success, true);
 
 const demo = createBuilderEnterpriseDemo();
+const clonedDemo=cloneBuilderEthernetConfig(demo); clonedDemo.links[0].failed=true; clonedDemo.vrfStaticRoutes[0].prefix='192.0.2.0/24';
+assert.equal(demo.links[0].failed,false); assert.equal(demo.vrfStaticRoutes[0].prefix,'10.60.0.0/24');
 assert.equal(demo.devices.filter((device) => device.kind === 'l3-switch').length, 3);
 assert.equal(demo.links.filter((link) => link.mode === 'routed').length, 4);
 assert.equal(demo.stp.protocol, 'rstp');
