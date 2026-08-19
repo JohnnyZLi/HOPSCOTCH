@@ -177,6 +177,17 @@ function validEnterprisePrefix(value: string): boolean { try { normalizePrefix(v
 
 export function validateBuilderEnterpriseConfig(configInput: BuilderEthernetConfig): BuilderEthernetConfig {
   const config=validateBuilderEthernetConfig(configInput);
+  const ip=(value:string|null|undefined)=>{if(!value||!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(value))return false;return value.split('.').every((part)=>Number(part)<=255);};
+  const validVrf=(value:string|null|undefined)=>value==null||/^[A-Za-z0-9_.-]{1,24}$/.test(value.trim());
+  for(const device of config.devices)for(const iface of device.interfaces)if(!validVrf(iface.vrfId)||(iface.virtualGateway!=null&&!ip(iface.virtualGateway))||(iface.gatewayPriority!=null&&(!Number.isInteger(iface.gatewayPriority)||iface.gatewayPriority<1||iface.gatewayPriority>255)))throw new Error(`Enterprise interface on ${device.id} has invalid VRF, virtual gateway, or priority.`);
+  for(const link of config.links){
+    if(link.mode==='trunk'){
+      const allowed=link.allowedVlans??[];for(const native of [link.nativeVlanA,link.nativeVlanB])if(native!=null&&(!Number.isInteger(native)||!allowed.includes(native)))throw new Error(`Trunk ${link.id} native VLAN must be one of its allowed VLANs.`);
+      if(link.bundleId!=null&&!/^[A-Za-z0-9_.-]{1,32}$/.test(link.bundleId))throw new Error(`Trunk ${link.id} has an invalid bundle id.`);if(link.bundleProtocol!=null&&(!link.bundleId||!['lacp','static'].includes(link.bundleProtocol)))throw new Error(`Trunk ${link.id} has invalid bundle protocol state.`);
+    }else if(link.mode==='routed'){
+      if(!ip(link.routedAAddress)||!ip(link.routedBAddress)||!Number.isInteger(link.routedPrefixLength)||link.routedPrefixLength!<8||link.routedPrefixLength!>31||!validVrf(link.vrfId)||link.bundleId||link.accessVlan!=null||link.allowedVlans?.length)throw new Error(`Routed link ${link.id} requires valid addresses, prefix, VRF, and exclusive routed-port semantics.`);
+    }else if(link.bundleId)throw new Error(`Access link ${link.id} cannot be an EtherChannel member in this bounded enterprise slice.`);
+  }
   const bundles=new Map<string,BuilderEthernetLink[]>();
   for(const link of config.links)if(link.bundleId){const members=bundles.get(link.bundleId)??[];members.push(link);bundles.set(link.bundleId,members);}
   for(const [bundleId,members] of bundles){
