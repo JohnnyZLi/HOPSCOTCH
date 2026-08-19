@@ -9,6 +9,7 @@ import {
   type BuilderApplicationTransaction,
   type BuilderHostedService,
 } from './builder/application.ts';
+import { diagnoseBuilderApplicationTransaction } from './builder/causal-diagnosis.ts';
 import type { BuilderApplicationPanelProps } from './BuilderApplicationPanel.tsx';
 import './BuilderApplicationPanel.css';
 
@@ -23,7 +24,7 @@ function TransactionPacketMicroscope({ packet, transaction, onClose }: { packet:
   return <div className="builder-app-microscope"><PacketMicroscope onExit={onClose} initialConfig={packet.config} origin={{ label: `TRACK D · ${packet.label}`, timestamp: transaction.id, actionLabel: 'RETURN TO APPLICATION TRANSACTION ↗' }} /></div>;
 }
 
-export function BuilderApplicationWorkspace({ context, sourceNodeId, historical, onSessionState, onMessage }: BuilderApplicationPanelProps) {
+export function BuilderApplicationWorkspace({ context, sourceNodeId, historical, onSessionState, onTransaction, onMessage }: BuilderApplicationPanelProps) {
   const services = useMemo(() => createDefaultBuilderHostedServices(context.graph), [context.graph]);
   const [serviceId, setServiceId] = useState(() => services[0]?.id ?? '');
   const [family, setFamily] = useState<BuilderApplicationFamily>('ipv4');
@@ -33,6 +34,7 @@ export function BuilderApplicationWorkspace({ context, sourceNodeId, historical,
   const [packetId, setPacketId] = useState<string | null>(null);
   const selectedService = services.find((service) => service.id === serviceId) ?? services[0] ?? null;
   const selectedPacket = transaction?.packets.find((packet) => packet.id === packetId) ?? null;
+  const diagnosis = useMemo(() => transaction ? diagnoseBuilderApplicationTransaction(transaction, context.graph) : null, [transaction, context.graph]);
 
   const run = () => {
     if (!selectedService) return;
@@ -40,6 +42,7 @@ export function BuilderApplicationWorkspace({ context, sourceNodeId, historical,
       const result = runBuilderApplicationTransaction(context, services, sourceNodeId, selectedService.id, family, sequence);
       setTransaction(result); setSequence((value) => value + 2); setCamera('BUILDER'); setPacketId(null);
       onSessionState({ arpCache: result.arpCache, natSessions: result.natSessions, dhcpLeases: result.dhcpLeases, ipv6ControlState: result.ipv6ControlState });
+      onTransaction(result);
       onMessage(`APPLICATION · ${result.summary}`);
     } catch (cause) { onMessage(`APPLICATION REJECTED · ${cause instanceof Error ? cause.message : String(cause)}`); }
   };
@@ -61,6 +64,7 @@ export function BuilderApplicationWorkspace({ context, sourceNodeId, historical,
       <div className="builder-service-strip">{services.map((service) => <span key={service.id} data-enabled={service.enabled}><b>{service.kind.toUpperCase()}</b>{serviceProtocol(service)} · {service.hostname ?? service.nodeId}</span>)}</div>
       {!transaction ? <div className="builder-app-empty"><strong>NO APPLICATION TRANSACTION YET</strong><p>Choose a hosted service and run the request. Transport and application stages do not exist until lower-layer truth passes.</p></div> : <>
         <div className={`builder-app-result ${transaction.success ? 'success' : 'failed'}`}><span>RESULT</span><strong>{transaction.success ? 'COMPLETE' : `STOPPED · ${transaction.firstBrokenBoundary?.replace('_', ' ') ?? 'UNKNOWN'}`}</strong><p>{transaction.summary}</p><small>{transaction.boundary}</small></div>
+        {diagnosis&&<div className={`builder-app-diagnosis ${diagnosis.firstBrokenDimension?'failed':'passed'}`}><span>TRACK A · CAUSAL DIAGNOSIS</span><strong>{diagnosis.summary}</strong><p>{diagnosis.dimensions.map((entry)=>`${entry.id} ${entry.status}`).join(' · ')}</p><small>FIRST BROKEN BOUNDARY IS DERIVED FROM THE SHARED TRACK D TRANSACTION · NOT_REACHED NEVER COUNTS AS FAILURE.</small></div>}
         <nav className="builder-app-cameras" aria-label="Application transaction cameras">{transaction.projections.map((projection) => <button key={projection.camera} type="button" className={camera === projection.camera ? 'active' : ''} onClick={() => setCamera(projection.camera)}><b>{projection.camera}</b><span>{projection.label}</span></button>)}</nav>
         {camera === 'BUILDER' && <div className="builder-app-stage-list">{transaction.stages.map((stage) => <article key={stage.id} data-status={stageTone(stage.status)}><span>{String(stage.order).padStart(2, '0')} · {stage.boundary.replace('_', ' ')}</span><strong>{stage.label}</strong><b>{stage.status}</b><p>{stage.summary}</p><small>{stage.detail}</small>{stage.linkIds.length > 0 && <code>{stage.linkIds.join(' → ')}</code>}</article>)}</div>}
         {camera === 'PROTOCOL' && <div className="builder-app-protocol">{transaction.protocolEvents.length === 0 ? <article><strong>NO TCP/QUIC THEATER REQUIRED</strong><p>This service uses UDP datagram semantics. HOPSCOTCH does not manufacture a transport handshake.</p></article> : transaction.protocolEvents.map((event, index) => <article key={event.id}><span>{String(index + 1).padStart(2, '0')} · {event.protocol}</span><strong>{event.title}</strong><p>{event.summary}</p><small>{event.kind} · CANONICAL JOURNEY/LAB 03 · {event.provenance}</small></article>)}</div>}

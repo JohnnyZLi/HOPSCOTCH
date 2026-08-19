@@ -12,6 +12,7 @@ import type { BuilderGraph } from './model.ts';
 import type { BuilderNatConfig, BuilderNatSessionTable } from './nat.ts';
 import type { BuilderProbeResult } from './probes.ts';
 import { builderOspfState, routeTableForBuilderRouter, type BuilderRouteTableEntry, type BuilderRoutingConfig } from './routing.ts';
+import type { BuilderApplicationTransaction } from './application.ts';
 
 export type BuilderDevicePlane = 'routed' | 'ethernet';
 export interface BuilderDeviceRef { plane: BuilderDevicePlane; id: string; }
@@ -41,8 +42,8 @@ export interface BuilderWorkbenchSection {
   rows: BuilderWorkbenchRow[];
 }
 
-export type BuilderWorkbenchEventCategory = 'session' | 'topology' | 'config' | 'routing' | 'policy' | 'neighbor' | 'switching' | 'nat' | 'dhcp' | 'probe' | 'ipv6';
-export type BuilderWorkbenchEventKind = 'session' | 'action' | 'physical' | 'control-plane' | 'rib' | 'fib' | 'resolution' | 'forwarding' | 'policy' | 'translation' | 'flow';
+export type BuilderWorkbenchEventCategory = 'session' | 'topology' | 'config' | 'routing' | 'policy' | 'neighbor' | 'switching' | 'nat' | 'dhcp' | 'probe' | 'ipv6' | 'application';
+export type BuilderWorkbenchEventKind = 'session' | 'action' | 'physical' | 'control-plane' | 'rib' | 'fib' | 'resolution' | 'forwarding' | 'policy' | 'translation' | 'transport' | 'application' | 'flow';
 
 export interface BuilderWorkbenchEventProjection {
   physical?: 'after';
@@ -52,6 +53,14 @@ export interface BuilderWorkbenchEventProjection {
   dhcpLeases?: 'after';
   dhcpSequence?: 'after' | number;
   dhcpRemoveLeaseIds?: string[];
+  arpCache?: 'after';
+  ethernetFlow?: 'after';
+  natSessions?: 'after';
+  ipv6ControlState?: 'after';
+  ipv6LifecycleState?: 'after';
+  probeHistory?: 'after';
+  applicationHistory?: 'after';
+  applicationStageOrder?: number | null;
 }
 
 export interface BuilderWorkbenchEventSpec {
@@ -101,6 +110,7 @@ export interface BuilderDeviceWorkbenchSnapshot {
   events: BuilderWorkbenchEventView[];
   configRowCount: number;
   stateRowCount: number;
+  depthInput: BuilderDeviceWorkbenchInput;
 }
 
 export interface BuilderWorkbenchTruthGraphs {
@@ -128,6 +138,8 @@ export interface BuilderDeviceWorkbenchInput {
   dhcpLeases: BuilderDhcpLeaseTable;
   dhcpSequence: number;
   probeHistory: BuilderProbeResult[];
+  applicationHistory: BuilderApplicationTransaction[];
+  applicationStageOrder: number | null;
   sourceId: string;
   destinationId: string;
   events: BuilderWorkbenchEventJournal;
@@ -159,6 +171,7 @@ export function createBuilderWorkbenchEventJournal():BuilderWorkbenchEventJourna
 export function classifyBuilderWorkbenchMessage(message:string):BuilderWorkbenchEventCategory{
   const text=message.toUpperCase();
   if(/^(PING|TRACEROUTE|PROBE)\b/.test(text))return'probe';
+  if(/^APPLICATION\b/.test(text))return'application';
   if(/DHCP/.test(text))return'dhcp';
   if(/NAT|PAT|TRANSLAT/.test(text))return'nat';
   if(/ARP|NEIGHBOR|ND |NUD|DAD|SLAAC|RA |ROUTER SOLICIT/.test(text))return'neighbor';
@@ -171,7 +184,7 @@ export function classifyBuilderWorkbenchMessage(message:string):BuilderWorkbench
   return'config';
 }
 
-function causalCategory(category:BuilderWorkbenchEventCategory):boolean{return['routing','policy','neighbor','switching','nat','dhcp','probe','ipv6'].includes(category);}
+function causalCategory(category:BuilderWorkbenchEventCategory):boolean{return['routing','policy','neighbor','switching','nat','dhcp','probe','ipv6','application'].includes(category);}
 
 export function appendBuilderWorkbenchMessageEvent(journal:BuilderWorkbenchEventJournal,message:string,deviceRefs:readonly BuilderDeviceRef[]=[]):BuilderWorkbenchEventJournal{
   const category=classifyBuilderWorkbenchMessage(message);
@@ -333,5 +346,5 @@ export function buildBuilderDeviceWorkbench(input:BuilderDeviceWorkbenchInput,re
   const options=builderWorkbenchDeviceOptions(input.graph,input.ethernet);const device=options.find((candidate)=>sameRef(candidate,requested))??options[0]??{plane:'routed' as const,id:'none',label:'NO DEVICE',kind:'NONE',group:'NONE'};
   const configSections=device.plane==='routed'?routedConfigSections(input,device.id):ethernetConfigSections(input,device.id);
   const stateSections=device.plane==='routed'?routedStateSections(input,device.id):ethernetStateSections(input,device.id);
-  return{device,configSections,stateSections,events:eventViews(input.events,device),configRowCount:configSections.reduce((sum,current)=>sum+current.rows.length,0),stateRowCount:stateSections.reduce((sum,current)=>sum+current.rows.length,0)};
+  return{device,configSections,stateSections,events:eventViews(input.events,device),configRowCount:configSections.reduce((sum,current)=>sum+current.rows.length,0),stateRowCount:stateSections.reduce((sum,current)=>sum+current.rows.length,0),depthInput:input};
 }
