@@ -315,7 +315,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
       const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet, routing, acl, nat, dhcp, linkProfiles);
       const ndAdded = Math.max(0, ipv6Result.ipv6ControlState.ndHistory.length - ipv6ControlState.ndHistory.length);
       const pmtuAdded = ipv6Result.ipv6ControlState.pmtuHistory.length > ipv6ControlState.pmtuHistory.length ? ipv6Result.ipv6ControlState.pmtuHistory.at(-1) ?? null : null;
-      const pathMtuBytes = pmtuAdded?.mtuBytes ?? ipv6Result.attempts.at(-1)?.pathMtuBytes ?? null;
+      const pathMtuBytes = pmtuAdded?.delivered === true ? pmtuAdded.mtuBytes : null;
       setChallengeEvidence((current) => {
         let next = appendBuilderChallengeEvidence(current, { kind, sourceId, destinationId, success: ipv6Result.success, requestedBytes: ipv6Result.requestedPacketBytes, effectiveBytes: ipv6Result.effectivePacketBytes, pathMtuBytes, repaired, detail: ipv6Result.summary });
         if (ndAdded > 0) next = appendBuilderChallengeEvidence(next, { kind:'ipv6-nd', sourceId, destinationId, success:true, ndResolutionCount:ndAdded, repaired, detail:'Neighbor Discovery completed ' + ndAdded + ' next-hop NS/NA observation' + (ndAdded===1?'':'s') + '; L2 neighbor resolution is not the failing boundary.' });
