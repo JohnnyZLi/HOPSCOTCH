@@ -69,14 +69,16 @@ import { BuilderDhcpPanel } from './BuilderDhcpPanel.tsx';
 import { BuilderDeviceWorkbench } from './BuilderDeviceWorkbench.tsx';
 import { BuilderTimeMachine } from './BuilderTimeMachine.tsx';
 import { BuilderApplicationPanel } from './BuilderApplicationPanel.tsx';
-import type { BuilderAuthoringSession, BuilderAuthoringSnapshot } from './builder/authoring.ts';
+import { createBuilderAuthoringSnapshot, type BuilderAuthoringSession, type BuilderAuthoringSnapshot } from './builder/authoring.ts';
 import type { BuilderApplicationTransaction } from './builder/application.ts';
 import { appendBuilderWorkbenchEventBatch, appendBuilderWorkbenchMessageEvent, buildBuilderDeviceWorkbench, builderWorkbenchDeviceOptions, classifyBuilderWorkbenchMessage, createBuilderWorkbenchEventJournal, type BuilderDeviceRef, type BuilderDeviceWorkbenchInput, type BuilderWorkbenchEventJournal } from './builder/device-workbench.ts';
 import { deriveBuilderCanonicalEventSpecs } from './builder/canonical-events.ts';
 import { builderTimelineJournalThroughSequence, builderTimelineSnapshotAtSequence, captureBuilderTimelineSnapshot, createBuilderTimeline, diffBuilderTimelineDevice, type BuilderTimeline } from './builder/timeline.ts';
+import { appendBuilderChallengeEvidence, builderChallengeIsRepaired, createDefaultGatewayChallenge, scoreBuilderChallenge, seedFromBuilderChallengeToken, type BuilderChallenge, type BuilderChallengeEvidence, type BuilderChallengeHypothesis } from './builder/challenges.ts';
 import './NetworkBuilder.css';
 
 const BuilderAuthoringPanel = lazy(() => import('./BuilderAuthoringPanel.tsx'));
+const BuilderChallengePanel = lazy(() => import('./BuilderChallengePanel.tsx'));
 const BuilderOspfTimingPanel=lazy(()=>import('./BuilderOspfTimingPanel.tsx').then((m)=>({default:m.BuilderOspfTimingPanel})));
 const BuilderOspfEcmpPanel=lazy(()=>import('./BuilderOspfEcmpPanel.tsx').then((m)=>({default:m.BuilderOspfEcmpPanel})));
 const BuilderOspfAreaPanel=lazy(()=>import('./BuilderOspfAreaPanel.tsx').then((m)=>({default:m.BuilderOspfAreaPanel})));
@@ -131,6 +133,12 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const [timelineCursor, setTimelineCursor] = useState<number | null>(null);
   const [probeHistory, setProbeHistory] = useState<BuilderProbeResult[]>([]);
   const [applicationHistory, setApplicationHistory] = useState<BuilderApplicationTransaction[]>([]);
+  const [challengeSeed, setChallengeSeed] = useState('gateway-001');
+  const [challenge, setChallenge] = useState<BuilderChallenge | null>(null);
+  const [challengeEvidence, setChallengeEvidence] = useState<BuilderChallengeEvidence[]>([]);
+  const [challengeHypothesis, setChallengeHypothesis] = useState<BuilderChallengeHypothesis | null>(null);
+  const [challengeReturnSnapshot, setChallengeReturnSnapshot] = useState<BuilderAuthoringSnapshot | null>(null);
+  const [challengeReturnScenarioName, setChallengeReturnScenarioName] = useState<string | null>(null);
   const [authoringView, setAuthoringView] = useState<BuilderAuthoringSession>(() => ({ selection:[initialSourceId], ethernetLinkSelection:[], clipboard:null, sites:[], annotations:{}, showInterfaces:false, camera:{x:50,y:50,scale:1}, branches:[], baseline:null }));
   const [authoringMarquee, setAuthoringMarquee] = useState<{startX:number;startY:number;endX:number;endY:number;additive:boolean}|null>(null);
   const [selectedProbeId, setSelectedProbeId] = useState<string | null>(null);
@@ -175,6 +183,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   }, [stressLabel, workbenchEvents, liveTimelineInput, timeline.snapshots]);
   const historicalTimelineSnapshot = timelineCursor == null ? null : builderTimelineSnapshotAtSequence(timeline, timelineCursor);
   const isHistorical = historicalTimelineSnapshot != null;
+  const challengeScore = useMemo(() => challenge ? scoreBuilderChallenge(challenge, challengeEvidence, challengeHypothesis, addressing) : null, [challenge, challengeEvidence, challengeHypothesis, addressing]);
   const sceneState = historicalTimelineSnapshot?.state ?? liveTimelineInput;
   const sceneGraph = sceneState.graph;
   const sceneControlGraph = sceneState.truthGraphs?.controlGraph ?? sceneGraph;
@@ -281,6 +290,10 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
     setProbeHistory((current) => [result, ...current].slice(0, 10));
     setSelectedProbeId(result.id);
     setSelectedProbeAttempt(result.attempts.length > 0 ? result.attempts.length - 1 : 0);
+    if (challenge && probeFamily === 'ipv4' && !isHistorical) {
+      const repaired = builderChallengeIsRepaired(challenge, addressing);
+      setChallengeEvidence((current) => appendBuilderChallengeEvidence(current, { kind, sourceId, destinationId, success: result.success, repaired, detail: result.summary }));
+    }
     setMessage(`${kind.toUpperCase()} · ${result.summary}`);
   };
 
@@ -324,6 +337,40 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
     restoreCanonicalBuilderConfig(next);
     setSelectedNodeId(next.graph.nodes.some((node)=>node.id===selectedNodeId)?selectedNodeId:next.sourceId); setSelectedLinkId(next.graph.links.some((link)=>link.id===selectedLinkId)?selectedLinkId:(next.graph.links[0]?.id??'')); setProbeHistory([]); setApplicationHistory([]);
     setAuthoringView((current)=>({...current,selection:current.selection.filter((id)=>next.graph.nodes.some((node)=>node.id===id)),ethernetLinkSelection:current.ethernetLinkSelection.filter((id)=>next.ethernet.links.some((link)=>link.id===id))})); setMessage(nextMessage);
+  };
+  const currentCanonicalSnapshot = ():BuilderAuthoringSnapshot => createBuilderAuthoringSnapshot({ graph, addressing, routing, ethernet, linkProfiles, acl, nat, dhcp, ipv6, sourceId, destinationId, layout });
+  const loadChallengeSnapshot = (next:BuilderAuthoringSnapshot,nextMessage:string) => {
+    restoreCanonicalBuilderConfig(next);
+    setSelectedNodeId(next.sourceId); setSelectedLinkId(next.graph.links[0]?.id??''); setWorkbenchDevice({plane:'routed',id:next.sourceId});
+    setProbeHistory([]); setSelectedProbeId(null); setSelectedProbeAttempt(0); setApplicationHistory([]); setProbeFamily('ipv4');
+    setWorkbenchEvents(createBuilderWorkbenchEventJournal()); setTimeline(createBuilderTimeline()); setTimelineCursor(null);
+    setAuthoringView({selection:[next.sourceId],ethernetLinkSelection:[],clipboard:null,sites:[],annotations:{},showInterfaces:false,camera:{x:50,y:50,scale:1},branches:[],baseline:null});
+    setMessageState(nextMessage);
+  };
+  const startChallenge = (seedOrToken:string) => {
+    if(isHistorical)return;
+    try{
+      const trimmed=seedOrToken.trim();
+      const seed=trimmed.startsWith('HOP-J')?seedFromBuilderChallengeToken(trimmed):trimmed;
+      const next=createDefaultGatewayChallenge(seed);
+      setChallengeReturnSnapshot(currentCanonicalSnapshot()); setChallengeReturnScenarioName(scenarioName);
+      setChallenge(next); setChallengeSeed(next.seed); setChallengeEvidence([]); setChallengeHypothesis(null); setScenarioName(`Challenge ${next.id}`);
+      loadChallengeSnapshot(next.broken,`TRACK J CHALLENGE · ${next.title} · seed ${next.seed}. Diagnose with normal Builder evidence before repairing the network.`);
+    }catch(error){setMessage(`CHALLENGE REJECTED · ${error instanceof Error?error.message:'Unable to create challenge.'}`);}
+  };
+  const restartChallenge = () => {
+    if(!challenge||isHistorical)return;
+    setChallengeEvidence([]); setChallengeHypothesis(null);
+    loadChallengeSnapshot(challenge.broken,`TRACK J CHALLENGE RESTARTED · ${challenge.title} · seed ${challenge.seed}.`);
+  };
+  const exitChallenge = () => {
+    if(isHistorical)return;
+    const returnSnapshot=challengeReturnSnapshot;
+    setChallenge(null); setChallengeEvidence([]); setChallengeHypothesis(null); setChallengeReturnSnapshot(null);
+    if(returnSnapshot){loadChallengeSnapshot(returnSnapshot,'TRACK J CHALLENGE CLOSED · restored the Builder configuration from before the challenge.');}
+    else setMessageState('TRACK J CHALLENGE CLOSED.');
+    if(challengeReturnScenarioName!==null)setScenarioName(challengeReturnScenarioName);
+    setChallengeReturnScenarioName(null);
   };
   const commitAuthoringGraph=(nextGraph:BuilderGraph,nextLayout:BuilderLayout|null,nextMessage:string)=>{if(nextLayout)setLayout(cloneBuilderLayout(nextLayout));commitGraph(nextGraph);setMessage(nextMessage);};
   const commitAuthoringAddressing=(next:BuilderAddressing,nextMessage:string)=>{commitAddressing(next);setMessage(nextMessage);};
@@ -435,6 +482,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   };
 
   const resetTopology = () => {
+    if(challenge){setMessage('RESET TOPOLOGY DISABLED · use RESTART SAME SEED while a troubleshooting challenge is active.');return;}
     setGraph(cloneBuilderGraph(initialGraph));
     setAddressing(cloneBuilderAddressing(initialAddressing ?? createDefaultBuilderAddressing(initialGraph)));
     setRouting(cloneBuilderRoutingConfig(initialRouting ?? createDefaultBuilderRoutingConfig()));
@@ -461,6 +509,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   };
 
   const restoreScenario = (scenario: BuilderScenarioV8) => {
+    if(challenge){setMessage('SCENARIO RESTORE DISABLED · exit the active troubleshooting challenge first.');return;}
     restoreCanonicalBuilderConfig(scenario);
     setSelectedNodeId(scenario.sourceId); setSelectedLinkId(scenario.graph.links[0]?.id ?? ''); setScenarioName(scenario.name);
     setMessage(`Restored “${scenario.name}”. IPv4/IPv6 routing, link characteristics, ACL/NAT, VLAN, and STP configuration restored; session ARP/NAT/probe state cleared.`);
@@ -478,6 +527,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
 
   const importScenario = async (file: File | undefined) => {
     if (!file) return;
+    if(challenge){setMessage('IMPORT DISABLED · exit the active troubleshooting challenge first.');return;}
     try {
       const scenario = deserializeBuilderScenario(await file.text());
       restoreScenario(scenario);
@@ -555,8 +605,9 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
         </section>
 
         <aside className="builder-controls">
+          {!stressLabel&&(challenge&&challengeScore?<Suspense fallback={null}><BuilderChallengePanel challenge={challenge} evidence={challengeEvidence} score={challengeScore} hypothesis={challengeHypothesis} historical={isHistorical} onLockHypothesis={(next)=>{if(challengeHypothesis||isHistorical)return;setChallengeHypothesis(next);setMessage(`CHALLENGE HYPOTHESIS LOCKED · ${next.boundary} · ${labelFor(graph,next.deviceId)}.`);}} onRestart={restartChallenge} onExit={exitChallenge} onMessage={setMessage}/></Suspense>:<section className="builder-challenge-launcher"><div className="control-title"><span>TROUBLESHOOT</span><strong>TRACK J · SEEDED</strong></div><label>SEED / CHALLENGE TOKEN<input value={challengeSeed} maxLength={96} onChange={(event)=>setChallengeSeed(event.currentTarget.value)} /></label><button type="button" disabled={isHistorical} onClick={()=>startChallenge(challengeSeed)}>START GATEWAY CHALLENGE</button><small className="builder-routing-note">FIRST SLICE · DETERMINISTIC CANONICAL FAULT · NORMAL BUILDER PROBES / WORKBENCH / CONFIG REPAIR · SESSION-ONLY SCORE.</small></section>)}
           {!stressLabel&&<BuilderTimeMachine timeline={timeline} cursor={timelineCursor} onSeek={setTimelineCursor}/>}
-          {!stressLabel&&workbenchSnapshot&&<BuilderDeviceWorkbench snapshot={workbenchSnapshot} options={workbenchOptions} historicalSequence={historicalTimelineSnapshot?.sequence??null} diff={workbenchTimelineDiff} onSelect={(ref)=>{setWorkbenchDevice(ref);if(ref.plane==='routed')setSelectedNodeId(ref.id);}}/>}
+          {!stressLabel&&workbenchSnapshot&&<BuilderDeviceWorkbench snapshot={workbenchSnapshot} options={workbenchOptions} historicalSequence={historicalTimelineSnapshot?.sequence??null} diff={workbenchTimelineDiff} onSelect={(ref)=>{setWorkbenchDevice(ref);if(ref.plane==='routed')setSelectedNodeId(ref.id);}} onInspect={(inspection)=>{if(!challenge||isHistorical||inspection.device.plane!=='routed')return;const kind=inspection.tab==='config'?'inspect-config':inspection.tab==='state'?'inspect-state':'inspect-events';const repaired=builderChallengeIsRepaired(challenge,addressing);setChallengeEvidence((current)=>appendBuilderChallengeEvidence(current,{kind,deviceId:inspection.device.id,repaired,detail:`Inspected ${inspection.tab.toUpperCase()} on ${labelFor(graph,inspection.device.id)} in the normal Device Workbench.`}));}}/>}
           {!stressLabel&&<Suspense fallback={null}><BuilderAuthoringPanel snapshot={sceneState} view={authoringView} historical={isHistorical} onViewChange={setAuthoringView} onApplySnapshot={applyAuthoringSnapshot} onCommitGraph={commitAuthoringGraph} onCommitAddressing={commitAuthoringAddressing} onCommitEthernet={commitAuthoringEthernet} onSetLayout={setAuthoringLayout} onFocusDevice={focusAuthoringDevice} onMessage={setMessage}/></Suspense>}
           {!stressLabel&&isHistorical&&<div className="builder-history-lock"><strong>HISTORICAL SCENE · READ ONLY</strong><span>Canvas, forwarding overlays, LAN/STP/ARP state, protocol panels, route tables, NAT/DHCP state, and the Device Workbench are all projected from event #{String(historicalTimelineSnapshot?.sequence??0).padStart(3,'0')}. Return to LIVE to edit.</span></div>}
           <fieldset className="builder-live-controls" disabled={isHistorical}>
@@ -574,8 +625,8 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
           <section className="builder-acl-section"><div className="control-title"><span>ACL / FIREWALL POLICY</span><strong>{selectedNode?.kind==='router'?`${selectedRouterAclRules.length} RULES`:'ROUTERS ONLY'}</strong></div>{selectedNode?.kind==='router'?<><div className="builder-acl-rules">{selectedRouterAclRules.length===0?<small>NO EXPLICIT RULES · DEFAULT {acl.defaultAction.toUpperCase()}</small>:selectedRouterAclRules.map((rule)=><div key={rule.id} className={rule.action}><span>{rule.order}</span><strong>{rule.action.toUpperCase()} {rule.protocol.toUpperCase()}</strong><small>{rule.sourcePrefix} → {rule.destinationPrefix}{rule.destinationPort?` · DPORT ${rule.destinationPort}`:''} · {rule.description||rule.id}</small><button type="button" onClick={()=>{setAcl(deleteBuilderAclRule(graph,acl,rule.id));setMessage(`ACL · ${rule.id} removed.`);}}>×</button></div>)}</div><div className="builder-acl-form"><label>ORDER<input type="number" min={1} max={65535} value={aclOrder} onChange={(e)=>setAclOrder(Math.max(1,Math.min(65535,Math.round(Number(e.currentTarget.value)||1))))}/></label><label>ACTION<select value={aclAction} onChange={(e)=>setAclAction(e.currentTarget.value as BuilderAclAction)}><option value="deny">DENY</option><option value="permit">PERMIT</option></select></label><label>PROTOCOL<select value={aclProtocol} onChange={(e)=>{const value=e.currentTarget.value as BuilderAclProtocol;setAclProtocol(value);if(value!=='tcp'&&value!=='udp')setAclDestinationPort('');}}><option value="ip">IP</option><option value="icmp">ICMP</option><option value="tcp">TCP</option><option value="udp">UDP</option></select></label><label>SOURCE PREFIX<input value={aclSourcePrefix} onChange={(e)=>setAclSourcePrefix(e.currentTarget.value)}/></label><label>DEST PREFIX<input value={aclDestinationPrefix} onChange={(e)=>setAclDestinationPrefix(e.currentTarget.value)}/></label><label>DST PORT<input disabled={aclProtocol!=='tcp'&&aclProtocol!=='udp'} value={aclDestinationPort} placeholder="ANY" onChange={(e)=>setAclDestinationPort(e.currentTarget.value)}/></label><label>DESCRIPTION<input value={aclDescription} maxLength={80} onChange={(e)=>setAclDescription(e.currentTarget.value)}/></label><button type="button" onClick={addAclRule}>ADD ACL RULE</button></div><small className="builder-routing-note">FIRST MATCH WINS · NAT FLOWS EVALUATE THE BOUNDARY BEFORE AND AFTER TRANSLATION · ROUTED PING/TRACEROUTE CONSUME THE LIVE NAT SESSION TABLE AND REVERSE ICMP POLICY.</small></>:<small className="builder-routing-note">Select a router to author ordered IPv4 policy.</small>}</section>
           <section className="builder-routing-section"><div className="control-title"><span>ROUTE TABLE</span><strong>{selectedNode?.kind === 'router' ? `${selectedRouteTable.filter((entry)=>entry.active).length} ACTIVE · ${selectedRouteTable.length} TOTAL` : 'ENDPOINT DEFAULT'}</strong></div>{selectedNode?.kind === 'router'?<><div className="builder-route-table builder-ipv4-route-table">{selectedRouteTable.length===0?<small>NO ROUTES</small>:selectedRouteTable.map((entry)=><div key={entry.id} className={`${entry.active?'':'inactive'} source-${entry.source}`}><span>{entry.source==='connected'?'C':entry.source==='static'?'S':entry.source==='bgp'?(entry.bgpLearnedVia==='ebgp'?'B':'B i'):entry.source==='isis'?'i':entry.source==='summary'?'Σ':entry.ospfRouteType==='inter-area'?'O IA':entry.ospfRouteType==='external'?'O E1':entry.ospfRouteType==='nssa-external'?'O N1':'O'}</span><strong>{entry.prefix}</strong><small>{entry.source==='connected'?'DIRECT':`via ${entry.nextHop}`} · {entry.outgoingInterface} · AD {entry.administrativeDistance} · M {entry.metric} · {entry.stateNote}</small>{entry.source==='static'&&<button type="button" aria-label={`Delete route ${entry.prefix} via ${entry.nextHop}`} onClick={()=>{setRouting(deleteBuilderStaticRoute(graph,addressing,routing,entry.id));setMessage(`${selectedNode.label} static route ${entry.prefix} removed.`);}}>×</button>}</div>)}</div><div className="builder-static-form"><label>DESTINATION PREFIX<input value={staticPrefix} onChange={(event)=>setStaticPrefix(event.currentTarget.value)}/></label><button type="button" onClick={()=>setStaticPrefix(destinationPrefix)}>USE DEST PREFIX</button><label>NEXT HOP<select value={effectiveStaticNextHop} onChange={(event)=>setStaticNextHop(event.currentTarget.value)}>{selectedNextHopOptions.length===0?<option value="">NO NEIGHBORS</option>:selectedNextHopOptions.map((option)=><option key={`${option.linkId}-${option.address}`} value={option.address}>{option.nodeLabel} · {option.address}{option.linkFailed?' · DOWN':''}</option>)}</select></label><label>METRIC<input type="number" min={1} max={999} value={staticMetric} onChange={(event)=>setStaticMetric(Math.max(1,Math.min(999,Math.round(Number(event.currentTarget.value)||1))))}/></label><button type="button" onClick={addStaticRoute} disabled={!effectiveStaticNextHop}>ADD / REPLACE STATIC</button></div><small className="builder-routing-note">LOOKUP: LONGEST PREFIX → AD → PROTOCOL ROUTE TYPE → METRIC → BOUNDED ECMP HASH. PBR MAY OVERRIDE THE RESOLVED NEXT HOP WHILE THE DESTINATION FIB DECISION REMAINS VISIBLE. CONNECTED 0 · STATIC 1 · eBGP 20 · OSPF 110 · IS-IS 115 · iBGP 200 · SUMMARY DISCARD 254.</small></>:<small className="builder-routing-note">Endpoints forward directly on-link or send off-link traffic to their configured default gateway. Select a router to inspect connected, static, OSPF, and BGP routes.</small>}</section>
           <section><div className="control-title"><span>AUTHOR</span><strong>TOPOLOGY</strong></div><div className="button-row"><button type="button" onClick={()=>addNode('router')}>+ ROUTER</button><button type="button" onClick={()=>addNode('endpoint')}>+ ENDPOINT</button></div><div className="link-form"><select value={newLinkA} onChange={(e)=>setNewLinkA(e.currentTarget.value)}>{graph.nodes.map((node)=><option key={node.id} value={node.id}>{node.label}</option>)}</select><span>↔</span><select value={newLinkB} onChange={(e)=>setNewLinkB(e.currentTarget.value)}>{graph.nodes.map((node)=><option key={node.id} value={node.id}>{node.label}</option>)}</select><input aria-label="New link cost" type="number" min={1} max={999} value={newLinkCost} onChange={(e)=>setNewLinkCost(Math.max(1,Math.min(999,Math.round(Number(e.currentTarget.value)||1))))}/><button type="button" onClick={addLink}>ADD LINK</button></div></section>
-          <section><div className="control-title"><span>SCENARIOS</span><strong>SCHEMA V9 · DUAL STACK + LAN + POLICY</strong></div><label>NAME<input value={scenarioName} maxLength={80} onChange={(e)=>setScenarioName(e.currentTarget.value)}/></label><div className="button-row"><button type="button" onClick={saveScenario}>SAVE</button><button type="button" onClick={exportScenario}>EXPORT JSON</button><label className="file-button">IMPORT<input type="file" accept="application/json,.json" onChange={(e)=>void importScenario(e.currentTarget.files?.[0])}/></label></div><div className="saved-list">{saved.length===0?<small>NO SAVED SCENARIOS</small>:saved.map((scenario)=><div key={scenario.name}><button type="button" onClick={()=>restoreScenario(scenario)}><strong>{scenario.name}</strong><small>{scenario.graph.nodes.length}N · {scenario.graph.links.length}L</small></button><button type="button" aria-label={`Delete ${scenario.name}`} onClick={()=>setSaved(deleteStoredBuilderScenario(scenario.name))}>×</button></div>)}</div></section>
-          <section className="reset-section"><div className="button-row"><button type="button" onClick={resetTopology}>RESET TOPOLOGY</button><button type="button" onClick={resetLayout}>RESET LAYOUT</button></div></section>
+          <section><div className="control-title"><span>SCENARIOS</span><strong>SCHEMA V9 · DUAL STACK + LAN + POLICY</strong></div><label>NAME<input value={scenarioName} maxLength={80} onChange={(e)=>setScenarioName(e.currentTarget.value)}/></label><div className="button-row"><button type="button" onClick={saveScenario}>SAVE</button><button type="button" onClick={exportScenario}>EXPORT JSON</button><label className="file-button">IMPORT<input type="file" disabled={Boolean(challenge)} accept="application/json,.json" onChange={(e)=>void importScenario(e.currentTarget.files?.[0])}/></label></div><div className="saved-list">{saved.length===0?<small>NO SAVED SCENARIOS</small>:saved.map((scenario)=><div key={scenario.name}><button type="button" disabled={Boolean(challenge)} onClick={()=>restoreScenario(scenario)}><strong>{scenario.name}</strong><small>{scenario.graph.nodes.length}N · {scenario.graph.links.length}L</small></button><button type="button" aria-label={`Delete ${scenario.name}`} onClick={()=>setSaved(deleteStoredBuilderScenario(scenario.name))}>×</button></div>)}</div></section>
+          <section className="reset-section"><div className="button-row"><button type="button" disabled={Boolean(challenge)} onClick={resetTopology}>RESET TOPOLOGY</button><button type="button" onClick={resetLayout}>RESET LAYOUT</button></div></section>
           </fieldset>
         </aside>
       </div>
