@@ -35,7 +35,7 @@ const graph={nodes:[
 ]};
 const layout={pe1:{x:10,y:50},p1:{x:35,y:50},p2:{x:65,y:50},pe2:{x:90,y:50}};
 const addressing=createDefaultBuilderAddressing(graph);const profiles=createDefaultBuilderLinkProfiles(graph);let routing=setBuilderOspfEverywhere(graph,addressing,createDefaultBuilderRoutingConfig(),true);
-for(const router of graph.nodes){routing={...routing,bgp:setBuilderBgpRouterAsn(graph,routing.bgp,router.id,64496)};routing={...routing,bgp:setBuilderBgpRouterEnabled(graph,routing.bgp,router.id,true)};}
+for(const [index,router] of graph.nodes.entries()){routing={...routing,bgp:setBuilderBgpRouterAsn(graph,routing.bgp,router.id,64496+index)};routing={...routing,bgp:setBuilderBgpRouterEnabled(graph,routing.bgp,router.id,true)};}
 for(const link of graph.links)routing={...routing,bgp:upsertBuilderBgpSession(graph,routing.bgp,link.id)};
 const address=(id)=>interfacesForBuilderNode(addressing,id)[0].address;
 const provider=createDefaultBuilderProviderConfig();
@@ -57,6 +57,7 @@ const lsp=builderMplsLspState(graph,addressing,routing,routing.provider.mpls.lsp
 
 const vni=builderVxlanVniState(graph,addressing,routing,routing.provider.vxlan.vnis[0]);assert.equal(vni.state,'UP');assert.equal(vni.pairs.length,1);assert.deepEqual(vni.pairs[0].linkIds,['pe1-p1','p1-p2','p2-pe2']);
 const evpnAtPe1=builderEvpnRoutes(graph,addressing,routing,'pe1');const remoteType2=evpnAtPe1.find((row)=>row.mac==='02:00:00:00:10:02');assert.ok(remoteType2);assert.equal(remoteType2.learned,'BGP EVPN');assert.equal(remoteType2.nextHop,address('pe2'));assert.equal(remoteType2.routeTarget,'64496:10100');assert.equal(remoteType2.controlPlaneReachable,true);assert.equal(remoteType2.underlayReachable,true);assert.ok(builderEvpnImetRoutes(graph,addressing,routing,'pe1').some((row)=>row.originVtepRouterId==='pe2'&&row.learned==='BGP EVPN'));
+const ibgpSplitHorizon=structuredClone(routing);for(const router of graph.nodes)ibgpSplitHorizon.bgp=setBuilderBgpRouterAsn(graph,ibgpSplitHorizon.bgp,router.id,64496);for(const link of graph.links)ibgpSplitHorizon.bgp=upsertBuilderBgpSession(graph,ibgpSplitHorizon.bgp,link.id);assert.equal(builderEvpnRoutes(graph,addressing,ibgpSplitHorizon,'pe1').some((row)=>row.originVtepRouterId==='pe2'),false,'EVPN must inherit Track F iBGP split-horizon truth; an iBGP chain without route reflection cannot relay remote MAC/IP state');
 const vxlan=builderVxlanForwarding(graph,addressing,routing,routing.provider.vxlan.bindings[0],'02:00:00:00:10:02');assert.equal(vxlan.mode,'EVPN UNICAST');assert.equal(vxlan.delivered,true);assert.deepEqual(vxlan.remoteVtepRouterIds,['pe2']);assert.equal(vxlan.outerPaths[0].udpPort,4789);assert.equal(vxlan.outerPaths[0].sourceAddress,address('pe1'));assert.equal(vxlan.outerPaths[0].destinationAddress,address('pe2'));
 const unknown=builderVxlanForwarding(graph,addressing,routing,routing.provider.vxlan.bindings[0],'02:00:00:00:ff:ff');assert.equal(unknown.mode,'INGRESS REPLICATION');assert.equal(unknown.delivered,false,'unknown-MAC flooding must not invent proof of destination delivery');assert.equal(unknown.outerPaths.length,1);
 

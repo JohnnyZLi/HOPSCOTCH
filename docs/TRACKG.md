@@ -97,7 +97,7 @@ Local VTEP MAC/IP bindings create Type-2-style MAC/IP advertisements. VTEP membe
 
 Remote learning requires two independent truths:
 
-1. an allowed path through established Builder BGP control-plane sessions,
+1. an allowed path through established Builder BGP control-plane sessions **with Track F iBGP split-horizon / route-reflector rules preserved**,
 2. canonical routed underlay reachability to the advertising VTEP.
 
 A remote EVPN row records:
@@ -144,7 +144,7 @@ It permanently covers:
 - MPLS PUSH/SWAP/POP and per-router LFIB projection,
 - MPLS and tunnel agreement when consuming the same underlay endpoints,
 - VNI/VTEP underlay reachability,
-- EVPN Type-2 and Type-3 learning,
+- EVPN Type-2 and Type-3 learning plus iBGP split-horizon non-propagation without a route reflector,
 - VXLAN UDP/4789 outer projection,
 - unknown-MAC ingress replication without invented delivery,
 - underlay failure propagating into tunnel/VXLAN/EVPN state,

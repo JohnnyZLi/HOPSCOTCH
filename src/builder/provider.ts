@@ -50,8 +50,20 @@ export function builderMplsLspState(graph:BuilderGraph,addressing:BuilderAddress
 
 export function builderMplsForwardingTable(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig,routerId:string){return(routing.provider?.mpls.lsps??[]).flatMap((lsp)=>builderMplsLspState(graph,addressing,routing,lsp).operations).filter((row)=>row.routerId===routerId).sort((a,b)=>a.lspId.localeCompare(b.lspId));}
 
-function establishedBgpGraph(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig){const state=builderBgpState(graph,addressing,routing.bgp),adj=new Map<string,Set<string>>();for(const id of routing.bgp.enabledRouterIds)adj.set(id,new Set());for(const session of state.sessions.filter((entry)=>entry.state==='ESTABLISHED')){adj.get(session.aRouterId)?.add(session.bRouterId);adj.get(session.bRouterId)?.add(session.aRouterId);}return adj;}
-function bgpControlReachable(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig,a:string,b:string){if(a===b)return true;const adj=establishedBgpGraph(graph,addressing,routing),queue=[a],seen=new Set([a]);while(queue.length){const current=queue.shift()!;for(const next of adj.get(current)??[]){if(next===b)return true;if(!seen.has(next)){seen.add(next);queue.push(next);}}}return false;}
+interface BuilderEvpnBgpPropagationState { routerId:string; learnedVia:'local'|'ibgp'|'ebgp'; learnedFromRouterId:string|null; learnedSessionId:string|null; asPath:number[]; reflectionPath:string[]; }
+function bgpControlReachable(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig,originRouterId:string,viewerRouterId:string){
+  if(originRouterId===viewerRouterId)return true;
+  const bgp= routing.bgp, sessionState=builderBgpState(graph,addressing,bgp), established=new Set(sessionState.sessions.filter((entry)=>entry.state==='ESTABLISHED').map((entry)=>entry.id));
+  const queue:BuilderEvpnBgpPropagationState[]=[{routerId:originRouterId,learnedVia:'local',learnedFromRouterId:null,learnedSessionId:null,asPath:[],reflectionPath:[]}],seen=new Set<string>();
+  for(let steps=0;queue.length&&steps<256;steps+=1){const state=queue.shift()!;const fingerprint=[state.routerId,state.learnedVia,state.learnedFromRouterId??'',state.learnedSessionId??'',state.asPath.join(','),state.reflectionPath.join(',')].join('|');if(seen.has(fingerprint))continue;seen.add(fingerprint);
+    for(const session of bgp.sessions){if(!established.has(session.id)||(session.aRouterId!==state.routerId&&session.bRouterId!==state.routerId))continue;const receiverId=session.aRouterId===state.routerId?session.bRouterId:session.aRouterId;if(state.learnedFromRouterId===receiverId)continue;const senderAsn=builderBgpAsnForRouter(graph,bgp,state.routerId),receiverAsn=builderBgpAsnForRouter(graph,bgp,receiverId),mode=senderAsn===receiverAsn?'ibgp':'ebgp';
+      if(mode==='ibgp'&&state.learnedVia==='ibgp'){const inbound=bgp.sessions.find((entry)=>entry.id===state.learnedSessionId);const learnedFromClient=Boolean(inbound&&inbound.routeReflectorClientRouterId===state.learnedFromRouterId&&(inbound.aRouterId===state.routerId||inbound.bRouterId===state.routerId));const receiverIsClient=session.routeReflectorClientRouterId===receiverId&&(session.aRouterId===state.routerId||session.bRouterId===state.routerId);if(!learnedFromClient&&!receiverIsClient)continue;if(state.reflectionPath.includes(receiverId))continue;}
+      let next:BuilderEvpnBgpPropagationState;if(mode==='ebgp'){const asPath=[senderAsn,...state.asPath];if(asPath.includes(receiverAsn))continue;next={routerId:receiverId,learnedVia:'ebgp',learnedFromRouterId:state.routerId,learnedSessionId:session.id,asPath,reflectionPath:[...state.reflectionPath]};}else next={routerId:receiverId,learnedVia:'ibgp',learnedFromRouterId:state.routerId,learnedSessionId:session.id,asPath:[...state.asPath],reflectionPath:state.learnedVia==='ibgp'?[...new Set([...state.reflectionPath,state.routerId])]:[...state.reflectionPath]};
+      if(receiverId===viewerRouterId)return true;queue.push(next);
+    }
+  }
+  return false;
+}
 function vtep(config:BuilderProviderConfig,routerId:string){return config.vxlan.vteps.find((entry)=>entry.routerId===routerId&&entry.enabled);}
 function vni(config:BuilderProviderConfig,value:number){return config.vxlan.vnis.find((entry)=>entry.vni===value);}
 
