@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ingestNetworkDiagnosticsReportV2 } from './measurement/networkDiagnosticsAdapter.ts';
 import {
   DEFAULT_LOOPBACK_BRIDGE_ORIGIN,
@@ -24,6 +24,8 @@ import type {
 import './MeasuredNetworkWorkspace.css';
 
 const MAX_REPORT_BYTES = 10 * 1024 * 1024;
+
+const MeasuredNativeCorrelationPanel = lazy(() => import('./MeasuredNativeCorrelationPanel.tsx').then((module) => ({ default: module.MeasuredNativeCorrelationPanel })));
 
 const CATEGORY_ORDER: readonly NativeMeasurementCategory[] = [
   'interface',
@@ -332,6 +334,8 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
         <div className={`capture-freshness state-${freshness?.classification ?? 'fresh'}`}><span>CAPTURE AGE</span><strong>{freshness ? freshnessLabel(freshness.classification) : '—'}</strong><small>{freshness ? captureAgeLabel(freshness.ageMs) : '—'}</small></div>
         <div><span>COMPLETED</span><strong>{new Date(measuredState.snapshot.capture.completedAt).toLocaleString()}</strong></div>
       </section>
+
+      <Suspense fallback={null}><MeasuredNativeCorrelationPanel measuredState={measuredState} /></Suspense>
 
       <div className="measured-main">
         <nav className="measured-categories" aria-label="Measured fact categories">
