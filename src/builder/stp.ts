@@ -34,7 +34,17 @@ export function cloneBuilderStpConfig(config: BuilderStpConfig | undefined): Bui
 function carriesVlan(config: BuilderEthernetConfig, link: BuilderEthernetLink, vlanId: number): boolean { return builderEthernetLogicalLinkCarriesVlan(config.links, link, vlanId); }
 
 function deviceById(config: BuilderEthernetConfig, id: string): BuilderEthernetDevice | undefined { return config.devices.find((device)=>device.id===id); }
-function switchIds(config: BuilderEthernetConfig): string[] { return config.devices.filter((device)=>device.kind==='switch'||device.kind==='l3-switch').map((device)=>device.id).sort(); }
+function isSwitch(device: BuilderEthernetDevice | undefined): boolean { return device?.kind==='switch'||device?.kind==='l3-switch'; }
+function switchIds(config: BuilderEthernetConfig): string[] { return config.devices.filter((device)=>isSwitch(device)).map((device)=>device.id).sort(); }
+function switchIdsForVlan(config: BuilderEthernetConfig, vlanId: number): string[] {
+  const ids=new Set<string>();
+  for(const link of config.links){
+    if(!carriesVlan(config,link,vlanId))continue;
+    if(isSwitch(deviceById(config,link.a)))ids.add(link.a);
+    if(isSwitch(deviceById(config,link.b)))ids.add(link.b);
+  }
+  return [...ids].sort();
+}
 function priority(config: BuilderEthernetConfig, id: string): number { return config.stp?.bridgePriorities?.[id] ?? 32768; }
 function bridgeKey(config: BuilderEthernetConfig, id: string): string {
   const device=deviceById(config,id); return `${String(priority(config,id)).padStart(5,'0')}:${device?.mac??'ff:ff:ff:ff:ff:ff'}:${id}`;
@@ -56,7 +66,7 @@ export function validateBuilderStpConfig(config: BuilderEthernetConfig, input: B
 function activeSwitchEdges(config: BuilderEthernetConfig, vlanId: number): Array<{linkId:string;a:string;b:string}> {
   return config.links.filter((link)=>{
     if(!carriesVlan(config,link,vlanId))return false;
-    const a=deviceById(config,link.a)?.kind,b=deviceById(config,link.b)?.kind; return (a==='switch'||a==='l3-switch')&&(b==='switch'||b==='l3-switch');
+    return isSwitch(deviceById(config,link.a))&&isSwitch(deviceById(config,link.b));
   }).map((link)=>({linkId:link.id,a:link.a,b:link.b})).sort((x,y)=>x.linkId.localeCompare(y.linkId));
 }
 
@@ -67,7 +77,7 @@ function hasCycle(nodes:string[],edges:Array<{a:string;b:string}>): boolean {
 }
 
 export function builderStpState(config: BuilderEthernetConfig, vlanId: number): BuilderStpState {
-  const switches=switchIds(config);
+  const switches=switchIdsForVlan(config,vlanId);
   const edges=activeSwitchEdges(config,vlanId);
   const loopDetected=hasCycle(switches,edges);
   if(switches.length===0)return{vlanId,enabled:config.stp?.enabled!==false,rootBridgeId:null,rootBridgeLabel:null,loopDetected:false,ports:[],blockedLinkIds:[],forwardingLinkIds:[],explanation:'No switches participate in this VLAN.'};
@@ -76,7 +86,7 @@ export function builderStpState(config: BuilderEthernetConfig, vlanId: number): 
   if(!enabled){
     const ports=config.links.map((link):BuilderStpPortState=>{
       if(link.failed)return{linkId:link.id,a:link.a,b:link.b,state:'DOWN',blockedAt:null,reason:'Physical link is down.'};
-      const aKind=deviceById(config,link.a)?.kind,bKind=deviceById(config,link.b)?.kind; const aSwitch=aKind==='switch'||aKind==='l3-switch',bSwitch=bKind==='switch'||bKind==='l3-switch';
+      const aSwitch=isSwitch(deviceById(config,link.a)),bSwitch=isSwitch(deviceById(config,link.b));
       if(!aSwitch||!bSwitch||!carriesVlan(config,link,vlanId))return{linkId:link.id,a:link.a,b:link.b,state:'NOT-STP',blockedAt:null,reason:'Not an active switch-to-switch segment for this VLAN.'};
       return{linkId:link.id,a:link.a,b:link.b,state:'FORWARDING',blockedAt:null,reason:'STP disabled; redundant switch links all forward.'};
     });
@@ -99,7 +109,7 @@ export function builderStpState(config: BuilderEthernetConfig, vlanId: number): 
   const parentLinks=new Set([...best.values()].flatMap((candidate)=>candidate.parentLink?[candidate.parentLink]:[]));
   const ports=config.links.map((link):BuilderStpPortState=>{
     if(link.failed)return{linkId:link.id,a:link.a,b:link.b,state:'DOWN',blockedAt:null,reason:'Physical link is down.'};
-    const aKind=deviceById(config,link.a)?.kind,bKind=deviceById(config,link.b)?.kind; const aSwitch=aKind==='switch'||aKind==='l3-switch',bSwitch=bKind==='switch'||bKind==='l3-switch';
+    const aSwitch=isSwitch(deviceById(config,link.a)),bSwitch=isSwitch(deviceById(config,link.b));
     if(!aSwitch||!bSwitch||!carriesVlan(config,link,vlanId))return{linkId:link.id,a:link.a,b:link.b,state:'NOT-STP',blockedAt:null,reason:'Access/edge segment or VLAN not carried.'};
     if(parentLinks.has(link.id))return{linkId:link.id,a:link.a,b:link.b,state:'FORWARDING',blockedAt:null,reason:'Root/designated tree edge.'};
     const aBest=best.get(link.a),bBest=best.get(link.b);
