@@ -2,7 +2,7 @@
 
 Track J turns the existing Builder into a troubleshooting-practice environment without creating a challenge-only network simulator.
 
-This document records the **first vertical slice**, not Track J closeout. The first slice proves the challenge architecture with one bounded fault family: a missing IPv4 default gateway.
+This document records the **implemented Track J foundation and Layer-2 expansion**, not Track J closeout. The first slice proved the architecture with a missing IPv4 default gateway. The second slice extends the same contracts through canonical access-VLAN, trunk-pruning, and STP-loop failures.
 
 ## Product invariant
 
@@ -11,8 +11,10 @@ A challenge may choose, mutate, score, and explain canonical Builder truth. It m
 The network remains ordinary `SIMULATED` Builder truth:
 
 - topology and addressing come from canonical Builder configuration,
-- routing is produced by the existing routing/OSPF model,
-- probes use the existing Builder Ping / Traceroute implementation,
+- routed reachability is produced by the existing routing/OSPF model,
+- Layer-2 reachability is produced by the existing Ethernet/VLAN/STP/ARP model,
+- routed probes use the existing Builder Ping / Traceroute implementation,
+- LAN troubleshooting uses the existing `SEND FRAME / PACKET` + ARP workflow,
 - device facts come from the existing Device Workbench,
 - repairs use the same canonical configuration controls available outside challenge mode.
 
@@ -25,60 +27,108 @@ Challenge metadata is deliberately separate session state:
 
 None of those fields alter forwarding, protocol state, packet outcomes, or scenario provenance.
 
-## First slice — missing default gateway
+## Challenge families
 
-`createDefaultGatewayChallenge(seed)` creates a deterministic challenge in four steps:
+### Missing default gateway
+
+`gateway-*` seeds use the original routed challenge:
 
 1. start from the canonical default Builder scenario,
 2. enable the existing canonical OSPF model across the routed topology so the healthy baseline has end-to-end reachability,
 3. select a routed endpoint deterministically from the seed,
 4. clear exactly that endpoint's canonical IPv4 default gateway.
 
-The healthy and broken snapshots are ordinary `BuilderAuthoringSnapshot` values. Restoring the expected gateway makes the broken canonical snapshot equal to the healthy snapshot; there is no answer-only representation of the failure.
+The objective endpoint becomes the routed challenge source. A healthy ordinary Builder ping succeeds and the broken ordinary Builder ping fails.
 
-The objective endpoint becomes the challenge source. The other routed endpoint is the destination. A healthy ordinary Builder ping must succeed and the broken ordinary Builder ping must fail.
+### Access-VLAN mismatch
+
+`vlan-*` / `l2-vlan-*` seeds select one of the canonical VLAN-10 endpoint access links and change exactly that port membership from VLAN 10 to VLAN 20.
+
+The endpoint's own interface stays in VLAN 10. Nothing is rewritten to make the answer convenient. As a result, the existing ARP path computation cannot cross the mismatched access port and the ordinary LAN workflow fails from canonical Ethernet truth.
+
+The repair is the normal **ACCESS VLAN** control on the selected Builder LAN port.
+
+### Trunk VLAN pruning
+
+`trunk-*` / `l2-trunk-*` seeds choose a canonical trunk required by the PC-A → PC-C inter-VLAN path and remove VLAN 20 from that trunk's allow-list while leaving VLAN 10 intact.
+
+The routed router-on-a-stick interfaces, endpoint addressing, and physical links remain healthy. The existing ARP/L2 path model shows where VLAN 20 disappears.
+
+The repair is the normal **ALLOWED VLANs** control on the selected trunk.
+
+### STP disabled on an existing cycle
+
+`stp-*` / `l2-stp-*` seeds keep the canonical VLAN-10 triangle of SW1/SW2/SW3 physically intact and disable canonical STP.
+
+ARP can still observe a reachable path, but `runBuilderEthernetFlow` independently rejects broadcast/unknown-unicast forwarding because VLAN 10 contains a live Layer-2 cycle with STP disabled. That distinction is intentional evidence: address resolution alone does not prove loop-safe forwarding.
+
+The repair is the normal **ENABLE STP** control.
+
+## Canonical one-fault contract
+
+Every current challenge stores ordinary healthy and broken `BuilderAuthoringSnapshot` values.
+
+For each family, restoring the exact mutated canonical field makes the broken snapshot equal to the healthy snapshot:
+
+- gateway → endpoint default gateway,
+- access VLAN → access-port VLAN ID,
+- trunk → trunk allow-list,
+- STP → `stp.enabled`.
+
+There is no answer-only fault representation and no challenge-specific forwarding state.
+
+Alternative edits may make some traffic appear healthy, but repair points require restoration of the exact canonical fault. Verification is scored separately.
 
 ## Determinism and sharing
 
-Challenge schema:
+Challenge schema remains:
 
 ```text
 hopscotch.builder.challenge · v1
 ```
 
-The compact first-slice share token is:
+Share token:
 
 ```text
 HOP-J1.<encoded seed>
 ```
 
-The token contains no answer. Replaying the same seed reproduces the same healthy baseline, objective pair, broken canonical configuration, and expected repair.
+The token contains no answer. The seed prefix selects the bounded family while the complete seed reproduces the same healthy baseline, fault location, broken snapshot, objective pair, and expected repair.
+
+Existing `gateway-*` tokens preserve the original gateway-family behavior.
 
 Challenge evidence and score are session-only and are intentionally not embedded in the token.
 
 ## Diagnosis through normal Builder surfaces
 
-Track J does not add a shortcut such as "inspect fault" or a challenge-specific ping implementation.
+Track J still does not add an "inspect fault" shortcut or challenge-specific packet engine.
 
-Evidence can be earned through explicit ordinary actions:
+### Routed objective evidence
 
 - IPv4 **Ping** against the challenge source → destination objective,
 - IPv4 **Traceroute** against the same objective,
 - explicit **CONFIG** inspection in Device Workbench,
 - explicit **STATE** inspection in Device Workbench.
 
+### Ethernet objective evidence
+
+- ordinary **SEND FRAME / PACKET** against the challenge LAN source → destination objective,
+- the ARP observation produced by that same ordinary LAN attempt,
+- explicit **CONFIG** inspection at the primary Ethernet fault location,
+- explicit **STATE** inspection at the same location.
+
 Device Workbench reports an inspection only when the user explicitly changes the selected device or selects CONFIG / STATE / EVENTS. Merely rendering the workbench does not earn evidence.
 
-Probe scoring is objective-scoped. A successful ping to an unrelated device cannot verify the repair.
+Verification is objective-scoped. A successful routed probe or LAN flow against a different endpoint pair cannot verify the repair.
 
 ## Causal hypothesis
 
-The first slice asks the user to lock two structured facts:
+The user locks two structured facts:
 
 1. the first broken truth boundary,
-2. the responsible device.
+2. the primary fault location.
 
-The current bounded boundary vocabulary is:
+The bounded boundary vocabulary is:
 
 - `ADDRESSING`
 - `L2`
@@ -86,72 +136,85 @@ The current bounded boundary vocabulary is:
 - `POLICY`
 - `TRANSPORT`
 
-For the first fault family, the canonical answer is `ADDRESSING` on the endpoint whose default gateway was removed.
+Gateway challenges expect `ADDRESSING` on the affected routed endpoint. Current VLAN/trunk/STP challenges expect `L2` on the switch anchoring the mutated canonical configuration.
 
-The challenge panel does not reveal that answer until the challenge is solved.
+The challenge panel does not reveal the expected repair until the challenge is solved.
 
 ## Scoring
 
-The first-slice score is deterministic and capped at 100:
+Every current family is capped at 100:
 
-| Dimension | Points | Requirement |
-| --- | ---: | --- |
-| Evidence | 40 | failed objective Ping, failed objective Traceroute, target STATE inspection, target CONFIG inspection |
-| Reasoning | 20 | correct first-broken boundary and responsible device after probe + inspection evidence exists |
-| Repair | 25 | current canonical gateway equals the exact healthy gateway |
-| Verification | 15 | successful post-repair Ping or Traceroute against the original objective |
+| Dimension | Routed objective | Ethernet objective | Points |
+| --- | --- | --- | ---: |
+| Evidence | failed Ping + failed Traceroute + target STATE + target CONFIG | failed LAN flow (15) + observed ARP evidence (5) + target STATE + target CONFIG | 40 |
+| Reasoning | correct boundary + primary fault location after diagnostic + inspection evidence | same | 20 |
+| Repair | exact healthy canonical field restored | exact healthy canonical field restored | 25 |
+| Verification | successful post-repair objective Ping / Traceroute | successful post-repair objective LAN flow | 15 |
 
-Repair without verification is deliberately incomplete. A user can restore the correct configuration and still remain unsolved until a normal post-repair probe proves the outcome.
+For Ethernet challenges, ARP evidence counts whether it succeeds or fails. A successful ARP in the STP challenge is useful narrowing evidence rather than proof that the data plane is safe.
 
-Likewise, reaching a working state does not retroactively award causal-reasoning points for an incorrect hypothesis.
+Repair without verification is deliberately incomplete. Reaching a working state does not retroactively award causal-reasoning points for an incorrect hypothesis.
 
 ## Challenge lifecycle
 
 Starting a challenge snapshots the user's current canonical Builder configuration, then loads the deterministic broken snapshot into the same Builder.
 
+For Ethernet objectives the challenge also selects the correct LAN source/destination, focuses Device Workbench on the primary fault location, and selects the mutated link when the fault is link-scoped. Those selections are UI/session state; they do not alter network truth.
+
 `RESTART SAME SEED` resets:
 
 - canonical challenge configuration,
-- runtime/session probe state,
+- runtime/session probe, ARP, FDB, and flow state,
 - challenge evidence,
 - hypothesis,
 - timeline/workbench session state.
 
-`EXIT CHALLENGE` restores the pre-challenge canonical Builder configuration and scenario name. Runtime investigation state remains session-local rather than being merged into the restored scenario.
+`EXIT CHALLENGE` restores the pre-challenge canonical Builder configuration and scenario name.
 
-While a challenge is active, saved-scenario restore, scenario import, and `RESET TOPOLOGY` are blocked so they cannot substitute an unrelated configuration for the exercise. Ordinary Builder configuration editing remains available because repair through the real Builder is the point of the exercise.
+While a challenge is active, these configuration-replacement shortcuts are blocked:
+
+- saved-scenario restore,
+- scenario import,
+- `RESET TOPOLOGY`,
+- `RESET LAN`,
+- the bulk authoring workspace.
+
+The actual repair controls remain available: endpoint gateway, access VLAN, trunk allow-list, STP toggle, routed configuration, and normal diagnostic surfaces.
 
 ## Loading and performance boundary
 
-The challenge generator/scoring core lives in `src/builder/challenges.ts` rather than `NetworkBuilder.tsx`.
+The challenge generator/scoring core remains in `src/builder/challenges.ts` rather than `NetworkBuilder.tsx`.
 
-The challenge panel is lazy-loaded and is never rendered in the Builder stress harness. Track J does not widen existing bundle, DOM, heap, or compatibility ceilings.
+The challenge panel is lazy-loaded and is never rendered in the Builder stress harness. New family logic remains model-only until a challenge is started. Track J does not widen existing bundle, DOM, heap, or compatibility ceilings.
 
 ## Contract coverage
 
-`npm run test:builder-challenge-contract` proves:
+`npm run test:builder-challenge-contract` now proves:
 
 - same seed → same exact challenge,
-- exactly one canonical gateway fault in the first slice,
-- healthy ordinary Builder Ping succeeds,
-- broken ordinary Builder Ping fails,
-- share token round-trip reproduces the challenge,
-- unrelated probes do not count toward the objective,
+- `gateway-*` compatibility with the first slice,
+- access-VLAN, trunk-pruning, and STP-loop seed dispatch,
+- exactly one canonical fault per current family,
+- healthy ordinary routed/LAN workflows succeed,
+- each broken family fails through the ordinary canonical diagnostic path,
+- STP-disabled loop preserves the useful distinction between ARP reachability and unsafe forwarding,
+- share-token round-trip reproduces every family,
+- unrelated objective traffic does not count as verification,
 - evidence and causal-reasoning scoring,
 - exact canonical repair requirement,
 - post-repair objective verification requirement.
 
-The test is part of `npm run check`.
+The test remains part of `npm run check`.
 
 ## Remaining Track J work
 
-The first gateway challenge establishes the subsystem; it does not complete Track J.
+Gateway + the first L2 families establish the reusable challenge subsystem, but Track J is not closed.
 
-Next slices should reuse the same challenge/evidence/scoring contracts while adding deterministic canonical fault generators for:
+Remaining canonical fault depth includes:
 
 - addressing beyond the default gateway,
-- VLAN membership and trunk/native-VLAN failures,
-- STP and ARP/ND failures,
+- native-VLAN and deeper STP behavior,
+- dedicated ARP/ND failures beyond ARP as evidence,
 - connected/static/dynamic routing failures,
 - OSPF adjacency/policy failures,
 - ACL and NAT failures,
@@ -159,8 +222,9 @@ Next slices should reuse the same challenge/evidence/scoring contracts while add
 - MTU / PMTUD failures,
 - DNS failures,
 - transport failures,
-- BGP policy failures.
+- BGP policy failures,
+- later bounded multi-fault composition after the single-fault catalog is trustworthy.
 
-As the catalog expands, difficulty should come from modeled topology, fault composition, observability, and protocol depth—not from hiding canonical facts or inventing misleading answer text.
+Difficulty should come from modeled topology, fault composition, observability, and protocol depth—not from hiding canonical facts or inventing misleading answer text.
 
 The long-horizon procedural challenge generator remains Track S3 in `ROADMAP-MOONSHOTS.md`; Track J is the bounded product path that proves the experience first.
