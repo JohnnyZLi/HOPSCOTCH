@@ -1,6 +1,7 @@
 import { interfacesForBuilderNode, normalizeBuilderIpv4, parseBuilderIpv4Cidr, type BuilderAddressing } from './addressing.ts';
 import type { BuilderBgpConfig } from './bgp.ts';
 import type { BuilderGraph } from './model.ts';
+import { cloneBuilderProviderConfig, createDefaultBuilderProviderConfig, reconcileBuilderProviderConfig, validateBuilderProviderConfig, type BuilderProviderConfig } from './provider-config.ts';
 import { builderBgpState, cloneBuilderBgpConfig } from './bgp.ts';
 import { builderIsisRouteEntriesForRouter, builderIsisState, type BuilderIsisInjectedRoute } from './isis.ts';
 import {
@@ -66,6 +67,7 @@ export interface BuilderRoutingConfig {
   ospf: BuilderOspfConfig;
   bgp: BuilderBgpConfig;
   policy: BuilderRoutingPolicyConfig;
+  provider?: BuilderProviderConfig;
 }
 
 export interface BuilderRouteTableEntry extends Omit<base.BuilderRouteTableEntry, 'ospfRouteType' | 'source'> {
@@ -164,7 +166,7 @@ function validateOspfExtensions(
 
 export function createDefaultBuilderRoutingConfig(): BuilderRoutingConfig {
   const result = base.createDefaultBuilderRoutingConfig();
-  return { ...result, ospf: { ...result.ospf, areaTypes: {}, redistributions: [] }, policy: createDefaultBuilderRoutingPolicyConfig() };
+  return { ...result, ospf: { ...result.ospf, areaTypes: {}, redistributions: [] }, policy: createDefaultBuilderRoutingPolicyConfig(), provider: createDefaultBuilderProviderConfig() };
 }
 
 export function validateBuilderRoutingConfig(graph: BuilderGraph, addressing: BuilderAddressing, value: BuilderRoutingConfig): BuilderRoutingConfig {
@@ -174,6 +176,7 @@ export function validateBuilderRoutingConfig(graph: BuilderGraph, addressing: Bu
     ...baseRouting,
     ospf: { ...baseRouting.ospf, areaTypes: extensions.areaTypes, redistributions: extensions.redistributions },
     policy: validateBuilderRoutingPolicyConfig(graph,addressing,value.policy),
+    provider: validateBuilderProviderConfig(graph,addressing,value.provider),
   };
 }
 
@@ -187,6 +190,7 @@ export function cloneBuilderRoutingConfig(value: BuilderRoutingConfig): BuilderR
       redistributions: (value.ospf?.redistributions ?? []).map((entry) => ({ ...entry })),
     },
     policy: cloneBuilderRoutingPolicyConfig(value.policy),
+    provider: cloneBuilderProviderConfig(value.provider),
   };
 }
 
@@ -207,7 +211,7 @@ export function reconcileBuilderRoutingConfig(graph: BuilderGraph, addressing: B
         && (areaId === BUILDER_OSPF_BACKBONE_AREA || (areaTypes[areaId] ?? 'normal') !== 'stub');
     } catch { return false; }
   });
-  return validateBuilderRoutingConfig(graph, addressing, { ...reconciled, ospf: { ...reconciled.ospf, areaTypes, redistributions }, policy: reconcileBuilderRoutingPolicyConfig(graph,addressing,current.policy) });
+  return validateBuilderRoutingConfig(graph, addressing, { ...reconciled, ospf: { ...reconciled.ospf, areaTypes, redistributions }, policy: reconcileBuilderRoutingPolicyConfig(graph,addressing,current.policy), provider: reconcileBuilderProviderConfig(graph,addressing,current.provider) });
 }
 
 function preserveExtensions(graph: BuilderGraph, addressing: BuilderAddressing, result: base.BuilderRoutingConfig, source: BuilderRoutingConfig, redistributions = source.ospf?.redistributions ?? []): BuilderRoutingConfig {
@@ -219,6 +223,7 @@ function preserveExtensions(graph: BuilderGraph, addressing: BuilderAddressing, 
       redistributions: redistributions.map((entry) => ({ ...entry })),
     },
     policy: cloneBuilderRoutingPolicyConfig(source.policy),
+    provider: cloneBuilderProviderConfig(source.provider),
   });
 }
 
@@ -235,7 +240,7 @@ export function setBuilderOspfEverywhere(graph: BuilderGraph, addressing: Builde
 
 export function setBuilderOspfLinkArea(graph: BuilderGraph, addressing: BuilderAddressing, routing: BuilderRoutingConfig, linkId: string, areaId: string): BuilderRoutingConfig {
   const result = base.setBuilderOspfLinkArea(graph, addressing, toBaseRouting(routing), linkId, areaId);
-  return reconcileBuilderRoutingConfig(graph, addressing, { ...result, ospf: { ...result.ospf, areaTypes: routing.ospf.areaTypes ?? {}, redistributions: routing.ospf.redistributions ?? [] }, policy: cloneBuilderRoutingPolicyConfig(routing.policy) });
+  return reconcileBuilderRoutingConfig(graph, addressing, { ...result, ospf: { ...result.ospf, areaTypes: routing.ospf.areaTypes ?? {}, redistributions: routing.ospf.redistributions ?? [] }, policy: cloneBuilderRoutingPolicyConfig(routing.policy), provider: cloneBuilderProviderConfig(routing.provider) });
 }
 
 export function setBuilderOspfAreaType(graph: BuilderGraph, addressing: BuilderAddressing, routing: BuilderRoutingConfig, areaId: string, areaType: BuilderOspfAreaType): BuilderRoutingConfig {
@@ -281,12 +286,12 @@ export function deleteBuilderOspfRedistribution(graph: BuilderGraph, addressing:
 
 export function upsertBuilderStaticRoute(graph: BuilderGraph, addressing: BuilderAddressing, routing: BuilderRoutingConfig, route: Omit<BuilderStaticRoute, 'id'> & { id?: string }): BuilderRoutingConfig {
   const result = base.upsertBuilderStaticRoute(graph, addressing, toBaseRouting(routing), route);
-  return reconcileBuilderRoutingConfig(graph, addressing, { ...result, ospf: { ...result.ospf, areaTypes: routing.ospf.areaTypes ?? {}, redistributions: routing.ospf.redistributions ?? [] }, policy: cloneBuilderRoutingPolicyConfig(routing.policy) });
+  return reconcileBuilderRoutingConfig(graph, addressing, { ...result, ospf: { ...result.ospf, areaTypes: routing.ospf.areaTypes ?? {}, redistributions: routing.ospf.redistributions ?? [] }, policy: cloneBuilderRoutingPolicyConfig(routing.policy), provider: cloneBuilderProviderConfig(routing.provider) });
 }
 
 export function deleteBuilderStaticRoute(graph: BuilderGraph, addressing: BuilderAddressing, routing: BuilderRoutingConfig, routeId: string): BuilderRoutingConfig {
   const result = base.deleteBuilderStaticRoute(graph, addressing, toBaseRouting(routing), routeId);
-  return reconcileBuilderRoutingConfig(graph, addressing, { ...result, ospf: { ...result.ospf, areaTypes: routing.ospf.areaTypes ?? {}, redistributions: routing.ospf.redistributions ?? [] }, policy: cloneBuilderRoutingPolicyConfig(routing.policy) });
+  return reconcileBuilderRoutingConfig(graph, addressing, { ...result, ospf: { ...result.ospf, areaTypes: routing.ospf.areaTypes ?? {}, redistributions: routing.ospf.redistributions ?? [] }, policy: cloneBuilderRoutingPolicyConfig(routing.policy), provider: cloneBuilderProviderConfig(routing.provider) });
 }
 
 export function builderOspfState(graph: BuilderGraph, addressing: BuilderAddressing, routing: BuilderRoutingConfig): BuilderOspfState {
@@ -297,6 +302,10 @@ export function builderOspfState(graph: BuilderGraph, addressing: BuilderAddress
 
 export function setBuilderRoutingPolicyConfig(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig,policy:BuilderRoutingPolicyConfig):BuilderRoutingConfig{
   return validateBuilderRoutingConfig(graph,addressing,{...cloneBuilderRoutingConfig(routing),policy});
+}
+
+export function setBuilderProviderConfig(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig,provider:BuilderProviderConfig):BuilderRoutingConfig{
+  return validateBuilderRoutingConfig(graph,addressing,{...cloneBuilderRoutingConfig(routing),provider});
 }
 
 function nodeById(graph: BuilderGraph, nodeId: string) { return graph.nodes.find((node) => node.id === nodeId); }
