@@ -79,10 +79,11 @@ assert.ok(bounds && bounds.nodeCount === 2 && bounds.width > 0 && bounds.height 
 
 const renamedGraph = bulkRenameBuilderNodes(graph, selected, 'LAB-');
 assert.deepEqual(renamedGraph.nodes.filter((node) => selected.includes(node.id)).map((node) => node.label), ['LAB-1', 'LAB-2']);
-const renamedAddressing = bulkRenameBuilderInterfaces(graph, addressing, selected, 'xe-');
+const renamedAddressing = bulkRenameBuilderInterfaces(graph, addressing, selected, 'eth');
 for (const segment of Object.values(renamedAddressing.segments)) {
-  for (const iface of segment.interfaces) if (selected.includes(iface.nodeId)) assert.match(iface.name, /^xe-\d+$/);
+  for (const iface of segment.interfaces) if (selected.includes(iface.nodeId)) assert.match(iface.name, /^eth\d+$/);
 }
+assert.throws(() => bulkRenameBuilderInterfaces(graph, addressing, selected, 'xe-'), /ethN notation/, 'bulk authoring must preserve the canonical routed-interface naming contract');
 
 const accessLink = ethernet.links.find((link) => link.mode === 'access');
 assert.ok(accessLink);
@@ -109,4 +110,4 @@ assert.match(panelContentSource, /SHOW ROUTED INTERFACE NAMES/, 'authoring works
 assert.match(panelContentSource, /SAVE TEMPLATE/, 'authoring workspace must expose reusable topology templates');
 assert.match(panelContentSource, /SET ACCESS VLAN/, 'authoring workspace must expose bulk VLAN edits');
 
-console.log('Track B authoring contract passed: bounded canonical undo/redo, topology copy/paste, deterministic alignment, site bounds, reusable graph fragments, bulk device/interface/routed-link/Ethernet-VLAN edits, canonical branch snapshots, lazy authoring UI, topology search integration, scenario compare integration, camera/marquee hooks, and clean-baseline semantics.');
+console.log('Track B authoring contract passed: bounded canonical undo/redo, topology copy/paste, deterministic alignment, site bounds, reusable graph fragments, canonical ethN bulk interface renumbering, bulk device/routed-link/Ethernet-VLAN edits, canonical branch snapshots, lazy authoring UI, topology search integration, scenario compare integration, camera/marquee hooks, and clean-baseline semantics.');
