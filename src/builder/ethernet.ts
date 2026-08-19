@@ -1,4 +1,4 @@
-import { builderStpState, createDefaultBuilderStpConfig, validateBuilderStpConfig, type BuilderStpConfig } from './stp.ts';
+import { builderStpState, cloneBuilderStpConfig, createDefaultBuilderStpConfig, validateBuilderStpConfig, type BuilderStpConfig } from './stp.ts';
 
 export type BuilderEthernetDeviceKind = 'endpoint' | 'switch' | 'router' | 'l3-switch';
 export type BuilderEthernetPortMode = 'access' | 'trunk' | 'routed';
