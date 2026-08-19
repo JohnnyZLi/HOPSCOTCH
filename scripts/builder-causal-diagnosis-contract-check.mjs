@@ -145,12 +145,14 @@ const protocolDatabase = builderProtocolDatabaseSection(terminalWorkbench);
 assert.ok(protocolDatabase && protocolDatabase.rows.length > 0, 'time-native protocol database/counter rows must summarize the selected canonical Device Workbench rows');
 
 const workbenchCoreSource = readFileSync('src/builder/device-workbench.ts', 'utf8');
-const workbenchUiSource = readFileSync('src/BuilderDeviceWorkbench.tsx', 'utf8');
+const workbenchWrapperSource = readFileSync('src/BuilderDeviceWorkbench.tsx', 'utf8');
+const workbenchContentSource = readFileSync('src/BuilderDeviceWorkbenchContent.tsx', 'utf8');
 const workbenchDepthSource = readFileSync('src/builder/workbench-depth.ts', 'utf8');
-assert.doesNotMatch(workbenchCoreSource, /from ['"]\.\/workbench-depth\.ts['"]/, 'heavy protocol/causal depth must not be statically reachable from the core workbench model');
-assert.match(workbenchUiSource, /lazy\(\(\) => import\('\.\/BuilderWorkbenchDepthPanel\.tsx'\)/, 'Device Workbench depth must live behind an explicit lazy UI boundary');
-assert.match(workbenchUiSource, /snapshot=\{snapshot\}/, 'lazy depth must consume the exact selected canonical workbench snapshot');
-assert.doesNotMatch(workbenchDepthSource, /from ['"]\.\/(?:bgp|routing|stp|ipv6|ipv6-routing-depth)\.ts['"]/, 'lazy depth summaries must count existing workbench facts instead of rerunning protocol engines or creating shared startup chunks');
+assert.doesNotMatch(workbenchCoreSource, /from ['"]\.\/workbench-depth\.ts['"]/, 'protocol/causal depth must not be statically reachable from the core workbench model');
+assert.match(workbenchWrapperSource, /lazy\(\(\) => import\('\.\/BuilderDeviceWorkbenchContent\.tsx'\)/, 'the entire Device Workbench inspector must live behind an explicit lazy Builder boundary');
+assert.match(workbenchContentSource, /import BuilderWorkbenchDepthPanel from ['"]\.\/BuilderWorkbenchDepthPanel\.tsx['"]/, 'causal/protocol depth must travel with the lazy Device Workbench inspector instead of the startup bundle');
+assert.match(workbenchContentSource, /snapshot=\{snapshot\}/, 'lazy depth must consume the exact selected canonical workbench snapshot');
+assert.doesNotMatch(workbenchDepthSource, /from ['"]\.\/(?:bgp|routing|stp|ipv6|ipv6-routing-depth)\.ts['"]/, 'depth summaries must count existing workbench facts instead of rerunning protocol engines or creating shared startup chunks');
 
 const ipv6Tx = runBuilderApplicationTransaction(base, services, 'client', h3.id, 'ipv6', 31);
 const ipv6Diagnosis = diagnoseBuilderApplicationTransaction(ipv6Tx, graph);
@@ -168,4 +170,4 @@ assert.ok(partitioned.firstBrokenDimension, partitioned.summary);
 assert.equal(partitioned.dimensions.find((entry) => entry.id === 'TRANSPORT')?.status, 'NOT_REACHED');
 assert.ok(partitioned.causalChain.length >= 2);
 
-console.log('Track A causal diagnosis contract passed: independent truth dimensions, canonical application-stage replay, time-native protocol/counter state, exact first-broken-boundary ranking, no future-state leakage, policy vs translation separation, IPv6 no-NAT66 truth, canonical causal chains, and lazy row-derived workbench depth that does not rerun protocol engines or widen startup scope.');
+console.log('Track A causal diagnosis contract passed: independent truth dimensions, canonical application-stage replay, time-native protocol/counter state, exact first-broken-boundary ranking, no future-state leakage, policy vs translation separation, IPv6 no-NAT66 truth, canonical causal chains, and a lazy Device Workbench boundary that keeps causal depth out of startup truth and bundle scope.');
