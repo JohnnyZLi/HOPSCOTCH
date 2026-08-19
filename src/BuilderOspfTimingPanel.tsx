@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import type { BuilderAddressing } from './builder/addressing.ts';
 import type { BuilderGraph } from './builder/model.ts';
 import type { BuilderRoutingConfig } from './builder/routing.ts';
-import { createBuilderOspfLinkFailureScenario, DEFAULT_BUILDER_OSPF_TIMING, snapshotBuilderOspfConvergence } from './builder/ospf-timing.ts';
+import { createBuilderOspfLinkFailureScenario, snapshotBuilderOspfConvergence } from './builder/ospf-timing.ts';
+import { builderOspfTimerFor } from './builder/routing-policy.ts';
 
 function labelFor(graph: BuilderGraph, id: string): string {
   return graph.nodes.find((node) => node.id === id)?.label ?? id.toUpperCase();
@@ -19,7 +20,7 @@ export function BuilderOspfTimingPanel({ graph, addressing, routing, sourceId, d
 
   const scenario = useMemo(() => {
     if (!selectedLink) return null;
-    try { return createBuilderOspfLinkFailureScenario(graph, addressing, routing, sourceId, destinationId, selectedLink.id); }
+    try { const a=builderOspfTimerFor(routing.policy,selectedLink.a,selectedLink.id),b=builderOspfTimerFor(routing.policy,selectedLink.b,selectedLink.id);const timer=a.helloIntervalMs===b.helloIntervalMs&&a.deadIntervalMs===b.deadIntervalMs?a:{...a,helloIntervalMs:Math.min(a.helloIntervalMs,b.helloIntervalMs),deadIntervalMs:Math.min(a.deadIntervalMs,b.deadIntervalMs)};return createBuilderOspfLinkFailureScenario(graph,addressing,routing,sourceId,destinationId,selectedLink.id,{helloIntervalMs:timer.helloIntervalMs,deadIntervalMs:timer.deadIntervalMs,lsaFloodMs:200,spfDelayMs:500,ribInstallMs:100,fibInstallMs:100}); }
     catch { return null; }
   }, [graph, addressing, routing, sourceId, destinationId, selectedLink]);
   const snapshot = useMemo(() => scenario ? snapshotBuilderOspfConvergence(scenario, elapsedMs) : null, [scenario, elapsedMs]);
@@ -43,6 +44,6 @@ export function BuilderOspfTimingPanel({ graph, addressing, routing, sourceId, d
     </div>
     <div className={`builder-ospf-timing-path ${snapshot.fibTrace.reachable?'recovered':'failed'}`}><span>DATA PLANE AT THIS INSTANT</span><strong>{snapshot.fibTrace.reachable && path.length>0 ? path.map((id)=>labelFor(graph,id)).join(' → ') : `${snapshot.fibTrace.failureNodeId ? labelFor(graph,snapshot.fibTrace.failureNodeId) : 'FORWARDING'} · ${snapshot.fibTrace.failureReason ?? 'NO PROGRESS'}`}</strong><p>{snapshot.fibTrace.explanation}</p></div>
     <div className="builder-ospf-event-strip">{scenario.events.map((event)=><button type="button" key={event.id} className={event.atMs<=snapshot.elapsedMs?'visible':''} onClick={()=>setElapsedMs(event.atMs)}><b>{(event.atMs/1000).toFixed(1)}s · {event.kind.replaceAll('_',' ')}</b><span>{event.summary}</span></button>)}</div>
-    <small className="builder-routing-note">TIMED TEACHING MODEL · HELLO {DEFAULT_BUILDER_OSPF_TIMING.helloIntervalMs/1000}s · DEAD {DEFAULT_BUILDER_OSPF_TIMING.deadIntervalMs/1000}s · PHYSICAL FAILURE, NEIGHBOR KNOWLEDGE, SPF, RIB, FIB, AND TRAFFIC RECOVERY STAY DISTINCT.</small>
+    <small className="builder-routing-note">TIMED TEACHING MODEL · HELLO {(scenario.profile.helloIntervalMs/1000).toFixed(1)}s · DEAD {(scenario.profile.deadIntervalMs/1000).toFixed(1)}s · CONFIGURED INTERFACE TIMERS DRIVE FAILURE DETECTION; PHYSICAL FAILURE, NEIGHBOR KNOWLEDGE, SPF, RIB, FIB, AND TRAFFIC RECOVERY STAY DISTINCT.</small>
   </section>;
 }
