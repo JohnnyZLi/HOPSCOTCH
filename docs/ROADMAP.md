@@ -153,25 +153,25 @@ Redistribution reads protocol-native routes by default so a route created only b
 
 ---
 
-## Current priority order
+### Completed active track — Track G service-provider + overlay networking
 
-With captured evidence, end-to-end application truth, causal replay, authoring, enterprise L2/L3 depth, data-plane realism, and routing-policy depth closed, the next highest-value work is explicit underlay/overlay and service-provider behavior.
+Track G adds explicit service-provider and overlay behavior while preserving the existing Builder topology/RIB/FIB as underlay truth.
 
-### 1. Track G — service-provider + overlay networking
+- [x] GRE / IP-in-IP with explicit inner-vs-outer addressing, canonical underlay link paths, encapsulation overhead, and effective tunnel MTU
+- [x] IPsec-style and WireGuard-style authentication/handshake/overhead semantics without storing key material or pretending to implement production cryptography
+- [x] MPLS label push/swap/pop, bounded LSP state, and per-router label forwarding rows derived from the canonical underlay path
+- [x] VXLAN VNI/VTEP overlays with explicit UDP/4789 outer state and underlay-driven UP / DEGRADED / DOWN reachability
+- [x] EVPN Type-2 MAC/IP and Type-3 IMET teaching state with route-target/VTEP provenance, Track F iBGP split-horizon / route-reflector behavior, and independent underlay reachability
 
-- [ ] GRE / IP-in-IP with explicit underlay/overlay separation
-- [ ] IPsec-style and WireGuard-style encrypted-tunnel semantics without pretending to implement production cryptography
-- [ ] MPLS label push/swap/pop, LSP state, and label forwarding tables
-- [ ] VXLAN VNI/VTEP overlays with distinct underlay and overlay reachability
-- [ ] EVPN MAC/IP learning after VXLAN/BGP foundations are mature
+Unknown-MAC ingress replication is observable but never treated as proof of destination delivery. Overlay learning never rewrites or substitutes for the underlay RIB/FIB. Provider configuration remains additive to scenario v9, while the heavier tunnel/MPLS/VXLAN/EVPN algorithms and UI stay behind the existing lazy routing-policy workspace. `docs/TRACKG.md` is the closeout architecture record.
 
 ---
 
-## Remaining regular tracks
+## Current priority order
 
-These remain real product work. They should follow Track G unless a bounded dependency requires a different order.
+With captured evidence, end-to-end application truth, causal replay, authoring, enterprise L2/L3 depth, data-plane realism, routing-policy depth, and service-provider overlays closed, the next highest-value work is correlating local native measurements with the existing provenance-aware network model.
 
-### Track I — native companion integration
+### 1. Track I — native companion integration
 
 **Shipped boundary:** measured evidence and the loopback-only Network Diagnostics bridge already exist.
 
@@ -179,6 +179,12 @@ These remain real product work. They should follow Track G unless a bounded depe
 - [ ] correlate local measurements with public routing/facility observations without conflating the evidence sources
 - [ ] visualize local host → gateway → measured hops → public observations → destination with explicit provenance transitions
 - [ ] retain the no-credentials, no-scanning/discovery, no-hidden-background-collection boundary
+
+---
+
+## Remaining regular tracks
+
+These remain real product work. They should follow Track I unless a bounded dependency requires a different order.
 
 ### Track J — troubleshooting challenges
 
