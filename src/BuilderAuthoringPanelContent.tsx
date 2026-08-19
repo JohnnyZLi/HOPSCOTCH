@@ -29,6 +29,7 @@ import { compareBuilderScenarios, isBuilderScenarioDiffEmpty, type BuilderScenar
 import { searchBuilderTopology } from './builder/topology-search.ts';
 import type { BuilderAuthoringPanelProps } from './BuilderAuthoringPanel.tsx';
 import './BuilderAuthoringPanel.css';
+import BuilderEnterprisePanel from './BuilderEnterprisePanel.tsx';
 
 function diffCount(diff: BuilderScenarioDiff): number {
   return diff.devices.length + diff.links.length + diff.configurationObjects.length + diff.fields.length;
@@ -191,5 +192,7 @@ export default function BuilderAuthoringPanelContent({ snapshot, view, historica
       </section>
     </div>
     <small className="builder-authoring-boundary">UNDO / REDO + BRANCHES STORE CANONICAL BUILDER CONFIGURATION SNAPSHOTS · SEARCH / CAMERA / SITES / ANNOTATIONS / SELECTION ARE AUTHORING PRESENTATION STATE · SCENARIO COMPARE REUSES THE DETERMINISTIC CONFIG-COMPARE ENGINE AND INTENTIONALLY IGNORES VISUAL LAYOUT.</small>
+  
+    <BuilderEnterprisePanel ethernet={snapshot.ethernet} historical={historical} onCommit={onCommitEthernet} onMessage={onMessage}/>
   </section>;
 }

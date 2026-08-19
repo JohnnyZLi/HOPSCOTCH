@@ -105,27 +105,27 @@ Selection, camera, sites, annotations, clipboard state, templates, undo cursor, 
 
 ---
 
-## Current priority order
+### Completed active track — Track C enterprise Layer 2 / Layer 3 depth
 
-With captured evidence, end-to-end application truth, causal replay, and the Builder authoring environment closed, the next highest-value work is deeper enterprise network behavior on top of those shared foundations.
+Track C extends the existing canonical Builder Ethernet/routing foundations with enterprise campus behavior without introducing a parallel simulator.
 
-### 1. Track C — enterprise Layer 2 / Layer 3 depth
+- [x] RSTP with explicit faster role/state transitions
+- [x] LACP / EtherChannel with logical bundle vs physical-member truth
+- [x] LLDP-style derived neighbor state
+- [x] Layer-3 switches, SVIs, routed switch ports, access/distribution/core designs
+- [x] vendor-neutral VRRP-style first-hop redundancy
+- [x] VRFs with genuinely separate routing tables and overlapping address space
+- [x] native/tagged/untagged VLAN behavior that preserves existing VLAN/STP truth
 
-- [ ] RSTP with explicit faster role/state transitions
-- [ ] LACP / EtherChannel with logical bundle vs physical-member truth
-- [ ] LLDP-style derived neighbor state
-- [ ] Layer-3 switches, SVIs, routed switch ports, access/distribution/core designs
-- [ ] vendor-neutral VRRP-style first-hop redundancy
-- [ ] VRFs with genuinely separate routing tables and overlapping address space
-- [ ] native/tagged/untagged VLAN behavior only when it preserves current VLAN truth
+Enterprise state remains additive to scenario v9. Physical LACP members remain visible beneath the logical Port-Channel, FHRP selects the actual first-hop routed device, VRFs never collapse overlapping prefixes into one table, native-VLAN mismatches are explicit, and enterprise algorithms/UI remain behind the already-lazy Builder authoring boundary. `docs/TRACKC.md` is the closeout architecture and validation record.
 
 ---
 
-## Remaining regular tracks
+## Current priority order
 
-These remain real product work. They should follow Track C unless a bounded dependency requires a different order.
+With captured evidence, end-to-end application truth, causal replay, authoring, and enterprise L2/L3 depth closed, the next highest-value work is deeper data-plane behavior driven by canonical Builder link truth.
 
-### Track E — data-plane realism
+### 1. Track E — data-plane realism
 
 - [ ] packet queues, serialization delay, occupancy, capacity, deterministic scheduling
 - [ ] tail drop / ECN integrated with existing congestion concepts
@@ -134,6 +134,12 @@ These remain real product work. They should follow Track C unless a bounded depe
 - [ ] IPv4 fragmentation, DF, ICMP Fragmentation Needed, IPv6 Packet Too Big, PMTU caches
 - [ ] PMTUD black-hole scenarios
 - [ ] transport congestion/recovery driven by actual Builder link/queue truth
+
+---
+
+## Remaining regular tracks
+
+These remain real product work. They should follow Track E unless a bounded dependency requires a different order.
 
 ### Track F — routing + policy depth
 

@@ -1,7 +1,7 @@
 import { builderStpState, cloneBuilderStpConfig, createDefaultBuilderStpConfig, validateBuilderStpConfig, type BuilderStpConfig } from './stp.ts';
 
-export type BuilderEthernetDeviceKind = 'endpoint' | 'switch' | 'router';
-export type BuilderEthernetPortMode = 'access' | 'trunk';
+export type BuilderEthernetDeviceKind = 'endpoint' | 'switch' | 'router' | 'l3-switch';
+export type BuilderEthernetPortMode = 'access' | 'trunk' | 'routed';
 
 export interface BuilderEthernetVlan {
   id: number;
@@ -13,7 +13,16 @@ export interface BuilderEthernetInterface {
   vlanId: number;
   address: string;
   gateway?: string | null;
+  vrfId?: string;
+  name?: string;
 }
+
+export interface BuilderVrf { id: string; label: string }
+export interface BuilderLacpBundle { id: string; memberLinkIds: string[]; modeA: 'active' | 'passive'; modeB: 'active' | 'passive'; minLinks: number }
+export interface BuilderFhrpMember { deviceId: string; priority: number; preempt: boolean }
+export interface BuilderFhrpGroup { id: string; vlanId: number; vrfId?: string; virtualIp: string; members: BuilderFhrpMember[] }
+export interface BuilderEthernetEnterpriseConfig { vrfs: BuilderVrf[]; lacpBundles: BuilderLacpBundle[]; fhrpGroups: BuilderFhrpGroup[] }
+export interface BuilderRoutedEthernetLink { cidr: string; aAddress: string; bAddress: string; vrfId?: string; aName?: string; bName?: string }
 
 export interface BuilderEthernetDevice {
   id: string;
@@ -30,6 +39,9 @@ export interface BuilderEthernetLink {
   mode: BuilderEthernetPortMode;
   accessVlan?: number;
   allowedVlans?: number[];
+  nativeVlanA?: number;
+  nativeVlanB?: number;
+  routed?: BuilderRoutedEthernetLink;
   failed: boolean;
 }
 
@@ -41,6 +53,7 @@ export interface BuilderEthernetConfig {
   links: BuilderEthernetLink[];
   layout: Record<string, BuilderEthernetPoint>;
   stp: BuilderStpConfig;
+  enterprise?: BuilderEthernetEnterpriseConfig;
 }
 
 export interface BuilderEthernetFdbEntry {
@@ -78,18 +91,8 @@ export interface BuilderEthernetFlowResult {
 const IPV4_RE = /^(?:\d{1,3}\.){3}\d{1,3}$/;
 const MAC_RE = /^(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/;
 
-function cloneInterface(entry: BuilderEthernetInterface): BuilderEthernetInterface {
-  return { ...entry };
-}
-
 export function cloneBuilderEthernetConfig(config: BuilderEthernetConfig): BuilderEthernetConfig {
-  return {
-    vlans: config.vlans.map((vlan) => ({ ...vlan })),
-    devices: config.devices.map((device) => ({ ...device, interfaces: device.interfaces.map(cloneInterface) })),
-    links: config.links.map((link) => ({ ...link, allowedVlans: link.allowedVlans ? [...link.allowedVlans] : undefined })),
-    layout: Object.fromEntries(Object.entries(config.layout).map(([id, point]) => [id, { ...point }])),
-    stp: cloneBuilderStpConfig(config.stp),
-  };
+  return structuredClone(config);
 }
 
 export function createEmptyBuilderEthernetConfig(): BuilderEthernetConfig {
@@ -158,7 +161,7 @@ export function validateBuilderEthernetConfig(input: BuilderEthernetConfig): Bui
   const deviceIds = new Set<string>();
   for (const device of input.devices) {
     if (!/^[a-zA-Z0-9_-]+$/.test(device.id) || deviceIds.has(device.id)) throw new Error(`Ethernet device id ${device.id} is invalid or duplicated.`);
-    if (!device.label || device.label.length > 32 || !['endpoint','switch','router'].includes(device.kind) || !MAC_RE.test(device.mac)) throw new Error(`Ethernet device ${device.id} metadata is invalid.`);
+    if (!device.label || device.label.length > 32 || !['endpoint','switch','router','l3-switch'].includes(device.kind) || !MAC_RE.test(device.mac)) throw new Error(`Ethernet device ${device.id} metadata is invalid.`);
     if (device.kind === 'switch' && device.interfaces.length !== 0) throw new Error(`Switch ${device.id} cannot own routed IPv4 interfaces in this teaching slice.`);
     if (device.kind === 'endpoint' && device.interfaces.length !== 1) throw new Error(`Endpoint ${device.id} must have exactly one access-VLAN interface.`);
     const localVlans = new Set<number>();
@@ -170,12 +173,9 @@ export function validateBuilderEthernetConfig(input: BuilderEthernetConfig): Bui
   }
 
   const linkIds = new Set<string>();
-  const pairs = new Set<string>();
   for (const link of input.links) {
     if (!/^[a-zA-Z0-9_-]+$/.test(link.id) || linkIds.has(link.id) || !deviceIds.has(link.a) || !deviceIds.has(link.b) || link.a === link.b) throw new Error(`Ethernet link ${link.id} is invalid.`);
-    const pair = [link.a, link.b].sort().join('|');
-    if (pairs.has(pair)) throw new Error(`Duplicate Ethernet link ${pair}.`);
-    pairs.add(pair); linkIds.add(link.id);
+    linkIds.add(link.id);
     const a = input.devices.find((device) => device.id === link.a)!;
     const b = input.devices.find((device) => device.id === link.b)!;
     if (link.mode === 'access') {
@@ -184,8 +184,10 @@ export function validateBuilderEthernetConfig(input: BuilderEthernetConfig): Bui
       if (a.kind === 'endpoint' || b.kind === 'endpoint') throw new Error(`Endpoint links cannot be trunks (${link.id}).`);
       const allowed = [...new Set(link.allowedVlans ?? [])].sort((x,y)=>x-y);
       if (allowed.length === 0 || allowed.some((id) => !vlanIds.has(id))) throw new Error(`Trunk ${link.id} must allow at least one existing VLAN.`);
-    } else throw new Error(`Ethernet link ${link.id} mode must be access or trunk.`);
+    } else if (link.mode !== 'routed') throw new Error(`Ethernet link ${link.id} mode is invalid.`);
   }
+
+
 
   for (const device of input.devices) {
     const point = input.layout[device.id];
@@ -212,8 +214,10 @@ export function updateBuilderEthernetLink(config: BuilderEthernetConfig, linkId:
 }
 
 function linkCarriesVlanRaw(link: BuilderEthernetLink, vlanId: number): boolean {
-  if (link.failed) return false;
-  return link.mode === 'access' ? link.accessVlan === vlanId : Boolean(link.allowedVlans?.includes(vlanId));
+  if (link.failed || link.mode === 'routed') return false;
+  if (link.mode === 'access') return link.accessVlan === vlanId;
+  if (!link.allowedVlans?.includes(vlanId)) return false;
+  return (link.nativeVlanA === vlanId) === (link.nativeVlanB === vlanId);
 }
 
 function linkCarriesVlan(config: BuilderEthernetConfig, link: BuilderEthernetLink, vlanId: number): boolean {
