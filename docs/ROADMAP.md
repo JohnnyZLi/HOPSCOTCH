@@ -214,10 +214,13 @@ These remain real product work. They should follow Track K unless a bounded depe
 
 - [x] read-only deterministic command model for `show interfaces`, `show route`, `show arp`, and `show mac`
 - [x] CLI foundation consumes supplied canonical facts and rejects unsupported/configuration syntax rather than inventing behavior
+- [x] lazy full-width Builder terminal surface with command transcript/history and explicit LIVE vs Time Machine context
+- [x] canonical live/historical state adapter for routed interfaces, RIB routes, session ARP, and learned FDB facts
+
+`docs/TRACKK.md` records the Track K architecture and first interactive slice.
 
 **Remaining**
 
-- [ ] actual CLI/terminal interaction surface in Builder
 - [ ] `show ospf neighbors`, `show bgp`, `show acl`, `show nat`, `ping`, and `traceroute`
 - [ ] later bounded configuration commands mutate the same canonical configuration as the GUI
 - [ ] deliberately avoid broad Cisco/Juniper syntax emulation or device-image behavior
