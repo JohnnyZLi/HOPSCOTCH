@@ -22,6 +22,7 @@ jobs:
           cache: npm
       - name: Apply Track J DNS + transport slice once
         run: |
+          python scripts/repair-track-j-dns-helper.py
           if grep -q "service-hostname-missing" src/builder/challenges.ts; then
             echo "Track J DNS/transport slice already applied."
           else
