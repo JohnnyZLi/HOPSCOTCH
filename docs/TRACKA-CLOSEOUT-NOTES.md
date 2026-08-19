@@ -12,5 +12,6 @@ The closeout is intentionally constrained:
 - protocol database/counter rows are derived from the selected Builder snapshot.
 - ARP, Ethernet flow, NAT, IPv6 runtime state, probes, and application history have explicit event-time projection boundaries.
 - the diagnosis never reruns routing, forwarding, ACL/NAT, transport, or application behavior.
+- legacy pre-Track-A workbench/event fixtures treat missing application history as an empty session rather than failing.
 
 The permanent `builder-causal-diagnosis` contract is part of `npm run check`. This note is temporary working documentation and will be folded into `docs/TRACKA.md` before merge.
