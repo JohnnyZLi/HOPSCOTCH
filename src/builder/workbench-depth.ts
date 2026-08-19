@@ -18,8 +18,12 @@ function section(id: string, title: string, rows: BuilderWorkbenchRow[]): Builde
   return rows.length > 0 ? { id, title, summary: `${rows.length} item${rows.length === 1 ? '' : 's'}`, rows } : null;
 }
 
+function latestApplication(input: BuilderDeviceWorkbenchInput) {
+  return (input.applicationHistory ?? []).at(-1) ?? null;
+}
+
 function applicationApplies(input: BuilderDeviceWorkbenchInput, device: BuilderDeviceRef): boolean {
-  const transaction = input.applicationHistory.at(-1);
+  const transaction = latestApplication(input);
   if (!transaction) return false;
   if (device.plane === 'routed') {
     return transaction.sourceNodeId === device.id || transaction.destinationNodeId === device.id || transaction.stages.some((stage) => stage.nodeIds.includes(device.id));
@@ -37,7 +41,7 @@ export function builderProtocolDatabaseSection(input: BuilderDeviceWorkbenchInpu
       const ospfNeighbors = ospf.adjacencies.filter((entry) => entry.aRouterId === device.id || entry.bRouterId === device.id);
       const ospfLsas = ospf.advertisements.filter((entry) => entry.routerId === device.id);
       const ospfRoutes = routeTableForBuilderRouter(input.truthGraphs?.ribGraph ?? input.graph, input.addressing, input.routing, device.id).filter((entry) => entry.source === 'ospf' && entry.active);
-      rows.push(row('db:ospf', 'OSPF DATABASE', `${ospfNeighbors.filter((entry) => entry.state === 'FULL').length}/${ospfNeighbors.length} FULL · ${ospfLsas.length} SELF PREFIXES · ${ospfRoutes.length} ACTIVE ROUTES`, 'Neighbor state, current self-originated LSDB view, and active OSPF RIB entries are counted from the selected canonical timeline snapshot.', ospfNeighbors.some((entry) => entry.state !== 'FULL') ? 'warn' : 'good', [why('db:ospf:control', 'STATE', 'CONTROL PLANE SNAPSHOT', 'Counts use the selected control-plane truth graph rather than the live final topology.'), why('db:ospf:rib', 'STATE', 'RIB SNAPSHOT', 'Active OSPF routes use the selected RIB truth graph.') ]));
+      rows.push(row('db:ospf', 'OSPF DATABASE', `${ospfNeighbors.filter((entry) => entry.state === 'FULL').length}/${ospfNeighbors.length} FULL · ${ospfLsas.length} SELF PREFIXES · ${ospfRoutes.length} ACTIVE ROUTES`, 'Neighbor state, current self-originated LSDB view, and active OSPF RIB entries are counted from the selected canonical timeline snapshot.', ospfNeighbors.some((entry) => entry.state !== 'FULL') ? 'warn' : 'good', [why('db:ospf:control', 'STATE', 'CONTROL PLANE SNAPSHOT', 'Counts use the selected control-plane truth graph rather than the live final topology.'), why('db:ospf:rib', 'STATE', 'RIB SNAPSHOT', 'Active OSPF routes use the selected RIB truth graph.')]));
 
       const ospfv3 = builderOspfv3DepthSummary(input.graph, input.ipv6, input.ipv6RoutingDepth);
       const ospfv3Neighbors = ospfv3.adjacencies.filter((entry) => entry.aRouterId === device.id || entry.bRouterId === device.id);
@@ -67,9 +71,9 @@ export function builderProtocolDatabaseSection(input: BuilderDeviceWorkbenchInpu
 }
 
 export function builderApplicationDiagnosisSection(input: BuilderDeviceWorkbenchInput, device: BuilderDeviceRef): BuilderWorkbenchSection | null {
-  const transaction = input.applicationHistory.at(-1);
+  const transaction = latestApplication(input);
   if (!transaction || !applicationApplies(input, device)) return null;
-  const diagnosis = diagnoseBuilderApplicationTransaction(transaction, input.graph, input.applicationStageOrder);
+  const diagnosis = diagnoseBuilderApplicationTransaction(transaction, input.graph, input.applicationStageOrder ?? null);
   const dimensions = diagnosis.dimensions.map((entry) => `${entry.id}:${entry.status}`).join(' · ');
   const chain = diagnosis.causalChain.map((step, index) => why(`app:diagnosis:${transaction.id}:${index}`, step.status === 'FAIL' ? 'EVENT' : 'STATE', step.label, step.detail));
   const rows: BuilderWorkbenchRow[] = [
