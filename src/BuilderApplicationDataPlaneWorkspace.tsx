@@ -10,8 +10,14 @@ export default function BuilderApplicationDataPlaneWorkspace(props: BuilderAppli
     setTransaction(next);
     props.onTransaction(next);
   };
+  const onIpv6ControlState = (ipv6ControlState: typeof props.context.ipv6ControlState) => props.onSessionState({
+    arpCache: props.context.arpCache,
+    natSessions: props.context.natSessions,
+    dhcpLeases: props.context.dhcpLeases,
+    ipv6ControlState,
+  });
   return <>
     <BuilderApplicationWorkspace {...props} onTransaction={onTransaction} />
-    <BuilderDataPlanePanel transaction={transaction} linkProfiles={props.context.linkProfiles} historical={props.historical} />
+    <BuilderDataPlanePanel transaction={transaction} context={props.context} historical={props.historical} onIpv6ControlState={onIpv6ControlState} />
   </>;
 }
