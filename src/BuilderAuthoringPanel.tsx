@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import type { BuilderAddressing } from './builder/addressing.ts';
 import type { BuilderEthernetConfig } from './builder/ethernet.ts';
 import type { BuilderAuthoringSession, BuilderAuthoringSnapshot } from './builder/authoring.ts';
@@ -21,5 +21,9 @@ export interface BuilderAuthoringPanelProps {
 }
 
 export function BuilderAuthoringPanel(props: BuilderAuthoringPanelProps) {
-  return <Suspense fallback={<section className="builder-authoring-shell"><span>AUTHORING</span><strong>LOADING TOOLS…</strong></section>}><BuilderAuthoringPanelContent {...props}/></Suspense>;
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return <section className="builder-authoring-shell is-collapsed"><div><span>AUTHORING</span><strong>{props.historical ? 'HISTORICAL · READ ONLY' : `${props.view.selection.length} SELECTED`}</strong></div><button type="button" onClick={() => setOpen(true)}>OPEN AUTHORING</button></section>;
+  }
+  return <div className="builder-authoring-open"><button className="builder-authoring-close" type="button" onClick={() => setOpen(false)}>CLOSE AUTHORING</button><Suspense fallback={<section className="builder-authoring-shell"><span>AUTHORING</span><strong>LOADING TOOLS…</strong></section>}><BuilderAuthoringPanelContent {...props}/></Suspense></div>;
 }
