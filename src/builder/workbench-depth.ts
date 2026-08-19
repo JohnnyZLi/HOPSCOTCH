@@ -1,10 +1,5 @@
-import { builderBgpState } from './bgp.ts';
 import { diagnoseBuilderApplicationTransaction } from './causal-diagnosis.ts';
-import { builderStpState } from './stp.ts';
-import { builderOspfv3DepthRouteOverlay, builderOspfv3DepthSummary } from './ipv6-routing-depth.ts';
-import { routeTableForBuilderIpv6Router } from './ipv6.ts';
-import { builderOspfState, routeTableForBuilderRouter } from './routing.ts';
-import type { BuilderDeviceRef, BuilderDeviceWorkbenchInput, BuilderWorkbenchRow, BuilderWorkbenchSection, BuilderWorkbenchWhyStep } from './device-workbench.ts';
+import type { BuilderDeviceRef, BuilderDeviceWorkbenchInput, BuilderDeviceWorkbenchSnapshot, BuilderWorkbenchRow, BuilderWorkbenchSection, BuilderWorkbenchWhyStep } from './device-workbench.ts';
 
 function why(id: string, source: BuilderWorkbenchWhyStep['source'], label: string, detail: string): BuilderWorkbenchWhyStep {
   return { id, source, label, detail };
@@ -31,41 +26,75 @@ function applicationApplies(input: BuilderDeviceWorkbenchInput, device: BuilderD
   return transaction.stages.some((stage) => stage.nodeIds.includes(device.id));
 }
 
-export function builderProtocolDatabaseSection(input: BuilderDeviceWorkbenchInput, device: BuilderDeviceRef): BuilderWorkbenchSection | null {
+function rowsIn(snapshot: BuilderDeviceWorkbenchSnapshot, sectionId: string): BuilderWorkbenchRow[] {
+  return snapshot.stateSections.find((entry) => entry.id === sectionId)?.rows ?? [];
+}
+
+export function builderProtocolDatabaseSection(snapshot: BuilderDeviceWorkbenchSnapshot): BuilderWorkbenchSection | null {
   const rows: BuilderWorkbenchRow[] = [];
-  if (device.plane === 'routed') {
-    const node = input.graph.nodes.find((candidate) => candidate.id === device.id);
-    if (!node) return null;
-    if (node.kind === 'router') {
-      const ospf = builderOspfState(input.truthGraphs?.controlGraph ?? input.graph, input.addressing, input.routing);
-      const ospfNeighbors = ospf.adjacencies.filter((entry) => entry.aRouterId === device.id || entry.bRouterId === device.id);
-      const ospfLsas = ospf.advertisements.filter((entry) => entry.routerId === device.id);
-      const ospfRoutes = routeTableForBuilderRouter(input.truthGraphs?.ribGraph ?? input.graph, input.addressing, input.routing, device.id).filter((entry) => entry.source === 'ospf' && entry.active);
-      rows.push(row('db:ospf', 'OSPF DATABASE', `${ospfNeighbors.filter((entry) => entry.state === 'FULL').length}/${ospfNeighbors.length} FULL · ${ospfLsas.length} SELF PREFIXES · ${ospfRoutes.length} ACTIVE ROUTES`, 'Neighbor state, current self-originated LSDB view, and active OSPF RIB entries are counted from the selected canonical timeline snapshot.', ospfNeighbors.some((entry) => entry.state !== 'FULL') ? 'warn' : 'good', [why('db:ospf:control', 'STATE', 'CONTROL PLANE SNAPSHOT', 'Counts use the selected control-plane truth graph rather than the live final topology.'), why('db:ospf:rib', 'STATE', 'RIB SNAPSHOT', 'Active OSPF routes use the selected RIB truth graph.')]));
+  if (snapshot.device.plane === 'routed') {
+    const rib = rowsIn(snapshot, 'rib-fib');
+    const control = rowsIn(snapshot, 'control-state');
+    const neighbor = rowsIn(snapshot, 'neighbor-state');
+    const flows = rowsIn(snapshot, 'policy-flow-state');
 
-      const ospfv3 = builderOspfv3DepthSummary(input.graph, input.ipv6, input.ipv6RoutingDepth);
-      const ospfv3Neighbors = ospfv3.adjacencies.filter((entry) => entry.aRouterId === device.id || entry.bRouterId === device.id);
-      const overlay = builderOspfv3DepthRouteOverlay(input.graph, input.ipv6, input.ipv6RoutingDepth);
-      const ospfv3Routes = input.ipv6.enabled ? routeTableForBuilderIpv6Router(input.graph, input.ipv6, device.id, overlay).filter((entry) => entry.source === 'ospfv3' && entry.active) : [];
-      rows.push(row('db:ospfv3', 'OSPFV3 DATABASE', `${ospfv3Neighbors.filter((entry) => entry.phase === 'FULL').length}/${ospfv3Neighbors.length} FULL · ${ospfv3Routes.length} O6 ROUTES`, 'OSPFv3 neighbor phases and active IPv6 link-state routes remain independent from IPv4 OSPF.', ospfv3Neighbors.some((entry) => entry.phase !== 'FULL') ? 'warn' : 'normal'));
-
-      const bgp = builderBgpState(input.graph, input.addressing, input.routing.bgp);
-      const bgpSessions = bgp.sessions.filter((entry) => entry.aRouterId === device.id || entry.bRouterId === device.id);
-      const bgpRoutes = bgp.routes.filter((entry) => entry.routerId === device.id);
-      rows.push(row('db:bgp', 'BGP DATABASE', `${bgpSessions.filter((entry) => entry.state === 'ESTABLISHED').length}/${bgpSessions.length} ESTABLISHED · ${bgpRoutes.length} PATHS · ${bgpRoutes.filter((entry) => entry.best).length} BEST`, 'Session state, candidate paths, and best-path count are a deterministic projection of the selected Builder BGP state.', bgpSessions.some((entry) => entry.state !== 'ESTABLISHED') ? 'warn' : 'normal'));
+    const ospfNeighbors = control.filter((entry) => entry.label === 'OSPF NEIGHBOR');
+    const ospfLsdb = control.find((entry) => entry.id === 'state:ospf:lsdb');
+    const ospfRoutes = rib.filter((entry) => entry.label === 'IPV4 OSPF' && entry.status === 'good');
+    if (ospfNeighbors.length > 0 || ospfLsdb || ospfRoutes.length > 0) {
+      rows.push(row(
+        'db:ospf',
+        'OSPF DATABASE',
+        `${ospfNeighbors.filter((entry) => /\bFULL\b/.test(entry.value)).length}/${ospfNeighbors.length} FULL · ${ospfLsdb?.value ?? '0 PREFIXES'} · ${ospfRoutes.length} ACTIVE ROUTES`,
+        'Counts summarize the OSPF neighbor, self-LSDB, and active RIB rows already projected by the selected canonical Device Workbench snapshot; no SPF or route selection is rerun here.',
+        ospfNeighbors.some((entry) => !/\bFULL\b/.test(entry.value)) ? 'warn' : 'good',
+        [why('db:ospf:projection', 'STATE', 'SELECTED WORKBENCH SNAPSHOT', 'This compact row counts existing OSPF workbench facts at the selected event time.')],
+      ));
     }
-    const neighbors = input.ipv6ControlState.neighborCache.filter((entry) => entry.nodeId === device.id);
-    const translations = input.natSessions.filter((entry) => entry.routerId === device.id);
-    const probes = input.probeHistory.filter((probe) => probe.sourceNodeId === device.id || probe.destinationNodeId === device.id || probe.attempts.some((attempt) => attempt.requestNodeIds.includes(device.id) || attempt.responseNodeIds.includes(device.id)));
-    rows.push(row('db:runtime', 'RUNTIME TABLES', `${neighbors.length} ND · ${translations.length} NAT · ${probes.length} PROBES`, 'ND cache entries, NAT sessions, and probe observations are session-only and are counted from the selected historical snapshot, never reconstructed from UI text.', 'normal'));
+
+    const ospfv3Neighbors = control.filter((entry) => entry.label === 'OSPFV3 NEIGHBOR');
+    const ospfv3Routes = rib.filter((entry) => entry.label === 'IPV6 OSPFV3' && entry.status === 'good');
+    if (ospfv3Neighbors.length > 0 || ospfv3Routes.length > 0) {
+      rows.push(row(
+        'db:ospfv3',
+        'OSPFV3 DATABASE',
+        `${ospfv3Neighbors.filter((entry) => /\bFULL\b/.test(entry.value) && !/STALE FULL/.test(entry.value)).length}/${ospfv3Neighbors.length} FULL · ${ospfv3Routes.length} O6 ROUTES`,
+        'OSPFv3 counts are summarized from the already-selected IPv6 control-plane and RIB rows and remain independent from IPv4 OSPF.',
+        ospfv3Neighbors.some((entry) => !/\bFULL\b/.test(entry.value) || /STALE FULL/.test(entry.value)) ? 'warn' : 'normal',
+      ));
+    }
+
+    const bgpSessions = control.filter((entry) => entry.label === 'BGP SESSION');
+    const bgpBest = control.filter((entry) => entry.label === 'BGP BEST');
+    if (bgpSessions.length > 0 || bgpBest.length > 0) {
+      rows.push(row(
+        'db:bgp',
+        'BGP DATABASE',
+        `${bgpSessions.filter((entry) => /\bESTABLISHED\b/.test(entry.value)).length}/${bgpSessions.length} ESTABLISHED · ${bgpBest.length} BEST PATHS`,
+        'Session and best-path counts summarize canonical BGP rows already present in this historical workbench. Candidate-path selection is not recomputed by the summary.',
+        bgpSessions.some((entry) => !/\bESTABLISHED\b/.test(entry.value)) ? 'warn' : 'normal',
+      ));
+    }
+
+    const nd = neighbor.filter((entry) => entry.label === 'IPV6 NEIGHBOR').length;
+    const nat = neighbor.filter((entry) => entry.id.startsWith('state:nat:')).length;
+    const probes = flows.filter((entry) => entry.id.startsWith('state:probe:')).length;
+    rows.push(row('db:runtime', 'RUNTIME TABLES', `${nd} ND · ${nat} NAT · ${probes} PROBES`, 'Runtime counts summarize rows from this selected canonical workbench snapshot. They are not reconstructed from live state or display text outside the snapshot.', 'normal'));
   } else {
-    const deviceConfig = input.ethernet.devices.find((candidate) => candidate.id === device.id);
-    if (!deviceConfig) return null;
-    const stp = input.ethernet.vlans.map((vlan) => builderStpState(input.ethernet, vlan.id)).filter((state) => state.ports.some((port) => port.a === device.id || port.b === device.id) || state.rootBridgeId === device.id);
-    const fdb = input.ethernetFlow?.fdb.filter((entry) => entry.switchId === device.id) ?? [];
-    const arp = input.arpCache.filter((entry) => entry.ownerDeviceId === device.id);
-    const leases = input.dhcpLeases.filter((entry) => entry.clientDeviceId === device.id || entry.serverDeviceId === device.id);
-    rows.push(row('db:lan', 'LAN DATABASES', `${stp.length} STP VLAN${stp.length === 1 ? '' : 'S'} · ${fdb.length} FDB · ${arp.length} ARP · ${leases.length} DHCP`, 'STP, learned MACs, ARP mappings, and leases are counted from the selected canonical Ethernet/session snapshot.', stp.some((state) => state.loopDetected && !state.enabled) ? 'warn' : 'normal'));
+    const host = rowsIn(snapshot, 'lan-host-state');
+    const switching = rowsIn(snapshot, 'lan-switch-state');
+    const service = rowsIn(snapshot, 'lan-service-state');
+    const stp = switching.filter((entry) => entry.label === 'STP');
+    const fdb = switching.filter((entry) => entry.label === 'FDB').length;
+    const arp = host.filter((entry) => entry.label === 'ARP').length;
+    const leases = service.filter((entry) => entry.label === 'DHCP LEASE').length;
+    rows.push(row(
+      'db:lan',
+      'LAN DATABASES',
+      `${stp.length} STP VLAN${stp.length === 1 ? '' : 'S'} · ${fdb} FDB · ${arp} ARP · ${leases} DHCP`,
+      'STP, learned MAC, ARP, and DHCP counts summarize the existing historical Ethernet workbench rows; the depth view does not execute switching or lease logic.',
+      stp.some((entry) => entry.status === 'bad') ? 'warn' : 'normal',
+    ));
   }
   return section('protocol-databases', 'PROTOCOL DATABASES / COUNTERS', rows);
 }
