@@ -314,12 +314,16 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   };
 
 
+  const restoreCanonicalBuilderConfig = (next:BuilderAuthoringSnapshot) => {
+    setGraph(cloneBuilderGraph(next.graph)); setAddressing(cloneBuilderAddressing(next.addressing)); setRouting(cloneBuilderRoutingConfig(next.routing)); setIpv6(cloneBuilderIpv6Config(next.ipv6)); setEthernet(cloneBuilderEthernetConfig(next.ethernet)); setLinkProfiles(cloneBuilderLinkProfiles(next.linkProfiles)); setAcl(cloneBuilderAclConfig(next.acl)); setNat(cloneBuilderNatConfig(next.nat)); setDhcp(cloneBuilderDhcpConfig(next.dhcp));
+    setDhcpLeases(clearBuilderDhcpLeases()); setDhcpSequence(1); setNatSessions(clearBuilderNatSessions()); setIpv6ControlState(createBuilderIpv6ControlState()); setIpv6LifecycleState(createBuilderIpv6LifecycleState()); setIpv6RoutingDepth(createDefaultBuilderIpv6RoutingDepthState(next.graph)); setArpCache(clearBuilderArpCache()); setArpResolutions([]); setEthernetFlow(null);
+    const endpoints=next.ethernet.devices.filter((device)=>device.kind==='endpoint'); setEthernetSourceId(endpoints[0]?.id??''); setEthernetDestinationId(endpoints[1]?.id??endpoints[0]?.id??''); setSelectedEthernetLinkId(next.ethernet.links[0]?.id??'');
+    setLayout(cloneBuilderLayout(next.layout)); setSourceId(next.sourceId); setDestinationId(next.destinationId);
+  };
   const applyAuthoringSnapshot = (next:BuilderAuthoringSnapshot,nextMessage:string) => {
-    setGraph(cloneBuilderGraph(next.graph)); setAddressing(cloneBuilderAddressing(next.addressing)); setRouting(cloneBuilderRoutingConfig(next.routing)); setIpv6(cloneBuilderIpv6Config(next.ipv6)); setEthernet(cloneBuilderEthernetConfig(next.ethernet)); setLinkProfiles(cloneBuilderLinkProfiles(next.linkProfiles)); setAcl(cloneBuilderAclConfig(next.acl)); setNat(cloneBuilderNatConfig(next.nat)); setDhcp(cloneBuilderDhcpConfig(next.dhcp)); setLayout(cloneBuilderLayout(next.layout)); setSourceId(next.sourceId); setDestinationId(next.destinationId);
-    setSelectedNodeId(next.graph.nodes.some((node)=>node.id===selectedNodeId)?selectedNodeId:next.sourceId); setSelectedLinkId(next.graph.links.some((link)=>link.id===selectedLinkId)?selectedLinkId:(next.graph.links[0]?.id??''));
-    setNatSessions(clearBuilderNatSessions()); setDhcpLeases(clearBuilderDhcpLeases()); setDhcpSequence(1); setIpv6ControlState(createBuilderIpv6ControlState()); setIpv6LifecycleState(createBuilderIpv6LifecycleState()); setIpv6RoutingDepth(createDefaultBuilderIpv6RoutingDepthState(next.graph)); setArpCache(clearBuilderArpCache()); setArpResolutions([]); setEthernetFlow(null); setProbeHistory([]); setApplicationHistory([]);
-    setAuthoringView((current)=>({...current,selection:current.selection.filter((id)=>next.graph.nodes.some((node)=>node.id===id)),ethernetLinkSelection:current.ethernetLinkSelection.filter((id)=>next.ethernet.links.some((link)=>link.id===id))}));
-    setMessage(nextMessage);
+    restoreCanonicalBuilderConfig(next);
+    setSelectedNodeId(next.graph.nodes.some((node)=>node.id===selectedNodeId)?selectedNodeId:next.sourceId); setSelectedLinkId(next.graph.links.some((link)=>link.id===selectedLinkId)?selectedLinkId:(next.graph.links[0]?.id??'')); setProbeHistory([]); setApplicationHistory([]);
+    setAuthoringView((current)=>({...current,selection:current.selection.filter((id)=>next.graph.nodes.some((node)=>node.id===id)),ethernetLinkSelection:current.ethernetLinkSelection.filter((id)=>next.ethernet.links.some((link)=>link.id===id))})); setMessage(nextMessage);
   };
   const commitAuthoringGraph=(nextGraph:BuilderGraph,nextLayout:BuilderLayout|null,nextMessage:string)=>{if(nextLayout)setLayout(cloneBuilderLayout(nextLayout));commitGraph(nextGraph);setMessage(nextMessage);};
   const commitAuthoringAddressing=(next:BuilderAddressing,nextMessage:string)=>{commitAddressing(next);setMessage(nextMessage);};
@@ -457,7 +461,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   };
 
   const restoreScenario = (scenario: BuilderScenarioV8) => {
-    setGraph(cloneBuilderGraph(scenario.graph)); setAddressing(cloneBuilderAddressing(scenario.addressing)); setRouting(cloneBuilderRoutingConfig(scenario.routing)); setIpv6(cloneBuilderIpv6Config(scenario.ipv6)); setEthernet(cloneBuilderEthernetConfig(scenario.ethernet)); setLinkProfiles(cloneBuilderLinkProfiles(scenario.linkProfiles)); setAcl(cloneBuilderAclConfig(scenario.acl)); setNat(cloneBuilderNatConfig(scenario.nat)); setDhcp(cloneBuilderDhcpConfig(scenario.dhcp)); setDhcpLeases(clearBuilderDhcpLeases()); setDhcpSequence(1); setNatSessions(clearBuilderNatSessions()); setIpv6ControlState(createBuilderIpv6ControlState()); setIpv6LifecycleState(createBuilderIpv6LifecycleState()); setIpv6RoutingDepth(createDefaultBuilderIpv6RoutingDepthState(scenario.graph)); setArpCache(clearBuilderArpCache()); setArpResolutions([]); setEthernetFlow(null); setEthernetSourceId(scenario.ethernet.devices.find((device)=>device.kind==='endpoint')?.id ?? ''); setEthernetDestinationId(scenario.ethernet.devices.filter((device)=>device.kind==='endpoint')[1]?.id ?? scenario.ethernet.devices.find((device)=>device.kind==='endpoint')?.id ?? ''); setSelectedEthernetLinkId(scenario.ethernet.links[0]?.id ?? ''); setLayout(cloneBuilderLayout(scenario.layout)); setSourceId(scenario.sourceId); setDestinationId(scenario.destinationId);
+    restoreCanonicalBuilderConfig(scenario);
     setSelectedNodeId(scenario.sourceId); setSelectedLinkId(scenario.graph.links[0]?.id ?? ''); setScenarioName(scenario.name);
     setMessage(`Restored “${scenario.name}”. IPv4/IPv6 routing, link characteristics, ACL/NAT, VLAN, and STP configuration restored; session ARP/NAT/probe state cleared.`);
   };
