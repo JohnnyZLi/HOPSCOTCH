@@ -723,11 +723,13 @@ export function createComposedChallenge(seedInput: string): BuilderChallenge {
   healthy.sourceId='client'; healthy.destinationId='app';
   const sourceAddress=interfacesForBuilderNode(healthy.addressing,'client')[0]?.address;
   const destinationAddress=interfacesForBuilderNode(healthy.addressing,'app')[0]?.address;
-  if(!sourceAddress||!destinationAddress)throw new Error('The composed challenge requires canonical CLIENT and APP IPv4 addresses.');
-  const blockingRule:BuilderAclRule={id:`challenge-multi-acl-${hash.toString(16).padStart(8,'0')}`,routerId:'edge',order:5,action:'deny',protocol:'icmp',sourcePrefix:`${sourceAddress}/32`,destinationPrefix:`${destinationAddress}/32`,destinationPort:null,description:'Track J composed objective ICMP deny'};
+  const natBoundary=healthy.nat.boundaries.find((entry)=>entry.routerId==='edge'&&entry.enabled);
+  if(!sourceAddress||!destinationAddress||!natBoundary)throw new Error('The composed challenge requires canonical CLIENT/APP IPv4 addresses and the enabled EDGE NAT boundary.');
+  const translatedSource=natBoundary.overloadAddress;
+  const blockingRule:BuilderAclRule={id:`challenge-multi-acl-${hash.toString(16).padStart(8,'0')}`,routerId:'core',order:5,action:'deny',protocol:'icmp',sourcePrefix:`${translatedSource}/32`,destinationPrefix:`${destinationAddress}/32`,destinationPort:null,description:'Track J composed post-NAT objective ICMP deny'};
   const broken=createBuilderAuthoringSnapshot(healthy);
   broken.acl=upsertBuilderAclRule(broken.graph,broken.acl,blockingRule);
-  const secondaryFault:BuilderAclDenyChallengeFault={kind:'acl-objective-deny',boundary:'POLICY',plane:'routed',nodeId:'edge',blockingRule};
+  const secondaryFault:BuilderAclDenyChallengeFault={kind:'acl-objective-deny',boundary:'POLICY',plane:'routed',nodeId:'core',blockingRule};
   let fault:BuilderGatewayChallengeFault|BuilderOspfDisabledChallengeFault;
   if(hash%2===0){
     const expectedGateway=healthy.addressing.defaultGateways.client;

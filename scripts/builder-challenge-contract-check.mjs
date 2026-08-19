@@ -355,6 +355,10 @@ assert.deepEqual(new Set(composedChallenges.map((challenge)=>challenge.fault.kin
 for(const c of composedChallenges){
   assert.equal(c.family,'multi-fault');assert.equal(c.difficulty,'COMPOSED');assert.equal(c.secondaryFault?.kind,'acl-objective-deny');assert.deepEqual(c,createBuilderChallenge(c.seed));
   const initial=runPing(c.broken,302);assert.equal(runPing(c.healthy,301).success,true);assert.equal(initial.success,false);assert.equal(builderChallengeRepairStage(c,c.broken.addressing,c.broken.ethernet,c.broken.routing,c.broken.acl,c.broken.nat,c.broken.dhcp,c.broken.linkProfiles,c.broken.services??[]),'NONE');
+  assert.notEqual(c.fault.nodeId,c.secondaryFault.nodeId,'composed faults must require inspection of two distinct device locations');
+  const secondaryFirst=structuredClone(c.broken);secondaryFirst.acl=deleteBuilderAclRule(secondaryFirst.graph,secondaryFirst.acl,c.secondaryFault.blockingRule.id);
+  assert.equal(builderChallengeRepairStage(c,secondaryFirst.addressing,secondaryFirst.ethernet,secondaryFirst.routing,secondaryFirst.acl,secondaryFirst.nat,secondaryFirst.dhcp,secondaryFirst.linkProfiles,secondaryFirst.services??[]),'SECONDARY_ONLY');
+  assert.equal(runPing(secondaryFirst,305).success,false,'secondary-first repair must leave the primary failure active');
   const one=structuredClone(c.broken);
   if(c.fault.kind==='missing-default-gateway')one.addressing=structuredClone(c.healthy.addressing);else one.routing=setBuilderOspfRouterEnabled(one.graph,one.addressing,one.routing,c.fault.nodeId,true);
   assert.equal(builderChallengeRepairStage(c,one.addressing,one.ethernet,one.routing,one.acl,one.nat,one.dhcp,one.linkProfiles,one.services??[]),'PRIMARY_ONLY');

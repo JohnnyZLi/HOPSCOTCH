@@ -180,11 +180,9 @@ The existing report-v2 adapter already carried the required native facts, so Tra
 
 ---
 
-## Current priority order
+### Completed active track — Track J troubleshooting challenges
 
 Captured evidence, application truth, causal replay, authoring, enterprise depth, data-plane realism, routing policy, provider overlays, native/public evidence correlation, and deterministic troubleshooting practice are now closed product tracks.
-
-### Completed active track — Track J troubleshooting challenges
 
 - [x] deterministic broken networks come from canonical Builder configuration/state rather than hand-authored answer text
 - [x] catalog spans gateway/addressing, VLAN, trunk, STP, ARP/ND evidence, static/OSPF routing, ACL, NAT, DHCP, IPv6 PMTU, DNS, transport, and BGP import policy
