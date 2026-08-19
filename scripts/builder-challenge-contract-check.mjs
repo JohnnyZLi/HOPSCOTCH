@@ -54,9 +54,10 @@ assert.deepEqual(createDefaultGatewayChallenge(seedFromBuilderChallengeToken(tok
 assert.throws(() => seedFromBuilderChallengeToken('HOP-J9.nope'), /Unsupported HOPSCOTCH challenge token/);
 
 let evidence = [];
+const objectiveProbe = { sourceId: first.broken.sourceId, destinationId: first.broken.destinationId };
 const record = (input) => { evidence = appendBuilderChallengeEvidence(evidence, input); };
-record({ kind: 'ping', success: false, repaired: false, detail: brokenPing.summary });
-record({ kind: 'traceroute', success: false, repaired: false, detail: 'Ordinary Builder traceroute fails before the first routed hop.' });
+record({ kind: 'ping', ...objectiveProbe, success: false, repaired: false, detail: brokenPing.summary });
+record({ kind: 'traceroute', ...objectiveProbe, success: false, repaired: false, detail: 'Ordinary Builder traceroute fails before the first routed hop.' });
 record({ kind: 'inspect-state', deviceId: first.fault.nodeId, repaired: false, detail: 'Inspected endpoint state.' });
 record({ kind: 'inspect-config', deviceId: first.fault.nodeId, repaired: false, detail: 'Inspected endpoint config.' });
 
@@ -77,7 +78,10 @@ const repairedButUnverified = scoreBuilderChallenge(first, evidence, correctHypo
 assert.equal(repairedButUnverified.total, 85);
 assert.equal(repairedButUnverified.solved, false, 'canonical repair alone is not enough; a post-repair probe must verify it');
 
-record({ kind: 'ping', success: true, repaired: true, detail: healthyPing.summary });
+record({ kind: 'ping', sourceId: first.broken.destinationId, destinationId: first.broken.sourceId, success: true, repaired: true, detail: 'A non-objective probe passed.' });
+assert.equal(scoreBuilderChallenge(first, evidence, correctHypothesis, first.healthy.addressing).verified, false, 'a successful probe against a different endpoint pair cannot verify the objective');
+
+record({ kind: 'ping', ...objectiveProbe, success: true, repaired: true, detail: healthyPing.summary });
 const solved = scoreBuilderChallenge(first, evidence, correctHypothesis, first.healthy.addressing);
 assert.deepEqual(solved, {
   evidence: 40,
@@ -94,7 +98,7 @@ const wrongHypothesis = scoreBuilderChallenge(first, evidence, { boundary: 'POLI
 assert.equal(wrongHypothesis.reasoning, 0);
 assert.equal(wrongHypothesis.total, 80, 'successful repair does not retroactively award causal-reasoning points');
 
-assert.deepEqual(evidence.map((entry) => entry.sequence), [1, 2, 3, 4, 5]);
-assert.deepEqual(evidence.map((entry) => entry.id), ['challenge-evidence-1', 'challenge-evidence-2', 'challenge-evidence-3', 'challenge-evidence-4', 'challenge-evidence-5']);
+assert.deepEqual(evidence.map((entry) => entry.sequence), [1, 2, 3, 4, 5, 6]);
+assert.deepEqual(evidence.map((entry) => entry.id), ['challenge-evidence-1', 'challenge-evidence-2', 'challenge-evidence-3', 'challenge-evidence-4', 'challenge-evidence-5', 'challenge-evidence-6']);
 
-console.log('Builder Track J challenge contract passed: seeded canonical fault, healthy/broken probe truth, share token, evidence scoring, causal hypothesis, exact repair, and post-repair verification.');
+console.log('Builder Track J challenge contract passed: seeded canonical fault, healthy/broken probe truth, share token, objective-scoped evidence scoring, causal hypothesis, exact repair, and post-repair verification.');
