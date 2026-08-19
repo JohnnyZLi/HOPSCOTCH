@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import type { BuilderApplicationContext, BuilderApplicationTransaction } from './builder/application.ts';
 import type { BuilderArpCache } from './builder/arp.ts';
 import type { BuilderDhcpLeaseTable } from './builder/dhcp.ts';
@@ -10,7 +11,7 @@ export interface BuilderApplicationPanelProps {
   sourceNodeId: string;
   historical: boolean;
   onSessionState: (state: { arpCache: BuilderArpCache; natSessions: BuilderNatSessionTable; dhcpLeases: BuilderDhcpLeaseTable; ipv6ControlState: BuilderIpv6ControlState }) => void;
-  onTransaction: (transaction: BuilderApplicationTransaction) => void;
+  onTransaction: Dispatch<SetStateAction<BuilderApplicationTransaction[]>>;
   onMessage: (message: string) => void;
 }
 
