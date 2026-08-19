@@ -328,7 +328,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const commitAuthoringAddressing=(next:BuilderAddressing,nextMessage:string)=>{commitAddressing(next);setMessage(nextMessage);};
   const commitAuthoringEthernet=(next:BuilderEthernetConfig,nextMessage:string)=>{setEthernet(cloneBuilderEthernetConfig(next));setEthernetFlow(null);setArpCache(clearBuilderArpCache());setArpResolutions([]);setMessage(nextMessage);};
   const setAuthoringLayout=(next:BuilderLayout,nextMessage:string)=>{setLayout(cloneBuilderLayout(next));setMessage(nextMessage);};
-  const focusAuthoringDevice=(deviceId:string)=>{if(!graph.nodes.some((node)=>node.id===deviceId))return;setSelectedNodeId(deviceId);setWorkbenchDevice({plane:'routed',id:deviceId});};
+  const focusAuthoringDevice=(deviceId:string)=>{setSelectedNodeId(deviceId);setWorkbenchDevice({plane:'routed',id:deviceId});};
 
   const patchSelectedLinkProfile = (patch: Parameters<typeof updateBuilderLinkProfile>[3]) => {
     if (!selectedLink) return;
