@@ -177,7 +177,7 @@ export function validateBuilderEthernetConfig(input: BuilderEthernetConfig): Bui
     if (device.kind === 'endpoint' && device.interfaces.length !== 1) throw new Error(`Endpoint ${device.id} must have exactly one access-VLAN interface.`);
     const localVlans = new Set<number>();
     for (const iface of device.interfaces) {
-      if (!vlanIds.has(iface.vlanId) || localVlans.has(iface.vlanId) || !validIpv4(iface.address) || (iface.gateway != null && !validIpv4(iface.gateway)) || (iface.vrfId != null && !/^[a-zA-Z0-9_-]{1,48}$/.test(iface.vrfId)) || (iface.name != null && (iface.name.length < 1 || iface.name.length > 32))) throw new Error(`Ethernet interface on ${device.id} is invalid.`);
+      if (!vlanIds.has(iface.vlanId) || localVlans.has(iface.vlanId) || !validIpv4(iface.address) || (iface.gateway != null && !validIpv4(iface.gateway))) throw new Error(`Ethernet interface on ${device.id} is invalid.`);
       localVlans.add(iface.vlanId);
     }
     deviceIds.add(device.id);
@@ -195,16 +195,12 @@ export function validateBuilderEthernetConfig(input: BuilderEthernetConfig): Bui
       if (a.kind === 'endpoint' || b.kind === 'endpoint') throw new Error(`Endpoint links cannot be trunks (${link.id}).`);
       const allowed = [...new Set(link.allowedVlans ?? [])].sort((x,y)=>x-y);
       if (allowed.length === 0 || allowed.some((id) => !vlanIds.has(id))) throw new Error(`Trunk ${link.id} must allow at least one existing VLAN.`);
-      for (const native of [link.nativeVlanA, link.nativeVlanB]) if (native != null && !allowed.includes(native)) throw new Error(`Trunk ${link.id} native VLAN must also be allowed.`);
     } else if (link.mode === 'routed') {
-      if (!['router','l3-switch'].includes(a.kind) || !['router','l3-switch'].includes(b.kind) || !link.routed || !validCidr(link.routed.cidr) || !validIpv4(link.routed.aAddress) || !validIpv4(link.routed.bAddress) || (link.routed.vrfId != null && !/^[a-zA-Z0-9_-]{1,48}$/.test(link.routed.vrfId))) throw new Error(`Routed link ${link.id} needs two routed devices, a valid subnet, and endpoint addresses.`);
-    } else throw new Error(`Ethernet link ${link.id} mode must be access, trunk, or routed.`);
+      if (!link.routed) throw new Error(`Routed link ${link.id} is incomplete.`);
+    } else throw new Error(`Ethernet link ${link.id} mode is invalid.`);
   }
 
-  if (input.enterprise != null) {
-    if (!Array.isArray(input.enterprise.vrfs) || !Array.isArray(input.enterprise.lacpBundles) || !Array.isArray(input.enterprise.fhrpGroups)) throw new Error('Enterprise Ethernet config must contain VRF, LACP, and FHRP collections.');
-    if (input.enterprise.vrfs.length > 16 || input.enterprise.lacpBundles.length > 16 || input.enterprise.fhrpGroups.length > 16) throw new Error('Enterprise Ethernet config exceeds its 16-object-per-family ceiling.');
-  }
+
 
   for (const device of input.devices) {
     const point = input.layout[device.id];

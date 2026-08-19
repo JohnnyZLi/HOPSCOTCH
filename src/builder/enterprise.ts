@@ -138,6 +138,11 @@ function deviceAvailableOnVlan(config: BuilderEthernetConfig, deviceId: string, 
 
 export function validateBuilderEthernetEnterpriseConfig(config: BuilderEthernetConfig, input: BuilderEthernetEnterpriseConfig | undefined): BuilderEthernetEnterpriseConfig {
   const next = cloneBuilderEthernetEnterpriseConfig(input);
+  const ipv4=(value:string)=>/^(?:\d{1,3}\.){3}\d{1,3}$/.test(value)&&value.split('.').every((part)=>Number(part)>=0&&Number(part)<=255);
+  const cidr=(value:string)=>{const [address,prefix]=value.split('/');return Boolean(address&&ipv4(address)&&/^\d{1,2}$/.test(prefix??'')&&Number(prefix)>=8&&Number(prefix)<=30);};
+  for(const device of config.devices)for(const iface of device.interfaces){if(iface.vrfId!=null&&!/^[a-zA-Z0-9_-]{1,48}$/.test(iface.vrfId))throw new Error(`${device.id} has an invalid VRF id.`);if(iface.name!=null&&(iface.name.length<1||iface.name.length>32))throw new Error(`${device.id} has an invalid interface name.`);}
+  for(const link of config.links){if(link.mode==='trunk'){const allowed=link.allowedVlans??[];for(const native of [link.nativeVlanA,link.nativeVlanB])if(native!=null&&!allowed.includes(native))throw new Error(`Trunk ${link.id} native VLAN must also be allowed.`);}if(link.mode==='routed'){const a=deviceById(config,link.a),b=deviceById(config,link.b),r=link.routed;if(!a||!b||!['router','l3-switch'].includes(a.kind)||!['router','l3-switch'].includes(b.kind)||!r||!cidr(r.cidr)||!ipv4(r.aAddress)||!ipv4(r.bAddress)||(r.vrfId!=null&&!/^[a-zA-Z0-9_-]{1,48}$/.test(r.vrfId)))throw new Error(`Routed link ${link.id} is invalid.`);}}
+
   if (next.vrfs.length === 0 || next.vrfs.length > 16) throw new Error('Enterprise fabric requires 1–16 VRFs.');
   if (next.lacpBundles.length > 16 || next.fhrpGroups.length > 16) throw new Error('Enterprise fabric supports at most 16 LACP bundles and 16 first-hop redundancy groups.');
   const vrfIds = new Set<string>();
