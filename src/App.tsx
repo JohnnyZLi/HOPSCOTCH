@@ -1,33 +1,22 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
-import { DnsTheater } from './DnsTheater';
 import { ExploreLauncher, type ExploreDestination } from './ExploreLauncher';
-import { HttpComparisonTheater } from './HttpComparisonTheater';
 import { HomeActionDeck } from './HomeActionDeck';
 import { JourneyScenarioMenu } from './JourneyScenarioMenu';
-import { JourneyTheater } from './JourneyTheater';
-import { InternetScaleTheater } from './InternetScaleTheater';
 import type { InternetEvidenceSnapshot } from './internet/evidence';
 import { bootstrapJourneyFromSearch, seedJourneyBrowserScenario } from './journey/browser.ts';
 import { scenarioForPreset } from './journey/presets.ts';
 import type { JourneyDetailLab } from './journey/model';
 import { encodeJourneyQuery, type PortableJourneyScenario } from './journey/scenario.ts';
-import { LabNetworkField } from './LabNetworkField';
-import { NetworkBuilder } from './NetworkBuilder';
 import type { BuilderProbePacketSeed } from './builder/probes.ts';
 import type { BuilderScenarioV8 } from './builder/scenario.ts';
 import type { BuilderBgpAsProjection } from './builder/bgp.ts';
 import { NetworkField } from './NetworkField';
 import { canonicalUrlForRoute, pathForDestination, resolveAppRoute } from './navigation';
-import { ObservedInternet } from './ObservedInternet';
-import { MeasuredNetworkWorkspace } from './MeasuredNetworkWorkspace';
 import type { MeasuredSnapshotState } from './measurement/state.ts';
 import type { CaptureReplayContext } from './CaptureReplayWorkspace.tsx';
 import type { CaptureSessionIndex } from './capture/session.ts';
 import type { CapturedFrameEvidence } from './capture/types.ts';
-import { PhysicalInternetGlobe } from './PhysicalInternetGlobe';
-import { TcpTheater } from './TcpTheater';
-import { TlsTheater } from './TlsTheater';
 import type { ScenarioPresetId } from './scenarios/catalog.ts';
 import { lab01Scenario, lab01StateAt } from './simulation/lab01';
 import { latestEventAtOrBefore, type NetworkLayer } from './simulation/model';
@@ -36,7 +25,18 @@ type DisplayMode = 'overview' | 'xray';
 type ActiveLab = ExploreDestination | null;
 
 const CaptureReplayWorkspace = lazy(() => import('./CaptureReplayWorkspace.tsx').then((module) => ({ default: module.CaptureReplayWorkspace })));
+const DnsTheater = lazy(() => import('./DnsTheater.tsx').then((module) => ({ default: module.DnsTheater })));
+const HttpComparisonTheater = lazy(() => import('./HttpComparisonTheater.tsx').then((module) => ({ default: module.HttpComparisonTheater })));
+const InternetScaleTheater = lazy(() => import('./InternetScaleTheater.tsx').then((module) => ({ default: module.InternetScaleTheater })));
+const JourneyTheater = lazy(() => import('./JourneyTheater.tsx').then((module) => ({ default: module.JourneyTheater })));
+const LabNetworkField = lazy(() => import('./LabNetworkField.tsx').then((module) => ({ default: module.LabNetworkField })));
+const MeasuredNetworkWorkspace = lazy(() => import('./MeasuredNetworkWorkspace.tsx').then((module) => ({ default: module.MeasuredNetworkWorkspace })));
+const NetworkBuilder = lazy(() => import('./NetworkBuilder.tsx').then((module) => ({ default: module.NetworkBuilder })));
+const ObservedInternet = lazy(() => import('./ObservedInternet.tsx').then((module) => ({ default: module.ObservedInternet })));
 const PacketMicroscope = lazy(() => import('./PacketMicroscope.tsx').then((module) => ({ default: module.PacketMicroscope })));
+const PhysicalInternetGlobe = lazy(() => import('./PhysicalInternetGlobe.tsx').then((module) => ({ default: module.PhysicalInternetGlobe })));
+const TcpTheater = lazy(() => import('./TcpTheater.tsx').then((module) => ({ default: module.TcpTheater })));
+const TlsTheater = lazy(() => import('./TlsTheater.tsx').then((module) => ({ default: module.TlsTheater })));
 
 const layers: Array<{ id: NetworkLayer; label: string; kicker: string; description: string }> = [
   { id: 'internet', label: 'Internet', kicker: 'Scale 05', description: 'Physical interconnection infrastructure, autonomous systems, public routing evidence, and clearly labeled inference.' },
@@ -405,92 +405,94 @@ export default function App() {
 
       <ExploreLauncher open={exploreOpen} onClose={() => setExploreOpen(false)} onSelect={selectExploreDestination} onScenarioSelect={launchScenarioPreset} />
 
-      <AnimatePresence mode="wait" initial={false}>
-        {!activeLab ? (
-          <motion.div key="overview" className="overview-scene" initial={reduceMotion ? { opacity: 1 } : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.025, filter: 'blur(12px)' }} transition={{ duration: 0.45 }}>
-            <section className="hero-copy">
-              <motion.p className="eyebrow" initial={reduceMotion ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.7 }}>Interactive network systems laboratory</motion.p>
-              <motion.h1 initial={reduceMotion ? false : { opacity: 0, y: 34 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16, duration: 0.85, ease: [0.16, 1, 0.3, 1] }}>SEE THE<span>INTERNET</span>HAPPEN.</motion.h1>
-              <motion.p className="lede" initial={reduceMotion ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28, duration: 0.7 }}>Move from the global Internet to a single packet without losing the story in between. Routes, protocols, failures, and recovery become something you can watch, stop, rewind, build, and interrogate.</motion.p>
-              <HomeActionDeck
-                onWatch={openJourney}
-                onBreak={() => openFailureLab(0, true)}
-                onBuild={openBuilderLab}
-                onExplore={() => setExploreOpen(true)}
-                onMeasured={openMeasuredNetwork}
-                onToggleXray={() => setMode((current) => (current === 'overview' ? 'xray' : 'overview'))}
-                xrayActive={mode === 'xray'}
+      <Suspense fallback={<section className="lab-loading" aria-live="polite">LOADING WORKSPACE…</section>}>
+        <AnimatePresence mode="wait" initial={false}>
+          {!activeLab ? (
+            <motion.div key="overview" className="overview-scene" initial={reduceMotion ? { opacity: 1 } : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.025, filter: 'blur(12px)' }} transition={{ duration: 0.45 }}>
+              <section className="hero-copy">
+                <motion.p className="eyebrow" initial={reduceMotion ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.7 }}>Interactive network systems laboratory</motion.p>
+                <motion.h1 initial={reduceMotion ? false : { opacity: 0, y: 34 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16, duration: 0.85, ease: [0.16, 1, 0.3, 1] }}>SEE THE<span>INTERNET</span>HAPPEN.</motion.h1>
+                <motion.p className="lede" initial={reduceMotion ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28, duration: 0.7 }}>Move from the global Internet to a single packet without losing the story in between. Routes, protocols, failures, and recovery become something you can watch, stop, rewind, build, and interrogate.</motion.p>
+                <HomeActionDeck
+                  onWatch={openJourney}
+                  onBreak={() => openFailureLab(0, true)}
+                  onBuild={openBuilderLab}
+                  onExplore={() => setExploreOpen(true)}
+                  onMeasured={openMeasuredNetwork}
+                  onToggleXray={() => setMode((current) => (current === 'overview' ? 'xray' : 'overview'))}
+                  xrayActive={mode === 'xray'}
+                />
+              </section>
+
+              <nav className="scale-rail" aria-label="Network scale">
+                {layers.map((item) => <motion.button key={item.id} type="button" className={layer === item.id ? 'active' : ''} onClick={() => setLayer(item.id)} whileHover={reduceMotion ? undefined : { x: 5 }} transition={{ type: 'spring', stiffness: 420, damping: 32 }}><span>{item.kicker}</span><strong>{item.label}</strong></motion.button>)}
+              </nav>
+
+              <motion.aside key={active.id} className="layer-card" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 16, filter: 'blur(8px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} transition={{ duration: 0.34 }}>
+                <span>{active.kicker}</span><h2>{active.label}</h2><p>{active.description}</p><div className="card-rule" />
+                <small>{layer === 'packet' ? 'PACKET MICROSCOPE READY' : layer === 'transport' ? 'TCP PROTOCOL THEATER READY' : layer === 'application' ? 'HTTP + TLS + DNS THEATER READY' : layer === 'routing' ? 'DYNAMIC NETWORK BUILDER READY' : 'PHYSICAL + SIMULATED + OBSERVED INTERNET MODES READY'}</small>
+              </motion.aside>
+
+              <footer className="timeline-preview"><div className="timeline-labels"><span>TIME MACHINE</span><span>00:00.000</span></div><div className="timeline-track" aria-hidden="true"><i /><b /></div><span className="timeline-note">Lab 01 failure · Lab 02 packet · Lab 03 protocols · Lab 04 builder · Lab 05 Internet · Lab 07 Journey · Lab 09 measured</span></footer>
+            </motion.div>
+          ) : activeLab === 'journey' ? (
+            <JourneyTheater key={`lab06-${journeyRenderKey}`} hostname={journeyHostname} timeMs={journeyTimeMs} startPlaying={journeyStartPlaying} evidence={journeyEvidence} measuredState={measuredSession} onHostnameChange={setJourneyHostname} onTimeChange={setJourneyTimeMs} onEvidenceChange={setJourneyEvidence} onOpenDetail={openJourneyDetail} onExit={exitLabs} />
+          ) : activeLab === 'packet' ? (
+            <Suspense fallback={<section className="lab-loading" aria-live="polite">LOADING PACKET MICROSCOPE…</section>}>
+              <PacketMicroscope
+                key={`lab02-${capturedMicroscopeFrame?.record.id ?? builderPacketSeed?.id ?? 'default'}`}
+                onExit={exitActiveLab}
+                onOpenSourceEvent={capturedMicroscopeFrame ? openCaptureReplay : builderPacketSeed ? () => openBuilderLab() : () => openFailureLab(5400, false)}
+                capturedFrame={capturedMicroscopeFrame ?? undefined}
+                initialConfig={builderPacketSeed ? { family: builderPacketSeed.family, transport: 'icmp', payloadBytes: builderPacketSeed.payloadBytes ?? 32, ttl: builderPacketSeed.ttl, ...(builderPacketSeed.family === 'ipv4' ? { sourceIpv4: builderPacketSeed.sourceAddress, destinationIpv4: builderPacketSeed.destinationAddress } : { sourceIpv6: builderPacketSeed.sourceAddress, destinationIpv6: builderPacketSeed.destinationAddress }), sourceMac: builderPacketSeed.sourceMac, destinationMac: builderPacketSeed.destinationMac, icmpType: builderPacketSeed.icmpType ?? (builderPacketSeed.family === 'ipv4' ? 8 : 128), icmpCode: builderPacketSeed.icmpCode ?? 0, icmpMtu: builderPacketSeed.icmpMtu, icmpSequence: Math.max(1, builderPacketSeed.ttl) } : undefined}
+                origin={capturedMicroscopeFrame ? { label: `${captureSourceName ?? 'LOCAL CAPTURE'} · FRAME ${capturedMicroscopeFrame.record.number}`, timestamp: capturedMicroscopeFrame.record.timestamp.iso8601 ?? `t+${capturedMicroscopeFrame.record.relativeTimeMs.toFixed(3)} ms`, actionLabel: 'RETURN TO CAPTURE ↗' } : builderPacketSeed ? { label: `${builderPacketSeed.family === 'ipv4' ? 'LAB 11D' : 'LAB 11N'} · ${builderPacketSeed.label}`, timestamp: `${builderPacketSeed.family === 'ipv4' ? 'TTL' : 'HOP LIMIT'} ${builderPacketSeed.ttl}`, actionLabel: 'RETURN TO BUILDER ↗' } : undefined}
               />
-            </section>
-
-            <nav className="scale-rail" aria-label="Network scale">
-              {layers.map((item) => <motion.button key={item.id} type="button" className={layer === item.id ? 'active' : ''} onClick={() => setLayer(item.id)} whileHover={reduceMotion ? undefined : { x: 5 }} transition={{ type: 'spring', stiffness: 420, damping: 32 }}><span>{item.kicker}</span><strong>{item.label}</strong></motion.button>)}
-            </nav>
-
-            <motion.aside key={active.id} className="layer-card" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 16, filter: 'blur(8px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} transition={{ duration: 0.34 }}>
-              <span>{active.kicker}</span><h2>{active.label}</h2><p>{active.description}</p><div className="card-rule" />
-              <small>{layer === 'packet' ? 'PACKET MICROSCOPE READY' : layer === 'transport' ? 'TCP PROTOCOL THEATER READY' : layer === 'application' ? 'HTTP + TLS + DNS THEATER READY' : layer === 'routing' ? 'DYNAMIC NETWORK BUILDER READY' : 'PHYSICAL + SIMULATED + OBSERVED INTERNET MODES READY'}</small>
-            </motion.aside>
-
-            <footer className="timeline-preview"><div className="timeline-labels"><span>TIME MACHINE</span><span>00:00.000</span></div><div className="timeline-track" aria-hidden="true"><i /><b /></div><span className="timeline-note">Lab 01 failure · Lab 02 packet · Lab 03 protocols · Lab 04 builder · Lab 05 Internet · Lab 07 Journey · Lab 09 measured</span></footer>
-          </motion.div>
-        ) : activeLab === 'journey' ? (
-          <JourneyTheater key={`lab06-${journeyRenderKey}`} hostname={journeyHostname} timeMs={journeyTimeMs} startPlaying={journeyStartPlaying} evidence={journeyEvidence} measuredState={measuredSession} onHostnameChange={setJourneyHostname} onTimeChange={setJourneyTimeMs} onEvidenceChange={setJourneyEvidence} onOpenDetail={openJourneyDetail} onExit={exitLabs} />
-        ) : activeLab === 'packet' ? (
-          <Suspense fallback={<section className="lab-loading" aria-live="polite">LOADING PACKET MICROSCOPE…</section>}>
-            <PacketMicroscope
-              key={`lab02-${capturedMicroscopeFrame?.record.id ?? builderPacketSeed?.id ?? 'default'}`}
-              onExit={exitActiveLab}
-              onOpenSourceEvent={capturedMicroscopeFrame ? openCaptureReplay : builderPacketSeed ? () => openBuilderLab() : () => openFailureLab(5400, false)}
-              capturedFrame={capturedMicroscopeFrame ?? undefined}
-              initialConfig={builderPacketSeed ? { family: builderPacketSeed.family, transport: 'icmp', payloadBytes: builderPacketSeed.payloadBytes ?? 32, ttl: builderPacketSeed.ttl, ...(builderPacketSeed.family === 'ipv4' ? { sourceIpv4: builderPacketSeed.sourceAddress, destinationIpv4: builderPacketSeed.destinationAddress } : { sourceIpv6: builderPacketSeed.sourceAddress, destinationIpv6: builderPacketSeed.destinationAddress }), sourceMac: builderPacketSeed.sourceMac, destinationMac: builderPacketSeed.destinationMac, icmpType: builderPacketSeed.icmpType ?? (builderPacketSeed.family === 'ipv4' ? 8 : 128), icmpCode: builderPacketSeed.icmpCode ?? 0, icmpMtu: builderPacketSeed.icmpMtu, icmpSequence: Math.max(1, builderPacketSeed.ttl) } : undefined}
-              origin={capturedMicroscopeFrame ? { label: `${captureSourceName ?? 'LOCAL CAPTURE'} · FRAME ${capturedMicroscopeFrame.record.number}`, timestamp: capturedMicroscopeFrame.record.timestamp.iso8601 ?? `t+${capturedMicroscopeFrame.record.relativeTimeMs.toFixed(3)} ms`, actionLabel: 'RETURN TO CAPTURE ↗' } : builderPacketSeed ? { label: `${builderPacketSeed.family === 'ipv4' ? 'LAB 11D' : 'LAB 11N'} · ${builderPacketSeed.label}`, timestamp: `${builderPacketSeed.family === 'ipv4' ? 'TTL' : 'HOP LIMIT'} ${builderPacketSeed.ttl}`, actionLabel: 'RETURN TO BUILDER ↗' } : undefined}
-            />
-          </Suspense>
-        ) : activeLab === 'capture' ? (
-          <Suspense fallback={<section className="capture-loading" aria-live="polite">LOADING CAPTURE WORKSPACE…</section>}>
-            <CaptureReplayWorkspace
-              session={captureSession}
-              sourceName={captureSourceName}
-              initialContext={captureContext}
-              onSessionChange={(nextSession, nextSourceName) => { setCaptureSession(nextSession); setCaptureSourceName(nextSourceName); if (!nextSession) setCaptureContext(null); }}
-              onContextChange={setCaptureContext}
-              onOpenFrame={openCapturedFrame}
-              onExit={exitActiveLab}
-            />
-          </Suspense>
-        ) : activeLab === 'tcp' ? (
-          <TcpTheater key="lab03-tcp" onExit={exitActiveLab} onOpenPacket={openPacketLab} />
-        ) : activeLab === 'dns' ? (
-          <DnsTheater key="lab03-dns" onExit={exitActiveLab} />
-        ) : activeLab === 'tls' ? (
-          <TlsTheater key="lab03-tls" onExit={exitActiveLab} onOpenDns={openDnsLab} onOpenTcp={openTcpLab} onOpenPacket={openPacketLab} />
-        ) : activeLab === 'http' ? (
-          <HttpComparisonTheater key="lab03-http" onExit={exitActiveLab} onOpenTls={openTlsLab} />
-        ) : activeLab === 'builder' ? (
-          <NetworkBuilder key={`lab04-${builderBgpProjection?.scenario.updatedAt??'default'}`} onExit={exitActiveLab} onOpenFailureStory={() => openFailureLab(0, true)} onOpenProbePacket={openPacketLab} onOpenBgpProjection={openBuilderBgpProjection} initialGraph={builderBgpProjection?.scenario.graph} initialLayout={builderBgpProjection?.scenario.layout} initialAddressing={builderBgpProjection?.scenario.addressing} initialRouting={builderBgpProjection?.scenario.routing} initialEthernet={builderBgpProjection?.scenario.ethernet} initialLinkProfiles={builderBgpProjection?.scenario.linkProfiles} initialAcl={builderBgpProjection?.scenario.acl} initialNat={builderBgpProjection?.scenario.nat} initialDhcp={builderBgpProjection?.scenario.dhcp} initialIpv6={builderBgpProjection?.scenario.ipv6} initialSourceId={builderBgpProjection?.scenario.sourceId} initialDestinationId={builderBgpProjection?.scenario.destinationId} initialScenarioName={builderBgpProjection?.scenario.name}/>
-        ) : activeLab === 'physical' ? (
-          <PhysicalInternetGlobe key="lab05-physical" onExit={exitActiveLab} onOpenSimulated={openInternetLab} onOpenObserved={openObservedInternet} />
-        ) : activeLab === 'internet' ? (
-          <InternetScaleTheater key={`lab05-simulated-${builderBgpProjection?'builder-bgp':'default'}`} onExit={exitActiveLab} onOpenObserved={openObservedInternet} builderProjection={builderBgpProjection?.projection} onReturnToBuilder={builderBgpProjection?returnToProjectedBuilder:undefined} />
-        ) : activeLab === 'observed' ? (
-          <ObservedInternet key="lab05-observed" onExit={exitActiveLab} onOpenSimulated={openInternetLab} />
-        ) : activeLab === 'measured' ? (
-          <MeasuredNetworkWorkspace key="lab09-measured" measuredState={measuredSession} onMeasuredStateChange={setMeasuredSession} onExit={exitActiveLab} />
-        ) : (
-          <motion.section key="lab01" className="lab-workspace" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.985, filter: 'blur(14px)' }} animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.02, filter: 'blur(10px)' }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
-            <header className="lab-heading"><div><p className="eyebrow">Lab 01 · Failure & recovery</p><h1>BREAK THE ROUTE.<br /><span>WATCH IT THINK.</span></h1></div><div className="lab-heading-actions"><button type="button" className={labXray ? 'lab-mode active' : 'lab-mode'} onClick={() => setLabXray((current) => !current)}>X-RAY {labXray ? 'ON' : 'OFF'}</button><button type="button" className="lab-mode" onClick={exitActiveLab}>EXIT LAB</button></div></header>
-            <div className="lab-stage">
-              <motion.div key={`flash-${activeEvent.id}`} className={`lab-phase-flash severity-${activeEvent.payload.severity}`} initial={reduceMotion ? false : { opacity: activeEvent.payload.severity === 'critical' ? 0.34 : 0.16 }} animate={{ opacity: 0 }} transition={{ duration: activeEvent.payload.severity === 'critical' ? 0.95 : 0.7 }} aria-hidden="true" />
-              <div className="lab-stage-meta"><div><span>PHASE</span><strong>{labState.phase.toUpperCase()}</strong></div><div><span>INSTALLED PATH</span><strong>{activePath.label.toUpperCase()}</strong></div><div><span>PATH COST</span><strong>{activePath.metric}</strong></div></div>
-              <motion.div className="lab-camera" animate={reduceMotion ? undefined : { x: cameraX, y: cameraY, scale: cameraScale }} transition={{ type: 'spring', stiffness: 110, damping: 20, mass: 0.85 }}><LabNetworkField scenario={lab01Scenario} state={labState} activeEvent={activeEvent} xray={labXray} /></motion.div>
-              <AnimatePresence mode="wait" initial={false}><motion.div key={activeEvent.id} className={`lab-event-callout severity-${activeEvent.payload.severity}`} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 12, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.99 }} transition={{ duration: 0.28 }}><span>{formatTime(activeEvent.atMs)}</span><strong>{activeEvent.payload.title}</strong><p>{activeEvent.payload.summary}</p></motion.div></AnimatePresence>
-            </div>
-            <aside className="event-inspector" aria-label="Causal event chain"><div className="inspector-heading"><span>CAUSAL CHAIN</span><strong>{String(lab01Scenario.events.indexOf(activeEvent) + 1).padStart(2, '0')} / {String(lab01Scenario.events.length).padStart(2, '0')}</strong></div><div className="event-list">{lab01Scenario.events.map((event, index) => { const complete = event.atMs <= timeMs; const current = event.id === activeEvent.id; return <button key={event.id} type="button" className={`${complete ? 'complete' : ''}${current ? ' current' : ''}`} onClick={() => seek(event.atMs)}><span className="event-index">{String(index + 1).padStart(2, '0')}</span><span className="event-copy"><strong>{event.payload.title}</strong><small>{formatTime(event.atMs)} · {event.kind.replace('.', ' ')}</small></span></button>; })}</div><div className="event-detail"><span>WHY THIS MATTERS</span><p>{activeEvent.payload.detail}</p></div></aside>
-            <footer className="time-machine"><div className="time-controls"><button type="button" onClick={togglePlayback} aria-label={playing ? 'Pause scenario' : 'Play scenario'}>{playing ? 'Ⅱ' : '▶'}</button><button type="button" onClick={() => seek(0)} aria-label="Reset scenario">↺</button></div><div className="time-readout"><span>TIME MACHINE</span><strong>{formatTime(timeMs)}</strong></div><div className="scrubber-wrap"><div className="timeline-markers" aria-hidden="true">{lab01Scenario.events.map((event) => <i key={event.id} className={event.atMs <= timeMs ? 'passed' : ''} style={{ left: `${(event.atMs / lab01Scenario.durationMs) * 100}%` }} />)}</div><input type="range" min="0" max={lab01Scenario.durationMs} step="10" value={Math.round(timeMs)} onChange={(event) => seek(Number(event.currentTarget.value))} aria-label="Scenario time" /></div><span className="time-duration">{formatTime(lab01Scenario.durationMs)}</span></footer>
-          </motion.section>
-        )}
-      </AnimatePresence>
+            </Suspense>
+          ) : activeLab === 'capture' ? (
+            <Suspense fallback={<section className="capture-loading" aria-live="polite">LOADING CAPTURE WORKSPACE…</section>}>
+              <CaptureReplayWorkspace
+                session={captureSession}
+                sourceName={captureSourceName}
+                initialContext={captureContext}
+                onSessionChange={(nextSession, nextSourceName) => { setCaptureSession(nextSession); setCaptureSourceName(nextSourceName); if (!nextSession) setCaptureContext(null); }}
+                onContextChange={setCaptureContext}
+                onOpenFrame={openCapturedFrame}
+                onExit={exitActiveLab}
+              />
+            </Suspense>
+          ) : activeLab === 'tcp' ? (
+            <TcpTheater key="lab03-tcp" onExit={exitActiveLab} onOpenPacket={openPacketLab} />
+          ) : activeLab === 'dns' ? (
+            <DnsTheater key="lab03-dns" onExit={exitActiveLab} />
+          ) : activeLab === 'tls' ? (
+            <TlsTheater key="lab03-tls" onExit={exitActiveLab} onOpenDns={openDnsLab} onOpenTcp={openTcpLab} onOpenPacket={openPacketLab} />
+          ) : activeLab === 'http' ? (
+            <HttpComparisonTheater key="lab03-http" onExit={exitActiveLab} onOpenTls={openTlsLab} />
+          ) : activeLab === 'builder' ? (
+            <NetworkBuilder key={`lab04-${builderBgpProjection?.scenario.updatedAt??'default'}`} onExit={exitActiveLab} onOpenFailureStory={() => openFailureLab(0, true)} onOpenProbePacket={openPacketLab} onOpenBgpProjection={openBuilderBgpProjection} initialGraph={builderBgpProjection?.scenario.graph} initialLayout={builderBgpProjection?.scenario.layout} initialAddressing={builderBgpProjection?.scenario.addressing} initialRouting={builderBgpProjection?.scenario.routing} initialEthernet={builderBgpProjection?.scenario.ethernet} initialLinkProfiles={builderBgpProjection?.scenario.linkProfiles} initialAcl={builderBgpProjection?.scenario.acl} initialNat={builderBgpProjection?.scenario.nat} initialDhcp={builderBgpProjection?.scenario.dhcp} initialIpv6={builderBgpProjection?.scenario.ipv6} initialSourceId={builderBgpProjection?.scenario.sourceId} initialDestinationId={builderBgpProjection?.scenario.destinationId} initialScenarioName={builderBgpProjection?.scenario.name}/>
+          ) : activeLab === 'physical' ? (
+            <PhysicalInternetGlobe key="lab05-physical" onExit={exitActiveLab} onOpenSimulated={openInternetLab} onOpenObserved={openObservedInternet} />
+          ) : activeLab === 'internet' ? (
+            <InternetScaleTheater key={`lab05-simulated-${builderBgpProjection?'builder-bgp':'default'}`} onExit={exitActiveLab} onOpenObserved={openObservedInternet} builderProjection={builderBgpProjection?.projection} onReturnToBuilder={builderBgpProjection?returnToProjectedBuilder:undefined} />
+          ) : activeLab === 'observed' ? (
+            <ObservedInternet key="lab05-observed" onExit={exitActiveLab} onOpenSimulated={openInternetLab} />
+          ) : activeLab === 'measured' ? (
+            <MeasuredNetworkWorkspace key="lab09-measured" measuredState={measuredSession} onMeasuredStateChange={setMeasuredSession} onExit={exitActiveLab} />
+          ) : (
+            <motion.section key="lab01" className="lab-workspace" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.985, filter: 'blur(14px)' }} animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.02, filter: 'blur(10px)' }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
+              <header className="lab-heading"><div><p className="eyebrow">Lab 01 · Failure & recovery</p><h1>BREAK THE ROUTE.<br /><span>WATCH IT THINK.</span></h1></div><div className="lab-heading-actions"><button type="button" className={labXray ? 'lab-mode active' : 'lab-mode'} onClick={() => setLabXray((current) => !current)}>X-RAY {labXray ? 'ON' : 'OFF'}</button><button type="button" className="lab-mode" onClick={exitActiveLab}>EXIT LAB</button></div></header>
+              <div className="lab-stage">
+                <motion.div key={`flash-${activeEvent.id}`} className={`lab-phase-flash severity-${activeEvent.payload.severity}`} initial={reduceMotion ? false : { opacity: activeEvent.payload.severity === 'critical' ? 0.34 : 0.16 }} animate={{ opacity: 0 }} transition={{ duration: activeEvent.payload.severity === 'critical' ? 0.95 : 0.7 }} aria-hidden="true" />
+                <div className="lab-stage-meta"><div><span>PHASE</span><strong>{labState.phase.toUpperCase()}</strong></div><div><span>INSTALLED PATH</span><strong>{activePath.label.toUpperCase()}</strong></div><div><span>PATH COST</span><strong>{activePath.metric}</strong></div></div>
+                <motion.div className="lab-camera" animate={reduceMotion ? undefined : { x: cameraX, y: cameraY, scale: cameraScale }} transition={{ type: 'spring', stiffness: 110, damping: 20, mass: 0.85 }}><LabNetworkField scenario={lab01Scenario} state={labState} activeEvent={activeEvent} xray={labXray} /></motion.div>
+                <AnimatePresence mode="wait" initial={false}><motion.div key={activeEvent.id} className={`lab-event-callout severity-${activeEvent.payload.severity}`} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 12, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.99 }} transition={{ duration: 0.28 }}><span>{formatTime(activeEvent.atMs)}</span><strong>{activeEvent.payload.title}</strong><p>{activeEvent.payload.summary}</p></motion.div></AnimatePresence>
+              </div>
+              <aside className="event-inspector" aria-label="Causal event chain"><div className="inspector-heading"><span>CAUSAL CHAIN</span><strong>{String(lab01Scenario.events.indexOf(activeEvent) + 1).padStart(2, '0')} / {String(lab01Scenario.events.length).padStart(2, '0')}</strong></div><div className="event-list">{lab01Scenario.events.map((event, index) => { const complete = event.atMs <= timeMs; const current = event.id === activeEvent.id; return <button key={event.id} type="button" className={`${complete ? 'complete' : ''}${current ? ' current' : ''}`} onClick={() => seek(event.atMs)}><span className="event-index">{String(index + 1).padStart(2, '0')}</span><span className="event-copy"><strong>{event.payload.title}</strong><small>{formatTime(event.atMs)} · {event.kind.replace('.', ' ')}</small></span></button>; })}</div><div className="event-detail"><span>WHY THIS MATTERS</span><p>{activeEvent.payload.detail}</p></div></aside>
+              <footer className="time-machine"><div className="time-controls"><button type="button" onClick={togglePlayback} aria-label={playing ? 'Pause scenario' : 'Play scenario'}>{playing ? 'Ⅱ' : '▶'}</button><button type="button" onClick={() => seek(0)} aria-label="Reset scenario">↺</button></div><div className="time-readout"><span>TIME MACHINE</span><strong>{formatTime(timeMs)}</strong></div><div className="scrubber-wrap"><div className="timeline-markers" aria-hidden="true">{lab01Scenario.events.map((event) => <i key={event.id} className={event.atMs <= timeMs ? 'passed' : ''} style={{ left: `${(event.atMs / lab01Scenario.durationMs) * 100}%` }} />)}</div><input type="range" min="0" max={lab01Scenario.durationMs} step="10" value={Math.round(timeMs)} onChange={(event) => seek(Number(event.currentTarget.value))} aria-label="Scenario time" /></div><span className="time-duration">{formatTime(lab01Scenario.durationMs)}</span></footer>
+            </motion.section>
+          )}
+        </AnimatePresence>
+      </Suspense>
     </main>
   );
 }
