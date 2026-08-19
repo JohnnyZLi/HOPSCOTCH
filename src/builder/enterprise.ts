@@ -4,9 +4,11 @@ import type {
   BuilderEthernetDevice,
   BuilderEthernetLink,
   BuilderEthernetEnterpriseConfig,
+  BuilderEthernetFlowResult,
   BuilderFhrpGroup,
   BuilderLacpBundle,
   BuilderVrf,
+  builderEthernetPathForVlan,
 } from './ethernet.ts';
 
 export interface BuilderLacpState {
@@ -310,12 +312,62 @@ export function builderVrfRouteTables(config: BuilderEthernetConfig): BuilderVrf
   return entries.sort((left, right) => `${left.deviceId}:${left.vrfId}:${left.prefix}:${left.interfaceLabel}`.localeCompare(`${right.deviceId}:${right.vrfId}:${right.prefix}:${right.interfaceLabel}`));
 }
 
+
+function logicalL2Config(config: BuilderEthernetConfig, vlanId: number): BuilderEthernetConfig {
+  const next=structuredClone(config) as BuilderEthernetConfig;
+  next.devices=next.devices.map((device)=>device.kind==='l3-switch'?{...device,kind:'switch',interfaces:[]}:device);
+  const disabled=new Set<string>();
+  for(const link of next.links){
+    if(link.mode==='routed'||builderVlanEncapsulation(link,vlanId).mismatch)disabled.add(link.id);
+  }
+  for(const bundle of next.enterprise?.lacpBundles??[]){
+    const state=builderLacpState(next,bundle.id);
+    for(const member of bundle.memberLinkIds)disabled.add(member);
+    const representative=state.up?state.activeMemberLinkIds[0]:null;
+    if(representative)disabled.delete(representative);
+  }
+  next.links=next.links.map((link)=>disabled.has(link.id)?{...link,failed:true}:link);
+  next.enterprise=undefined;
+  return next;
+}
+
+function enterprisePath(config:BuilderEthernetConfig,sourceId:string,destinationId:string,vlanId:number){
+  return builderEthernetPathForVlan(logicalL2Config(config,vlanId),sourceId,destinationId,vlanId);
+}
+
+function enterpriseFlowFail(sourceId:string,destinationId:string,sourceVlan:number|null,destinationVlan:number|null,reason:string):BuilderEthernetFlowResult{
+  return{sourceId,destinationId,sourceVlan,destinationVlan,success:false,routed:false,routedAt:null,ttlBefore:64,ttlAfter:64,segments:[],fdb:[],failureReason:reason,summary:reason};
+}
+
+export function runBuilderEnterpriseEthernetFlow(configInput:BuilderEthernetConfig,sourceId:string,destinationId:string):BuilderEthernetFlowResult{
+  const config=structuredClone(configInput) as BuilderEthernetConfig;
+  config.enterprise=validateBuilderEthernetEnterpriseConfig(config,config.enterprise);
+  const source=deviceById(config,sourceId),destination=deviceById(config,destinationId);
+  if(!source||!destination||source.kind!=='endpoint'||destination.kind!=='endpoint'||sourceId===destinationId)return enterpriseFlowFail(sourceId,destinationId,null,null,'Choose two different Ethernet endpoints.');
+  const sourceIf=source.interfaces[0],destinationIf=destination.interfaces[0];
+  if(!sourceIf||!destinationIf)return enterpriseFlowFail(sourceId,destinationId,sourceIf?.vlanId??null,destinationIf?.vlanId??null,'Endpoint VLAN interfaces are incomplete.');
+  const sourceVlan=sourceIf.vlanId,destinationVlan=destinationIf.vlanId;
+  if(sourceVlan===destinationVlan){const path=enterprisePath(config,sourceId,destinationId,sourceVlan);return path?{sourceId,destinationId,sourceVlan,destinationVlan,success:true,routed:false,routedAt:null,ttlBefore:64,ttlAfter:64,segments:[{phase:'same-vlan',vlanId:sourceVlan,nodeIds:path.nodeIds,linkIds:path.linkIds,disposition:'FLOOD THEN LEARN'}],fdb:[],failureReason:null,summary:`VLAN ${sourceVlan} crosses the logical Layer-2 topology; LACP members project as one bundle and native-VLAN mismatches do not forward.`}:enterpriseFlowFail(sourceId,destinationId,sourceVlan,destinationVlan,`VLAN ${sourceVlan} has no active enterprise Layer-2 path.`);}
+  const sourceVrf=sourceIf.vrfId??'default',destinationVrf=destinationIf.vrfId??'default';
+  if(sourceVrf!==destinationVrf)return enterpriseFlowFail(sourceId,destinationId,sourceVlan,destinationVlan,`VRF isolation: ${source.label} is in ${sourceVrf} while ${destination.label} is in ${destinationVrf}. Overlapping addresses do not merge routing tables.`);
+  const sourceGateway=builderResolveEnterpriseGateway(config,sourceId),destinationGateway=builderResolveEnterpriseGateway(config,destinationId);
+  const router=sourceGateway.gatewayDeviceId?deviceById(config,sourceGateway.gatewayDeviceId):undefined;
+  if(!router||!['router','l3-switch'].includes(router.kind)||!router.interfaces.some((entry)=>entry.vlanId===destinationVlan&&(entry.vrfId??'default')===sourceVrf))return enterpriseFlowFail(sourceId,destinationId,sourceVlan,destinationVlan,`VLAN ${sourceVlan} gateway cannot route to VLAN ${destinationVlan} inside VRF ${sourceVrf}.`);
+  if(!destinationGateway.gatewayDeviceId)return enterpriseFlowFail(sourceId,destinationId,sourceVlan,destinationVlan,destinationGateway.reason);
+  const toGateway=enterprisePath(config,sourceId,router.id,sourceVlan),fromRouter=enterprisePath(config,router.id,destinationId,destinationVlan);
+  if(!toGateway)return enterpriseFlowFail(sourceId,destinationId,sourceVlan,destinationVlan,`VLAN ${sourceVlan} cannot reach active gateway ${router.label}.`);
+  if(!fromRouter)return enterpriseFlowFail(sourceId,destinationId,sourceVlan,destinationVlan,`Routed hop ${router.label} cannot reach ${destination.label} through VLAN ${destinationVlan}.`);
+  return{sourceId,destinationId,sourceVlan,destinationVlan,success:true,routed:true,routedAt:router.id,ttlBefore:64,ttlAfter:63,segments:[{phase:'to-gateway',vlanId:sourceVlan,nodeIds:toGateway.nodeIds,linkIds:toGateway.linkIds,disposition:'FLOOD THEN LEARN'},{phase:'from-router',vlanId:destinationVlan,nodeIds:fromRouter.nodeIds,linkIds:fromRouter.linkIds,disposition:'ROUTED UNICAST'}],fdb:[],failureReason:null,summary:`${router.label} routes VLAN ${sourceVlan} → VLAN ${destinationVlan} inside VRF ${sourceVrf}; FHRP, logical LACP and explicit tag truth are projections of the same Ethernet configuration.`};
+}
+
+export function builderEnterpriseStpState(config:BuilderEthernetConfig,vlanId:number):BuilderStpState{return builderStpState(logicalL2Config(config,vlanId),vlanId);}
+
 export function builderRstpConvergence(config: BuilderEthernetConfig, vlanId: number, failedLinkId: string): BuilderRstpConvergence {
-  const before = builderStpState(config, vlanId);
+  const before = builderEnterpriseStpState(config, vlanId);
   const failed = config.links.find((link) => link.id === failedLinkId);
   if (!failed) throw new Error(`Unknown Ethernet link ${failedLinkId}.`);
   const next: BuilderEthernetConfig = { ...config, links: config.links.map((link) => link.id === failedLinkId ? { ...link, failed: true } : { ...link }) };
-  const after = builderStpState(next, vlanId);
+  const after = builderEnterpriseStpState(next, vlanId);
   const protocol = config.stp.protocol === 'rstp' ? 'RSTP' : 'STP';
   const recovering = after.forwardingLinkIds.filter((linkId) => !before.forwardingLinkIds.includes(linkId));
   const transitions: BuilderRstpTransition[] = [{ atMs: 0, linkId: failedLinkId, state: 'DOWN', reason: 'Physical member/link failure is observed.' }];

@@ -99,7 +99,7 @@ export function cloneBuilderEthernetConfig(config: BuilderEthernetConfig): Build
   return {
     vlans: config.vlans.map((vlan) => ({ ...vlan })),
     devices: config.devices.map((device) => ({ ...device, interfaces: device.interfaces.map(cloneInterface) })),
-    links: config.links.map((link) => ({ ...link, allowedVlans: link.allowedVlans ? [...link.allowedVlans] : undefined })),
+    links: config.links.map((link) => ({ ...link, allowedVlans: link.allowedVlans ? [...link.allowedVlans] : undefined, routed: link.routed ? { ...link.routed } : undefined })),
     layout: Object.fromEntries(Object.entries(config.layout).map(([id, point]) => [id, { ...point }])),
     stp: cloneBuilderStpConfig(config.stp),
     enterprise: config.enterprise ? structuredClone(config.enterprise) : undefined,
@@ -283,17 +283,6 @@ function fail(sourceId:string,destinationId:string,sourceVlan:number|null,destin
   return { sourceId,destinationId,sourceVlan,destinationVlan,success:false,routed:false,routedAt:null,ttlBefore:64,ttlAfter:64,segments:[],fdb:[],failureReason:reason,summary:reason };
 }
 
-function routedGatewayFor(config: BuilderEthernetConfig, vlanId: number, vrfId: string, gatewayIp: string | null | undefined): BuilderEthernetDevice | undefined {
-  if (!gatewayIp) return undefined;
-  const group = config.enterprise?.fhrpGroups.find((entry) => entry.vlanId === vlanId && (entry.vrfId ?? 'default') === vrfId && entry.virtualIp === gatewayIp);
-  if (group) {
-    const members = group.members.filter((member) => config.links.some((link) => !link.failed && (link.a === member.deviceId || link.b === member.deviceId) && linkCarriesVlanRaw(link, vlanId))).sort((a,b)=>b.priority-a.priority||a.deviceId.localeCompare(b.deviceId));
-    const masterId = members[0]?.deviceId;
-    return masterId ? deviceById(config, masterId) : undefined;
-  }
-  return config.devices.filter((device) => ['router','l3-switch'].includes(device.kind) && device.interfaces.some((entry) => entry.vlanId === vlanId && (entry.vrfId ?? 'default') === vrfId && entry.address === gatewayIp)).sort((a,b)=>a.id.localeCompare(b.id))[0];
-}
-
 export function runBuilderEthernetFlow(configInput: BuilderEthernetConfig, sourceId: string, destinationId: string): BuilderEthernetFlowResult {
   const config = validateBuilderEthernetConfig(configInput);
   const source = deviceById(config,sourceId); const destination = deviceById(config,destinationId);
@@ -318,13 +307,11 @@ export function runBuilderEthernetFlow(configInput: BuilderEthernetConfig, sourc
       summary:`VLAN ${sourceVlan} stays Layer 2: first unknown unicast floods only inside that VLAN, then learned MAC state enables unicast return.` };
   }
 
-  const sourceVrf = sourceIf.vrfId ?? 'default'; const destinationVrf = destinationIf.vrfId ?? 'default';
-  if (sourceVrf !== destinationVrf) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`VRF isolation: ${source.label} is in ${sourceVrf} while ${destination.label} is in ${destinationVrf}. Overlapping addresses do not merge routing tables.`);
-  const router = routedGatewayFor(config, sourceVlan, sourceVrf, sourceIf.gateway);
-  if (!router || !['router','l3-switch'].includes(router.kind) || !interfaceFor(router,destinationVlan) || (interfaceFor(router,destinationVlan)?.vrfId ?? 'default') !== sourceVrf) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`VLAN ${sourceVlan} gateway cannot route to VLAN ${destinationVlan} inside VRF ${sourceVrf}.`);
+  const router = config.devices.filter((device) => device.kind==='router' && interfaceFor(device,sourceVlan) && interfaceFor(device,destinationVlan)).sort((a,b)=>a.id.localeCompare(b.id))[0];
+  if (!router) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`VLAN ${sourceVlan} and VLAN ${destinationVlan} are isolated: no router has interfaces in both broadcast domains.`);
   const sourceRouterIf = interfaceFor(router,sourceVlan)!; const destinationRouterIf = interfaceFor(router,destinationVlan)!;
-  if ((sourceRouterIf.vrfId ?? 'default') !== sourceVrf) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`${router.label} source SVI/interface belongs to a different VRF.`);
-  if (!routedGatewayFor(config, destinationVlan, destinationVrf, destinationIf.gateway)) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`${destination.label} gateway ${destinationIf.gateway ?? 'NONE'} has no active owner in VRF ${destinationVrf}.`);
+  if (sourceIf.gateway !== sourceRouterIf.address) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`${source.label} gateway ${sourceIf.gateway ?? 'NONE'} does not match ${router.label} VLAN ${sourceVlan} interface ${sourceRouterIf.address}.`);
+  if (destinationIf.gateway !== destinationRouterIf.address) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`${destination.label} gateway ${destinationIf.gateway ?? 'NONE'} does not match ${router.label} VLAN ${destinationVlan} interface ${destinationRouterIf.address}.`);
   const toGateway = builderEthernetPathForVlan(config,sourceId,router.id,sourceVlan);
   if (!toGateway) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`VLAN ${sourceVlan} cannot reach the router trunk/access interface.`);
   const fromRouter = builderEthernetPathForVlan(config,router.id,destinationId,destinationVlan);
@@ -336,5 +323,5 @@ export function runBuilderEthernetFlow(configInput: BuilderEthernetConfig, sourc
       {phase:'to-gateway',vlanId:sourceVlan,nodeIds:toGateway.nodeIds,linkIds:toGateway.linkIds,disposition:'FLOOD THEN LEARN'},
       {phase:'from-router',vlanId:destinationVlan,nodeIds:fromRouter.nodeIds,linkIds:fromRouter.linkIds,disposition:'ROUTED UNICAST'},
     ],fdb:[...fdb.values()].sort((a,b)=>`${a.switchId}:${a.vlanId}:${a.mac}`.localeCompare(`${b.switchId}:${b.vlanId}:${b.mac}`)),failureReason:null,
-    summary:`${router.label} routes VLAN ${sourceVlan} → VLAN ${destinationVlan} inside VRF ${sourceIf.vrfId ?? 'default'} using canonical SVI/subinterface truth; IP TTL decreases once at the routed hop.` };
+    summary:`${router.label} routes VLAN ${sourceVlan} → VLAN ${destinationVlan} using connected router-on-a-stick subinterfaces; IP TTL decreases once at the router.` };
 }

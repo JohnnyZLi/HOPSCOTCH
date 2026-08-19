@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createDefaultBuilderEthernetConfig, runBuilderEthernetFlow, validateBuilderEthernetConfig } from '../src/builder/ethernet.ts';
+import { cloneBuilderEthernetConfig, createDefaultBuilderEthernetConfig, validateBuilderEthernetConfig } from '../src/builder/ethernet.ts';
 import {
   builderFhrpState,
   builderLacpSelectMember,
@@ -8,9 +8,11 @@ import {
   builderLldpNeighbors,
   builderResolveEnterpriseGateway,
   builderRstpConvergence,
+  builderEnterpriseStpState,
   builderVlanEncapsulation,
   builderVrfRouteTables,
   createEnterpriseCampusFixture,
+  runBuilderEnterpriseEthernetFlow,
   validateBuilderEthernetEnterpriseConfig,
 } from '../src/builder/enterprise.ts';
 import { createBuilderScenario, deserializeBuilderScenario, serializeBuilderScenario } from '../src/builder/scenario.ts';
@@ -64,6 +66,9 @@ routed.enterprise.vrfs.push({ id: 'tenant-b', label: 'TENANT B' });
 routed.vlans.push({ id: 30, name: 'TENANT-A-USERS', cidr: '10.10.0.0/24' });
 routed.devices.find((device) => device.id === 'dist-a').interfaces.push({ vlanId: 30, address: '10.10.0.2', vrfId: 'tenant-a', name: 'Vlan30' });
 const routedValidated = validateBuilderEthernetConfig(routed);
+const clonedRouted=cloneBuilderEthernetConfig(routedValidated);
+clonedRouted.links.find((link)=>link.id==='dist-core-routed').routed.aAddress='172.16.0.9';
+assert.equal(routedValidated.links.find((link)=>link.id==='dist-core-routed').routed.aAddress,'172.16.0.1','routed-port clone must not alias nested config');
 const routeRows = builderVrfRouteTables(routedValidated);
 assert.ok(routeRows.some((row) => row.source === 'ROUTED PORT' && row.prefix === '172.16.0.0/30'));
 assert.ok(routeRows.some((row) => row.vrfId === 'default' && row.prefix === '10.10.0.0/24'));
@@ -84,12 +89,14 @@ assert.ok(rstp.convergenceMs <= 2000);
 assert.ok(classic.convergenceMs === 0 || classic.convergenceMs >= 30000);
 if (rstp.convergenceMs > 0 && classic.convergenceMs > 0) assert.ok(rstp.convergenceMs < classic.convergenceMs, 'RSTP must explicitly converge faster than classic STP');
 
-const flow = runBuilderEthernetFlow(campus, 'lan-a', 'lan-c');
+const bundleStp=builderEnterpriseStpState(campus,10);
+assert.equal(bundleStp.blockedLinkIds.includes('sw1-dist-a-2'),false,'physical LACP members must not masquerade as separately STP-blocked links');
+const flow = runBuilderEnterpriseEthernetFlow(campus, 'lan-a', 'lan-c');
 assert.equal(flow.success, true, flow.failureReason ?? 'enterprise inter-VLAN flow should succeed');
 assert.equal(flow.routedAt, 'dist-a', 'source VLAN FHRP master must be the routed hop');
 const vrfIsolated = structuredClone(campus);
 vrfIsolated.devices.find((device) => device.id === 'lan-c').interfaces[0].vrfId = 'tenant-a';
-assert.match(runBuilderEthernetFlow(vrfIsolated, 'lan-a', 'lan-c').failureReason ?? '', /VRF isolation/);
+assert.match(runBuilderEnterpriseEthernetFlow(vrfIsolated, 'lan-a', 'lan-c').failureReason ?? '', /VRF isolation/);
 
 const graph = defaultBuilderGraph;
 const addressing = createDefaultBuilderAddressing(graph);
