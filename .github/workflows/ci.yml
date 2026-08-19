@@ -27,6 +27,7 @@ jobs:
           else
             python scripts/apply-track-j-multifault-closeout.py
           fi
+          python scripts/fix-track-j-multifault-acl.py
       - run: npm ci
       - run: npm run check
       - name: Commit generated product changes
