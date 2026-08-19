@@ -69,35 +69,32 @@ Track D now projects one deterministic application transaction through existing 
 
 The integrated Builder workspace keeps later layers `NOT_REACHED` after the first broken truth boundary, writes ARP/NAT/DHCP/IPv6-control session state back into the same live Builder session, and lazy-loads the Track D workspace so initial production bundle budgets remain unchanged. `docs/TRACKD.md` is the closeout architecture and validation record.
 
+### Completed active track — Track A Builder-wide time machine + causal troubleshooting
+
+Track A makes canonical time and causal diagnosis shared Builder product behavior rather than an inspector-specific reenactment.
+
+- [x] bounded immutable Builder snapshots on a deterministic logical event clock
+- [x] scrub / step / replay / LIVE controls and read-only historical mode
+- [x] entire Builder scene renders from the selected historical snapshot
+- [x] historical CONFIG / STATE / EVENTS workbench and deterministic before/after row diffs
+- [x] canonical derived event families across topology, routing, OSPF/BGP, RIB/FIB, STP/FDB, ARP/ND lifecycle, NAT, DHCP, IPv6, probes, L2 forwarding, application stages, and flow outcomes
+- [x] timed OSPF convergence projects independent physical/control-plane/RIB/FIB historical truth
+- [x] DHCP acquisition/lifecycle stages project protocol-native historical boundaries
+- [x] time-native protocol database/counter rows in Device Workbench
+- [x] explicit historical runtime projection boundaries for ARP, Ethernet flow/FDB, NAT, IPv6 state, probes, and application transaction history
+- [x] causal `WHY?` chains from application outcome through transport, translation, policy, routing, resolution, L2, and underlying state
+- [x] deterministic first-broken-truth-boundary diagnosis instead of generic `network down`
+- [x] independent physical, L2, resolution, route, policy, translation, link, transport, TLS, application, and response dimensions with `NOT_REACHED` preserved
+
+Application replay consumes Track D's canonical transaction and exposes only the stages visible at the selected event; future success/failure cannot leak backward. Diagnosis never reruns the network. `docs/TRACKA.md` is the architecture and validation record.
+
 ---
 
 ## Current priority order
 
 The product no longer needs another pile of disconnected protocol demos. The highest-value work is **integration of the systems that already exist**.
 
-### 1. Track A — Builder-wide time machine + causal troubleshooting
-
-**Shipped foundation**
-
-- [x] bounded immutable Builder snapshots on a deterministic logical event clock
-- [x] scrub / step / replay / LIVE controls and read-only historical mode
-- [x] entire Builder scene can render from the selected historical snapshot
-- [x] historical CONFIG / STATE / EVENTS workbench and deterministic before/after row diffs
-- [x] canonical derived event families across topology, routing, OSPF/BGP, RIB/FIB, STP/FDB, ARP/ND lifecycle, NAT, DHCP, IPv6, probes, L2 forwarding, and flow outcomes
-- [x] timed OSPF convergence projects independent physical/control-plane/RIB/FIB historical truth
-- [x] DHCP acquisition/lifecycle stages project protocol-native historical boundaries
-
-**Remaining depth**
-
-- [ ] complete time-native protocol database/counter rows where the current workbench only exposes final or partial state
-- [ ] equivalent intermediate historical projection for remaining protocol families where meaningful
-- [ ] causal `why?` chains from a user-visible failure back through application, transport, translation, policy, routing, resolution, L2, topology, and configuration
-- [ ] identify the first broken truth boundary instead of collapsing failures into generic `network down`
-- [ ] preserve independent dimensions such as physical reachability, L2 forwarding, resolution, route selection, policy permission, translation state, transport state, and application state throughout diagnosis
-
-`docs/TRACKA.md` remains the implementation-level record for the shipped slices.
-
-### 2. Track B — Builder authoring environment
+### 1. Track B — Builder authoring environment
 
 **Foundations already shipped**
 
