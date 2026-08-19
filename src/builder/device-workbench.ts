@@ -9,6 +9,7 @@ import { interfacesForBuilderNodeIpv6, routeTableForBuilderIpv6Router, type Buil
 import { builderOspfv3DepthRouteOverlay, builderOspfv3DepthSummary, type BuilderIpv6RoutingDepthState } from './ipv6-routing-depth.ts';
 import type { BuilderIpv6ControlState } from './ipv6-control-plane.ts';
 import type { BuilderGraph } from './model.ts';
+import type { BuilderLinkProfiles } from './link-characteristics.ts';
 import type { BuilderNatConfig, BuilderNatSessionTable } from './nat.ts';
 import type { BuilderProbeResult } from './probes.ts';
 import { builderOspfState, routeTableForBuilderRouter, type BuilderRouteTableEntry, type BuilderRoutingConfig } from './routing.ts';
@@ -121,6 +122,7 @@ export interface BuilderWorkbenchTruthGraphs {
 
 export interface BuilderDeviceWorkbenchInput {
   graph: BuilderGraph;
+  linkProfiles?: BuilderLinkProfiles;
   truthGraphs?: BuilderWorkbenchTruthGraphs;
   addressing: BuilderAddressing;
   routing: BuilderRoutingConfig;
@@ -254,8 +256,8 @@ function routeWhy(graph:BuilderGraph,addressing:BuilderAddressing,routing:Builde
 
 function routedConfigSections(input:BuilderDeviceWorkbenchInput,deviceId:string):BuilderWorkbenchSection[]{
   const node=input.graph.nodes.find((candidate)=>candidate.id===deviceId);if(!node)return[];
-  const ipv4=interfacesForBuilderNode(input.addressing,deviceId).map((entry)=>row(`cfg4:${entry.linkId}`,'IPV4 INTERFACE',`${entry.name} · ${entry.address}`,`${input.addressing.segments[entry.linkId]?.cidr??'—'} · ${entry.linkId} · ${linkState(input.graph,entry.linkId)}`,linkState(input.graph,entry.linkId)==='UP'?'good':'bad',[why(`cfg4:${entry.linkId}:why`,'CONFIG','INTERFACE ADDRESS',`${entry.address} is canonical scenario configuration on ${entry.name}.`),why(`cfg4:${entry.linkId}:topology`,'TOPOLOGY',`LINK ${linkState(input.graph,entry.linkId)}`,`${entry.linkId} supplies physical adjacency.`)]));
-  const ipv6=input.ipv6.enabled?interfacesForBuilderNodeIpv6(input.ipv6.addressing,deviceId).map((entry)=>row(`cfg6:${entry.linkId}`,'IPV6 INTERFACE',`${entry.name} · ${entry.globalAddress}`,`${entry.prefix} · LL ${entry.linkLocalAddress} · ${entry.addressOrigin.toUpperCase()}`,linkState(input.graph,entry.linkId)==='UP'?'good':'bad',[why(`cfg6:${entry.linkId}:why`,'CONFIG',`ADDRESS ORIGIN · ${entry.addressOrigin.toUpperCase()}`,`${entry.globalAddress} and ${entry.linkLocalAddress} belong to canonical IPv6 interface configuration.`)])):[];
+  const ipv4=interfacesForBuilderNode(input.addressing,deviceId).map((entry)=>{const profile=input.linkProfiles?.[entry.linkId];return row(`cfg4:${entry.linkId}`,'IPV4 INTERFACE',`${entry.name} · ${entry.address}`,`${input.addressing.segments[entry.linkId]?.cidr??'—'} · ${entry.linkId} · ${linkState(input.graph,entry.linkId)}${profile?` · MTU ${profile.mtuBytes} · ${profile.bandwidthMbps} Mb/s`:''}`,linkState(input.graph,entry.linkId)==='UP'?'good':'bad',[why(`cfg4:${entry.linkId}:why`,'CONFIG','INTERFACE ADDRESS',`${entry.address} is canonical scenario configuration on ${entry.name}.`),...(profile?[why(`cfg4:${entry.linkId}:profile`,'CONFIG','LINK CHARACTERISTICS',`MTU ${profile.mtuBytes} · latency ${profile.latencyMs} ms · jitter ${profile.jitterMs} ms · loss ${profile.lossPercent}% · queue ${profile.queuePackets}.`)]:[]),why(`cfg4:${entry.linkId}:topology`,'TOPOLOGY',`LINK ${linkState(input.graph,entry.linkId)}`,`${entry.linkId} supplies physical adjacency.`)]);});
+  const ipv6=input.ipv6.enabled?interfacesForBuilderNodeIpv6(input.ipv6.addressing,deviceId).map((entry)=>{const profile=input.linkProfiles?.[entry.linkId];return row(`cfg6:${entry.linkId}`,'IPV6 INTERFACE',`${entry.name} · ${entry.globalAddress}`,`${entry.prefix} · LL ${entry.linkLocalAddress} · ${entry.addressOrigin.toUpperCase()}${profile?` · MTU ${profile.mtuBytes}`:''}`,linkState(input.graph,entry.linkId)==='UP'?'good':'bad',[why(`cfg6:${entry.linkId}:why`,'CONFIG',`ADDRESS ORIGIN · ${entry.addressOrigin.toUpperCase()}`,`${entry.globalAddress} and ${entry.linkLocalAddress} belong to canonical IPv6 interface configuration.`),...(profile?[why(`cfg6:${entry.linkId}:profile`,'CONFIG','LINK MTU',`This routed link is configured for MTU ${profile.mtuBytes}; IPv6 transit routers do not fragment packets.`)]:[])]);}) : [];
   const gateway4=node.kind==='endpoint'?input.addressing.defaultGateways[deviceId]??null:null;
   const gateway6=node.kind==='endpoint'?input.ipv6.addressing.defaultGateways[deviceId]??null:null;
   const gateways:BuilderWorkbenchRow[]=[];

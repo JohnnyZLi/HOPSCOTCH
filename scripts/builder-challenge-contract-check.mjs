@@ -8,6 +8,7 @@ import {
   createBuilderChallenge,
   createDefaultGatewayChallenge,
   createDhcpGatewayChallenge,
+  createIpv6PmtuChallenge,
   createMissingStaticRouteChallenge,
   createNatDisabledChallenge,
   createOspfDisabledChallenge,
@@ -18,6 +19,9 @@ import {
 } from '../src/builder/challenges.ts';
 import { resolveBuilderEthernetFlowArp } from '../src/builder/arp.ts';
 import { runBuilderDhcpAcquire, upsertBuilderDhcpPool } from '../src/builder/dhcp.ts';
+import { clearBuilderIpv6PmtuCache, createBuilderIpv6ControlState } from '../src/builder/ipv6-control-plane.ts';
+import { runBuilderIpv6Probe } from '../src/builder/ipv6-probes.ts';
+import { updateBuilderLinkProfile } from '../src/builder/link-characteristics.ts';
 import { runBuilderEthernetFlow, validateBuilderEthernetConfig } from '../src/builder/ethernet.ts';
 import { runBuilderNatOutboundFlow, validateBuilderNatConfig } from '../src/builder/nat.ts';
 import { runBuilderProbe } from '../src/builder/probes.ts';
@@ -305,9 +309,44 @@ assert.equal(repairedDhcpTx.configurationReady,true);
 dhcpEvidence=appendBuilderChallengeEvidence(dhcpEvidence,{kind:'dhcp-transaction',sourceId:dhcpChallenge.verification.sourceId,destinationId:dhcpChallenge.verification.destinationId,success:true,repaired:true,detail:repairedDhcpTx.summary});
 assert.deepEqual(scoreBuilderChallenge(dhcpChallenge,dhcpEvidence,dhcpHypothesis,dhcpChallenge.broken.addressing,dhcpChallenge.broken.ethernet,dhcpChallenge.broken.routing,dhcpChallenge.broken.acl,dhcpChallenge.broken.nat,repairedDhcp),{evidence:40,reasoning:20,repair:25,verification:15,total:100,repaired:true,verified:true,solved:true});
 
-for (const challenge of [access, trunk, stp, staticRoute, ospf, aclChallenge, natChallenge, dhcpChallenge]) {
+const pmtuChallenge=createIpv6PmtuChallenge('mtu-contract-001');
+assert.equal(pmtuChallenge.family,'ipv6-pmtu');
+assert.equal(pmtuChallenge.fault.kind,'path-mtu-reduced');
+assert.deepEqual(pmtuChallenge,createBuilderChallenge('mtu-contract-001'));
+const freshIpv6Control=createBuilderIpv6ControlState();
+const brokenPmtuProbe=runBuilderIpv6Probe(pmtuChallenge.broken.graph,pmtuChallenge.broken.ipv6,'ping',pmtuChallenge.verification.sourceId,pmtuChallenge.verification.destinationId,1,pmtuChallenge.broken.linkProfiles,[],freshIpv6Control,pmtuChallenge.verification.packetBytes);
+assert.equal(brokenPmtuProbe.success,false,'oversized IPv6 objective must trigger PMTUD before delivery');
+const ptbEvent=brokenPmtuProbe.ipv6ControlState.pmtuHistory.at(-1);
+assert.ok(ptbEvent&&ptbEvent.delivered,'Packet Too Big must return to the source');
+assert.equal(ptbEvent.mtuBytes,pmtuChallenge.fault.brokenMtuBytes);
+assert.ok(brokenPmtuProbe.ipv6ControlState.ndHistory.length>0,'ordinary IPv6 probe must expose successful ND while PMTU fails');
+const repairedProfiles=updateBuilderLinkProfile(pmtuChallenge.broken.graph,pmtuChallenge.broken.linkProfiles,pmtuChallenge.fault.linkId,{mtuBytes:pmtuChallenge.fault.expectedMtuBytes});
+assert.deepEqual(repairedProfiles,pmtuChallenge.healthy.linkProfiles,'PMTU challenge changes exactly one canonical link MTU');
+assert.equal(builderChallengeIsRepaired(pmtuChallenge,pmtuChallenge.broken.addressing,pmtuChallenge.broken.ethernet,pmtuChallenge.broken.routing,pmtuChallenge.broken.acl,pmtuChallenge.broken.nat,pmtuChallenge.broken.dhcp,pmtuChallenge.broken.linkProfiles),false);
+assert.equal(builderChallengeIsRepaired(pmtuChallenge,pmtuChallenge.broken.addressing,pmtuChallenge.broken.ethernet,pmtuChallenge.broken.routing,pmtuChallenge.broken.acl,pmtuChallenge.broken.nat,pmtuChallenge.broken.dhcp,repairedProfiles),true);
+let pmtuEvidence=[];
+pmtuEvidence=appendBuilderChallengeEvidence(pmtuEvidence,{kind:'ping',sourceId:pmtuChallenge.verification.sourceId,destinationId:pmtuChallenge.verification.destinationId,success:false,requestedBytes:pmtuChallenge.fault.packetBytes,effectiveBytes:pmtuChallenge.fault.packetBytes,pathMtuBytes:ptbEvent.mtuBytes,repaired:false,detail:brokenPmtuProbe.summary});
+pmtuEvidence=appendBuilderChallengeEvidence(pmtuEvidence,{kind:'ipv6-nd',sourceId:pmtuChallenge.verification.sourceId,destinationId:pmtuChallenge.verification.destinationId,success:true,ndResolutionCount:brokenPmtuProbe.ipv6ControlState.ndHistory.length,repaired:false,detail:'ND succeeded while PMTU failed.'});
+pmtuEvidence=recordInspection(pmtuEvidence,pmtuChallenge,'state');
+pmtuEvidence=recordInspection(pmtuEvidence,pmtuChallenge,'config');
+const pmtuHypothesis={boundary:'TRANSPORT',deviceId:pmtuChallenge.fault.nodeId};
+assert.deepEqual(scoreBuilderChallenge(pmtuChallenge,pmtuEvidence,pmtuHypothesis,pmtuChallenge.broken.addressing,pmtuChallenge.broken.ethernet,pmtuChallenge.broken.routing,pmtuChallenge.broken.acl,pmtuChallenge.broken.nat,pmtuChallenge.broken.dhcp,pmtuChallenge.broken.linkProfiles),{evidence:40,reasoning:20,repair:0,verification:0,total:60,repaired:false,verified:false,solved:false});
+assert.equal(scoreBuilderChallenge(pmtuChallenge,pmtuEvidence,pmtuHypothesis,pmtuChallenge.broken.addressing,pmtuChallenge.broken.ethernet,pmtuChallenge.broken.routing,pmtuChallenge.broken.acl,pmtuChallenge.broken.nat,pmtuChallenge.broken.dhcp,repairedProfiles).total,85);
+const cachedAfterRepair=runBuilderIpv6Probe(pmtuChallenge.broken.graph,pmtuChallenge.broken.ipv6,'ping',pmtuChallenge.verification.sourceId,pmtuChallenge.verification.destinationId,2,repairedProfiles,[],brokenPmtuProbe.ipv6ControlState,pmtuChallenge.verification.packetBytes);
+assert.equal(cachedAfterRepair.success,true,'repaired link can carry the PMTU-constrained retry');
+assert.equal(cachedAfterRepair.effectivePacketBytes,pmtuChallenge.fault.brokenMtuBytes,'stale PMTU cache must keep constraining the retry until cleared');
+pmtuEvidence=appendBuilderChallengeEvidence(pmtuEvidence,{kind:'ping',sourceId:pmtuChallenge.verification.sourceId,destinationId:pmtuChallenge.verification.destinationId,success:true,requestedBytes:cachedAfterRepair.requestedPacketBytes,effectiveBytes:cachedAfterRepair.effectivePacketBytes,pathMtuBytes:cachedAfterRepair.attempts.at(-1)?.pathMtuBytes??null,repaired:true,detail:cachedAfterRepair.summary});
+assert.equal(scoreBuilderChallenge(pmtuChallenge,pmtuEvidence,pmtuHypothesis,pmtuChallenge.broken.addressing,pmtuChallenge.broken.ethernet,pmtuChallenge.broken.routing,pmtuChallenge.broken.acl,pmtuChallenge.broken.nat,pmtuChallenge.broken.dhcp,repairedProfiles).verified,false,'a cached 1280-byte retry cannot verify 1500-byte delivery');
+const clearedPmtu=clearBuilderIpv6PmtuCache(cachedAfterRepair.ipv6ControlState);
+const fullSizeAfterRepair=runBuilderIpv6Probe(pmtuChallenge.broken.graph,pmtuChallenge.broken.ipv6,'ping',pmtuChallenge.verification.sourceId,pmtuChallenge.verification.destinationId,3,repairedProfiles,[],clearedPmtu,pmtuChallenge.verification.packetBytes);
+assert.equal(fullSizeAfterRepair.success,true);
+assert.equal(fullSizeAfterRepair.effectivePacketBytes,pmtuChallenge.fault.packetBytes);
+pmtuEvidence=appendBuilderChallengeEvidence(pmtuEvidence,{kind:'ping',sourceId:pmtuChallenge.verification.sourceId,destinationId:pmtuChallenge.verification.destinationId,success:true,requestedBytes:fullSizeAfterRepair.requestedPacketBytes,effectiveBytes:fullSizeAfterRepair.effectivePacketBytes,pathMtuBytes:fullSizeAfterRepair.attempts.at(-1)?.pathMtuBytes??null,repaired:true,detail:fullSizeAfterRepair.summary});
+assert.deepEqual(scoreBuilderChallenge(pmtuChallenge,pmtuEvidence,pmtuHypothesis,pmtuChallenge.broken.addressing,pmtuChallenge.broken.ethernet,pmtuChallenge.broken.routing,pmtuChallenge.broken.acl,pmtuChallenge.broken.nat,pmtuChallenge.broken.dhcp,repairedProfiles),{evidence:40,reasoning:20,repair:25,verification:15,total:100,repaired:true,verified:true,solved:true});
+
+for (const challenge of [access, trunk, stp, staticRoute, ospf, aclChallenge, natChallenge, dhcpChallenge, pmtuChallenge]) {
   const challengeToken = builderChallengeToken(challenge);
   assert.deepEqual(createBuilderChallenge(seedFromBuilderChallengeToken(challengeToken)), challenge, `${challenge.family} token must reproduce exact deterministic truth`);
 }
 
-console.log('Builder Track J challenge contract passed: gateway plus seeded access-VLAN, trunk-pruning, STP-loop, missing-static-route, OSPF-disabled, ACL-deny, NAT-disabled, and DHCP-gateway faults use canonical truth, ordinary probes/LAN+ARP/NAT/DHCP evidence, exact repair, objective-scoped verification, causal scoring, and reproducible tokens.');
+console.log('Builder Track J challenge contract passed: gateway plus seeded access-VLAN, trunk-pruning, STP-loop, missing-static-route, OSPF-disabled, ACL-deny, NAT-disabled, DHCP-gateway, and IPv6-PMTU faults use canonical truth, ordinary probes/LAN+ARP/NAT/DHCP/ND+PMTUD evidence, exact repair, objective-scoped verification, causal scoring, and reproducible tokens.');

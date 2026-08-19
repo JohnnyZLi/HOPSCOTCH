@@ -4,6 +4,8 @@ import { createBuilderAuthoringSnapshot, type BuilderAuthoringSnapshot } from '.
 import { setBuilderDhcpClient, upsertBuilderDhcpPool, type BuilderDhcpConfig } from './dhcp.ts';
 import { validateBuilderEthernetConfig, type BuilderEthernetConfig } from './ethernet.ts';
 import { validateBuilderNatConfig, type BuilderNatConfig } from './nat.ts';
+import { updateBuilderLinkProfile, type BuilderLinkProfiles } from './link-characteristics.ts';
+import { setBuilderOspfv3Everywhere } from './ipv6.ts';
 import { installStaticRoutesForWeightedPath, setBuilderOspfEverywhere, setBuilderOspfRouterEnabled, validateBuilderRoutingConfig, type BuilderRoutingConfig } from './routing.ts';
 import { defaultBuilderScenario } from './scenario.ts';
 
@@ -13,8 +15,8 @@ export const BUILDER_CHALLENGE_EVIDENCE_LIMIT = 40;
 
 export type BuilderChallengeBoundary = 'ADDRESSING' | 'L2' | 'ROUTING' | 'POLICY' | 'TRANSPORT';
 export type BuilderChallengeDevicePlane = 'routed' | 'ethernet';
-export type BuilderChallengeEvidenceKind = 'ping' | 'traceroute' | 'ethernet-flow' | 'arp-resolution' | 'nat-flow' | 'dhcp-transaction' | 'inspect-config' | 'inspect-state' | 'inspect-events';
-export type BuilderChallengeFamily = 'gateway' | 'access-vlan' | 'trunk-vlan' | 'stp-loop' | 'static-route' | 'ospf-disabled' | 'acl-deny' | 'nat-disabled' | 'dhcp-gateway';
+export type BuilderChallengeEvidenceKind = 'ping' | 'traceroute' | 'ethernet-flow' | 'arp-resolution' | 'nat-flow' | 'dhcp-transaction' | 'ipv6-nd' | 'inspect-config' | 'inspect-state' | 'inspect-events';
+export type BuilderChallengeFamily = 'gateway' | 'access-vlan' | 'trunk-vlan' | 'stp-loop' | 'static-route' | 'ospf-disabled' | 'acl-deny' | 'nat-disabled' | 'dhcp-gateway' | 'ipv6-pmtu';
 
 export interface BuilderGatewayChallengeFault {
   kind: 'missing-default-gateway';
@@ -97,12 +99,24 @@ export interface BuilderDhcpGatewayChallengeFault {
   expectedGateway: string;
 }
 
-export type BuilderChallengeFault = BuilderGatewayChallengeFault | BuilderAccessVlanChallengeFault | BuilderTrunkVlanChallengeFault | BuilderStpChallengeFault | BuilderStaticRouteChallengeFault | BuilderOspfDisabledChallengeFault | BuilderAclDenyChallengeFault | BuilderNatDisabledChallengeFault | BuilderDhcpGatewayChallengeFault;
+export interface BuilderIpv6PmtuChallengeFault {
+  kind: 'path-mtu-reduced';
+  boundary: 'TRANSPORT';
+  plane: 'routed';
+  nodeId: string;
+  linkId: string;
+  expectedMtuBytes: number;
+  brokenMtuBytes: number;
+  packetBytes: number;
+}
+
+export type BuilderChallengeFault = BuilderGatewayChallengeFault | BuilderAccessVlanChallengeFault | BuilderTrunkVlanChallengeFault | BuilderStpChallengeFault | BuilderStaticRouteChallengeFault | BuilderOspfDisabledChallengeFault | BuilderAclDenyChallengeFault | BuilderNatDisabledChallengeFault | BuilderDhcpGatewayChallengeFault | BuilderIpv6PmtuChallengeFault;
 
 export interface BuilderChallengeVerification {
-  kind: 'routed-probe' | 'ethernet-flow' | 'nat-translation' | 'dhcp-configuration';
+  kind: 'routed-probe' | 'ethernet-flow' | 'nat-translation' | 'dhcp-configuration' | 'ipv6-pmtu';
   sourceId: string;
   destinationId: string;
+  packetBytes?: number;
 }
 
 export interface BuilderChallenge {
@@ -127,6 +141,10 @@ export interface BuilderChallengeEvidenceInput {
   sourceId?: string | null;
   destinationId?: string | null;
   success?: boolean | null;
+  requestedBytes?: number | null;
+  effectiveBytes?: number | null;
+  pathMtuBytes?: number | null;
+  ndResolutionCount?: number | null;
   repaired: boolean;
   detail: string;
 }
@@ -499,6 +517,39 @@ export function createDhcpGatewayChallenge(seedInput: string): BuilderChallenge 
   };
 }
 
+export function createIpv6PmtuChallenge(seedInput: string): BuilderChallenge {
+  const seed = normalizeSeed(seedInput);
+  const hash = hashSeed(seed);
+  const healthy = defaultHealthySnapshot();
+  healthy.sourceId = 'client';
+  healthy.destinationId = 'app';
+  healthy.ipv6 = setBuilderOspfv3Everywhere(healthy.graph, healthy.addressing, healthy.ipv6, true);
+  const candidates = [
+    { linkId: 'edge-r1', nodeId: 'edge' },
+    { linkId: 'r1-core', nodeId: 'r1' },
+    { linkId: 'core-app', nodeId: 'core' },
+  ];
+  const target = candidates[hash % candidates.length];
+  const healthyProfile = healthy.linkProfiles[target.linkId];
+  if (!healthyProfile || healthyProfile.mtuBytes !== 1500) throw new Error('The PMTU challenge requires the canonical 1500-byte routed-link baseline.');
+  const broken = createBuilderAuthoringSnapshot(healthy);
+  broken.linkProfiles = updateBuilderLinkProfile(broken.graph, broken.linkProfiles, target.linkId, { mtuBytes: 1280 });
+  return {
+    schema: BUILDER_CHALLENGE_SCHEMA,
+    version: BUILDER_CHALLENGE_VERSION,
+    id: 'mtu-' + hash.toString(16).padStart(8, '0'),
+    seed,
+    family: 'ipv6-pmtu',
+    title: 'IPV6 PATH MTU SHRINKS',
+    objective: 'Restore full 1500-byte IPv6 delivery from CLIENT to APP. Use the ordinary IPv6 probe, Neighbor Discovery / PMTU state, Device Workbench, and selected-link characteristics; repair canonical MTU truth and prove that 1500 bytes are actually transmitted after stale PMTU state is cleared.',
+    difficulty: 'FOUNDATION',
+    healthy,
+    broken,
+    verification: { kind: 'ipv6-pmtu', sourceId: 'client', destinationId: 'app', packetBytes: 1500 },
+    fault: { kind: 'path-mtu-reduced', boundary: 'TRANSPORT', plane: 'routed', nodeId: target.nodeId, linkId: target.linkId, expectedMtuBytes: 1500, brokenMtuBytes: 1280, packetBytes: 1500 },
+  };
+}
+
 export function createBuilderChallenge(seedInput: string): BuilderChallenge {
   const seed = normalizeSeed(seedInput);
   const lowered = seed.toLowerCase();
@@ -510,6 +561,7 @@ export function createBuilderChallenge(seedInput: string): BuilderChallenge {
   if (lowered.startsWith('acl-') || lowered.startsWith('firewall-')) return createAclDenyChallenge(seed);
   if (lowered.startsWith('nat-') || lowered.startsWith('pat-')) return createNatDisabledChallenge(seed);
   if (lowered.startsWith('dhcp-')) return createDhcpGatewayChallenge(seed);
+  if (lowered.startsWith('mtu-') || lowered.startsWith('pmtu-') || lowered.startsWith('ipv6-mtu-')) return createIpv6PmtuChallenge(seed);
   return createDefaultGatewayChallenge(seed);
 }
 
@@ -532,7 +584,7 @@ function sameNumberArray(left: readonly number[] | undefined, right: readonly nu
   return normalized.length === right.length && normalized.every((value, index) => value === right[index]);
 }
 
-export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressing: BuilderAddressing, ethernet: BuilderEthernetConfig, routing: BuilderRoutingConfig, acl: BuilderAclConfig = challenge.broken.acl, nat: BuilderNatConfig = challenge.broken.nat, dhcp: BuilderDhcpConfig = challenge.broken.dhcp): boolean {
+export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressing: BuilderAddressing, ethernet: BuilderEthernetConfig, routing: BuilderRoutingConfig, acl: BuilderAclConfig = challenge.broken.acl, nat: BuilderNatConfig = challenge.broken.nat, dhcp: BuilderDhcpConfig = challenge.broken.dhcp, linkProfiles: BuilderLinkProfiles = challenge.broken.linkProfiles): boolean {
   const fault = challenge.fault;
   if (fault.kind === 'missing-default-gateway') return addressing.defaultGateways[fault.nodeId] === fault.expectedGateway;
   if (fault.kind === 'access-vlan-mismatch') {
@@ -553,8 +605,11 @@ export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressi
     const boundary = nat.boundaries.find((entry) => entry.id === fault.boundaryId && entry.routerId === fault.nodeId);
     return boundary?.enabled === fault.expectedEnabled;
   }
-  const pool = dhcp.pools.find((entry) => entry.id === fault.poolId && entry.serverDeviceId === fault.nodeId);
-  return pool?.gateway === fault.expectedGateway;
+  if (fault.kind === 'dhcp-gateway-option-missing') {
+    const pool = dhcp.pools.find((entry) => entry.id === fault.poolId && entry.serverDeviceId === fault.nodeId);
+    return pool?.gateway === fault.expectedGateway;
+  }
+  return linkProfiles[fault.linkId]?.mtuBytes === fault.expectedMtuBytes;
 }
 
 export function builderChallengeSolvedExplanation(challenge: BuilderChallenge): string {
@@ -567,7 +622,8 @@ export function builderChallengeSolvedExplanation(challenge: BuilderChallenge): 
   if (fault.kind === 'ospf-router-disabled') return `${fault.nodeId.toUpperCase()} was not participating in OSPF. Re-enabling the canonical OSPF process restored route learning and the post-repair routed probe verified reachability.`;
   if (fault.kind === 'acl-objective-deny') return `${fault.nodeId.toUpperCase()} had an explicit ICMP deny for the challenge source/destination. Removing the canonical blocking rule restored policy permission and the post-repair probe verified reachability.`;
   if (fault.kind === 'nat-boundary-disabled') return `${fault.nodeId.toUpperCase()} had the canonical NAT boundary disabled. Re-enabling it restored PAT translation; the post-repair NAT flow proved the tuple was translated rather than merely routed.`;
-  return `${fault.nodeId.toUpperCase()} ACKed the DHCP lease without a default-gateway option. Restoring ${fault.expectedGateway} to the canonical pool and reacquiring produced a configuration-ready lease.`;
+  if (fault.kind === 'dhcp-gateway-option-missing') return `${fault.nodeId.toUpperCase()} ACKed the DHCP lease without a default-gateway option. Restoring ${fault.expectedGateway} to the canonical pool and reacquiring produced a configuration-ready lease.`;
+  return `${fault.linkId.toUpperCase()} was reduced to MTU ${fault.brokenMtuBytes}. Restoring MTU ${fault.expectedMtuBytes}, clearing stale PMTU state, and retransmitting ${fault.packetBytes} bytes proved full-size IPv6 delivery while Neighbor Discovery remained healthy.`;
 }
 
 export function appendBuilderChallengeEvidence(
@@ -603,6 +659,7 @@ export function scoreBuilderChallenge(
   acl: BuilderAclConfig = challenge.broken.acl,
   nat: BuilderNatConfig = challenge.broken.nat,
   dhcp: BuilderDhcpConfig = challenge.broken.dhcp,
+  linkProfiles: BuilderLinkProfiles = challenge.broken.linkProfiles,
 ): BuilderChallengeScore {
   const inspectedState = hasEvidence(evidence, (entry) => entry.kind === 'inspect-state' && isFaultInspection(challenge, entry) && !entry.repaired);
   const inspectedConfig = hasEvidence(evidence, (entry) => entry.kind === 'inspect-config' && isFaultInspection(challenge, entry) && !entry.repaired);
@@ -623,6 +680,12 @@ export function scoreBuilderChallenge(
     const missingTranslation = hasEvidence(evidence, (entry) => entry.kind === 'nat-flow' && isObjectiveEvidence(challenge, entry) && entry.success === false && !entry.repaired);
     evidenceScore = (missingTranslation ? 20 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
     hasPrimaryDiagnostic = missingTranslation;
+  } else if (challenge.verification.kind === 'ipv6-pmtu') {
+    const packetBytes = challenge.verification.packetBytes ?? 1500;
+    const packetTooBig = hasEvidence(evidence, (entry) => (entry.kind === 'ping' || entry.kind === 'traceroute') && isObjectiveEvidence(challenge, entry) && entry.success === false && !entry.repaired && entry.pathMtuBytes != null && entry.pathMtuBytes < packetBytes);
+    const observedNd = hasEvidence(evidence, (entry) => entry.kind === 'ipv6-nd' && isObjectiveEvidence(challenge, entry) && entry.success === true && !entry.repaired);
+    evidenceScore = (packetTooBig ? 15 : 0) + (observedNd ? 5 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
+    hasPrimaryDiagnostic = packetTooBig;
   } else {
     const incompleteConfiguration = hasEvidence(evidence, (entry) => entry.kind === 'dhcp-transaction' && isObjectiveEvidence(challenge, entry) && entry.success === false && !entry.repaired);
     evidenceScore = (incompleteConfiguration ? 20 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
@@ -635,14 +698,16 @@ export function scoreBuilderChallenge(
     ? (hypothesis.boundary === challenge.fault.boundary ? 10 : 0) + (hypothesis.deviceId === challenge.fault.nodeId ? 10 : 0)
     : 0;
 
-  const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet, routing, acl, nat, dhcp);
+  const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet, routing, acl, nat, dhcp, linkProfiles);
   const verified = challenge.verification.kind === 'routed-probe'
     ? hasEvidence(evidence, (entry) => (entry.kind === 'ping' || entry.kind === 'traceroute') && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired)
     : challenge.verification.kind === 'ethernet-flow'
       ? hasEvidence(evidence, (entry) => entry.kind === 'ethernet-flow' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired)
       : challenge.verification.kind === 'nat-translation'
         ? hasEvidence(evidence, (entry) => entry.kind === 'nat-flow' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired)
-        : hasEvidence(evidence, (entry) => entry.kind === 'dhcp-transaction' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired);
+        : challenge.verification.kind === 'ipv6-pmtu'
+          ? hasEvidence(evidence, (entry) => (entry.kind === 'ping' || entry.kind === 'traceroute') && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired && entry.requestedBytes === (challenge.verification.packetBytes ?? 1500) && entry.effectiveBytes === (challenge.verification.packetBytes ?? 1500))
+          : hasEvidence(evidence, (entry) => entry.kind === 'dhcp-transaction' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired);
   const repairScore = repaired ? 25 : 0;
   const verificationScore = repaired && verified ? 15 : 0;
   const total = evidenceScore + reasoningScore + repairScore + verificationScore;
