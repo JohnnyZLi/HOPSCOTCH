@@ -27,6 +27,7 @@ jobs:
           else
             node scripts/apply-track-j-dhcp-slice.mjs
           fi
+          node scripts/fix-track-j-dhcp-integration.mjs
       - run: npm ci
       - run: npm run check
       - name: Commit generated product changes
@@ -38,5 +39,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/builder/challenges.ts src/BuilderChallengePanel.tsx src/BuilderDhcpPanel.tsx src/NetworkBuilder.tsx scripts/builder-challenge-contract-check.mjs docs/TRACKJ.md
-          git commit -m "Add DHCP troubleshooting challenge"
+          git commit -m "Fix DHCP challenge live integration"
           git push origin HEAD:${{ github.head_ref }}
