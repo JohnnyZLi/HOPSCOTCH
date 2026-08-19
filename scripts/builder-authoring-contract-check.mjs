@@ -101,6 +101,7 @@ const panelWrapperSource = readFileSync('src/BuilderAuthoringPanel.tsx', 'utf8')
 const panelContentSource = readFileSync('src/BuilderAuthoringPanelContent.tsx', 'utf8');
 assert.match(networkBuilderSource, /BuilderAuthoringPanel/, 'Network Builder must mount the Track B authoring surface');
 assert.match(networkBuilderSource, /lazy\(\(\) => import\('\.\/BuilderAuthoringPanel\.tsx'\)/, 'the entire Track B authoring shell must remain outside the initial NetworkBuilder chunk');
+assert.doesNotMatch(networkBuilderSource, /BuilderAuthoringPanel\.tsx'\)\.then/, 'the outer authoring lazy boundary must use the module default directly instead of shipping a startup adapter');
 assert.match(networkBuilderSource, /restoreCanonicalBuilderConfig\(scenario\)/, 'scenario restore and Track B undo/branch restore must share one canonical configuration-application boundary');
 assert.match(networkBuilderSource, /builder-canvas-viewport/, 'Builder canvas must expose a camera viewport for zoom/focus');
 assert.match(networkBuilderSource, /builder-marquee/, 'Builder canvas must expose marquee selection');

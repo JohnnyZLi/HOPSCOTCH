@@ -80,7 +80,7 @@ import { deriveBuilderCanonicalEventSpecs } from './builder/canonical-events.ts'
 import { builderTimelineJournalThroughSequence, builderTimelineSnapshotAtSequence, captureBuilderTimelineSnapshot, createBuilderTimeline, diffBuilderTimelineDevice, type BuilderTimeline } from './builder/timeline.ts';
 import './NetworkBuilder.css';
 
-const BuilderAuthoringPanel = lazy(() => import('./BuilderAuthoringPanel.tsx').then((module) => ({ default: module.BuilderAuthoringPanel })));
+const BuilderAuthoringPanel = lazy(() => import('./BuilderAuthoringPanel.tsx'));
 
 function labelFor(graph: BuilderGraph, id: string): string {
   return graph.nodes.find((node) => node.id === id)?.label ?? id.toUpperCase();

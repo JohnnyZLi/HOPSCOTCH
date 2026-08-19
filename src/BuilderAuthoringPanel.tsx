@@ -20,7 +20,7 @@ export interface BuilderAuthoringPanelProps {
   onMessage: (message: string) => void;
 }
 
-export function BuilderAuthoringPanel(props: BuilderAuthoringPanelProps) {
+export default function BuilderAuthoringPanel(props: BuilderAuthoringPanelProps) {
   const [open, setOpen] = useState(false);
   if (!open) {
     return <section className="builder-authoring-shell"><div><span>AUTHORING</span><strong>{props.historical ? 'HISTORICAL · READ ONLY' : `${props.view.selection.length} SELECTED`}</strong></div><div className="builder-authoring-toolbar"><button type="button" onClick={() => setOpen(true)}>OPEN AUTHORING</button></div></section>;
