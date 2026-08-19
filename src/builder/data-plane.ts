@@ -88,9 +88,11 @@ export interface BuilderTrafficRun {
 
 export interface BuilderPmtuFragment { offsetBytes: number; packetBytes: number; moreFragments: boolean }
 export interface BuilderPmtuCacheEntry { family: BuilderPmtuFamily; destinationKey: string; mtuBytes: number; learnedFrom: 'LOCAL PATH' | 'ICMP FRAG NEEDED' | 'ICMPV6 PACKET TOO BIG' }
+export type BuilderIpv4PmtuCache = BuilderPmtuCacheEntry[];
 export interface BuilderPmtuResult {
   family: BuilderPmtuFamily;
   packetBytes: number;
+  effectivePacketBytes: number;
   pathMtuBytes: number;
   limitingLinkId: string;
   df: boolean;
@@ -380,13 +382,29 @@ export function evaluateBuilderPmtu(args: { profiles: BuilderLinkProfiles; linkI
   if (!Number.isInteger(packetBytes) || packetBytes < (family === 'ipv6' ? 1280 : 68) || packetBytes > 65535) throw new Error('PMTU packet size is invalid.');
   const limit = limitingLink(profiles, linkIds);
   const df = family === 'ipv6' ? true : args.df !== false;
-  if (packetBytes <= limit.mtuBytes) return { family, packetBytes, pathMtuBytes: limit.mtuBytes, limitingLinkId: limit.linkId, df, controlMessageDelivered: false, outcome: 'DELIVERED', fragments: [], cacheEntry: { family, destinationKey, mtuBytes: limit.mtuBytes, learnedFrom: 'LOCAL PATH' }, transportEffect: 'NONE', summary: `${packetBytes} B fits path MTU ${limit.mtuBytes} B.`, provenance: 'SIMULATED' };
+  if (packetBytes <= limit.mtuBytes) return { family, packetBytes, effectivePacketBytes: packetBytes, pathMtuBytes: limit.mtuBytes, limitingLinkId: limit.linkId, df, controlMessageDelivered: false, outcome: 'DELIVERED', fragments: [], cacheEntry: { family, destinationKey, mtuBytes: limit.mtuBytes, learnedFrom: 'LOCAL PATH' }, transportEffect: 'NONE', summary: `${packetBytes} B fits path MTU ${limit.mtuBytes} B.`, provenance: 'SIMULATED' };
   if (family === 'ipv4' && !df) {
     const fragments = ipv4Fragments(packetBytes, limit.mtuBytes);
-    return { family, packetBytes, pathMtuBytes: limit.mtuBytes, limitingLinkId: limit.linkId, df, controlMessageDelivered: false, outcome: 'FRAGMENTED', fragments, cacheEntry: null, transportEffect: 'NONE', summary: `IPv4 packet fragmented into ${fragments.length} fragments at ${limit.linkId}; DF is clear.`, provenance: 'SIMULATED' };
+    return { family, packetBytes, effectivePacketBytes: packetBytes, pathMtuBytes: limit.mtuBytes, limitingLinkId: limit.linkId, df, controlMessageDelivered: false, outcome: 'FRAGMENTED', fragments, cacheEntry: null, transportEffect: 'NONE', summary: `IPv4 packet fragmented into ${fragments.length} fragments at ${limit.linkId}; DF is clear.`, provenance: 'SIMULATED' };
   }
-  if (args.suppressControlMessage) return { family, packetBytes, pathMtuBytes: limit.mtuBytes, limitingLinkId: limit.linkId, df, controlMessageDelivered: false, outcome: 'BLACK_HOLE', fragments: [], cacheEntry: null, transportEffect: 'TIMEOUT NO PROGRESS', summary: `${family.toUpperCase()} PMTUD black hole at ${limit.linkId}: packet exceeds ${limit.mtuBytes} B and the required control message is not delivered.`, provenance: 'SIMULATED' };
+  if (args.suppressControlMessage) return { family, packetBytes, effectivePacketBytes: packetBytes, pathMtuBytes: limit.mtuBytes, limitingLinkId: limit.linkId, df, controlMessageDelivered: false, outcome: 'BLACK_HOLE', fragments: [], cacheEntry: null, transportEffect: 'TIMEOUT NO PROGRESS', summary: `${family.toUpperCase()} PMTUD black hole at ${limit.linkId}: packet exceeds ${limit.mtuBytes} B and the required control message is not delivered.`, provenance: 'SIMULATED' };
   const outcome: BuilderPmtuOutcome = family === 'ipv4' ? 'ICMP_FRAG_NEEDED' : 'ICMPV6_PACKET_TOO_BIG';
   const learnedFrom: BuilderPmtuCacheEntry['learnedFrom'] = family === 'ipv4' ? 'ICMP FRAG NEEDED' : 'ICMPV6 PACKET TOO BIG';
-  return { family, packetBytes, pathMtuBytes: limit.mtuBytes, limitingLinkId: limit.linkId, df, controlMessageDelivered: true, outcome, fragments: [], cacheEntry: { family, destinationKey, mtuBytes: limit.mtuBytes, learnedFrom }, transportEffect: 'RETRY SMALLER', summary: `${outcome.replaceAll('_', ' ')} from ${limit.linkId}; PMTU cache learns ${limit.mtuBytes} B and transport can retry smaller.`, provenance: 'SIMULATED' };
+  return { family, packetBytes, effectivePacketBytes: packetBytes, pathMtuBytes: limit.mtuBytes, limitingLinkId: limit.linkId, df, controlMessageDelivered: true, outcome, fragments: [], cacheEntry: { family, destinationKey, mtuBytes: limit.mtuBytes, learnedFrom }, transportEffect: 'RETRY SMALLER', summary: `${outcome.replaceAll('_', ' ')} from ${limit.linkId}; PMTU cache learns ${limit.mtuBytes} B and transport can retry smaller.`, provenance: 'SIMULATED' };
+}
+
+export function applyBuilderIpv4PmtuResult(cache: BuilderIpv4PmtuCache, result: BuilderPmtuResult): BuilderIpv4PmtuCache {
+  if (result.family !== 'ipv4' || !result.cacheEntry) return cache.map((entry) => ({ ...entry }));
+  const next = { ...result.cacheEntry, family: 'ipv4' as const };
+  return [...cache.filter((entry) => !(entry.family === 'ipv4' && entry.destinationKey === next.destinationKey)), next].slice(-32);
+}
+
+export function evaluateBuilderIpv4PmtuWithCache(args: { profiles: BuilderLinkProfiles; linkIds: string[]; packetBytes: number; destinationKey: string; df?: boolean; suppressControlMessage?: boolean; cache: BuilderIpv4PmtuCache }): BuilderPmtuResult {
+  const cached = args.cache.find((entry) => entry.family === 'ipv4' && entry.destinationKey === args.destinationKey) ?? null;
+  if (cached && args.packetBytes > cached.mtuBytes && args.df !== false) {
+    const limit = limitingLink(args.profiles, args.linkIds);
+    const effectivePacketBytes = Math.min(args.packetBytes, cached.mtuBytes);
+    return { family: 'ipv4', packetBytes: args.packetBytes, effectivePacketBytes, pathMtuBytes: limit.mtuBytes, limitingLinkId: limit.linkId, df: true, controlMessageDelivered: false, outcome: 'DELIVERED', fragments: [], cacheEntry: { ...cached }, transportEffect: 'NONE', summary: `IPv4 PMTU cache constrains ${args.packetBytes} B to ${effectivePacketBytes} B for ${args.destinationKey}; no oversized packet is emitted.`, provenance: 'SIMULATED' };
+  }
+  return evaluateBuilderPmtu({ profiles: args.profiles, linkIds: args.linkIds, family: 'ipv4', packetBytes: args.packetBytes, destinationKey: args.destinationKey, df: args.df, suppressControlMessage: args.suppressControlMessage });
 }
