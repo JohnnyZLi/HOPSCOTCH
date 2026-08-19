@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -14,29 +14,6 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: agent/track-f-routing-policy-depth
-          fetch-depth: 0
-      - name: Apply Track F integration once
-        run: |
-          if [ -f scripts/track-f-patch.mjs ]; then
-            python - <<'PY'
-          from pathlib import Path
-          p=Path('scripts/track-f-patch.mjs')
-          text=p.read_text()
-          text='\n'.join(line for line in text.splitlines() if 's=s.replace("allowRelationshipLeak:entry.allowRelationshipLeak===true};"' not in line)+'\n'
-          text=text.replace("holdTimeMs=Math.max(3000,Math.min(180000,Math.round(Number(entry.holdTimeMs)||90000));return", "holdTimeMs=Math.max(3000,Math.min(180000,Math.round(Number(entry.holdTimeMs)||90000)));return")
-          text=text.replace('/>} ",`','/>}",`')
-          p.write_text(text)
-          PY
-            node scripts/track-f-patch.mjs
-            git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
-            git config user.name github-actions[bot]
-            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-            git add -A
-            git commit -m "Track F: integrate routing policy depth"
-            git push origin agent/track-f-routing-policy-depth
-          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 24

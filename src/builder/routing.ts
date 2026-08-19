@@ -1,6 +1,22 @@
 import { interfacesForBuilderNode, normalizeBuilderIpv4, parseBuilderIpv4Cidr, type BuilderAddressing } from './addressing.ts';
 import type { BuilderBgpConfig } from './bgp.ts';
 import type { BuilderGraph } from './model.ts';
+import { builderBgpState, cloneBuilderBgpConfig } from './bgp.ts';
+import { builderIsisRouteEntriesForRouter, builderIsisState, type BuilderIsisInjectedRoute } from './isis.ts';
+import {
+  builderCanonicalEcmpKey,
+  builderEcmpProfile,
+  builderOspfEffectiveGraph,
+  builderOspfTimerCompatible,
+  builderPbrDecision,
+  builderPolicyPrefixContainsPrefix,
+  cloneBuilderRoutingPolicyConfig,
+  createDefaultBuilderRoutingPolicyConfig,
+  reconcileBuilderRoutingPolicyConfig,
+  validateBuilderRoutingPolicyConfig,
+  type BuilderRoutingPolicyConfig,
+  type BuilderRedistributionSource,
+} from './routing-policy.ts';
 import {
   BUILDER_OSPF_BACKBONE_AREA,
   builderOspfAbrRouterIds,
@@ -15,9 +31,13 @@ import * as base from './routing-base.ts';
 
 export type { BuilderOspfSummary } from './ospf-areas.ts';
 export type BuilderStaticRoute = base.BuilderStaticRoute;
-export type BuilderRouteSource = base.BuilderRouteSource;
-export type BuilderForwardingHop = base.BuilderForwardingHop;
-export type BuilderForwardingTrace = base.BuilderForwardingTrace;
+export type BuilderRouteSource = base.BuilderRouteSource | 'isis' | 'summary';
+export interface BuilderForwardingHop extends Omit<base.BuilderForwardingHop,'routeSource'> {
+  routeSource: 'endpoint-local' | 'default-gateway' | BuilderRouteSource;
+  fibRouteSource?: BuilderRouteSource; fibMatchedPrefix?: string | null; fibNextHop?: string | null;
+  pbrRuleId?: string | null; pbrNextHop?: string | null; ecmpHashMode?: 'l3'|'l4'|'full';
+}
+export interface BuilderForwardingTrace extends Omit<base.BuilderForwardingTrace,'hops'> { hops: BuilderForwardingHop[] }
 export type BuilderFlowKey = base.BuilderFlowKey;
 export type BuilderOspfAdjacency = base.BuilderOspfAdjacency;
 export type BuilderOspfAdvertisement = base.BuilderOspfAdvertisement;
@@ -45,13 +65,24 @@ export interface BuilderRoutingConfig {
   staticRoutes: BuilderStaticRoute[];
   ospf: BuilderOspfConfig;
   bgp: BuilderBgpConfig;
+  policy: BuilderRoutingPolicyConfig;
 }
 
-export interface BuilderRouteTableEntry extends Omit<base.BuilderRouteTableEntry, 'ospfRouteType'> {
+export interface BuilderRouteTableEntry extends Omit<base.BuilderRouteTableEntry, 'ospfRouteType' | 'source'> {
+  source: BuilderRouteSource;
   ospfRouteType?: 'intra-area' | 'inter-area' | 'external' | 'nssa-external';
   ospfExternalSource?: 'static';
   ospfExternalLsaType?: 5 | 7;
   ospfRedistributionId?: string | null;
+  redistributedFrom?: BuilderRedistributionSource | 'summary';
+  redistributionRuleId?: string | null;
+  routeTag?: number;
+  summaryDiscard?: boolean;
+  summarySource?: BuilderRedistributionSource;
+  summaryId?: string | null;
+  isisLevel?: 'L1' | 'L2';
+  isisAreaId?: string;
+  isisOriginRouterId?: string;
 }
 
 export interface BuilderRouteSelection {
@@ -133,7 +164,7 @@ function validateOspfExtensions(
 
 export function createDefaultBuilderRoutingConfig(): BuilderRoutingConfig {
   const result = base.createDefaultBuilderRoutingConfig();
-  return { ...result, ospf: { ...result.ospf, areaTypes: {}, redistributions: [] } };
+  return { ...result, ospf: { ...result.ospf, areaTypes: {}, redistributions: [] }, policy: createDefaultBuilderRoutingPolicyConfig() };
 }
 
 export function validateBuilderRoutingConfig(graph: BuilderGraph, addressing: BuilderAddressing, value: BuilderRoutingConfig): BuilderRoutingConfig {
@@ -141,11 +172,8 @@ export function validateBuilderRoutingConfig(graph: BuilderGraph, addressing: Bu
   const extensions = validateOspfExtensions(graph, baseRouting, value.ospf ?? { enabledRouterIds: [] });
   return {
     ...baseRouting,
-    ospf: {
-      ...baseRouting.ospf,
-      areaTypes: extensions.areaTypes,
-      redistributions: extensions.redistributions,
-    },
+    ospf: { ...baseRouting.ospf, areaTypes: extensions.areaTypes, redistributions: extensions.redistributions },
+    policy: validateBuilderRoutingPolicyConfig(graph,addressing,value.policy),
   };
 }
 
@@ -158,6 +186,7 @@ export function cloneBuilderRoutingConfig(value: BuilderRoutingConfig): BuilderR
       areaTypes: { ...(value.ospf?.areaTypes ?? {}) },
       redistributions: (value.ospf?.redistributions ?? []).map((entry) => ({ ...entry })),
     },
+    policy: cloneBuilderRoutingPolicyConfig(value.policy),
   };
 }
 
@@ -178,7 +207,7 @@ export function reconcileBuilderRoutingConfig(graph: BuilderGraph, addressing: B
         && (areaId === BUILDER_OSPF_BACKBONE_AREA || (areaTypes[areaId] ?? 'normal') !== 'stub');
     } catch { return false; }
   });
-  return validateBuilderRoutingConfig(graph, addressing, { ...reconciled, ospf: { ...reconciled.ospf, areaTypes, redistributions } });
+  return validateBuilderRoutingConfig(graph, addressing, { ...reconciled, ospf: { ...reconciled.ospf, areaTypes, redistributions }, policy: reconcileBuilderRoutingPolicyConfig(graph,addressing,current.policy) });
 }
 
 function preserveExtensions(graph: BuilderGraph, addressing: BuilderAddressing, result: base.BuilderRoutingConfig, source: BuilderRoutingConfig, redistributions = source.ospf?.redistributions ?? []): BuilderRoutingConfig {
@@ -189,6 +218,7 @@ function preserveExtensions(graph: BuilderGraph, addressing: BuilderAddressing, 
       areaTypes: { ...(source.ospf?.areaTypes ?? {}) },
       redistributions: redistributions.map((entry) => ({ ...entry })),
     },
+    policy: cloneBuilderRoutingPolicyConfig(source.policy),
   });
 }
 
@@ -205,7 +235,7 @@ export function setBuilderOspfEverywhere(graph: BuilderGraph, addressing: Builde
 
 export function setBuilderOspfLinkArea(graph: BuilderGraph, addressing: BuilderAddressing, routing: BuilderRoutingConfig, linkId: string, areaId: string): BuilderRoutingConfig {
   const result = base.setBuilderOspfLinkArea(graph, addressing, toBaseRouting(routing), linkId, areaId);
-  return reconcileBuilderRoutingConfig(graph, addressing, { ...result, ospf: { ...result.ospf, areaTypes: routing.ospf.areaTypes ?? {}, redistributions: routing.ospf.redistributions ?? [] } });
+  return reconcileBuilderRoutingConfig(graph, addressing, { ...result, ospf: { ...result.ospf, areaTypes: routing.ospf.areaTypes ?? {}, redistributions: routing.ospf.redistributions ?? [] }, policy: cloneBuilderRoutingPolicyConfig(routing.policy) });
 }
 
 export function setBuilderOspfAreaType(graph: BuilderGraph, addressing: BuilderAddressing, routing: BuilderRoutingConfig, areaId: string, areaType: BuilderOspfAreaType): BuilderRoutingConfig {
@@ -251,16 +281,22 @@ export function deleteBuilderOspfRedistribution(graph: BuilderGraph, addressing:
 
 export function upsertBuilderStaticRoute(graph: BuilderGraph, addressing: BuilderAddressing, routing: BuilderRoutingConfig, route: Omit<BuilderStaticRoute, 'id'> & { id?: string }): BuilderRoutingConfig {
   const result = base.upsertBuilderStaticRoute(graph, addressing, toBaseRouting(routing), route);
-  return reconcileBuilderRoutingConfig(graph, addressing, { ...result, ospf: { ...result.ospf, areaTypes: routing.ospf.areaTypes ?? {}, redistributions: routing.ospf.redistributions ?? [] } });
+  return reconcileBuilderRoutingConfig(graph, addressing, { ...result, ospf: { ...result.ospf, areaTypes: routing.ospf.areaTypes ?? {}, redistributions: routing.ospf.redistributions ?? [] }, policy: cloneBuilderRoutingPolicyConfig(routing.policy) });
 }
 
 export function deleteBuilderStaticRoute(graph: BuilderGraph, addressing: BuilderAddressing, routing: BuilderRoutingConfig, routeId: string): BuilderRoutingConfig {
   const result = base.deleteBuilderStaticRoute(graph, addressing, toBaseRouting(routing), routeId);
-  return reconcileBuilderRoutingConfig(graph, addressing, { ...result, ospf: { ...result.ospf, areaTypes: routing.ospf.areaTypes ?? {}, redistributions: routing.ospf.redistributions ?? [] } });
+  return reconcileBuilderRoutingConfig(graph, addressing, { ...result, ospf: { ...result.ospf, areaTypes: routing.ospf.areaTypes ?? {}, redistributions: routing.ospf.redistributions ?? [] }, policy: cloneBuilderRoutingPolicyConfig(routing.policy) });
 }
 
 export function builderOspfState(graph: BuilderGraph, addressing: BuilderAddressing, routing: BuilderRoutingConfig): BuilderOspfState {
-  return base.builderOspfState(graph, addressing, toBaseRouting(routing));
+  const effective=builderOspfEffectiveGraph(graph,routing.policy,routing.ospf.enabledRouterIds);
+  const state=base.builderOspfState(effective,addressing,toBaseRouting(routing));
+  return {...state,adjacencies:state.adjacencies.map((adj)=>{const physical=graph.links.find((link)=>link.id===adj.linkId);if(physical&&!physical.failed&&!builderOspfTimerCompatible(routing.policy,adj.aRouterId,adj.bRouterId,adj.linkId))return{...adj,state:'DOWN' as const,reason:'HELLO/DEAD TIMER MISMATCH'};return adj;})};
+}
+
+export function setBuilderRoutingPolicyConfig(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig,policy:BuilderRoutingPolicyConfig):BuilderRoutingConfig{
+  return validateBuilderRoutingConfig(graph,addressing,{...cloneBuilderRoutingConfig(routing),policy});
 }
 
 function nodeById(graph: BuilderGraph, nodeId: string) { return graph.nodes.find((node) => node.id === nodeId); }
@@ -282,6 +318,26 @@ function firstHopEntry(graph: BuilderGraph, addressing: BuilderAddressing, route
   const remote = segment?.interfaces.find((entry) => entry.nodeId === nextRouterId);
   return segment && local && remote ? { local, remote } : null;
 }
+
+function nativePolicyRoutes(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig,routerId:string,source:BuilderRedistributionSource,ospfGraph:BuilderGraph):BuilderRouteTableEntry[]{
+  if(source==='connected'||source==='static'||source==='ospf')return (base.routeTableForBuilderRouter(ospfGraph,addressing,toBaseRouting(routing),routerId,ospfGraph) as BuilderRouteTableEntry[]).filter((entry)=>entry.source===source);
+  if(source==='bgp'){const state=builderBgpState(graph,addressing,routing.bgp);return state.bestRoutes.filter((route)=>route.routerId===routerId&&route.learnedVia!=='local').map((route)=>({id:`policy-bgp:${route.id}`,routerId,prefix:route.prefix,prefixLength:Number(route.prefix.split('/')[1]),source:'bgp' as const,administrativeDistance:route.learnedVia==='ebgp'?20:200,metric:route.asPath.length*1000+route.med,nextHop:route.nextHopAddress,outgoingInterface:'—',linkId:'—',active:true,stateNote:'NATIVE BGP BEST · REDISTRIBUTION SOURCE'}));}
+  return builderIsisRouteEntriesForRouter(graph,addressing,routing.policy.isis,routerId).map((entry)=>({...entry,source:'isis' as const}));
+}
+function matchingNativePolicyRoutes(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig,routerId:string,source:BuilderRedistributionSource,prefix:string,ospfGraph:BuilderGraph){return nativePolicyRoutes(graph,addressing,routing,routerId,source,ospfGraph).filter((entry)=>entry.active&&builderPolicyPrefixContainsPrefix(prefix,entry.prefix));}
+function summaryActive(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig,summary:BuilderRoutingPolicyConfig['summaries'][number],ospfGraph:BuilderGraph){return matchingNativePolicyRoutes(graph,addressing,routing,summary.routerId,summary.source,summary.prefix,ospfGraph).some((entry)=>entry.prefix!==summary.prefix);}
+function effectiveBgpConfig(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig,ospfGraph:BuilderGraph):BuilderBgpConfig{
+  const bgp=cloneBuilderBgpConfig(routing.bgp);for(const rule of routing.policy.redistributions.filter((entry)=>entry.enabled&&entry.target==='bgp'))for(const route of matchingNativePolicyRoutes(graph,addressing,routing,rule.routerId,rule.source,rule.prefix,ospfGraph)){const id=`trackf-redist-bgp:${rule.id}:${route.prefix}`.replaceAll('/','_');if(!bgp.origins.some((entry)=>entry.id===id))bgp.origins.push({id,routerId:rule.routerId,prefix:route.prefix,med:rule.metric,communities:[`65000:${rule.routeTag}`],description:`REDISTRIBUTED ${rule.source.toUpperCase()} · RULE ${rule.id}`});if(!bgp.enabledRouterIds.includes(rule.routerId))bgp.enabledRouterIds.push(rule.routerId);}
+  for(const summary of routing.policy.summaries.filter((entry)=>entry.advertiseInto==='bgp'&&summaryActive(graph,addressing,routing,entry,ospfGraph))){const id=`trackf-summary-bgp:${summary.id}`;if(!bgp.origins.some((entry)=>entry.id===id))bgp.origins.push({id,routerId:summary.routerId,prefix:summary.prefix,med:summary.metric,communities:['65000:999'],description:`SUMMARY ${summary.id}`});if(!bgp.enabledRouterIds.includes(summary.routerId))bgp.enabledRouterIds.push(summary.routerId);}
+  return bgp;
+}
+function summaryDiscardEntries(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig,routerId:string,ospfGraph:BuilderGraph):BuilderRouteTableEntry[]{return routing.policy.summaries.filter((entry)=>entry.routerId===routerId&&entry.discard&&summaryActive(graph,addressing,routing,entry,ospfGraph)).map((entry)=>({id:`summary-discard:${entry.id}`,routerId,prefix:entry.prefix,prefixLength:Number(entry.prefix.split('/')[1]),source:'summary',administrativeDistance:254,metric:entry.metric,nextHop:null,outgoingInterface:'Null0',linkId:'discard',active:true,stateNote:`INTENTIONAL SUMMARY DISCARD · SOURCE ${entry.source.toUpperCase()} · ${entry.description||entry.id}`,summaryDiscard:true,summarySource:entry.source,summaryId:entry.id}));}
+function generalOspfExternalEntries(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig,routerId:string):BuilderRouteTableEntry[]{
+  if(!routing.ospf.enabledRouterIds.includes(routerId))return[];const entries:BuilderRouteTableEntry[]=[];for(const rule of routing.policy.redistributions.filter((entry)=>entry.enabled&&entry.target==='ospf')){const areas=builderOspfAreasForRouter(graph,routing.ospf,rule.routerId).filter((area)=>builderOspfAreaType(routing.ospf,area)!=='stub').sort();const areaId=areas[0];if(!areaId)continue;for(const sourceRoute of matchingNativePolicyRoutes(graph,addressing,routing,rule.routerId,rule.source,rule.prefix,graph)){if(rule.routerId===routerId)continue;const paths=builderOspfPathCandidates(graph,routing.ospf,routerId,rule.routerId,areaId);for(const path of paths){if(!path.reachable)continue;for(const firstHop of path.firstHops){const hop=firstHopEntry(graph,addressing,routerId,firstHop.nextRouterId,firstHop.linkId);if(!hop)continue;const nssa=builderOspfAreaType(routing.ospf,areaId)==='nssa'&&path.routeType==='intra-area';entries.push({id:`ospf-redist-general:${routerId}:${rule.id}:${sourceRoute.prefix}:${firstHop.linkId}`.replaceAll('/','_'),routerId,prefix:sourceRoute.prefix,prefixLength:sourceRoute.prefixLength,source:'ospf',administrativeDistance:110,metric:path.totalCost+rule.metric,nextHop:hop.remote.address,outgoingInterface:hop.local.name,linkId:firstHop.linkId,active:true,stateNote:`${nssa?'OSPF O N1 · TYPE-7 NSSA':'OSPF O E1 · TYPE-5 EXTERNAL'} · REDISTRIBUTED ${rule.source.toUpperCase()} · TAG ${rule.routeTag}`,ospfRouteType:nssa?'nssa-external':'external',ospfAreaId:areaId,ospfAbrRouterId:path.destinationAbrRouterId,ospfSummaryId:null,ospfExternalLsaType:nssa?7:5,redistributedFrom:rule.source,redistributionRuleId:rule.id,routeTag:rule.routeTag});}}}}
+  for(const summary of routing.policy.summaries.filter((entry)=>entry.advertiseInto==='ospf'&&summaryActive(graph,addressing,routing,entry,graph))){if(summary.routerId===routerId)continue;const areaId=builderOspfAreasForRouter(graph,routing.ospf,summary.routerId).filter((area)=>builderOspfAreaType(routing.ospf,area)!=='stub').sort()[0];if(!areaId)continue;for(const path of builderOspfPathCandidates(graph,routing.ospf,routerId,summary.routerId,areaId)){for(const firstHop of path.firstHops){const hop=firstHopEntry(graph,addressing,routerId,firstHop.nextRouterId,firstHop.linkId);if(!hop)continue;entries.push({id:`ospf-summary:${routerId}:${summary.id}:${firstHop.linkId}`,routerId,prefix:summary.prefix,prefixLength:Number(summary.prefix.split('/')[1]),source:'ospf',administrativeDistance:110,metric:path.totalCost+summary.metric,nextHop:hop.remote.address,outgoingInterface:hop.local.name,linkId:firstHop.linkId,active:true,stateNote:`OSPF SUMMARY · ORIGIN ${summary.routerId.toUpperCase()} · DISCARD AT ORIGIN`,ospfRouteType:'external',ospfAreaId:areaId,ospfExternalLsaType:5,redistributedFrom:'summary',summaryId:summary.id});}}}
+  return bestOspfEntries(entries);
+}
+function isisInjectedRoutes(graph:BuilderGraph,addressing:BuilderAddressing,routing:BuilderRoutingConfig,ospfGraph:BuilderGraph):BuilderIsisInjectedRoute[]{const result:BuilderIsisInjectedRoute[]=[];for(const rule of routing.policy.redistributions.filter((entry)=>entry.enabled&&entry.target==='isis'))for(const route of matchingNativePolicyRoutes(graph,addressing,routing,rule.routerId,rule.source,rule.prefix,ospfGraph))result.push({id:`isis-inject:${rule.id}:${route.prefix}`,originRouterId:rule.routerId,prefix:route.prefix,metric:rule.metric,source:rule.source,routeTag:rule.routeTag,redistributionRuleId:rule.id,summaryId:null});for(const summary of routing.policy.summaries.filter((entry)=>entry.advertiseInto==='isis'&&summaryActive(graph,addressing,routing,entry,ospfGraph)))result.push({id:`isis-summary:${summary.id}`,originRouterId:summary.routerId,prefix:summary.prefix,metric:summary.metric,source:'summary',routeTag:999,redistributionRuleId:null,summaryId:summary.id});return result;}
 
 function ospfExternalEntries(graph: BuilderGraph, addressing: BuilderAddressing, routing: BuilderRoutingConfig, routerId: string): BuilderRouteTableEntry[] {
   if (!routing.ospf.enabledRouterIds.includes(routerId)) return [];
@@ -405,9 +461,7 @@ function compareRoutePreference(left: BuilderRouteTableEntry, right: BuilderRout
 }
 
 export function routeTableForBuilderRouter(graph: BuilderGraph, addressing: BuilderAddressing, routing: BuilderRoutingConfig, routerId: string, ospfTopologyGraph: BuilderGraph = graph): BuilderRouteTableEntry[] {
-  const validated = validateBuilderRoutingConfig(graph, addressing, routing);
-  const baseEntries = base.routeTableForBuilderRouter(graph, addressing, toBaseRouting(validated), routerId, ospfTopologyGraph) as BuilderRouteTableEntry[];
-  return [...baseEntries, ...ospfExternalEntries(ospfTopologyGraph, addressing, validated, routerId), ...ospfStubDefaultEntries(ospfTopologyGraph, addressing, validated, routerId)].sort(compareRoutePreference);
+  const validated=validateBuilderRoutingConfig(graph,addressing,routing);const effectiveOspf=builderOspfEffectiveGraph(ospfTopologyGraph,validated.policy,validated.ospf.enabledRouterIds);const bgp=effectiveBgpConfig(graph,addressing,validated,effectiveOspf);const baseRouting={...toBaseRouting(validated),bgp};const baseEntries=base.routeTableForBuilderRouter(graph,addressing,baseRouting,routerId,effectiveOspf) as BuilderRouteTableEntry[];const isis=builderIsisRouteEntriesForRouter(graph,addressing,validated.policy.isis,routerId,isisInjectedRoutes(graph,addressing,validated,effectiveOspf)).map((entry)=>({...entry,source:'isis' as const}));return [...baseEntries,...ospfExternalEntries(effectiveOspf,addressing,validated,routerId),...generalOspfExternalEntries(effectiveOspf,addressing,validated,routerId),...ospfStubDefaultEntries(effectiveOspf,addressing,validated,routerId),...isis,...summaryDiscardEntries(graph,addressing,validated,routerId,effectiveOspf)].sort(compareRoutePreference);
 }
 
 export const builderStableFlowHash = base.builderStableFlowHash;
@@ -426,7 +480,7 @@ export function builderEcmpRoutesForDestination(entries: readonly BuilderRouteTa
 }
 
 export function selectBuilderRouteWithDecision(entries: readonly BuilderRouteTableEntry[], destinationAddress: string, flowKey: BuilderFlowKey | string | null = null): BuilderRouteSelection {
-  const candidates = builderEcmpRoutesForDestination(entries, destinationAddress);
+  const candidates = builderEcmpRoutesForDestination(entries, destinationAddress).slice(0,Math.max(1,Math.min(16,arguments.length>3?Number(arguments[3])||16:16)));
   if (candidates.length === 0) return { route: null, candidates: [], flowKey: null, flowHash: null, selectedIndex: null };
   const canonical = canonicalFlowKey(flowKey, destinationAddress);
   if (candidates.length === 1 || canonical === null) return { route: candidates[0], candidates, flowKey: canonical, flowHash: null, selectedIndex: 0 };
@@ -494,24 +548,28 @@ export function traceBuilderForwarding(graph: BuilderGraph, addressing: BuilderA
       currentNodeId = owner.nodeId;
       continue;
     }
-    const selection = selectBuilderRouteWithDecision(routeTableForBuilderRouter(graph, addressing, routing, currentNodeId, ospfTopologyGraph), destinationAddress, flowKey);
+    const packetKey={sourceAddress:primaryInterfaceForNode(addressing,sourceNodeId)?.address??'0.0.0.0',destinationAddress,protocol:typeof flowKey==='object'&&flowKey?String(flowKey.protocol??'ip'):'ip',sourcePort:typeof flowKey==='object'&&flowKey&&flowKey.sourcePort!=null?flowKey.sourcePort:null,destinationPort:typeof flowKey==='object'&&flowKey&&flowKey.destinationPort!=null?flowKey.destinationPort:null};
+    const ecmp=builderEcmpProfile(routing.policy,currentNodeId);const discriminator=typeof flowKey==='object'&&flowKey?flowKey.discriminator??null:typeof flowKey==='string'?flowKey:null;const hashedKey=builderCanonicalEcmpKey(ecmp.hashMode,packetKey,discriminator);
+    const selection = selectBuilderRouteWithDecision(routeTableForBuilderRouter(graph, addressing, routing, currentNodeId, ospfTopologyGraph), destinationAddress, hashedKey,ecmp.maxPaths);
     const selected = selection.route;
     if (!selected) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'NO MATCHING ROUTE');
     let nextNodeId: string | null = null;
     let nextHop: string | null = selected.nextHop;
-    if (selected.source === 'connected') {
+    let actualLinkId=selected.linkId;let actualOutgoingInterface=selected.outgoingInterface;const pbr=builderPbrDecision(routing.policy,currentNodeId,packetKey);
+    if(pbr.matched&&pbr.rule){const owner=interfaceOwner(addressing,pbr.rule.nextHop);const local=owner?addressing.segments[owner.linkId]?.interfaces.find((entry)=>entry.nodeId===currentNodeId):null;if(!owner||!local)return forwardingFailure(sourceNodeId,destinationNodeId,destinationAddress,hops,currentNodeId,'PBR NEXT HOP INVALID');nextNodeId=owner.nodeId;nextHop=pbr.rule.nextHop;actualLinkId=owner.linkId;actualOutgoingInterface=local.name;}
+    else if(selected.source==='summary'&&selected.summaryDiscard)return forwardingFailure(sourceNodeId,destinationNodeId,destinationAddress,hops,currentNodeId,'INTENTIONAL SUMMARY BLACK HOLE');
+    if (!pbr.matched && selected.source === 'connected') {
       const owner = interfaceOwner(addressing, destinationAddress);
       if (!owner || owner.linkId !== selected.linkId) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'CONNECTED PREFIX HAS NO DESTINATION NEIGHBOR');
       nextNodeId = owner.nodeId;
       nextHop = destinationAddress;
-    } else {
+    } else if(!pbr.matched) {
       const owner = selected.nextHop ? interfaceOwner(addressing, selected.nextHop) : null;
       if (!owner || owner.linkId !== selected.linkId) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, selected.source === 'static' ? 'STATIC NEXT HOP INVALID' : selected.source === 'bgp' ? 'BGP NEXT HOP INVALID' : 'OSPF NEXT HOP INVALID');
       nextNodeId = owner.nodeId;
     }
-    const link = linkById(graph, selected.linkId);
-    if (!link || link.failed) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'OUTGOING LINK DOWN');
-    hops.push({ nodeId: currentNodeId, nodeLabel: current.label, routeSource: selected.source, matchedPrefix: selected.prefix, nextHop, outgoingInterface: selected.outgoingInterface, linkId: selected.linkId, nextNodeId, ecmpCandidateCount: selection.candidates.length, ecmpSelectedIndex: selection.selectedIndex, ecmpFlowHash: selection.flowHash, ecmpFlowKey: selection.flowKey });
+    const link=linkById(graph,actualLinkId);if(!link||link.failed)return forwardingFailure(sourceNodeId,destinationNodeId,destinationAddress,hops,currentNodeId,pbr.matched?'PBR NEXT-HOP LINK DOWN':'OUTGOING LINK DOWN');
+    hops.push({nodeId:currentNodeId,nodeLabel:current.label,routeSource:selected.source,matchedPrefix:selected.prefix,nextHop,outgoingInterface:actualOutgoingInterface,linkId:actualLinkId,nextNodeId,ecmpCandidateCount:selection.candidates.length,ecmpSelectedIndex:selection.selectedIndex,ecmpFlowHash:selection.flowHash,ecmpFlowKey:selection.flowKey,ecmpHashMode:ecmp.hashMode,fibRouteSource:selected.source,fibMatchedPrefix:selected.prefix,fibNextHop:selected.nextHop,pbrRuleId:pbr.rule?.id??null,pbrNextHop:pbr.rule?.nextHop??null});
     if (!nextNodeId) return forwardingFailure(sourceNodeId, destinationNodeId, destinationAddress, hops, currentNodeId, 'NEXT HOP HAS NO DEVICE');
     currentNodeId = nextNodeId;
   }
