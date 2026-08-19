@@ -22,10 +22,18 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          path=Path('ROADMAP.md')
+          path=Path('docs/ROADMAP.md')
           text=path.read_text()
-          old='''- [ ] generate deterministic broken networks from canonical configuration/state rather than hand-authored answer text\n- [ ] cover addressing, gateway, VLAN, trunk, STP, ARP/ND, routing, OSPF, ACL, NAT, DHCP, MTU, DNS, transport, and BGP policy failures\n- [ ] users diagnose with normal Builder inspectors/probes, not challenge-only shortcuts\n- [ ] score evidence gathering and causal reasoning, not just the final repair\n- [ ] reproducible challenge seeds and shareable scenarios'''
-          new='''- [x] generate deterministic broken networks from canonical configuration/state rather than hand-authored answer text\n- [ ] cover addressing, gateway, VLAN, trunk, STP, ARP/ND, routing, OSPF, ACL, NAT, DHCP, MTU, DNS, transport, and BGP policy failures — gateway, access-VLAN, trunk-pruning, and STP-loop families are shipped\n- [x] users diagnose with normal Builder inspectors/probes/LAN evidence, not challenge-only shortcuts\n- [x] score evidence gathering and causal reasoning, not just the final repair\n- [x] reproducible challenge seeds and shareable scenarios'''
+          old='''- [ ] generate deterministic broken networks from canonical configuration/state rather than hand-authored answer text
+- [ ] cover addressing, gateway, VLAN, trunk, STP, ARP/ND, routing, OSPF, ACL, NAT, DHCP, MTU, DNS, transport, and BGP policy failures
+- [ ] users diagnose with normal Builder inspectors/probes, not challenge-only shortcuts
+- [ ] score evidence gathering and causal reasoning, not just the final repair
+- [ ] reproducible challenge seeds and shareable scenarios'''
+          new='''- [x] generate deterministic broken networks from canonical configuration/state rather than hand-authored answer text
+- [ ] cover addressing, gateway, VLAN, trunk, STP, ARP/ND, routing, OSPF, ACL, NAT, DHCP, MTU, DNS, transport, and BGP policy failures — gateway, access-VLAN, trunk-pruning, and STP-loop families are shipped
+- [x] users diagnose with normal Builder inspectors/probes/LAN evidence, not challenge-only shortcuts
+- [x] score evidence gathering and causal reasoning, not just the final repair
+- [x] reproducible challenge seeds and shareable scenarios'''
           if text.count(old)!=1:
               raise SystemExit('Track J roadmap checklist did not match expected source')
           path.write_text(text.replace(old,new))
@@ -35,6 +43,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ROADMAP.md
+          git add docs/ROADMAP.md
           git commit -m "Record Track J troubleshooting progress"
           git push origin HEAD:agent/track-j-l2-challenges
