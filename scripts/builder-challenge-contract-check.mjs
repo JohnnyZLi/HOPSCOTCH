@@ -4,9 +4,11 @@ import {
   builderChallengeIsRepaired,
   builderChallengeToken,
   createAccessVlanChallenge,
+  createAclDenyChallenge,
   createBuilderChallenge,
   createDefaultGatewayChallenge,
   createMissingStaticRouteChallenge,
+  createNatDisabledChallenge,
   createOspfDisabledChallenge,
   createStpLoopChallenge,
   createTrunkVlanChallenge,
@@ -15,6 +17,7 @@ import {
 } from '../src/builder/challenges.ts';
 import { resolveBuilderEthernetFlowArp } from '../src/builder/arp.ts';
 import { runBuilderEthernetFlow, validateBuilderEthernetConfig } from '../src/builder/ethernet.ts';
+import { runBuilderNatOutboundFlow, validateBuilderNatConfig } from '../src/builder/nat.ts';
 import { runBuilderProbe } from '../src/builder/probes.ts';
 import { validateBuilderRoutingConfig } from '../src/builder/routing.ts';
 
@@ -219,9 +222,59 @@ assert.equal(builderChallengeIsRepaired(ospf, ospf.broken.addressing, ospf.broke
 assert.equal(builderChallengeIsRepaired(ospf, ospf.healthy.addressing, ospf.healthy.ethernet, ospf.healthy.routing), true);
 scoreRoutedChallenge(ospf, ospf.healthy.routing);
 
-for (const challenge of [access, trunk, stp, staticRoute, ospf]) {
+
+const aclChallenge = createAclDenyChallenge('acl-contract-001');
+assert.equal(aclChallenge.family, 'acl-deny');
+assert.equal(aclChallenge.fault.kind, 'acl-objective-deny');
+assert.deepEqual(aclChallenge, createBuilderChallenge('acl-contract-001'));
+assert.equal(runPing(aclChallenge.healthy).success, true, 'ACL healthy baseline must pass ordinary Ping');
+assert.equal(runPing(aclChallenge.broken).success, false, 'ACL deny must fail ordinary Ping without challenge-only forwarding');
+const repairedAcl = structuredClone(aclChallenge.broken.acl);
+repairedAcl.rules = repairedAcl.rules.filter((rule) => rule.id !== aclChallenge.fault.blockingRule.id);
+assert.deepEqual(repairedAcl, aclChallenge.healthy.acl, 'ACL challenge adds exactly one canonical blocking rule');
+assert.equal(builderChallengeIsRepaired(aclChallenge, aclChallenge.broken.addressing, aclChallenge.broken.ethernet, aclChallenge.broken.routing, aclChallenge.broken.acl, aclChallenge.broken.nat), false);
+assert.equal(builderChallengeIsRepaired(aclChallenge, aclChallenge.broken.addressing, aclChallenge.broken.ethernet, aclChallenge.broken.routing, repairedAcl, aclChallenge.broken.nat), true);
+let aclEvidence = [];
+aclEvidence = appendBuilderChallengeEvidence(aclEvidence,{kind:'ping',sourceId:'client',destinationId:'app',success:false,repaired:false,detail:'Objective Ping denied by policy.'});
+aclEvidence = appendBuilderChallengeEvidence(aclEvidence,{kind:'traceroute',sourceId:'client',destinationId:'app',success:false,repaired:false,detail:'Objective Traceroute denied by policy.'});
+aclEvidence = recordInspection(aclEvidence,aclChallenge,'state');
+aclEvidence = recordInspection(aclEvidence,aclChallenge,'config');
+const aclHypothesis={boundary:'POLICY',deviceId:aclChallenge.fault.nodeId};
+assert.deepEqual(scoreBuilderChallenge(aclChallenge,aclEvidence,aclHypothesis,aclChallenge.broken.addressing,aclChallenge.broken.ethernet,aclChallenge.broken.routing,aclChallenge.broken.acl,aclChallenge.broken.nat),{evidence:40,reasoning:20,repair:0,verification:0,total:60,repaired:false,verified:false,solved:false});
+assert.equal(scoreBuilderChallenge(aclChallenge,aclEvidence,aclHypothesis,aclChallenge.broken.addressing,aclChallenge.broken.ethernet,aclChallenge.broken.routing,repairedAcl,aclChallenge.broken.nat).total,85);
+aclEvidence=appendBuilderChallengeEvidence(aclEvidence,{kind:'ping',sourceId:'client',destinationId:'app',success:true,repaired:true,detail:'Objective Ping passes after ACL repair.'});
+assert.equal(scoreBuilderChallenge(aclChallenge,aclEvidence,aclHypothesis,aclChallenge.broken.addressing,aclChallenge.broken.ethernet,aclChallenge.broken.routing,repairedAcl,aclChallenge.broken.nat).total,100);
+
+function runNatObjective(snapshot){return runBuilderNatOutboundFlow(snapshot.graph,snapshot.addressing,snapshot.routing,snapshot.nat,[],'client','app','tcp',51515,443,1,snapshot.acl);}
+const natChallenge=createNatDisabledChallenge('nat-contract-001');
+assert.equal(natChallenge.family,'nat-disabled');
+assert.equal(natChallenge.fault.kind,'nat-boundary-disabled');
+assert.deepEqual(natChallenge,createBuilderChallenge('nat-contract-001'));
+const healthyNatFlow=runNatObjective(natChallenge.healthy);
+const brokenNatFlow=runNatObjective(natChallenge.broken);
+assert.equal(healthyNatFlow.success,true);
+assert.ok(healthyNatFlow.translation,'healthy NAT objective must produce canonical PAT translation');
+assert.equal(brokenNatFlow.success,true,'disabling NAT does not invent a routing outage');
+assert.equal(brokenNatFlow.translation,null,'broken NAT objective must expose untranslated delivery');
+const repairedNat=validateBuilderNatConfig(natChallenge.broken.graph,{...natChallenge.broken.nat,boundaries:natChallenge.broken.nat.boundaries.map((entry)=>entry.id===natChallenge.fault.boundaryId?{...entry,enabled:true}:entry)});
+assert.deepEqual(repairedNat,natChallenge.healthy.nat,'NAT challenge changes exactly the canonical boundary enabled state');
+let natEvidence=[];
+natEvidence=appendBuilderChallengeEvidence(natEvidence,{kind:'nat-flow',sourceId:'client',destinationId:'app',success:false,repaired:false,detail:brokenNatFlow.explanation});
+natEvidence=recordInspection(natEvidence,natChallenge,'state');
+natEvidence=recordInspection(natEvidence,natChallenge,'config');
+const natHypothesis={boundary:'POLICY',deviceId:natChallenge.fault.nodeId};
+assert.deepEqual(scoreBuilderChallenge(natChallenge,natEvidence,natHypothesis,natChallenge.broken.addressing,natChallenge.broken.ethernet,natChallenge.broken.routing,natChallenge.broken.acl,natChallenge.broken.nat),{evidence:40,reasoning:20,repair:0,verification:0,total:60,repaired:false,verified:false,solved:false});
+assert.equal(scoreBuilderChallenge(natChallenge,natEvidence,natHypothesis,natChallenge.broken.addressing,natChallenge.broken.ethernet,natChallenge.broken.routing,natChallenge.broken.acl,repairedNat).total,85);
+natEvidence=appendBuilderChallengeEvidence(natEvidence,{kind:'nat-flow',sourceId:'app',destinationId:'client',success:true,repaired:true,detail:'Unrelated NAT observation.'});
+assert.equal(scoreBuilderChallenge(natChallenge,natEvidence,natHypothesis,natChallenge.broken.addressing,natChallenge.broken.ethernet,natChallenge.broken.routing,natChallenge.broken.acl,repairedNat).verified,false,'unrelated NAT flow cannot verify the objective');
+const repairedNatFlow=runNatObjective({...natChallenge.broken,nat:repairedNat});
+assert.ok(repairedNatFlow.translation);
+natEvidence=appendBuilderChallengeEvidence(natEvidence,{kind:'nat-flow',sourceId:'client',destinationId:'app',success:true,repaired:true,detail:repairedNatFlow.explanation});
+assert.deepEqual(scoreBuilderChallenge(natChallenge,natEvidence,natHypothesis,natChallenge.broken.addressing,natChallenge.broken.ethernet,natChallenge.broken.routing,natChallenge.broken.acl,repairedNat),{evidence:40,reasoning:20,repair:25,verification:15,total:100,repaired:true,verified:true,solved:true});
+
+for (const challenge of [access, trunk, stp, staticRoute, ospf, aclChallenge, natChallenge]) {
   const challengeToken = builderChallengeToken(challenge);
   assert.deepEqual(createBuilderChallenge(seedFromBuilderChallengeToken(challengeToken)), challenge, `${challenge.family} token must reproduce exact deterministic truth`);
 }
 
-console.log('Builder Track J challenge contract passed: gateway plus seeded access-VLAN, trunk-pruning, STP-loop, missing-static-route, and OSPF-disabled faults use canonical truth, ordinary probes/LAN+ARP evidence, exact repair, objective-scoped verification, causal scoring, and reproducible tokens.');
+console.log('Builder Track J challenge contract passed: gateway plus seeded access-VLAN, trunk-pruning, STP-loop, missing-static-route, OSPF-disabled, ACL-deny, and NAT-disabled faults use canonical truth, ordinary probes/LAN+ARP/NAT evidence, exact repair, objective-scoped verification, causal scoring, and reproducible tokens.');

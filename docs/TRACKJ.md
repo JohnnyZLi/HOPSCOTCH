@@ -238,3 +238,15 @@ The routed troubleshooting catalog now includes two additional deterministic can
 - `ospf-*`: the healthy all-OSPF baseline disables participation on one required edge/core router while physical links remain up. Ordinary Ping / Traceroute, OSPF neighbor/LSDB state, route tables, and Device Workbench expose the resulting control-plane boundary; repair uses the existing ENABLE ON ROUTER control.
 
 Both families keep the same Track J evidence → hypothesis → exact canonical repair → objective verification scoring contract. No challenge-specific route lookup or OSPF state exists.
+
+
+## Fourth slice — ACL and NAT policy
+
+Track J now includes two deterministic policy families:
+
+- `acl-*` / `firewall-*`: the healthy routed baseline gains one objective-specific ICMP deny on a deterministic EDGE/CORE router. Routing remains healthy; ordinary Ping / Traceroute and Device Workbench expose the policy failure. Repair uses the existing ACL delete control.
+- `nat-*` / `pat-*`: the canonical EDGE NAT boundary is disabled. The underlying routed flow may still deliver untranslated, so the objective is explicitly PAT correctness rather than a fabricated reachability outage. The existing NAT RUN OUTBOUND surface produces structured challenge evidence; repair uses the normal ENABLE NAT control and verification requires an actual translated tuple.
+
+The scoring contract remains 40 evidence + 20 causal reasoning + 25 canonical repair + 15 objective verification. NAT evidence awards the 20 diagnostic-flow points when the objective outbound flow is observed without translation, plus normal target STATE and CONFIG inspection.
+
+Challenge scoring now consumes live ACL and NAT configuration in addition to addressing, Ethernet, and routing truth. Evidence and scores remain session-only and never influence ACL evaluation, NAT translation, forwarding, or provenance.

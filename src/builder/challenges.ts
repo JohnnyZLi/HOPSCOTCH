@@ -1,6 +1,8 @@
-import { validateBuilderAddressing, type BuilderAddressing } from './addressing.ts';
+import { interfacesForBuilderNode, validateBuilderAddressing, type BuilderAddressing } from './addressing.ts';
+import { upsertBuilderAclRule, type BuilderAclConfig, type BuilderAclRule } from './acl.ts';
 import { createBuilderAuthoringSnapshot, type BuilderAuthoringSnapshot } from './authoring.ts';
 import { validateBuilderEthernetConfig, type BuilderEthernetConfig } from './ethernet.ts';
+import { validateBuilderNatConfig, type BuilderNatConfig } from './nat.ts';
 import { installStaticRoutesForWeightedPath, setBuilderOspfEverywhere, setBuilderOspfRouterEnabled, validateBuilderRoutingConfig, type BuilderRoutingConfig } from './routing.ts';
 import { defaultBuilderScenario } from './scenario.ts';
 
@@ -10,8 +12,8 @@ export const BUILDER_CHALLENGE_EVIDENCE_LIMIT = 40;
 
 export type BuilderChallengeBoundary = 'ADDRESSING' | 'L2' | 'ROUTING' | 'POLICY' | 'TRANSPORT';
 export type BuilderChallengeDevicePlane = 'routed' | 'ethernet';
-export type BuilderChallengeEvidenceKind = 'ping' | 'traceroute' | 'ethernet-flow' | 'arp-resolution' | 'inspect-config' | 'inspect-state' | 'inspect-events';
-export type BuilderChallengeFamily = 'gateway' | 'access-vlan' | 'trunk-vlan' | 'stp-loop' | 'static-route' | 'ospf-disabled';
+export type BuilderChallengeEvidenceKind = 'ping' | 'traceroute' | 'ethernet-flow' | 'arp-resolution' | 'nat-flow' | 'inspect-config' | 'inspect-state' | 'inspect-events';
+export type BuilderChallengeFamily = 'gateway' | 'access-vlan' | 'trunk-vlan' | 'stp-loop' | 'static-route' | 'ospf-disabled' | 'acl-deny' | 'nat-disabled';
 
 export interface BuilderGatewayChallengeFault {
   kind: 'missing-default-gateway';
@@ -67,10 +69,27 @@ export interface BuilderOspfDisabledChallengeFault {
   expectedEnabled: true;
 }
 
-export type BuilderChallengeFault = BuilderGatewayChallengeFault | BuilderAccessVlanChallengeFault | BuilderTrunkVlanChallengeFault | BuilderStpChallengeFault | BuilderStaticRouteChallengeFault | BuilderOspfDisabledChallengeFault;
+export interface BuilderAclDenyChallengeFault {
+  kind: 'acl-objective-deny';
+  boundary: 'POLICY';
+  plane: 'routed';
+  nodeId: string;
+  blockingRule: BuilderAclRule;
+}
+
+export interface BuilderNatDisabledChallengeFault {
+  kind: 'nat-boundary-disabled';
+  boundary: 'POLICY';
+  plane: 'routed';
+  nodeId: string;
+  boundaryId: string;
+  expectedEnabled: true;
+}
+
+export type BuilderChallengeFault = BuilderGatewayChallengeFault | BuilderAccessVlanChallengeFault | BuilderTrunkVlanChallengeFault | BuilderStpChallengeFault | BuilderStaticRouteChallengeFault | BuilderOspfDisabledChallengeFault | BuilderAclDenyChallengeFault | BuilderNatDisabledChallengeFault;
 
 export interface BuilderChallengeVerification {
-  kind: 'routed-probe' | 'ethernet-flow';
+  kind: 'routed-probe' | 'ethernet-flow' | 'nat-translation';
   sourceId: string;
   destinationId: string;
 }
@@ -398,6 +417,55 @@ export function createOspfDisabledChallenge(seedInput: string): BuilderChallenge
   };
 }
 
+export function createAclDenyChallenge(seedInput: string): BuilderChallenge {
+  const seed = normalizeSeed(seedInput);
+  const hash = hashSeed(seed);
+  const healthy = defaultHealthySnapshot();
+  healthy.sourceId = 'client';
+  healthy.destinationId = 'app';
+  const sourceAddress = interfacesForBuilderNode(healthy.addressing, 'client')[0]?.address;
+  const destinationAddress = interfacesForBuilderNode(healthy.addressing, 'app')[0]?.address;
+  if (!sourceAddress || !destinationAddress) throw new Error('The ACL challenge requires canonical CLIENT and APP IPv4 addresses.');
+  const candidates = ['edge', 'core'].filter((id) => healthy.graph.nodes.some((node) => node.id === id && node.kind === 'router'));
+  if (candidates.length !== 2) throw new Error('The ACL challenge requires canonical EDGE and CORE routers.');
+  const nodeId = candidates[hash % candidates.length];
+  const blockingRule: BuilderAclRule = {
+    id: `challenge-acl-${hash.toString(16).padStart(8, '0')}`, routerId: nodeId, order: 5, action: 'deny', protocol: 'icmp',
+    sourcePrefix: `${sourceAddress}/32`, destinationPrefix: `${destinationAddress}/32`, destinationPort: null, description: 'Track J objective ICMP deny',
+  };
+  const broken = createBuilderAuthoringSnapshot(healthy);
+  broken.acl = upsertBuilderAclRule(broken.graph, broken.acl, blockingRule);
+  return {
+    schema: BUILDER_CHALLENGE_SCHEMA, version: BUILDER_CHALLENGE_VERSION, id: `acl-${hash.toString(16).padStart(8, '0')}`, seed, family: 'acl-deny',
+    title: 'ICMP POLICY BLOCKS THE PATH',
+    objective: 'Restore IPv4 diagnostic reachability from CLIENT to APP. Routing remains healthy; use ordinary Ping / Traceroute plus policy state and Device Workbench to identify and remove the blocking canonical ACL rule.',
+    difficulty: 'FOUNDATION', healthy, broken, verification: { kind: 'routed-probe', sourceId: 'client', destinationId: 'app' },
+    fault: { kind: 'acl-objective-deny', boundary: 'POLICY', plane: 'routed', nodeId, blockingRule },
+  };
+}
+
+export function createNatDisabledChallenge(seedInput: string): BuilderChallenge {
+  const seed = normalizeSeed(seedInput);
+  const hash = hashSeed(seed);
+  const healthy = defaultHealthySnapshot();
+  healthy.sourceId = 'client';
+  healthy.destinationId = 'app';
+  const boundary = healthy.nat.boundaries.find((entry) => entry.routerId === 'edge');
+  if (!boundary || !boundary.enabled) throw new Error('The NAT challenge requires the canonical enabled EDGE NAT boundary.');
+  const broken = createBuilderAuthoringSnapshot(healthy);
+  broken.nat = validateBuilderNatConfig(broken.graph, {
+    ...broken.nat,
+    boundaries: broken.nat.boundaries.map((entry) => entry.id === boundary.id ? { ...entry, enabled: false } : entry),
+  });
+  return {
+    schema: BUILDER_CHALLENGE_SCHEMA, version: BUILDER_CHALLENGE_VERSION, id: `nat-${hash.toString(16).padStart(8, '0')}`, seed, family: 'nat-disabled',
+    title: 'PAT BOUNDARY GOES DARK',
+    objective: 'Restore required PAT translation from CLIENT to APP. The routed flow may still deliver untranslated; use the ordinary NAT outbound tool and Device Workbench to prove whether the canonical EDGE boundary is actually translating.',
+    difficulty: 'FOUNDATION', healthy, broken, verification: { kind: 'nat-translation', sourceId: 'client', destinationId: 'app' },
+    fault: { kind: 'nat-boundary-disabled', boundary: 'POLICY', plane: 'routed', nodeId: boundary.routerId, boundaryId: boundary.id, expectedEnabled: true },
+  };
+}
+
 export function createBuilderChallenge(seedInput: string): BuilderChallenge {
   const seed = normalizeSeed(seedInput);
   const lowered = seed.toLowerCase();
@@ -406,6 +474,8 @@ export function createBuilderChallenge(seedInput: string): BuilderChallenge {
   if (lowered.startsWith('stp-') || lowered.startsWith('l2-stp-')) return createStpLoopChallenge(seed);
   if (lowered.startsWith('static-') || lowered.startsWith('route-')) return createMissingStaticRouteChallenge(seed);
   if (lowered.startsWith('ospf-')) return createOspfDisabledChallenge(seed);
+  if (lowered.startsWith('acl-') || lowered.startsWith('firewall-')) return createAclDenyChallenge(seed);
+  if (lowered.startsWith('nat-') || lowered.startsWith('pat-')) return createNatDisabledChallenge(seed);
   return createDefaultGatewayChallenge(seed);
 }
 
@@ -428,7 +498,7 @@ function sameNumberArray(left: readonly number[] | undefined, right: readonly nu
   return normalized.length === right.length && normalized.every((value, index) => value === right[index]);
 }
 
-export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressing: BuilderAddressing, ethernet: BuilderEthernetConfig, routing: BuilderRoutingConfig): boolean {
+export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressing: BuilderAddressing, ethernet: BuilderEthernetConfig, routing: BuilderRoutingConfig, acl: BuilderAclConfig = challenge.broken.acl, nat: BuilderNatConfig = challenge.broken.nat): boolean {
   const fault = challenge.fault;
   if (fault.kind === 'missing-default-gateway') return addressing.defaultGateways[fault.nodeId] === fault.expectedGateway;
   if (fault.kind === 'access-vlan-mismatch') {
@@ -443,7 +513,10 @@ export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressi
   if (fault.kind === 'missing-static-route') {
     return routing.staticRoutes.some((route) => route.id === fault.expectedRoute.id && route.routerId === fault.expectedRoute.routerId && route.prefix === fault.expectedRoute.prefix && route.nextHop === fault.expectedRoute.nextHop && route.metric === fault.expectedRoute.metric);
   }
-  return routing.ospf.enabledRouterIds.includes(fault.nodeId) === fault.expectedEnabled;
+  if (fault.kind === 'ospf-router-disabled') return routing.ospf.enabledRouterIds.includes(fault.nodeId) === fault.expectedEnabled;
+  if (fault.kind === 'acl-objective-deny') return !acl.rules.some((rule) => rule.id === fault.blockingRule.id);
+  const boundary = nat.boundaries.find((entry) => entry.id === fault.boundaryId && entry.routerId === fault.nodeId);
+  return boundary?.enabled === fault.expectedEnabled;
 }
 
 export function builderChallengeSolvedExplanation(challenge: BuilderChallenge): string {
@@ -453,7 +526,9 @@ export function builderChallengeSolvedExplanation(challenge: BuilderChallenge): 
   if (fault.kind === 'trunk-vlan-pruned') return `VLAN ${fault.vlanId} was pruned from trunk ${fault.linkId.toUpperCase()}. Restoring the canonical allow-list (${fault.expectedAllowedVlans.join(', ')}) repaired the tagged path and the post-repair LAN flow verified it.`;
   if (fault.kind === 'stp-disabled-loop') return `STP was disabled while VLAN ${fault.vlanId} had a physical Layer-2 cycle. Re-enabling canonical STP restored a loop-safe forwarding tree and the post-repair LAN flow verified it.`;
   if (fault.kind === 'missing-static-route') return `${fault.nodeId.toUpperCase()} was missing static route ${fault.expectedRoute.prefix} via ${fault.expectedRoute.nextHop}. Restoring that canonical route repaired forwarding and the post-repair routed probe verified it.`;
-  return `${fault.nodeId.toUpperCase()} was not participating in OSPF. Re-enabling the canonical OSPF process restored route learning and the post-repair routed probe verified reachability.`;
+  if (fault.kind === 'ospf-router-disabled') return `${fault.nodeId.toUpperCase()} was not participating in OSPF. Re-enabling the canonical OSPF process restored route learning and the post-repair routed probe verified reachability.`;
+  if (fault.kind === 'acl-objective-deny') return `${fault.nodeId.toUpperCase()} had an explicit ICMP deny for the challenge source/destination. Removing the canonical blocking rule restored policy permission and the post-repair probe verified reachability.`;
+  return `${fault.nodeId.toUpperCase()} had the canonical NAT boundary disabled. Re-enabling it restored PAT translation; the post-repair NAT flow proved the tuple was translated rather than merely routed.`;
 }
 
 export function appendBuilderChallengeEvidence(
@@ -486,6 +561,8 @@ export function scoreBuilderChallenge(
   addressing: BuilderAddressing,
   ethernet: BuilderEthernetConfig,
   routing: BuilderRoutingConfig,
+  acl: BuilderAclConfig = challenge.broken.acl,
+  nat: BuilderNatConfig = challenge.broken.nat,
 ): BuilderChallengeScore {
   const inspectedState = hasEvidence(evidence, (entry) => entry.kind === 'inspect-state' && isFaultInspection(challenge, entry) && !entry.repaired);
   const inspectedConfig = hasEvidence(evidence, (entry) => entry.kind === 'inspect-config' && isFaultInspection(challenge, entry) && !entry.repaired);
@@ -497,11 +574,15 @@ export function scoreBuilderChallenge(
     const failedTraceroute = hasEvidence(evidence, (entry) => entry.kind === 'traceroute' && isObjectiveEvidence(challenge, entry) && entry.success === false && !entry.repaired);
     evidenceScore = (failedPing ? 10 : 0) + (failedTraceroute ? 10 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
     hasPrimaryDiagnostic = failedPing || failedTraceroute;
-  } else {
+  } else if (challenge.verification.kind === 'ethernet-flow') {
     const failedLanFlow = hasEvidence(evidence, (entry) => entry.kind === 'ethernet-flow' && isObjectiveEvidence(challenge, entry) && entry.success === false && !entry.repaired);
     const observedArp = hasEvidence(evidence, (entry) => entry.kind === 'arp-resolution' && isObjectiveEvidence(challenge, entry) && !entry.repaired);
     evidenceScore = (failedLanFlow ? 15 : 0) + (observedArp ? 5 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
     hasPrimaryDiagnostic = failedLanFlow;
+  } else {
+    const missingTranslation = hasEvidence(evidence, (entry) => entry.kind === 'nat-flow' && isObjectiveEvidence(challenge, entry) && entry.success === false && !entry.repaired);
+    evidenceScore = (missingTranslation ? 20 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
+    hasPrimaryDiagnostic = missingTranslation;
   }
 
   const hasInspectionEvidence = inspectedState || inspectedConfig;
@@ -510,10 +591,12 @@ export function scoreBuilderChallenge(
     ? (hypothesis.boundary === challenge.fault.boundary ? 10 : 0) + (hypothesis.deviceId === challenge.fault.nodeId ? 10 : 0)
     : 0;
 
-  const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet, routing);
+  const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet, routing, acl, nat);
   const verified = challenge.verification.kind === 'routed-probe'
     ? hasEvidence(evidence, (entry) => (entry.kind === 'ping' || entry.kind === 'traceroute') && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired)
-    : hasEvidence(evidence, (entry) => entry.kind === 'ethernet-flow' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired);
+    : challenge.verification.kind === 'ethernet-flow'
+      ? hasEvidence(evidence, (entry) => entry.kind === 'ethernet-flow' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired)
+      : hasEvidence(evidence, (entry) => entry.kind === 'nat-flow' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired);
   const repairScore = repaired ? 25 : 0;
   const verificationScore = repaired && verified ? 15 : 0;
   const total = evidenceScore + reasoningScore + repairScore + verificationScore;

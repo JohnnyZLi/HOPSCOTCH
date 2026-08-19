@@ -17,6 +17,7 @@ function evidenceLabel(entry: BuilderChallengeEvidence): string {
   if (entry.kind === 'traceroute') return 'TRACEROUTE';
   if (entry.kind === 'ethernet-flow') return 'LAN FLOW';
   if (entry.kind === 'arp-resolution') return 'ARP';
+  if (entry.kind === 'nat-flow') return 'NAT FLOW';
   if (entry.kind === 'inspect-config') return 'INSPECT CONFIG';
   if (entry.kind === 'inspect-state') return 'INSPECT STATE';
   return 'INSPECT EVENTS';
@@ -57,7 +58,7 @@ export default function BuilderChallengePanel({
     : challenge.broken.ethernet.devices.map((device) => ({ id: device.id, label: device.label, kind: device.kind }));
   const hypothesisDeviceLabel = devices.find((device) => device.id === hypothesis?.deviceId)?.label ?? hypothesis?.deviceId;
   const faultDeviceLabel = devices.find((device) => device.id === challenge.fault.nodeId)?.label ?? challenge.fault.nodeId;
-  const routedChallenge = challenge.verification.kind === 'routed-probe';
+  const verificationKind = challenge.verification.kind;
 
   const copyToken = async () => {
     try {
@@ -90,9 +91,11 @@ export default function BuilderChallengePanel({
 
     <div className="builder-challenge-instructions">
       <strong>USE THE NETWORK, NOT A HINT SYSTEM.</strong>
-      <p>{routedChallenge
+      <p>{verificationKind === 'routed-probe'
         ? 'Run the ordinary Builder Ping / Traceroute tools and inspect CONFIG / STATE / EVENTS in Device Workbench. Repair the network with the normal Builder configuration controls, then prove the repair with another objective probe.'
-        : 'Run the ordinary LAN SEND FRAME / PACKET flow, inspect its ARP result, and use CONFIG / STATE / EVENTS in Device Workbench. Repair the normal VLAN / trunk / STP controls, then rerun the exact LAN objective to prove the fix.'}</p>
+        : verificationKind === 'ethernet-flow'
+          ? 'Run the ordinary LAN SEND FRAME / PACKET flow, inspect its ARP result, and use CONFIG / STATE / EVENTS in Device Workbench. Repair the normal VLAN / trunk / STP controls, then rerun the exact LAN objective to prove the fix.'
+          : 'Run the ordinary NAT RUN OUTBOUND tool and inspect CONFIG / STATE / EVENTS in Device Workbench. A delivered but untranslated tuple is still a failed objective. Repair the canonical NAT boundary, then rerun the same outbound flow to prove PAT translation.'}</p>
     </div>
 
     <div className="builder-challenge-hypothesis">
