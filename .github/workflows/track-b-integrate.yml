@@ -87,4 +87,4 @@ jobs:
           git commit -m "Track B: integrate Builder authoring workspace"
           git push origin HEAD:agent/track-b-authoring-closeout
 
-# retrigger 2026-08-18
+# retrigger with open PR 2026-08-18
