@@ -1,0 +1,35 @@
+name: Track C import repair
+
+on:
+  push:
+    branches: [agent/track-c-enterprise-depth]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/track-c-enterprise-depth
+          fetch-depth: 0
+      - name: Restore STP clone import and self-clean
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/builder/ethernet.ts')
+          text = p.read_text()
+          old = "import { builderStpState, createDefaultBuilderStpConfig, validateBuilderStpConfig, type BuilderStpConfig } from './stp.ts';"
+          new = "import { builderStpState, cloneBuilderStpConfig, createDefaultBuilderStpConfig, validateBuilderStpConfig, type BuilderStpConfig } from './stp.ts';"
+          if old not in text:
+              raise SystemExit('expected Track C import anchor not found')
+          p.write_text(text.replace(old, new, 1))
+          Path('.github/workflows/track-c-import-repair.yml').unlink()
+          PY
+          git config user.name "Johnny"
+          git config user.email "92900710+JohnnyZLi@users.noreply.github.com"
+          git add src/builder/ethernet.ts .github/workflows/track-c-import-repair.yml
+          git commit -m "Track C: restore STP clone import"
+          git push origin HEAD:agent/track-c-enterprise-depth
