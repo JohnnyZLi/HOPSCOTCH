@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
+import { createDefaultBuilderAddressing, interfacesForBuilderNode } from '../src/builder/addressing.ts';
 import {
   BuilderCliCommandError,
   formatBuilderCliCommand,
   parseBuilderCliCommand,
   projectBuilderCliCommand,
+  projectBuilderCliState,
 } from '../src/builder/cli.ts';
+import { defaultBuilderGraph } from '../src/builder/model.ts';
+import { createDefaultBuilderRoutingConfig } from '../src/builder/routing.ts';
 
 function deepFreeze(value) {
   if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
@@ -112,4 +116,41 @@ for (const [command, code] of rejected) {
 assert.equal(formatBuilderCliCommand({ verb: 'show', target: 'route' }, suppliedState), routeOutput);
 assert.deepEqual(suppliedState, beforeProjection, 'the CLI projection must not mutate supplied canonical facts');
 
-console.log('Builder CLI contract passed: four read-only show projections, deterministic parsing/order, explicit empty state, fail-closed syntax, and immutable supplied truth.');
+const graph = structuredClone(defaultBuilderGraph);
+const addressing = createDefaultBuilderAddressing(graph);
+const routing = createDefaultBuilderRoutingConfig();
+const liveProjectionInput = deepFreeze({
+  graph,
+  addressing,
+  routing,
+  arpCache: suppliedState.arpEntries,
+  ethernetFlow: { fdb: suppliedState.macEntries },
+});
+const liveProjectionBefore = structuredClone(liveProjectionInput);
+const liveProjection = projectBuilderCliState(liveProjectionInput);
+const expectedInterfaceCount = graph.nodes.reduce((total, node) => total + interfacesForBuilderNode(addressing, node.id).length, 0);
+assert.equal(liveProjection.interfaces.length, expectedInterfaceCount, 'live projection must expose every canonical routed IPv4 interface');
+assert.ok(liveProjection.routes.length > 0, 'live projection must derive router RIB facts from canonical routing state');
+assert.deepEqual(liveProjection.arpEntries, suppliedState.arpEntries, 'live projection must expose supplied session ARP truth');
+assert.deepEqual(liveProjection.macEntries, suppliedState.macEntries, 'live projection must expose supplied session FDB truth');
+assert.notEqual(liveProjection.arpEntries, suppliedState.arpEntries, 'live projection must copy ARP rows rather than aliasing session state');
+assert.notEqual(liveProjection.macEntries, suppliedState.macEntries, 'live projection must copy MAC rows rather than aliasing session state');
+assert.deepEqual(liveProjectionInput, liveProjectionBefore, 'live CLI state projection must not mutate canonical/runtime input');
+
+const firstInterface = liveProjection.interfaces[0];
+assert.ok(firstInterface, 'default Builder graph must expose at least one routed interface');
+const interfaceConfig = interfacesForBuilderNode(addressing, firstInterface.deviceId).find((entry) => entry.name === firstInterface.interfaceName);
+assert.ok(interfaceConfig, 'projected interface must map back to canonical addressing truth');
+const failedGraph = structuredClone(graph);
+failedGraph.links = failedGraph.links.map((link) => link.id === interfaceConfig.linkId ? { ...link, failed: true } : link);
+const failedProjection = projectBuilderCliState({ ...liveProjectionInput, graph: failedGraph });
+const failedInterface = failedProjection.interfaces.find((entry) => entry.deviceId === firstInterface.deviceId && entry.interfaceName === firstInterface.interfaceName);
+assert.equal(failedInterface?.linkState, 'DOWN', 'physical link failure must project as interface LINK DOWN');
+assert.equal(failedInterface?.protocolState, 'DOWN', 'physical link failure must project as interface protocol DOWN');
+
+const historicalProjection = projectBuilderCliState({ ...liveProjectionInput, graph: failedGraph, truthGraphs: { ribGraph: graph } });
+assert.equal(historicalProjection.interfaces.find((entry) => entry.deviceId === firstInterface.deviceId && entry.interfaceName === firstInterface.interfaceName)?.linkState, 'DOWN');
+assert.deepEqual(historicalProjection.routes, liveProjection.routes, 'historical CLI projection must honor an explicit RIB truth graph independently of physical interface state');
+assert.match(projectBuilderCliCommand('show interfaces', liveProjection), /^DEVICE\s+INTERFACE\s+ADDRESS\s+LINK\s+PROTOCOL/m);
+
+console.log('Builder CLI contract passed: four read-only show projections, deterministic parsing/order, canonical live/historical state adapter, explicit empty state, fail-closed syntax, and immutable supplied truth.');
