@@ -24,8 +24,6 @@ const noop = () => undefined;
 
 export function StressHarness({ profile }: { profile: StressProfile }) {
   return <main className="app-shell stress-harness" data-stress-profile={profile}>
-    <div className="grid-field" aria-hidden="true" />
-    <div className="scene-vignette" aria-hidden="true" />
     {profile === 'as-density' && <InternetScaleTheater
       onExit={noop}
       onOpenObserved={noop}
