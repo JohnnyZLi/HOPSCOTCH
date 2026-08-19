@@ -2,7 +2,7 @@
 
 Track J turns the existing Builder into a troubleshooting-practice environment without creating a challenge-only network simulator.
 
-This document records the **implemented Track J foundation and Layer-2 expansion**, not Track J closeout. The first slice proved the architecture with a missing IPv4 default gateway. The second slice extends the same contracts through canonical access-VLAN, trunk-pruning, and STP-loop failures.
+This document is the **Track J closeout record**. The track now spans deterministic single-fault troubleshooting across addressing, Layer 2, routing, policy, services, IPv6 PMTU, and BGP plus one bounded two-fault composition mode. Every challenge still consumes the same canonical Builder truth and ordinary diagnostic/repair surfaces.
 
 ## Product invariant
 
@@ -206,30 +206,6 @@ The challenge panel is lazy-loaded and is never rendered in the Builder stress h
 
 The test remains part of `npm run check`.
 
-## Remaining Track J work
-
-Gateway + the first L2 families establish the reusable challenge subsystem, but Track J is not closed.
-
-Remaining canonical fault depth includes:
-
-- addressing beyond the default gateway,
-- native-VLAN and deeper STP behavior,
-- dedicated ARP/ND failures beyond ARP as evidence,
-- connected/static/dynamic routing failures,
-- OSPF adjacency/policy failures,
-- deeper ACL/NAT composition beyond the shipped single-fault policy families,
-- deeper DHCP relay/options failures beyond the shipped missing-gateway-option family,
-- additional MTU / PMTUD cases beyond the shipped IPv6 reduced-path-MTU family,
-- deeper DNS behavior beyond the shipped deterministic missing-name family,
-- deeper transport behavior beyond the shipped disabled-listener family,
-- deeper BGP best-path / relationship-policy failures beyond the shipped import-deny family,
-- later bounded multi-fault composition after the single-fault catalog is trustworthy.
-
-Difficulty should come from modeled topology, fault composition, observability, and protocol depth—not from hiding canonical facts or inventing misleading answer text.
-
-The long-horizon procedural challenge generator remains Track S3 in `ROADMAP-MOONSHOTS.md`; Track J is the bounded product path that proves the experience first.
-
-
 ## Third slice — routing and OSPF
 
 The routed troubleshooting catalog now includes two additional deterministic canonical fault families:
@@ -300,3 +276,35 @@ Track J now includes a deterministic `bgp-*` / `bgp-policy-*` family built on th
 The broken snapshot adds exactly one canonical import-policy object. Depending on the seed, either EDGE denies the APP service prefix on the EDGE ↔ R1 session or CORE denies the CLIENT return prefix on the R1 ↔ CORE session. BGP sessions remain ESTABLISHED; the failure is policy, not fabricated peering loss. Ordinary Ping / Traceroute exposes the reachability break, the BGP RIB and Device Workbench expose route/policy truth, and the existing BGP policy delete control performs the repair.
 
 Scoring remains the common 40 evidence + 20 causal reasoning + 25 exact canonical repair + 15 post-repair objective verification contract. The challenge panel remains absent from stress mode, and no challenge-specific BGP route computation or policy evaluator exists.
+
+## Ninth slice — bounded multi-fault composition and closeout
+
+Track J closes with `multi-*` / `composed-*`, a deliberately bounded two-fault mode rather than a random fault pile.
+
+Two deterministic compositions ship: missing CLIENT default gateway → objective-specific CORE post-NAT ACL deny, and disabled OSPF participation on EDGE → objective-specific CORE post-NAT ACL deny. Both use the same healthy OSPF-routed CLIENT → APP baseline. The first failure can mask the second; after exactly one repair the objective still fails from the remaining canonical fault.
+
+The composed hypothesis contains two ordered boundary/device pairs. Evidence remains capped at 40: initial failed Ping (10), initial failed Traceroute (10), first-location inspection (5), second-location inspection (5), and a failed objective after exactly one repair (10). Reasoning remains 20 across both ordered hypotheses; exact repair remains 25 only after both faults are canonical; verification remains 15 only after the objective passes at repair stage `ALL`.
+
+Challenge launch/restart no longer auto-focuses mutated devices or links. Every family now opens on the objective source (or LAN/DHCP source), so UI selection state cannot leak the answer location.
+
+The schema/token stays `hopscotch.builder.challenge` v1 / `HOP-J1.<seed>`. Existing seeds preserve previous behavior; composed seeds add optional second-fault metadata and session-only repair-stage evidence.
+
+### Closed Track J product contract
+
+- challenge metadata never changes network truth,
+- every fault is a canonical Builder configuration mutation,
+- ordinary Builder surfaces provide evidence and perform repairs,
+- evidence, hypotheses, scores, and repair stages remain session-only,
+- verification is objective-scoped,
+- single-fault and composed tokens are deterministic,
+- challenge UI remains absent from stress Builder,
+- no performance or compatibility ceiling is widened.
+
+## Post-closeout depth
+
+Track J is closed as the bounded deterministic troubleshooting product track. The shipped catalog covers gateway/addressing, VLAN/trunk/STP, static routing, OSPF participation, ACL, NAT/PAT, DHCP options, IPv6 PMTU/ND evidence, DNS naming, transport listeners, BGP import policy, and bounded two-fault composition.
+
+Deeper protocol-specific cases remain valid future depth, but they are no longer Track J blockers. Native-VLAN edge cases, DHCP relay, additional PMTUD variants, BGP best-path/relationship-policy puzzles, and larger procedural generators belong in later depth tracks or the moonshot roadmap.
+
+Difficulty must continue to come from canonical topology, composition, observability, and protocol state—not hidden facts, answer-only state, or misleading text. The long-horizon procedural challenge generator remains Track S3 in `ROADMAP-MOONSHOTS.md`.
+

@@ -2,11 +2,13 @@ import assert from 'node:assert/strict';
 import {
   appendBuilderChallengeEvidence,
   builderChallengeIsRepaired,
+  builderChallengeRepairStage,
   builderChallengeToken,
   createAccessVlanChallenge,
   createAclDenyChallenge,
   createBuilderChallenge,
   createBgpImportPolicyChallenge,
+  createComposedChallenge,
   createDefaultGatewayChallenge,
   createDhcpGatewayChallenge,
   createDnsNameChallenge,
@@ -20,6 +22,7 @@ import {
   scoreBuilderChallenge,
   seedFromBuilderChallengeToken,
 } from '../src/builder/challenges.ts';
+import { deleteBuilderAclRule } from '../src/builder/acl.ts';
 import { resolveBuilderEthernetFlowArp } from '../src/builder/arp.ts';
 import { runBuilderApplicationTransaction, upsertBuilderHostedService } from '../src/builder/application.ts';
 import { builderBgpState, deleteBuilderBgpPolicy } from '../src/builder/bgp.ts';
@@ -35,7 +38,7 @@ import { updateBuilderLinkProfile } from '../src/builder/link-characteristics.ts
 import { runBuilderEthernetFlow, validateBuilderEthernetConfig } from '../src/builder/ethernet.ts';
 import { runBuilderNatOutboundFlow, validateBuilderNatConfig } from '../src/builder/nat.ts';
 import { runBuilderProbe } from '../src/builder/probes.ts';
-import { validateBuilderRoutingConfig } from '../src/builder/routing.ts';
+import { setBuilderOspfRouterEnabled, validateBuilderRoutingConfig } from '../src/builder/routing.ts';
 
 function runPing(snapshot, sequence = 1) {
   return runBuilderProbe(
@@ -52,6 +55,8 @@ function runPing(snapshot, sequence = 1) {
     [],
   );
 }
+
+function scoreSnapshot(challenge,evidence,hypothesis,snapshot){return scoreBuilderChallenge(challenge,evidence,hypothesis,snapshot.addressing,snapshot.ethernet,snapshot.routing,snapshot.acl,snapshot.nat,snapshot.dhcp,snapshot.linkProfiles,snapshot.services??[]);}
 
 function runApplication(snapshot, serviceId, sequence = 1) {
   return runBuilderApplicationTransaction({ graph:snapshot.graph, addressing:snapshot.addressing, routing:snapshot.routing, ethernet:snapshot.ethernet, linkProfiles:snapshot.linkProfiles, acl:snapshot.acl, nat:snapshot.nat, natSessions:clearBuilderNatSessions(), dhcp:snapshot.dhcp, dhcpLeases:clearBuilderDhcpLeases(), dhcpSequence:1, ipv6:snapshot.ipv6, ipv6ControlState:createBuilderIpv6ControlState(), ipv6RoutingDepth:createDefaultBuilderIpv6RoutingDepthState(snapshot.graph), arpCache:clearBuilderArpCache() }, snapshot.services ?? [], snapshot.sourceId, serviceId, 'ipv4', sequence);
@@ -344,6 +349,34 @@ for(const bgpChallenge of bgpChallenges){
   scoreRoutedChallenge(bgpChallenge,repairedRouting,'POLICY');
 }
 
+
+const composedChallenges=['multi-contract-001','multi-contract-002'].map((seed)=>createComposedChallenge(seed));
+assert.deepEqual(new Set(composedChallenges.map((challenge)=>challenge.fault.kind)),new Set(['missing-default-gateway','ospf-router-disabled']));
+for(const c of composedChallenges){
+  assert.equal(c.family,'multi-fault');assert.equal(c.difficulty,'COMPOSED');assert.equal(c.secondaryFault?.kind,'acl-objective-deny');assert.deepEqual(c,createBuilderChallenge(c.seed));
+  const initial=runPing(c.broken,302);assert.equal(runPing(c.healthy,301).success,true);assert.equal(initial.success,false);assert.equal(builderChallengeRepairStage(c,c.broken.addressing,c.broken.ethernet,c.broken.routing,c.broken.acl,c.broken.nat,c.broken.dhcp,c.broken.linkProfiles,c.broken.services??[]),'NONE');
+  assert.notEqual(c.fault.nodeId,c.secondaryFault.nodeId,'composed faults must require inspection of two distinct device locations');
+  const secondaryFirst=structuredClone(c.broken);secondaryFirst.acl=deleteBuilderAclRule(secondaryFirst.graph,secondaryFirst.acl,c.secondaryFault.blockingRule.id);
+  assert.equal(builderChallengeRepairStage(c,secondaryFirst.addressing,secondaryFirst.ethernet,secondaryFirst.routing,secondaryFirst.acl,secondaryFirst.nat,secondaryFirst.dhcp,secondaryFirst.linkProfiles,secondaryFirst.services??[]),'SECONDARY_ONLY');
+  assert.equal(runPing(secondaryFirst,305).success,false,'secondary-first repair must leave the primary failure active');
+  const one=structuredClone(c.broken);
+  if(c.fault.kind==='missing-default-gateway')one.addressing=structuredClone(c.healthy.addressing);else one.routing=setBuilderOspfRouterEnabled(one.graph,one.addressing,one.routing,c.fault.nodeId,true);
+  assert.equal(builderChallengeRepairStage(c,one.addressing,one.ethernet,one.routing,one.acl,one.nat,one.dhcp,one.linkProfiles,one.services??[]),'PRIMARY_ONLY');
+  const masked=runPing(one,303);assert.equal(masked.success,false,'one repair must still expose the remaining policy failure');
+  const fixed=structuredClone(one);if(c.secondaryFault?.kind!=='acl-objective-deny')throw new Error('Expected composed ACL fault');fixed.acl=deleteBuilderAclRule(fixed.graph,fixed.acl,c.secondaryFault.blockingRule.id);
+  assert.equal(builderChallengeRepairStage(c,fixed.addressing,fixed.ethernet,fixed.routing,fixed.acl,fixed.nat,fixed.dhcp,fixed.linkProfiles,fixed.services??[]),'ALL');assert.deepEqual(fixed.addressing,c.healthy.addressing);assert.deepEqual(fixed.routing,c.healthy.routing);assert.deepEqual(fixed.acl,c.healthy.acl);assert.equal(runPing(fixed,304).success,true);
+  const o=c.verification,h={boundary:c.fault.boundary,deviceId:c.fault.nodeId,secondaryBoundary:c.secondaryFault.boundary,secondaryDeviceId:c.secondaryFault.nodeId};let e=[];
+  e=appendBuilderChallengeEvidence(e,{kind:'ping',sourceId:o.sourceId,destinationId:o.destinationId,success:false,repaired:false,repairStage:'NONE',detail:initial.summary});
+  e=appendBuilderChallengeEvidence(e,{kind:'traceroute',sourceId:o.sourceId,destinationId:o.destinationId,success:false,repaired:false,repairStage:'NONE',detail:'Initial composed traceroute fails.'});
+  e=appendBuilderChallengeEvidence(e,{kind:'inspect-config',deviceId:c.fault.nodeId,devicePlane:c.fault.plane,repaired:false,repairStage:'NONE',detail:'Inspected first fault.'});
+  e=appendBuilderChallengeEvidence(e,{kind:'inspect-state',deviceId:c.secondaryFault.nodeId,devicePlane:c.secondaryFault.plane,repaired:false,repairStage:'NONE',detail:'Inspected second fault.'});
+  assert.deepEqual(scoreSnapshot(c,e,h,c.broken),{evidence:30,reasoning:0,repair:0,verification:0,total:30,repaired:false,verified:false,solved:false});
+  e=appendBuilderChallengeEvidence(e,{kind:'ping',sourceId:o.sourceId,destinationId:o.destinationId,success:false,repaired:false,repairStage:'PRIMARY_ONLY',detail:masked.summary});
+  assert.deepEqual(scoreSnapshot(c,e,h,one),{evidence:40,reasoning:20,repair:0,verification:0,total:60,repaired:false,verified:false,solved:false});assert.equal(scoreSnapshot(c,e,h,fixed).total,85);
+  e=appendBuilderChallengeEvidence(e,{kind:'ping',sourceId:o.sourceId,destinationId:o.destinationId,success:true,repaired:true,repairStage:'ALL',detail:'Fully repaired objective passed.'});
+  assert.deepEqual(scoreSnapshot(c,e,h,fixed),{evidence:40,reasoning:20,repair:25,verification:15,total:100,repaired:true,verified:true,solved:true});
+}
+
 const pmtuChallenge=createIpv6PmtuChallenge('mtu-contract-001');
 assert.equal(pmtuChallenge.family,'ipv6-pmtu');
 assert.equal(pmtuChallenge.fault.kind,'path-mtu-reduced');
@@ -433,9 +466,9 @@ const repairedTransportApp=runApplication({...transportChallenge.broken,services
 transportEvidence=appendBuilderChallengeEvidence(transportEvidence,{kind:'application-transaction',sourceId:transportChallenge.verification.sourceId,destinationId:transportChallenge.verification.destinationId,serviceId:transportChallenge.verification.serviceId,success:true,applicationBoundary:null,repaired:true,detail:repairedTransportApp.summary});
 assert.deepEqual(scoreBuilderChallenge(transportChallenge,transportEvidence,transportHypothesis,transportChallenge.broken.addressing,transportChallenge.broken.ethernet,transportChallenge.broken.routing,transportChallenge.broken.acl,transportChallenge.broken.nat,transportChallenge.broken.dhcp,transportChallenge.broken.linkProfiles,repairedTransportServices),{evidence:40,reasoning:20,repair:25,verification:15,total:100,repaired:true,verified:true,solved:true});
 
-for (const challenge of [access, trunk, stp, staticRoute, ospf, aclChallenge, natChallenge, dhcpChallenge, ...bgpChallenges, pmtuChallenge, dnsChallenge, transportChallenge]) {
+for (const challenge of [access, trunk, stp, staticRoute, ospf, aclChallenge, natChallenge, dhcpChallenge, ...bgpChallenges, ...composedChallenges, pmtuChallenge, dnsChallenge, transportChallenge]) {
   const challengeToken = builderChallengeToken(challenge);
   assert.deepEqual(createBuilderChallenge(seedFromBuilderChallengeToken(challengeToken)), challenge, `${challenge.family} token must reproduce exact deterministic truth`);
 }
 
-console.log('Builder Track J challenge contract passed: gateway plus seeded L2/routing/policy/BGP-import/DHCP/IPv6-PMTU/DNS-name/transport-listener faults use canonical truth, ordinary probe/LAN/NAT/DHCP/ND/PMTUD/application/BGP state evidence, exact repair, objective-scoped verification, causal scoring, and reproducible tokens.');
+console.log('Builder Track J challenge contract passed: single-fault catalog plus bounded two-fault composition use canonical truth, ordinary diagnostic surfaces, exact repair, objective-scoped verification, causal scoring, reproducible tokens, and no challenge-only network model.');

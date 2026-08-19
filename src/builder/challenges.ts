@@ -16,9 +16,10 @@ export const BUILDER_CHALLENGE_VERSION = 1 as const;
 export const BUILDER_CHALLENGE_EVIDENCE_LIMIT = 40;
 
 export type BuilderChallengeBoundary = 'ADDRESSING' | 'DNS' | 'L2' | 'ROUTING' | 'POLICY' | 'TRANSPORT';
+export type BuilderChallengeRepairStage = 'NONE' | 'PRIMARY_ONLY' | 'SECONDARY_ONLY' | 'ALL';
 export type BuilderChallengeDevicePlane = 'routed' | 'ethernet';
 export type BuilderChallengeEvidenceKind = 'ping' | 'traceroute' | 'ethernet-flow' | 'arp-resolution' | 'nat-flow' | 'dhcp-transaction' | 'ipv6-nd' | 'application-transaction' | 'inspect-config' | 'inspect-state' | 'inspect-events';
-export type BuilderChallengeFamily = 'gateway' | 'access-vlan' | 'trunk-vlan' | 'stp-loop' | 'static-route' | 'ospf-disabled' | 'acl-deny' | 'nat-disabled' | 'dhcp-gateway' | 'ipv6-pmtu' | 'dns-name' | 'transport-listener' | 'bgp-import-policy';
+export type BuilderChallengeFamily = 'gateway' | 'access-vlan' | 'trunk-vlan' | 'stp-loop' | 'static-route' | 'ospf-disabled' | 'acl-deny' | 'nat-disabled' | 'dhcp-gateway' | 'ipv6-pmtu' | 'dns-name' | 'transport-listener' | 'bgp-import-policy' | 'multi-fault';
 
 export interface BuilderGatewayChallengeFault {
   kind: 'missing-default-gateway';
@@ -160,11 +161,12 @@ export interface BuilderChallenge {
   family: BuilderChallengeFamily;
   title: string;
   objective: string;
-  difficulty: 'FOUNDATION';
+  difficulty: 'FOUNDATION' | 'COMPOSED';
   healthy: BuilderAuthoringSnapshot;
   broken: BuilderAuthoringSnapshot;
   verification: BuilderChallengeVerification;
   fault: BuilderChallengeFault;
+  secondaryFault?: BuilderChallengeFault;
 }
 
 export interface BuilderChallengeEvidenceInput {
@@ -180,6 +182,7 @@ export interface BuilderChallengeEvidenceInput {
   ndResolutionCount?: number | null;
   serviceId?: string | null;
   applicationBoundary?: BuilderApplicationTruthBoundary | null;
+  repairStage?: BuilderChallengeRepairStage;
   repaired: boolean;
   detail: string;
 }
@@ -192,6 +195,8 @@ export interface BuilderChallengeEvidence extends BuilderChallengeEvidenceInput 
 export interface BuilderChallengeHypothesis {
   boundary: BuilderChallengeBoundary;
   deviceId: string;
+  secondaryBoundary?: BuilderChallengeBoundary;
+  secondaryDeviceId?: string;
 }
 
 export interface BuilderChallengeScore {
@@ -516,7 +521,7 @@ export function createOspfDisabledChallenge(seedInput: string): BuilderChallenge
     id: `ospf-${hash.toString(16).padStart(8, '0')}`,
     seed,
     family: 'ospf-disabled',
-    title: 'OSPF EDGE FALLS SILENT',
+    title: 'OSPF ROUTER FALLS SILENT',
     objective: 'Restore IPv4 reachability from CLIENT to APP. Physical links remain up; diagnose the routed control plane with ordinary probes, route/neighbor state, and Device Workbench before restoring OSPF participation.',
     difficulty: 'FOUNDATION',
     healthy,
@@ -712,6 +717,33 @@ export function createBgpImportPolicyChallenge(seedInput: string): BuilderChalle
   };
 }
 
+
+export function createComposedChallenge(seedInput: string): BuilderChallenge {
+  const seed=normalizeSeed(seedInput), hash=hashSeed(seed), healthy=defaultHealthySnapshot();
+  healthy.sourceId='client'; healthy.destinationId='app';
+  const sourceAddress=interfacesForBuilderNode(healthy.addressing,'client')[0]?.address;
+  const destinationAddress=interfacesForBuilderNode(healthy.addressing,'app')[0]?.address;
+  const natBoundary=healthy.nat.boundaries.find((entry)=>entry.routerId==='edge'&&entry.enabled);
+  if(!sourceAddress||!destinationAddress||!natBoundary)throw new Error('The composed challenge requires canonical CLIENT/APP IPv4 addresses and the enabled EDGE NAT boundary.');
+  const translatedSource=natBoundary.overloadAddress;
+  const blockingRule:BuilderAclRule={id:`challenge-multi-acl-${hash.toString(16).padStart(8,'0')}`,routerId:'core',order:5,action:'deny',protocol:'icmp',sourcePrefix:`${translatedSource}/32`,destinationPrefix:`${destinationAddress}/32`,destinationPort:null,description:'Track J composed post-NAT objective ICMP deny'};
+  const broken=createBuilderAuthoringSnapshot(healthy);
+  broken.acl=upsertBuilderAclRule(broken.graph,broken.acl,blockingRule);
+  const secondaryFault:BuilderAclDenyChallengeFault={kind:'acl-objective-deny',boundary:'POLICY',plane:'routed',nodeId:'core',blockingRule};
+  let fault:BuilderGatewayChallengeFault|BuilderOspfDisabledChallengeFault;
+  if(hash%2===0){
+    const expectedGateway=healthy.addressing.defaultGateways.client;
+    if(!expectedGateway)throw new Error('The composed gateway branch requires the canonical CLIENT default gateway.');
+    broken.addressing.defaultGateways.client=null;
+    broken.addressing=validateBuilderAddressing(broken.graph,broken.addressing);
+    fault={kind:'missing-default-gateway',boundary:'ADDRESSING',plane:'routed',nodeId:'client',expectedGateway};
+  }else{
+    broken.routing=setBuilderOspfRouterEnabled(broken.graph,broken.addressing,broken.routing,'edge',false);
+    fault={kind:'ospf-router-disabled',boundary:'ROUTING',plane:'routed',nodeId:'edge',expectedEnabled:true};
+  }
+  return{schema:BUILDER_CHALLENGE_SCHEMA,version:BUILDER_CHALLENGE_VERSION,id:`multi-${hash.toString(16).padStart(8,'0')}`,seed,family:'multi-fault',title:'TWO FAILURES, ONE SYMPTOM',objective:'Restore CLIENT → APP IPv4 reachability. Two independent canonical faults are active and one can mask the other. Use ordinary probes and Device Workbench to identify an ordered two-step causal hypothesis, repair both with normal Builder controls, and verify only after both faults are restored.',difficulty:'COMPOSED',healthy,broken,verification:{kind:'routed-probe',sourceId:'client',destinationId:'app'},fault,secondaryFault};
+}
+
 export function createBuilderChallenge(seedInput: string): BuilderChallenge {
   const seed = normalizeSeed(seedInput);
   const lowered = seed.toLowerCase();
@@ -727,6 +759,7 @@ export function createBuilderChallenge(seedInput: string): BuilderChallenge {
   if (lowered.startsWith('dns-')) return createDnsNameChallenge(seed);
   if (lowered.startsWith('transport-') || lowered.startsWith('tcp-') || lowered.startsWith('listener-')) return createTransportListenerChallenge(seed);
   if (lowered.startsWith('bgp-') || lowered.startsWith('bgp-policy-')) return createBgpImportPolicyChallenge(seed);
+  if (lowered.startsWith('multi-') || lowered.startsWith('composed-')) return createComposedChallenge(seed);
   return createDefaultGatewayChallenge(seed);
 }
 
@@ -749,40 +782,34 @@ function sameNumberArray(left: readonly number[] | undefined, right: readonly nu
   return normalized.length === right.length && normalized.every((value, index) => value === right[index]);
 }
 
-export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressing: BuilderAddressing, ethernet: BuilderEthernetConfig, routing: BuilderRoutingConfig, acl: BuilderAclConfig = challenge.broken.acl, nat: BuilderNatConfig = challenge.broken.nat, dhcp: BuilderDhcpConfig = challenge.broken.dhcp, linkProfiles: BuilderLinkProfiles = challenge.broken.linkProfiles, services: readonly BuilderHostedService[] = challenge.broken.services ?? []): boolean {
-  const fault = challenge.fault;
-  if (fault.kind === 'missing-default-gateway') return addressing.defaultGateways[fault.nodeId] === fault.expectedGateway;
-  if (fault.kind === 'access-vlan-mismatch') {
-    const link = ethernet.links.find((entry) => entry.id === fault.linkId);
-    return link?.mode === 'access' && link.accessVlan === fault.expectedAccessVlan;
-  }
-  if (fault.kind === 'trunk-vlan-pruned') {
-    const link = ethernet.links.find((entry) => entry.id === fault.linkId);
-    return link?.mode === 'trunk' && sameNumberArray(link.allowedVlans, fault.expectedAllowedVlans);
-  }
-  if (fault.kind === 'stp-disabled-loop') return ethernet.stp.enabled === fault.expectedEnabled;
-  if (fault.kind === 'missing-static-route') {
-    return routing.staticRoutes.some((route) => route.id === fault.expectedRoute.id && route.routerId === fault.expectedRoute.routerId && route.prefix === fault.expectedRoute.prefix && route.nextHop === fault.expectedRoute.nextHop && route.metric === fault.expectedRoute.metric);
-  }
-  if (fault.kind === 'ospf-router-disabled') return routing.ospf.enabledRouterIds.includes(fault.nodeId) === fault.expectedEnabled;
-  if (fault.kind === 'acl-objective-deny') return !acl.rules.some((rule) => rule.id === fault.blockingRule.id);
-  if (fault.kind === 'nat-boundary-disabled') {
-    const boundary = nat.boundaries.find((entry) => entry.id === fault.boundaryId && entry.routerId === fault.nodeId);
-    return boundary?.enabled === fault.expectedEnabled;
-  }
-  if (fault.kind === 'dhcp-gateway-option-missing') {
-    const pool = dhcp.pools.find((entry) => entry.id === fault.poolId && entry.serverDeviceId === fault.nodeId);
-    return pool?.gateway === fault.expectedGateway;
-  }
-  if (fault.kind === 'path-mtu-reduced') return linkProfiles[fault.linkId]?.mtuBytes === fault.expectedMtuBytes;
-  if (fault.kind === 'bgp-import-deny') return !routing.bgp.policies.some((rule) => rule.id === fault.blockingPolicy.id);
-  const service = services.find((entry) => entry.id === fault.serviceId && entry.nodeId === fault.nodeId);
-  if (fault.kind === 'service-hostname-missing') return service?.hostname === fault.expectedHostname;
-  return service?.enabled === fault.expectedEnabled;
+function challengeFaultIsRepaired(fault:BuilderChallengeFault,addressing:BuilderAddressing,ethernet:BuilderEthernetConfig,routing:BuilderRoutingConfig,acl:BuilderAclConfig,nat:BuilderNatConfig,dhcp:BuilderDhcpConfig,linkProfiles:BuilderLinkProfiles,services:readonly BuilderHostedService[]):boolean{
+  if(fault.kind==='missing-default-gateway')return addressing.defaultGateways[fault.nodeId]===fault.expectedGateway;
+  if(fault.kind==='access-vlan-mismatch'){const link=ethernet.links.find((entry)=>entry.id===fault.linkId);return link?.mode==='access'&&link.accessVlan===fault.expectedAccessVlan;}
+  if(fault.kind==='trunk-vlan-pruned'){const link=ethernet.links.find((entry)=>entry.id===fault.linkId);return link?.mode==='trunk'&&sameNumberArray(link.allowedVlans,fault.expectedAllowedVlans);}
+  if(fault.kind==='stp-disabled-loop')return ethernet.stp.enabled===fault.expectedEnabled;
+  if(fault.kind==='missing-static-route')return routing.staticRoutes.some((route)=>route.id===fault.expectedRoute.id&&route.routerId===fault.expectedRoute.routerId&&route.prefix===fault.expectedRoute.prefix&&route.nextHop===fault.expectedRoute.nextHop&&route.metric===fault.expectedRoute.metric);
+  if(fault.kind==='ospf-router-disabled')return routing.ospf.enabledRouterIds.includes(fault.nodeId)===fault.expectedEnabled;
+  if(fault.kind==='acl-objective-deny')return !acl.rules.some((rule)=>rule.id===fault.blockingRule.id);
+  if(fault.kind==='nat-boundary-disabled'){const boundary=nat.boundaries.find((entry)=>entry.id===fault.boundaryId&&entry.routerId===fault.nodeId);return boundary?.enabled===fault.expectedEnabled;}
+  if(fault.kind==='dhcp-gateway-option-missing'){const pool=dhcp.pools.find((entry)=>entry.id===fault.poolId&&entry.serverDeviceId===fault.nodeId);return pool?.gateway===fault.expectedGateway;}
+  if(fault.kind==='path-mtu-reduced')return linkProfiles[fault.linkId]?.mtuBytes===fault.expectedMtuBytes;
+  if(fault.kind==='bgp-import-deny')return !routing.bgp.policies.some((rule)=>rule.id===fault.blockingPolicy.id);
+  const service=services.find((entry)=>entry.id===fault.serviceId&&entry.nodeId===fault.nodeId);
+  return fault.kind==='service-hostname-missing'?service?.hostname===fault.expectedHostname:service?.enabled===fault.expectedEnabled;
+}
+export function builderChallengeRepairStage(challenge:BuilderChallenge,addressing:BuilderAddressing,ethernet:BuilderEthernetConfig,routing:BuilderRoutingConfig,acl:BuilderAclConfig=challenge.broken.acl,nat:BuilderNatConfig=challenge.broken.nat,dhcp:BuilderDhcpConfig=challenge.broken.dhcp,linkProfiles:BuilderLinkProfiles=challenge.broken.linkProfiles,services:readonly BuilderHostedService[]=challenge.broken.services??[]):BuilderChallengeRepairStage{
+  const primary=challengeFaultIsRepaired(challenge.fault,addressing,ethernet,routing,acl,nat,dhcp,linkProfiles,services);
+  if(!challenge.secondaryFault)return primary?'ALL':'NONE';
+  const secondary=challengeFaultIsRepaired(challenge.secondaryFault,addressing,ethernet,routing,acl,nat,dhcp,linkProfiles,services);
+  return primary&&secondary?'ALL':primary?'PRIMARY_ONLY':secondary?'SECONDARY_ONLY':'NONE';
+}
+export function builderChallengeIsRepaired(challenge:BuilderChallenge,addressing:BuilderAddressing,ethernet:BuilderEthernetConfig,routing:BuilderRoutingConfig,acl:BuilderAclConfig=challenge.broken.acl,nat:BuilderNatConfig=challenge.broken.nat,dhcp:BuilderDhcpConfig=challenge.broken.dhcp,linkProfiles:BuilderLinkProfiles=challenge.broken.linkProfiles,services:readonly BuilderHostedService[]=challenge.broken.services??[]):boolean{
+  return builderChallengeRepairStage(challenge,addressing,ethernet,routing,acl,nat,dhcp,linkProfiles,services)==='ALL';
 }
 
 export function builderChallengeSolvedExplanation(challenge: BuilderChallenge): string {
   const fault = challenge.fault;
+  if(challenge.secondaryFault){const first=fault.kind==='missing-default-gateway'?`${fault.nodeId.toUpperCase()} was missing its canonical default gateway`:fault.kind==='ospf-router-disabled'?`${fault.nodeId.toUpperCase()} was not participating in OSPF`:`${fault.nodeId.toUpperCase()} carried the first canonical fault`;const second=challenge.secondaryFault.kind==='acl-objective-deny'?`${challenge.secondaryFault.nodeId.toUpperCase()} carried an explicit ICMP deny for the objective`:`${challenge.secondaryFault.nodeId.toUpperCase()} carried the second canonical fault`;return `Two independent faults were active: ${first}, then ${second}. Restoring both canonical fields and rerunning the same CLIENT → APP probe closed the composed causal chain.`;}
   if (fault.kind === 'missing-default-gateway') return `The endpoint had no default gateway. Restoring canonical gateway ${fault.expectedGateway} repaired forwarding, and the post-repair routed probe verified the outcome.`;
   if (fault.kind === 'access-vlan-mismatch') return `The access port ${fault.linkId.toUpperCase()} was assigned to VLAN ${fault.brokenAccessVlan} instead of VLAN ${fault.expectedAccessVlan}. Restoring the canonical access VLAN repaired ARP and Layer-2 forwarding.`;
   if (fault.kind === 'trunk-vlan-pruned') return `VLAN ${fault.vlanId} was pruned from trunk ${fault.linkId.toUpperCase()}. Restoring the canonical allow-list (${fault.expectedAllowedVlans.join(', ')}) repaired the tagged path and the post-repair LAN flow verified it.`;
@@ -818,9 +845,7 @@ function isObjectiveEvidence(challenge: BuilderChallenge, entry: BuilderChalleng
   return challenge.verification.kind !== 'application-transaction' || entry.serviceId === challenge.verification.serviceId;
 }
 
-function isFaultInspection(challenge: BuilderChallenge, entry: BuilderChallengeEvidence): boolean {
-  return entry.deviceId === challenge.fault.nodeId && entry.devicePlane === challenge.fault.plane;
-}
+function isFaultInspection(fault:BuilderChallengeFault,entry:BuilderChallengeEvidence):boolean{return entry.deviceId===fault.nodeId&&entry.devicePlane===fault.plane;}
 
 export function scoreBuilderChallenge(
   challenge: BuilderChallenge,
@@ -835,8 +860,24 @@ export function scoreBuilderChallenge(
   linkProfiles: BuilderLinkProfiles = challenge.broken.linkProfiles,
   services: readonly BuilderHostedService[] = challenge.broken.services ?? [],
 ): BuilderChallengeScore {
-  const inspectedState = hasEvidence(evidence, (entry) => entry.kind === 'inspect-state' && isFaultInspection(challenge, entry) && !entry.repaired);
-  const inspectedConfig = hasEvidence(evidence, (entry) => entry.kind === 'inspect-config' && isFaultInspection(challenge, entry) && !entry.repaired);
+  const inspectedState = hasEvidence(evidence, (entry) => entry.kind === 'inspect-state' && isFaultInspection(challenge.fault, entry) && !entry.repaired);
+  const inspectedConfig = hasEvidence(evidence, (entry) => entry.kind === 'inspect-config' && isFaultInspection(challenge.fault, entry) && !entry.repaired);
+
+  if(challenge.secondaryFault){
+    const secondary=challenge.secondaryFault;
+    const failedPing=hasEvidence(evidence,(entry)=>entry.kind==='ping'&&isObjectiveEvidence(challenge,entry)&&entry.success===false&&entry.repairStage==='NONE');
+    const failedTrace=hasEvidence(evidence,(entry)=>entry.kind==='traceroute'&&isObjectiveEvidence(challenge,entry)&&entry.success===false&&entry.repairStage==='NONE');
+    const firstInspect=hasEvidence(evidence,(entry)=>(entry.kind==='inspect-state'||entry.kind==='inspect-config')&&isFaultInspection(challenge.fault,entry)&&entry.repairStage!=='ALL');
+    const secondInspect=hasEvidence(evidence,(entry)=>(entry.kind==='inspect-state'||entry.kind==='inspect-config')&&isFaultInspection(secondary,entry)&&entry.repairStage!=='ALL');
+    const oneRepairFailure=hasEvidence(evidence,(entry)=>(entry.kind==='ping'||entry.kind==='traceroute')&&isObjectiveEvidence(challenge,entry)&&entry.success===false&&(entry.repairStage==='PRIMARY_ONLY'||entry.repairStage==='SECONDARY_ONLY'));
+    const evidenceScore=(failedPing?10:0)+(failedTrace?10:0)+(firstInspect?5:0)+(secondInspect?5:0)+(oneRepairFailure?10:0);
+    const eligible=(failedPing||failedTrace)&&firstInspect&&secondInspect&&oneRepairFailure;
+    const reasoningScore=eligible&&hypothesis?(hypothesis.boundary===challenge.fault.boundary?5:0)+(hypothesis.deviceId===challenge.fault.nodeId?5:0)+(hypothesis.secondaryBoundary===secondary.boundary?5:0)+(hypothesis.secondaryDeviceId===secondary.nodeId?5:0):0;
+    const repaired=builderChallengeIsRepaired(challenge,addressing,ethernet,routing,acl,nat,dhcp,linkProfiles,services);
+    const verified=hasEvidence(evidence,(entry)=>(entry.kind==='ping'||entry.kind==='traceroute')&&isObjectiveEvidence(challenge,entry)&&entry.success===true&&entry.repairStage==='ALL'&&entry.repaired);
+    const repairScore=repaired?25:0,verificationScore=repaired&&verified?15:0;
+    return{evidence:evidenceScore,reasoning:reasoningScore,repair:repairScore,verification:verificationScore,total:evidenceScore+reasoningScore+repairScore+verificationScore,repaired,verified:repaired&&verified,solved:repaired&&verified};
+  }
 
   let evidenceScore = 0;
   let hasPrimaryDiagnostic = false;
