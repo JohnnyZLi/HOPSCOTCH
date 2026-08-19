@@ -62,12 +62,14 @@ export interface BuilderFlowDataPlaneObservation {
   congestionWindowPackets: number | null;
   congestionSignal: BuilderEcnSignal;
   recovery: 'NONE' | 'ECN BACKOFF' | 'LOSS RECOVERY' | 'UDP UNRESPONSIVE';
+  finalSendingRateMbps: number;
+  backoffEvents: number;
 }
 
 export interface BuilderDataPlaneEvent {
   id: string;
   atMs: number;
-  kind: 'QUEUE_GROWTH' | 'ECN_MARK' | 'TAIL_DROP' | 'TRANSPORT_BACKOFF' | 'QUEUE_DRAINED';
+  kind: 'QUEUE_GROWTH' | 'ECN_MARK' | 'TAIL_DROP' | 'TRANSPORT_BACKOFF' | 'TRANSPORT_RECOVERY' | 'QUEUE_DRAINED';
   flowId: string | null;
   linkId: string;
   summary: string;
@@ -231,6 +233,10 @@ export function runBuilderTrafficScenario(profiles: BuilderLinkProfiles, input: 
   const flowQueueDelay = new Map<string, number>();
   const flowQueueSamples = new Map<string, number>();
   const flowSerialization = new Map<string, number>();
+  const flowRateFactor = new Map<string, number>(scenario.flows.map((flow) => [flow.id, 1]));
+  const flowLastMarks = new Map<string, number>();
+  const flowLastDrops = new Map<string, number>();
+  const flowBackoffs = new Map<string, number>();
   const queueSamples: BuilderQueueSample[] = [];
   const events: BuilderDataPlaneEvent[] = [];
   const flowById = new Map(scenario.flows.map((flow) => [flow.id, flow]));
@@ -238,7 +244,8 @@ export function runBuilderTrafficScenario(profiles: BuilderLinkProfiles, input: 
   for (let atMs = 0; atMs < scenario.durationMs; atMs += scenario.tickMs) {
     const pending = scenario.flows.map((flow) => {
       if (!activeAt(flow, atMs)) return { flow, packets: 0 };
-      const packetsExact = flow.offeredRateMbps * 1_000_000 / 8 * (scenario.tickMs / 1000) / flow.packetBytes + (generatedRemainder.get(flow.id) ?? 0);
+      const rateFactor = flow.transport === 'udp' ? 1 : (flowRateFactor.get(flow.id) ?? 1);
+      const packetsExact = flow.offeredRateMbps * rateFactor * 1_000_000 / 8 * (scenario.tickMs / 1000) / flow.packetBytes + (generatedRemainder.get(flow.id) ?? 0);
       const packets = Math.min(2000, Math.floor(packetsExact));
       generatedRemainder.set(flow.id, packetsExact - packets);
       return { flow, packets };
@@ -285,6 +292,27 @@ export function runBuilderTrafficScenario(profiles: BuilderLinkProfiles, input: 
       if (before > 0 && after === 0) events.push({ id: `drain:${linkId}:${atMs}`, atMs, kind: 'QUEUE_DRAINED', flowId: null, linkId, summary: `${linkId} queue drained.` });
       if (queueSamples.length < MAX_QUEUE_SAMPLES) queueSamples.push({ atMs, linkId, occupancyPackets: after, capacityPackets: profile.queuePackets, utilization: Math.min(1, state.txBytes * 8 / (profile.bandwidthMbps * 1_000_000 * Math.max(scenario.tickMs, atMs + scenario.tickMs) / 1000)), ecnMarks: state.ecnMarks, tailDrops: state.tailDrops });
     }
+
+    for (const flow of scenario.flows) {
+      if (flow.transport === 'udp') continue;
+      const marks = flowMarks.get(flow.id) ?? 0;
+      const drops = flowDrops.get(flow.id) ?? 0;
+      const priorMarks = flowLastMarks.get(flow.id) ?? 0;
+      const priorDrops = flowLastDrops.get(flow.id) ?? 0;
+      const currentFactor = flowRateFactor.get(flow.id) ?? 1;
+      if (marks > priorMarks || drops > priorDrops) {
+        const nextFactor = Math.max(0.25, currentFactor * 0.5);
+        flowRateFactor.set(flow.id, nextFactor);
+        flowBackoffs.set(flow.id, (flowBackoffs.get(flow.id) ?? 0) + 1);
+        events.push({ id: `backoff:${flow.id}:${atMs}`, atMs: atMs + scenario.tickMs, kind: 'TRANSPORT_BACKOFF', flowId: flow.id, linkId: flow.pathLinkIds[0], summary: `${flow.id} reduced sending pressure to ${(nextFactor * 100).toFixed(0)}% after ${marks - priorMarks} new CE marks and ${drops - priorDrops} new drops.` });
+      } else if (currentFactor < 1) {
+        const nextFactor = Math.min(1, currentFactor + 0.05);
+        flowRateFactor.set(flow.id, nextFactor);
+        if (nextFactor === 1) events.push({ id: `recover:${flow.id}:${atMs}`, atMs: atMs + scenario.tickMs, kind: 'TRANSPORT_RECOVERY', flowId: flow.id, linkId: flow.pathLinkIds[0], summary: `${flow.id} returned to its configured offered rate after clean queue feedback.` });
+      }
+      flowLastMarks.set(flow.id, marks);
+      flowLastDrops.set(flow.id, drops);
+    }
   }
 
   const links: BuilderLinkDataPlaneObservation[] = allLinkIds.map((linkId) => {
@@ -307,10 +335,9 @@ export function runBuilderTrafficScenario(profiles: BuilderLinkProfiles, input: 
     const signal: BuilderEcnSignal = ecnMarks > 0 ? (flow.transport === 'tcp' ? 'ECE/CWR' : flow.transport === 'quic' ? 'ACK_ECN' : 'CE') : 'NONE';
     const recovery = flow.transport === 'udp' && (ecnMarks > 0 || droppedPackets > 0) ? 'UDP UNRESPONSIVE' : droppedPackets > 0 ? 'LOSS RECOVERY' : ecnMarks > 0 ? 'ECN BACKOFF' : 'NONE';
     const cwnd = flow.transport === 'udp' ? null : droppedPackets > 0 || ecnMarks > 0 ? 6 : 12;
-    return { id: flow.id, transport: flow.transport, offeredRateMbps: flow.offeredRateMbps, deliveredRateMbps, deliveredPackets, droppedPackets, ecnMarks, averageQueueDelayMs: avgQueue, averageSerializationDelayMs: avgSerialization, estimatedRttMs: 2 * path.oneWayLatencyMs + avgQueue + avgSerialization, congestionWindowPackets: cwnd, congestionSignal: signal, recovery };
+    return { id: flow.id, transport: flow.transport, offeredRateMbps: flow.offeredRateMbps, deliveredRateMbps, deliveredPackets, droppedPackets, ecnMarks, averageQueueDelayMs: avgQueue, averageSerializationDelayMs: avgSerialization, estimatedRttMs: 2 * path.oneWayLatencyMs + avgQueue + avgSerialization, congestionWindowPackets: cwnd, congestionSignal: signal, recovery, finalSendingRateMbps: flow.offeredRateMbps * (flow.transport === 'udp' ? 1 : (flowRateFactor.get(flow.id) ?? 1)), backoffEvents: flowBackoffs.get(flow.id) ?? 0 };
   });
 
-  for (const flow of flows) if (flow.recovery === 'ECN BACKOFF' || flow.recovery === 'LOSS RECOVERY') events.push({ id: `backoff:${flow.id}`, atMs: scenario.durationMs, kind: 'TRANSPORT_BACKOFF', flowId: flow.id, linkId: scenario.flows.find((candidate) => candidate.id === flow.id)!.pathLinkIds[0], summary: `${flow.id} ${flow.recovery.toLowerCase()} from canonical queue feedback (${flow.ecnMarks} CE, ${flow.droppedPackets} drops).` });
   const bottleneck = links.slice().sort((a, b) => b.utilization - a.utilization || b.peakQueuePackets - a.peakQueuePackets || a.linkId.localeCompare(b.linkId))[0] ?? null;
   return { scenario, queueSamples, links, flows, events: events.sort((a, b) => a.atMs - b.atMs || a.id.localeCompare(b.id)), bottleneckLinkId: bottleneck?.linkId ?? null, summary: bottleneck ? `${scenario.pattern.toUpperCase()} · bottleneck ${bottleneck.linkId} ${(bottleneck.utilization * 100).toFixed(0)}% · ${bottleneck.ecnMarks} CE · ${bottleneck.tailDrops} drops` : 'No data-plane links.', provenance: 'SIMULATED' };
 }
