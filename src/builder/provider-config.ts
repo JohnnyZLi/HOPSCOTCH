@@ -12,7 +12,7 @@ export interface BuilderProviderConfig { tunnels:BuilderTunnelConfig[];mpls:{ena
 
 function ipInt(value:string){return normalizeBuilderIpv4(value).split('.').reduce((n,p)=>((n<<8)|Number(p))>>>0,0)>>>0;}
 function prefix(value:string){const [raw,lenText,...extra]=String(value??'').trim().split('/');const len=Number(lenText);if(!raw||extra.length||!Number.isInteger(len)||len<0||len>32)throw new Error(`Invalid IPv4 prefix ${value}.`);const address=ipInt(raw),mask=len===0?0:(0xffffffff<<(32-len))>>>0,network=(address&mask)>>>0;return{cidr:`${[24,16,8,0].map((s)=>(network>>>s)&255).join('.')}/${len}`,network,mask};}
-function contains(cidr:string,address:string){const p=prefix(cidr);return (ipInt(address)&p.mask)===p.network;}
+function contains(cidr:string,address:string){const p=prefix(cidr);return ((ipInt(address)&p.mask)>>>0)===p.network;}
 function text(value:unknown,max=100){return String(value??'').trim().slice(0,max);}
 function id(value:unknown,label:string,seen:Set<string>){const result=text(value,160);if(!result||!/^[a-zA-Z0-9_.:-]+$/.test(result)||seen.has(result))throw new Error(`${label} needs a unique id.`);seen.add(result);return result;}
 function mac(value:unknown){const raw=String(value??'').trim().toLowerCase().replaceAll('-',':');if(!/^[0-9a-f]{2}(:[0-9a-f]{2}){5}$/.test(raw))throw new Error(`Invalid MAC address ${String(value)}.`);return raw;}
