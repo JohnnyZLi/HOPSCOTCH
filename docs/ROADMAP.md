@@ -182,21 +182,33 @@ The existing report-v2 adapter already carried the required native facts, so Tra
 
 ## Current priority order
 
-With captured evidence, application truth, causal replay, authoring, enterprise depth, data-plane realism, routing policy, provider overlays, and native/public evidence correlation closed, the next highest-value work is deterministic troubleshooting practice over canonical broken networks.
+Captured evidence, application truth, causal replay, authoring, enterprise depth, data-plane realism, routing policy, provider overlays, native/public evidence correlation, and deterministic troubleshooting practice are now closed product tracks.
 
-### 1. Track J — troubleshooting challenges
+### Completed active track — Track J troubleshooting challenges
 
-- [ ] generate deterministic broken networks from canonical configuration/state rather than hand-authored answer text
-- [ ] cover addressing, gateway, VLAN, trunk, STP, ARP/ND, routing, OSPF, ACL, NAT, DHCP, MTU, DNS, transport, and BGP policy failures
-- [ ] users diagnose with normal Builder inspectors/probes, not challenge-only shortcuts
-- [ ] score evidence gathering and causal reasoning, not just the final repair
-- [ ] reproducible challenge seeds and shareable scenarios
+- [x] deterministic broken networks come from canonical Builder configuration/state rather than hand-authored answer text
+- [x] catalog spans gateway/addressing, VLAN, trunk, STP, ARP/ND evidence, static/OSPF routing, ACL, NAT, DHCP, IPv6 PMTU, DNS, transport, and BGP import policy
+- [x] diagnosis and repair use ordinary Builder probes, inspectors, Workbench, and canonical controls
+- [x] scoring separates evidence, causal reasoning, exact repair, and objective verification
+- [x] reproducible `HOP-J1` seeds preserve deterministic truth
+- [x] bounded two-fault composition requires ordered hypotheses and proof that a second fault remains after one repair
+- [x] challenge launch no longer auto-focuses mutated devices/links
+
+`docs/TRACKJ.md` is the closeout architecture and validation record.
+
+---
+
+## Current priority order
+
+### 1. Track K — vendor-neutral HOPSCOTCH CLI
+
+Track K is now the highest-value regular product track. Its read-only command model already exists; the next slice should expose the actual Builder terminal surface before expanding protocol commands.
 
 ---
 
 ## Remaining regular tracks
 
-These remain real product work. They should follow Track J unless a bounded dependency requires a different order.
+These remain real product work. They should follow Track K unless a bounded dependency requires a different order.
 
 ### Track K — vendor-neutral HOPSCOTCH CLI
 

@@ -49,19 +49,26 @@ export default function BuilderChallengePanel({
 }) {
   const [boundary, setBoundary] = useState<BuilderChallengeBoundary | ''>('');
   const [deviceId, setDeviceId] = useState('');
+  const [secondaryBoundary,setSecondaryBoundary]=useState<BuilderChallengeBoundary|''>('');
+  const [secondaryDeviceId,setSecondaryDeviceId]=useState('');
 
   useEffect(() => {
     setBoundary('');
     setDeviceId('');
+    setSecondaryBoundary(''); setSecondaryDeviceId('');
   }, [challenge.id]);
 
   const token = builderChallengeToken(challenge);
-  const devices = challenge.fault.plane === 'routed'
-    ? challenge.broken.graph.nodes.map((node) => ({ id: node.id, label: node.label, kind: node.kind }))
-    : challenge.broken.ethernet.devices.map((device) => ({ id: device.id, label: device.label, kind: device.kind }));
-  const hypothesisDeviceLabel = devices.find((device) => device.id === hypothesis?.deviceId)?.label ?? hypothesis?.deviceId;
-  const faultDeviceLabel = devices.find((device) => device.id === challenge.fault.nodeId)?.label ?? challenge.fault.nodeId;
+  const routedDevices=challenge.broken.graph.nodes.map((node)=>({id:node.id,label:node.label,kind:node.kind}));
+  const ethernetDevices=challenge.broken.ethernet.devices.map((device)=>({id:device.id,label:device.label,kind:device.kind}));
+  const devices=challenge.fault.plane==='routed'?routedDevices:ethernetDevices;
+  const secondaryDevices=challenge.secondaryFault?(challenge.secondaryFault.plane==='routed'?routedDevices:ethernetDevices):[];
+  const hypothesisDeviceLabel=devices.find((device)=>device.id===hypothesis?.deviceId)?.label??hypothesis?.deviceId;
+  const secondaryHypothesisDeviceLabel=secondaryDevices.find((device)=>device.id===hypothesis?.secondaryDeviceId)?.label??hypothesis?.secondaryDeviceId;
+  const faultDeviceLabel=devices.find((device)=>device.id===challenge.fault.nodeId)?.label??challenge.fault.nodeId;
+  const secondaryFaultDeviceLabel=challenge.secondaryFault?secondaryDevices.find((device)=>device.id===challenge.secondaryFault?.nodeId)?.label??challenge.secondaryFault.nodeId:null;
   const verificationKind = challenge.verification.kind;
+  const composed=Boolean(challenge.secondaryFault);
 
   const copyToken = async () => {
     try {
@@ -82,7 +89,7 @@ export default function BuilderChallengePanel({
 
     <div className="builder-challenge-status">
       <div><span>SCORE</span><strong>{score.total}<small>/100</small></strong></div>
-      <div><span>REPAIR</span><strong>{score.repaired ? 'CANONICAL FIX' : 'FAULT ACTIVE'}</strong></div>
+      <div><span>REPAIR</span><strong>{score.repaired?'CANONICAL FIX':composed?'FAULTS ACTIVE':'FAULT ACTIVE'}</strong></div>
       <div><span>VERIFY</span><strong>{score.verified ? 'PROVEN' : 'NOT PROVEN'}</strong></div>
     </div>
     <div className="builder-challenge-scoreline">
@@ -94,7 +101,7 @@ export default function BuilderChallengePanel({
 
     <div className="builder-challenge-instructions">
       <strong>USE THE NETWORK, NOT A HINT SYSTEM.</strong>
-      <p>{challenge.family === 'bgp-import-policy'
+      <p>{composed?'Two canonical faults are active. Establish the initial failure, inspect both suspected locations, and rerun the objective after one repair to prove another fault remains. Lock an ordered two-step causal hypothesis, repair both with normal Builder controls, then verify the same objective after the network is fully restored.':challenge.family === 'bgp-import-policy'
         ? 'Run the ordinary Builder Ping / Traceroute tools, inspect the BGP RIB and IMPORT / EXPORT POLICY panel, and inspect CONFIG / STATE / EVENTS on the suspected router in Device Workbench. Remove the blocking canonical BGP policy with the normal BGP control, then prove the repair with the same objective probe.'
         : verificationKind === 'routed-probe'
         ? 'Run the ordinary Builder Ping / Traceroute tools and inspect CONFIG / STATE / EVENTS in Device Workbench. Repair the network with the normal Builder configuration controls, then prove the repair with another objective probe.'
@@ -110,15 +117,16 @@ export default function BuilderChallengePanel({
     </div>
 
     <div className="builder-challenge-hypothesis">
-      <span>CAUSAL HYPOTHESIS</span>
+      <span>{composed?'ORDERED CAUSAL HYPOTHESIS':'CAUSAL HYPOTHESIS'}</span>
       {hypothesis
-        ? <strong>{hypothesis.boundary} · {hypothesisDeviceLabel}</strong>
+        ? <><strong>FIRST · {hypothesis.boundary} · {hypothesisDeviceLabel}</strong>{composed&&<strong>SECOND · {hypothesis.secondaryBoundary??'—'} · {secondaryHypothesisDeviceLabel??'—'}</strong>}</>
         : <>
-          <label>FIRST BROKEN BOUNDARY<select value={boundary} disabled={historical} onChange={(event) => setBoundary(event.currentTarget.value as BuilderChallengeBoundary | '')}><option value="">CHOOSE…</option>{BOUNDARIES.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-          <label>PRIMARY FAULT LOCATION<select value={deviceId} disabled={historical} onChange={(event) => setDeviceId(event.currentTarget.value)}><option value="">CHOOSE…</option>{devices.map((device) => <option key={device.id} value={device.id}>{device.label} · {device.kind.toUpperCase()}</option>)}</select></label>
-          <button type="button" disabled={historical || !boundary || !deviceId} onClick={() => { if (boundary && deviceId) onLockHypothesis({ boundary, deviceId }); }}>LOCK HYPOTHESIS</button>
+          <label>FIRST BROKEN BOUNDARY<select value={boundary} disabled={historical} onChange={(event)=>setBoundary(event.currentTarget.value as BuilderChallengeBoundary|'')}><option value="">CHOOSE…</option>{BOUNDARIES.map((value)=><option key={value} value={value}>{value}</option>)}</select></label>
+          <label>PRIMARY FAULT LOCATION<select value={deviceId} disabled={historical} onChange={(event)=>setDeviceId(event.currentTarget.value)}><option value="">CHOOSE…</option>{devices.map((device)=><option key={device.id} value={device.id}>{device.label} · {device.kind.toUpperCase()}</option>)}</select></label>
+          {composed&&<><label>SECOND BROKEN BOUNDARY<select value={secondaryBoundary} disabled={historical} onChange={(event)=>setSecondaryBoundary(event.currentTarget.value as BuilderChallengeBoundary|'')}><option value="">CHOOSE…</option>{BOUNDARIES.map((value)=><option key={value} value={value}>{value}</option>)}</select></label><label>SECOND FAULT LOCATION<select value={secondaryDeviceId} disabled={historical} onChange={(event)=>setSecondaryDeviceId(event.currentTarget.value)}><option value="">CHOOSE…</option>{secondaryDevices.map((device)=><option key={device.id} value={device.id}>{device.label} · {device.kind.toUpperCase()}</option>)}</select></label></>}
+          <button type="button" disabled={historical||!boundary||!deviceId||(composed&&(!secondaryBoundary||!secondaryDeviceId))} onClick={()=>{if(!boundary||!deviceId)return;onLockHypothesis({boundary,deviceId,...(composed&&secondaryBoundary&&secondaryDeviceId?{secondaryBoundary,secondaryDeviceId}:{})});}}>LOCK HYPOTHESIS</button>
         </>}
-      <small>Reasoning points require both failed objective evidence and inspection of the primary fault location before the hypothesis can score.</small>
+      <small>{composed?'Composed reasoning requires an initial failure, inspection of both fault locations, and another failed objective after exactly one canonical fault has been repaired.':'Reasoning points require both failed objective evidence and inspection of the primary fault location before the hypothesis can score.'}</small>
     </div>
 
     <div className="builder-challenge-evidence">
@@ -134,7 +142,7 @@ export default function BuilderChallengePanel({
 
     {score.solved && <div className="builder-challenge-solved">
       <span>CAUSAL CHAIN CLOSED</span>
-      <strong>{challenge.fault.boundary} · {faultDeviceLabel}</strong>
+      <strong>{challenge.fault.boundary} · {faultDeviceLabel}{challenge.secondaryFault?` → ${challenge.secondaryFault.boundary} · ${secondaryFaultDeviceLabel}`:''}</strong>
       <p>{builderChallengeSolvedExplanation(challenge)}</p>
     </div>}
 
