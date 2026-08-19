@@ -1,12 +1,12 @@
-import { cloneBuilderAddressing, validateBuilderAddressing, type BuilderAddressing } from './addressing.ts';
-import { cloneBuilderAclConfig, type BuilderAclConfig } from './acl.ts';
-import { cloneBuilderDhcpConfig, type BuilderDhcpConfig } from './dhcp.ts';
-import { cloneBuilderEthernetConfig, updateBuilderEthernetLink, type BuilderEthernetConfig } from './ethernet.ts';
-import { cloneBuilderIpv6Config, type BuilderIpv6Config } from './ipv6.ts';
-import { cloneBuilderLinkProfiles, type BuilderLinkProfiles } from './link-characteristics.ts';
-import { BUILDER_LIMITS, cloneBuilderGraph, cloneBuilderLayout, type BuilderGraph, type BuilderLayout, type BuilderLink, type BuilderNode, type BuilderPoint } from './model.ts';
-import { cloneBuilderNatConfig, type BuilderNatConfig } from './nat.ts';
-import { cloneBuilderRoutingConfig, type BuilderRoutingConfig } from './routing.ts';
+import { validateBuilderAddressing, type BuilderAddressing } from './addressing.ts';
+import type { BuilderAclConfig } from './acl.ts';
+import type { BuilderDhcpConfig } from './dhcp.ts';
+import { updateBuilderEthernetLink, type BuilderEthernetConfig } from './ethernet.ts';
+import type { BuilderIpv6Config } from './ipv6.ts';
+import type { BuilderLinkProfiles } from './link-characteristics.ts';
+import { BUILDER_LIMITS, type BuilderGraph, type BuilderLayout, type BuilderLink, type BuilderNode, type BuilderPoint } from './model.ts';
+import type { BuilderNatConfig } from './nat.ts';
+import type { BuilderRoutingConfig } from './routing.ts';
 
 export const BUILDER_AUTHORING_LIMITS = {
   historyEntries: 40,
@@ -100,21 +100,12 @@ export interface BuilderAuthoringSession {
 
 const TEMPLATE_STORAGE_KEY = 'hopscotch.builder.authoring.templates.v1';
 
+function cloneValue<T>(value: T): T {
+  return structuredClone(value);
+}
+
 function cloneSnapshot(snapshot: Readonly<BuilderAuthoringSnapshot>): BuilderAuthoringSnapshot {
-  return {
-    graph: cloneBuilderGraph(snapshot.graph),
-    addressing: cloneBuilderAddressing(snapshot.addressing),
-    routing: cloneBuilderRoutingConfig(snapshot.routing),
-    ethernet: cloneBuilderEthernetConfig(snapshot.ethernet),
-    linkProfiles: cloneBuilderLinkProfiles(snapshot.linkProfiles),
-    acl: cloneBuilderAclConfig(snapshot.acl),
-    nat: cloneBuilderNatConfig(snapshot.nat),
-    dhcp: cloneBuilderDhcpConfig(snapshot.dhcp),
-    ipv6: cloneBuilderIpv6Config(snapshot.ipv6),
-    sourceId: snapshot.sourceId,
-    destinationId: snapshot.destinationId,
-    layout: cloneBuilderLayout(snapshot.layout),
-  };
+  return cloneValue(snapshot);
 }
 
 export function createBuilderAuthoringSnapshot(snapshot: Readonly<BuilderAuthoringSnapshot>): BuilderAuthoringSnapshot {
@@ -180,9 +171,9 @@ export function reconcileBuilderAuthoringSession(session: Readonly<BuilderAuthor
 
 export function copyBuilderTopologySelection(graph: Readonly<BuilderGraph>, layout: Readonly<BuilderLayout>, selectedNodeIds: readonly string[]): BuilderAuthoringClipboard | null {
   const selected = new Set(selectedNodeIds);
-  const nodes = graph.nodes.filter((node) => selected.has(node.id)).map((node) => ({ ...node }));
+  const nodes = graph.nodes.filter((node) => selected.has(node.id)).map((node) => cloneValue(node));
   if (nodes.length === 0) return null;
-  const links = graph.links.filter((link) => selected.has(link.a) && selected.has(link.b)).map((link) => ({ ...link }));
+  const links = graph.links.filter((link) => selected.has(link.a) && selected.has(link.b)).map((link) => cloneValue(link));
   const copiedLayout: Record<string, BuilderPoint> = {};
   for (const node of nodes) {
     const point = layout[node.id];
@@ -215,26 +206,26 @@ export function pasteBuilderTopologySelection(graph: Readonly<BuilderGraph>, lay
   const nodes = clipboard.nodes.map((node) => {
     const id = nextCopyId(node.id, nodeIds);
     idMap.set(node.id, id);
-    return { ...node, id, label: `${node.label} COPY`, builtin: false };
+    return { ...cloneValue(node), id, label: `${node.label} COPY`, builtin: false };
   });
   const links = clipboard.links.map((link) => ({
-    ...link,
+    ...cloneValue(link),
     id: nextCopyId(link.id, linkIds),
     a: idMap.get(link.a) ?? link.a,
     b: idMap.get(link.b) ?? link.b,
     builtin: false,
   }));
-  const nextLayout = cloneBuilderLayout(layout);
+  const nextLayout = cloneValue(layout) as BuilderLayout;
   for (const node of clipboard.nodes) {
     const targetId = idMap.get(node.id);
     const point = clipboard.layout[node.id];
     if (targetId && point) nextLayout[targetId] = { x: clampPoint(point.x + offset), y: clampPoint(point.y + offset) };
   }
-  return { graph: { nodes: [...graph.nodes.map((node) => ({ ...node })), ...nodes], links: [...graph.links.map((link) => ({ ...link })), ...links] }, layout: nextLayout, selectedNodeIds: nodes.map((node) => node.id) };
+  return { graph: { nodes: [...graph.nodes.map((node) => cloneValue(node)), ...nodes], links: [...graph.links.map((link) => cloneValue(link)), ...links] }, layout: nextLayout, selectedNodeIds: nodes.map((node) => node.id) };
 }
 
 export function applyBuilderLayoutOperation(layout: Readonly<BuilderLayout>, selectedNodeIds: readonly string[], operation: BuilderLayoutOperation): BuilderLayout {
-  const next = cloneBuilderLayout(layout);
+  const next = cloneValue(layout) as BuilderLayout;
   const points = selectedNodeIds.flatMap((id) => next[id] ? [{ id, point: next[id] }] : []);
   if (points.length < 2) return next;
   const xs = points.map(({ point }) => point.x);
@@ -309,7 +300,7 @@ export function listStoredBuilderAuthoringTemplates(): BuilderAuthoringTemplate[
 }
 
 export function saveStoredBuilderAuthoringTemplates(templates: readonly BuilderAuthoringTemplate[]): BuilderAuthoringTemplate[] {
-  const next = templates.slice(0, BUILDER_AUTHORING_LIMITS.templates).map((template) => ({ ...template, nodes: template.nodes.map((node) => ({ ...node })), links: template.links.map((link) => ({ ...link })), layout: Object.fromEntries(Object.entries(template.layout).map(([id, point]) => [id, { ...point }])) }));
+  const next = cloneValue(templates.slice(0, BUILDER_AUTHORING_LIMITS.templates)) as BuilderAuthoringTemplate[];
   if (typeof window !== 'undefined') window.localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(next));
   return next;
 }
@@ -327,17 +318,16 @@ export function bulkRenameBuilderNodes(graph: Readonly<BuilderGraph>, selectedNo
   const normalized = prefix.trim().slice(0, 24);
   if (!normalized) throw new Error('Device label prefix cannot be empty.');
   let index = 0;
-  return {
-    ...cloneBuilderGraph(graph),
-    nodes: graph.nodes.map((node) => selected.has(node.id) ? { ...node, label: `${normalized}${++index}`.slice(0, 48) } : { ...node }),
-  };
+  const next = cloneValue(graph) as BuilderGraph;
+  next.nodes = next.nodes.map((node) => selected.has(node.id) ? { ...node, label: `${normalized}${++index}`.slice(0, 48) } : node);
+  return next;
 }
 
 export function bulkRenameBuilderInterfaces(graph: Readonly<BuilderGraph>, addressing: Readonly<BuilderAddressing>, selectedNodeIds: readonly string[], prefix: string): BuilderAddressing {
   const selected = new Set(selectedNodeIds);
   const normalized = prefix.trim().slice(0, 20);
   if (!normalized) throw new Error('Interface name prefix cannot be empty.');
-  const next = cloneBuilderAddressing(addressing);
+  const next = cloneValue(addressing) as BuilderAddressing;
   const counters = new Map<string, number>();
   for (const segment of Object.values(next.segments).sort((left, right) => left.linkId.localeCompare(right.linkId))) {
     segment.interfaces = segment.interfaces.map((entry) => {
@@ -347,20 +337,19 @@ export function bulkRenameBuilderInterfaces(graph: Readonly<BuilderGraph>, addre
       return { ...entry, name: `${normalized}${index}`.slice(0, 32) };
     }) as typeof segment.interfaces;
   }
-  return validateBuilderAddressing(graph, next);
+  return validateBuilderAddressing(graph as BuilderGraph, next);
 }
 
 export function bulkUpdateBuilderInternalLinks(graph: Readonly<BuilderGraph>, selectedNodeIds: readonly string[], patch: Readonly<{ cost?: number; failed?: boolean }>): BuilderGraph {
   const selected = new Set(selectedNodeIds);
   if (patch.cost != null && (!Number.isInteger(patch.cost) || patch.cost < BUILDER_LIMITS.minCost || patch.cost > BUILDER_LIMITS.maxCost)) throw new Error(`Link cost must be ${BUILDER_LIMITS.minCost}–${BUILDER_LIMITS.maxCost}.`);
-  return {
-    ...cloneBuilderGraph(graph),
-    links: graph.links.map((link) => selected.has(link.a) && selected.has(link.b) ? { ...link, ...patch } : { ...link }),
-  };
+  const next = cloneValue(graph) as BuilderGraph;
+  next.links = next.links.map((link) => selected.has(link.a) && selected.has(link.b) ? { ...link, ...patch } : link);
+  return next;
 }
 
 export function bulkUpdateBuilderEthernetLinks(config: Readonly<BuilderEthernetConfig>, linkIds: readonly string[], patch: Parameters<typeof updateBuilderEthernetLink>[2]): BuilderEthernetConfig {
-  let next = cloneBuilderEthernetConfig(config);
+  let next = cloneValue(config) as BuilderEthernetConfig;
   for (const id of [...new Set(linkIds)].sort()) next = updateBuilderEthernetLink(next, id, patch);
   return next;
 }
