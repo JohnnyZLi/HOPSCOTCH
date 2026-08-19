@@ -30,6 +30,7 @@ jobs:
             echo "console.log('Applied Track J IPv6 PMTU + neighbor-resolution challenge slice.');" >> /tmp/track-j-mtu-helper.mjs
             mv /tmp/track-j-mtu-helper.mjs scripts/apply-track-j-mtu-neighbor-slice.mjs
             node scripts/apply-track-j-mtu-neighbor-slice.mjs
+            python -c "from pathlib import Path; p=Path('src/builder/device-workbench.ts'); t=p.read_text(); p.write_text(t.replace(');})) : [];', ');}) : [];'))"
           fi
       - run: npm ci
       - run: npm run check
