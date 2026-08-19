@@ -35,7 +35,7 @@ export interface BuilderIsisInjectedRoute {
   originRouterId: string;
   prefix: string;
   metric: number;
-  source: 'connected' | 'static' | 'ospf' | 'bgp' | 'summary';
+  source: 'connected' | 'static' | 'ospf' | 'bgp' | 'isis' | 'summary';
   routeTag: number;
   redistributionRuleId: string | null;
   summaryId: string | null;

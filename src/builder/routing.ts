@@ -479,8 +479,8 @@ export function builderEcmpRoutesForDestination(entries: readonly BuilderRouteTa
   return matches.filter((entry) => entry.prefix === best.prefix && entry.prefixLength === best.prefixLength && entry.administrativeDistance === best.administrativeDistance && ospfRank(entry) === ospfRank(best) && entry.metric === best.metric).sort((a, b) => a.id.localeCompare(b.id));
 }
 
-export function selectBuilderRouteWithDecision(entries: readonly BuilderRouteTableEntry[], destinationAddress: string, flowKey: BuilderFlowKey | string | null = null): BuilderRouteSelection {
-  const candidates = builderEcmpRoutesForDestination(entries, destinationAddress).slice(0,Math.max(1,Math.min(16,arguments.length>3?Number(arguments[3])||16:16)));
+export function selectBuilderRouteWithDecision(entries: readonly BuilderRouteTableEntry[], destinationAddress: string, flowKey: BuilderFlowKey | string | null = null, maxPaths = 16): BuilderRouteSelection {
+  const candidates = builderEcmpRoutesForDestination(entries, destinationAddress).slice(0,Math.max(1,Math.min(16,Math.round(Number(maxPaths)||16))));
   if (candidates.length === 0) return { route: null, candidates: [], flowKey: null, flowHash: null, selectedIndex: null };
   const canonical = canonicalFlowKey(flowKey, destinationAddress);
   if (candidates.length === 1 || canonical === null) return { route: candidates[0], candidates, flowKey: canonical, flowHash: null, selectedIndex: 0 };
@@ -580,5 +580,5 @@ export const nextHopOptionsForBuilderRouter = base.nextHopOptionsForBuilderRoute
 
 export function installStaticRoutesForWeightedPath(graph: BuilderGraph, addressing: BuilderAddressing, routing: BuilderRoutingConfig, sourceNodeId: string, destinationNodeId: string): BuilderStaticPathInstallResult {
   const result = base.installStaticRoutesForWeightedPath(graph, addressing, toBaseRouting(routing), sourceNodeId, destinationNodeId);
-  return { ...result, routing: reconcileBuilderRoutingConfig(graph, addressing, { ...result.routing, ospf: { ...result.routing.ospf, areaTypes: routing.ospf.areaTypes ?? {}, redistributions: routing.ospf.redistributions ?? [] } }) };
+  return { ...result, routing: reconcileBuilderRoutingConfig(graph, addressing, { ...result.routing, ospf: { ...result.routing.ospf, areaTypes: routing.ospf.areaTypes ?? {}, redistributions: routing.ospf.redistributions ?? [] }, policy: cloneBuilderRoutingPolicyConfig(routing.policy) }) };
 }
