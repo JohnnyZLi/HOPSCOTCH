@@ -6,6 +6,7 @@ import {
   createAccessVlanChallenge,
   createAclDenyChallenge,
   createBuilderChallenge,
+  createBgpImportPolicyChallenge,
   createDefaultGatewayChallenge,
   createDhcpGatewayChallenge,
   createDnsNameChallenge,
@@ -21,6 +22,7 @@ import {
 } from '../src/builder/challenges.ts';
 import { resolveBuilderEthernetFlowArp } from '../src/builder/arp.ts';
 import { runBuilderApplicationTransaction, upsertBuilderHostedService } from '../src/builder/application.ts';
+import { builderBgpState, deleteBuilderBgpPolicy } from '../src/builder/bgp.ts';
 import { clearBuilderArpCache } from '../src/builder/arp.ts';
 import { clearBuilderDhcpLeases } from '../src/builder/dhcp.ts';
 import { createBuilderIpv6ControlState } from '../src/builder/ipv6-control-plane.ts';
@@ -197,7 +199,7 @@ assert.equal(brokenStpAttempt.arp.success, true, 'STP-disabled cycle remains ARP
 assert.equal(brokenStpAttempt.flow?.success, false, 'ordinary Ethernet flow must reject unsafe forwarding while STP is disabled on a cycle');
 scoreLanChallenge(stp, repairedStp);
 
-function scoreRoutedChallenge(challenge, repairedRouting) {
+function scoreRoutedChallenge(challenge, repairedRouting, boundary = 'ROUTING') {
   const objective = challenge.verification;
   const healthyPing = runPing(challenge.healthy);
   const brokenPing = runPing(challenge.broken);
@@ -208,7 +210,7 @@ function scoreRoutedChallenge(challenge, repairedRouting) {
   evidence = appendBuilderChallengeEvidence(evidence, { kind:'traceroute', sourceId:objective.sourceId, destinationId:objective.destinationId, success:false, repaired:false, detail:'Objective traceroute fails in the broken routed state.' });
   evidence = recordInspection(evidence, challenge, 'state');
   evidence = recordInspection(evidence, challenge, 'config');
-  const hypothesis = { boundary:'ROUTING', deviceId:challenge.fault.nodeId };
+  const hypothesis = { boundary, deviceId:challenge.fault.nodeId };
   assert.deepEqual(scoreBuilderChallenge(challenge,evidence,hypothesis,challenge.broken.addressing,challenge.broken.ethernet,challenge.broken.routing), { evidence:40, reasoning:20, repair:0, verification:0, total:60, repaired:false, verified:false, solved:false });
   assert.equal(scoreBuilderChallenge(challenge,evidence,hypothesis,challenge.broken.addressing,challenge.broken.ethernet,repairedRouting).total, 85);
   evidence = appendBuilderChallengeEvidence(evidence, { kind:'ping', sourceId:objective.destinationId, destinationId:objective.sourceId, success:true, repaired:true, detail:'Unrelated reverse objective.' });
@@ -321,6 +323,27 @@ assert.equal(repairedDhcpTx.configurationReady,true);
 dhcpEvidence=appendBuilderChallengeEvidence(dhcpEvidence,{kind:'dhcp-transaction',sourceId:dhcpChallenge.verification.sourceId,destinationId:dhcpChallenge.verification.destinationId,success:true,repaired:true,detail:repairedDhcpTx.summary});
 assert.deepEqual(scoreBuilderChallenge(dhcpChallenge,dhcpEvidence,dhcpHypothesis,dhcpChallenge.broken.addressing,dhcpChallenge.broken.ethernet,dhcpChallenge.broken.routing,dhcpChallenge.broken.acl,dhcpChallenge.broken.nat,repairedDhcp),{evidence:40,reasoning:20,repair:25,verification:15,total:100,repaired:true,verified:true,solved:true});
 
+
+const bgpChallenges=['bgp-contract-001','bgp-contract-002'].map((seed)=>createBgpImportPolicyChallenge(seed));
+assert.deepEqual(new Set(bgpChallenges.map((challenge)=>challenge.fault.nodeId)),new Set(['edge','core']),'deterministic BGP seeds must cover forward-prefix and return-prefix import policy faults');
+for(const bgpChallenge of bgpChallenges){
+  assert.equal(bgpChallenge.family,'bgp-import-policy');
+  assert.equal(bgpChallenge.fault.kind,'bgp-import-deny');
+  assert.equal(bgpChallenge.fault.boundary,'POLICY');
+  assert.deepEqual(bgpChallenge,createBuilderChallenge(bgpChallenge.seed));
+  const healthyState=builderBgpState(bgpChallenge.healthy.graph,bgpChallenge.healthy.addressing,bgpChallenge.healthy.routing.bgp);
+  const brokenState=builderBgpState(bgpChallenge.broken.graph,bgpChallenge.broken.addressing,bgpChallenge.broken.routing.bgp);
+  assert.equal(healthyState.sessions.filter((entry)=>entry.state==='ESTABLISHED').length,2,'BGP-only healthy baseline must establish both eBGP sessions');
+  assert.equal(brokenState.sessions.filter((entry)=>entry.state==='ESTABLISHED').length,2,'import-policy fault must not fake a session failure');
+  assert.ok(bgpChallenge.broken.routing.bgp.policies.some((rule)=>rule.id===bgpChallenge.fault.blockingPolicy.id),'broken BGP truth must contain the one explicit import deny');
+  const repairedBgp=deleteBuilderBgpPolicy(bgpChallenge.broken.graph,bgpChallenge.broken.routing.bgp,bgpChallenge.fault.blockingPolicy.id);
+  const repairedRouting=validateBuilderRoutingConfig(bgpChallenge.broken.graph,bgpChallenge.broken.addressing,{...bgpChallenge.broken.routing,bgp:repairedBgp});
+  assert.deepEqual(repairedRouting,bgpChallenge.healthy.routing,'BGP policy challenge adds exactly one canonical policy object');
+  assert.equal(builderChallengeIsRepaired(bgpChallenge,bgpChallenge.broken.addressing,bgpChallenge.broken.ethernet,bgpChallenge.broken.routing),false);
+  assert.equal(builderChallengeIsRepaired(bgpChallenge,bgpChallenge.broken.addressing,bgpChallenge.broken.ethernet,repairedRouting),true);
+  scoreRoutedChallenge(bgpChallenge,repairedRouting,'POLICY');
+}
+
 const pmtuChallenge=createIpv6PmtuChallenge('mtu-contract-001');
 assert.equal(pmtuChallenge.family,'ipv6-pmtu');
 assert.equal(pmtuChallenge.fault.kind,'path-mtu-reduced');
@@ -410,9 +433,9 @@ const repairedTransportApp=runApplication({...transportChallenge.broken,services
 transportEvidence=appendBuilderChallengeEvidence(transportEvidence,{kind:'application-transaction',sourceId:transportChallenge.verification.sourceId,destinationId:transportChallenge.verification.destinationId,serviceId:transportChallenge.verification.serviceId,success:true,applicationBoundary:null,repaired:true,detail:repairedTransportApp.summary});
 assert.deepEqual(scoreBuilderChallenge(transportChallenge,transportEvidence,transportHypothesis,transportChallenge.broken.addressing,transportChallenge.broken.ethernet,transportChallenge.broken.routing,transportChallenge.broken.acl,transportChallenge.broken.nat,transportChallenge.broken.dhcp,transportChallenge.broken.linkProfiles,repairedTransportServices),{evidence:40,reasoning:20,repair:25,verification:15,total:100,repaired:true,verified:true,solved:true});
 
-for (const challenge of [access, trunk, stp, staticRoute, ospf, aclChallenge, natChallenge, dhcpChallenge, pmtuChallenge, dnsChallenge, transportChallenge]) {
+for (const challenge of [access, trunk, stp, staticRoute, ospf, aclChallenge, natChallenge, dhcpChallenge, ...bgpChallenges, pmtuChallenge, dnsChallenge, transportChallenge]) {
   const challengeToken = builderChallengeToken(challenge);
   assert.deepEqual(createBuilderChallenge(seedFromBuilderChallengeToken(challengeToken)), challenge, `${challenge.family} token must reproduce exact deterministic truth`);
 }
 
-console.log('Builder Track J challenge contract passed: gateway plus seeded L2/routing/policy/DHCP/IPv6-PMTU/DNS-name/transport-listener faults use canonical truth, ordinary probe/LAN/NAT/DHCP/ND/PMTUD/application evidence, exact repair, objective-scoped verification, causal scoring, and reproducible tokens.');
+console.log('Builder Track J challenge contract passed: gateway plus seeded L2/routing/policy/BGP-import/DHCP/IPv6-PMTU/DNS-name/transport-listener faults use canonical truth, ordinary probe/LAN/NAT/DHCP/ND/PMTUD/application/BGP state evidence, exact repair, objective-scoped verification, causal scoring, and reproducible tokens.');
