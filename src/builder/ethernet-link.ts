@@ -11,7 +11,5 @@ export interface BuilderEthernetCarrierLink {
 
 export function builderEthernetLogicalLinkCarriesVlan(links: readonly BuilderEthernetCarrierLink[], link: BuilderEthernetCarrierLink, vlanId: number): boolean {
   const carries = (candidate: BuilderEthernetCarrierLink) => !candidate.failed && candidate.mode !== 'routed' && (candidate.mode === 'access' ? candidate.accessVlan === vlanId : Boolean(candidate.allowedVlans?.includes(vlanId)) && (candidate.nativeVlanA === vlanId) === (candidate.nativeVlanB === vlanId));
-  if (!carries(link)) return false;
-  if (!link.bundleId) return true;
-  return links.filter((candidate) => candidate.bundleId === link.bundleId && carries(candidate)).map((candidate) => candidate.id).sort()[0] === link.id;
+  return carries(link) && (!link.bundleId || !links.some((candidate) => candidate.bundleId === link.bundleId && candidate.id < link.id && carries(candidate)));
 }
