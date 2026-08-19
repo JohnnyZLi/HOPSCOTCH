@@ -42,7 +42,7 @@ export function BuilderApplicationWorkspace({ context, sourceNodeId, historical,
       const result = runBuilderApplicationTransaction(context, services, sourceNodeId, selectedService.id, family, sequence);
       setTransaction(result); setSequence((value) => value + 2); setCamera('BUILDER'); setPacketId(null);
       onSessionState({ arpCache: result.arpCache, natSessions: result.natSessions, dhcpLeases: result.dhcpLeases, ipv6ControlState: result.ipv6ControlState });
-      onTransaction(result);
+      onTransaction((current) => [...current, result].slice(-24));
       onMessage(`APPLICATION · ${result.summary}`);
     } catch (cause) { onMessage(`APPLICATION REJECTED · ${cause instanceof Error ? cause.message : String(cause)}`); }
   };
