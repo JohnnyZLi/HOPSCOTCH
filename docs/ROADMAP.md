@@ -88,36 +88,28 @@ Track A makes canonical time and causal diagnosis shared Builder product behavio
 
 Application replay consumes Track D's canonical transaction and exposes only the stages visible at the selected event; future success/failure cannot leak backward. Diagnosis never reruns the network. `docs/TRACKA.md` is the architecture and validation record.
 
+### Completed active track — Track B Builder authoring environment
+
+Track B makes the existing Builder model practical to author at scale without creating editor-only network truth.
+
+- [x] bounded undo/redo over canonical configuration snapshots with runtime-state reset on restore
+- [x] modifier + marquee multi-select, routed topology copy/paste, alignment, and distribution
+- [x] named presentation-only minimap sites plus reusable browser-local routed topology templates
+- [x] topology-search UI consuming the shipped deterministic search engine, stable zoom/focus targets, minimap, annotations, and routed interface-name visibility
+- [x] bulk canonical device-label, `ethN` interface-renumbering, routed-link cost/state, Ethernet access-VLAN, trunk-allowed-VLAN, and Ethernet link-state edits
+- [x] clean authoring baseline plus bounded in-session named branch snapshots and restore
+- [x] scenario compare UI consuming the shipped deterministic canonical-configuration compare engine
+- [x] two-level lazy authoring boundary so the full editor is closed by default and does not become initial Builder startup cost
+
+Selection, camera, sites, annotations, clipboard state, templates, undo cursor, and branch catalog remain authoring/session metadata. Scenario schema stays v9. `docs/TRACKB.md` is the architecture and validation record.
+
 ---
 
 ## Current priority order
 
-The product no longer needs another pile of disconnected protocol demos. The highest-value work is **integration of the systems that already exist**.
+With captured evidence, end-to-end application truth, causal replay, and the Builder authoring environment closed, the next highest-value work is deeper enterprise network behavior on top of those shared foundations.
 
-### 1. Track B — Builder authoring environment
-
-**Foundations already shipped**
-
-- [x] pure deterministic topology-search engine with exact/prefix/substring ranking and stable zoom targets
-- [x] pure deterministic scenario/config compare engine over canonical persisted configuration
-
-**Product integration still required**
-
-- [ ] undo/redo over canonical configuration edits
-- [ ] copy/paste, multi-select, marquee selection, alignment, and distribution
-- [ ] reusable topology groups/templates and collapsible sites
-- [ ] topology-search UI, zoom-to-device, labels/annotations, interface-name visibility, and minimap
-- [ ] bulk edits for interface/VLAN/link/device properties
-- [ ] scenario snapshots and branches from a clean baseline
-- [ ] scenario compare UI using the shipped deterministic compare engine
-
----
-
-## Remaining regular tracks
-
-These are real product work, but they should follow the integration priorities above unless a later slice depends on them.
-
-### Track C — enterprise Layer 2 / Layer 3 depth
+### 1. Track C — enterprise Layer 2 / Layer 3 depth
 
 - [ ] RSTP with explicit faster role/state transitions
 - [ ] LACP / EtherChannel with logical bundle vs physical-member truth
@@ -126,6 +118,12 @@ These are real product work, but they should follow the integration priorities a
 - [ ] vendor-neutral VRRP-style first-hop redundancy
 - [ ] VRFs with genuinely separate routing tables and overlapping address space
 - [ ] native/tagged/untagged VLAN behavior only when it preserves current VLAN truth
+
+---
+
+## Remaining regular tracks
+
+These remain real product work. They should follow Track C unless a bounded dependency requires a different order.
 
 ### Track E — data-plane realism
 
