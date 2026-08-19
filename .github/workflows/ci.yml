@@ -25,14 +25,15 @@ jobs:
           if grep -q "'acl-deny'" src/builder/challenges.ts; then
             echo "Track J ACL/NAT slice already applied."
           else
+            node scripts/fix-track-j-policy-patcher.mjs
             node scripts/apply-track-j-policy-slice.mjs
           fi
       - run: npm ci
       - run: npm run check
       - name: Commit generated product changes
         run: |
-          if git diff --quiet; then
-            echo "No generated changes to commit."
+          if git diff --quiet src/builder/challenges.ts src/BuilderChallengePanel.tsx src/BuilderNatPanel.tsx src/NetworkBuilder.tsx scripts/builder-challenge-contract-check.mjs docs/TRACKJ.md; then
+            echo "No generated product changes to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
