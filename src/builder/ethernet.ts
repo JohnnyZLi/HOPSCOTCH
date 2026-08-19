@@ -1,4 +1,4 @@
-import { builderStpState, cloneBuilderStpConfig, createDefaultBuilderStpConfig, validateBuilderStpConfig, type BuilderStpConfig } from './stp.ts';
+import { builderStpState, createDefaultBuilderStpConfig, validateBuilderStpConfig, type BuilderStpConfig } from './stp.ts';
 
 export type BuilderEthernetDeviceKind = 'endpoint' | 'switch' | 'router' | 'l3-switch';
 export type BuilderEthernetPortMode = 'access' | 'trunk' | 'routed';
@@ -91,19 +91,8 @@ export interface BuilderEthernetFlowResult {
 const IPV4_RE = /^(?:\d{1,3}\.){3}\d{1,3}$/;
 const MAC_RE = /^(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/;
 
-function cloneInterface(entry: BuilderEthernetInterface): BuilderEthernetInterface {
-  return { ...entry };
-}
-
 export function cloneBuilderEthernetConfig(config: BuilderEthernetConfig): BuilderEthernetConfig {
-  return {
-    vlans: config.vlans.map((vlan) => ({ ...vlan })),
-    devices: config.devices.map((device) => ({ ...device, interfaces: device.interfaces.map(cloneInterface) })),
-    links: config.links.map((link) => ({ ...link, allowedVlans: link.allowedVlans ? [...link.allowedVlans] : undefined, routed: link.routed ? { ...link.routed } : undefined })),
-    layout: Object.fromEntries(Object.entries(config.layout).map(([id, point]) => [id, { ...point }])),
-    stp: cloneBuilderStpConfig(config.stp),
-    enterprise: structuredClone(config.enterprise),
-  };
+  return structuredClone(config);
 }
 
 export function createEmptyBuilderEthernetConfig(): BuilderEthernetConfig {
