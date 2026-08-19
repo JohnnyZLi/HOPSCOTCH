@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PacketMicroscope } from './PacketMicroscope.tsx';
 import {
-  createDefaultBuilderHostedServices,
   runBuilderApplicationTransaction,
+  upsertBuilderHostedService,
   type BuilderApplicationCamera,
   type BuilderApplicationFamily,
   type BuilderApplicationPacket,
@@ -24,15 +24,16 @@ function TransactionPacketMicroscope({ packet, transaction, onClose }: { packet:
   return <div className="builder-app-microscope"><PacketMicroscope onExit={onClose} initialConfig={packet.config} origin={{ label: `TRACK D · ${packet.label}`, timestamp: transaction.id, actionLabel: 'RETURN TO APPLICATION TRANSACTION ↗' }} /></div>;
 }
 
-export function BuilderApplicationWorkspace({ context, sourceNodeId, historical, onSessionState, onTransaction, onMessage }: BuilderApplicationPanelProps) {
-  const services = useMemo(() => createDefaultBuilderHostedServices(context.graph), [context.graph]);
-  const [serviceId, setServiceId] = useState(() => services[0]?.id ?? '');
+export function BuilderApplicationWorkspace({ context, sourceNodeId, services, onServicesChange, preferredServiceId, historical, onSessionState, onTransaction, onMessage }: BuilderApplicationPanelProps) {
+  const [serviceId, setServiceId] = useState(() => preferredServiceId ?? services[0]?.id ?? '');
   const [family, setFamily] = useState<BuilderApplicationFamily>('ipv4');
   const [sequence, setSequence] = useState(1);
   const [transaction, setTransaction] = useState<BuilderApplicationTransaction | null>(null);
   const [camera, setCamera] = useState<BuilderApplicationCamera>('BUILDER');
   const [packetId, setPacketId] = useState<string | null>(null);
   const selectedService = services.find((service) => service.id === serviceId) ?? services[0] ?? null;
+  useEffect(() => { if (preferredServiceId && services.some((service) => service.id === preferredServiceId)) setServiceId(preferredServiceId); }, [preferredServiceId, services]);
+  useEffect(() => { if (!services.some((service) => service.id === serviceId)) setServiceId(services[0]?.id ?? ''); }, [services, serviceId]);
   const selectedPacket = transaction?.packets.find((packet) => packet.id === packetId) ?? null;
   const diagnosis = useMemo(() => transaction ? diagnoseBuilderApplicationTransaction(transaction, context.graph) : null, [transaction, context.graph]);
 
@@ -61,7 +62,8 @@ export function BuilderApplicationWorkspace({ context, sourceNodeId, historical,
         <label>NETWORK FAMILY<select disabled={historical} value={family} onChange={(event) => setFamily(event.currentTarget.value as BuilderApplicationFamily)}><option value="ipv4">IPV4</option><option value="ipv6" disabled={!context.ipv6.enabled}>IPV6{context.ipv6.enabled ? '' : ' · DISABLED'}</option></select></label>
         <button type="button" disabled={historical || !selectedService} onClick={run}>RUN APPLICATION REQUEST</button>
       </div>
-      <div className="builder-service-strip">{services.map((service) => <span key={service.id} data-enabled={service.enabled}><b>{service.kind.toUpperCase()}</b>{serviceProtocol(service)} · {service.hostname ?? service.nodeId}</span>)}</div>
+      {selectedService && <div className="builder-service-config"><div><span>CANONICAL HOSTED SERVICE</span><strong>{selectedService.label} · {selectedService.nodeId.toUpperCase()}</strong><small>DNS name and listener availability are persisted scenario configuration. Editing them changes application truth, not challenge metadata.</small></div><label>HOSTNAME<input key={`${selectedService.id}:${selectedService.hostname ?? 'none'}`} disabled={historical} defaultValue={selectedService.hostname ?? ''} placeholder="NO DETERMINISTIC NAME" onBlur={(event)=>{try{onServicesChange(upsertBuilderHostedService(context.graph,services,{...selectedService,hostname:event.currentTarget.value.trim()||null}));onMessage(`SERVICE CONFIG · ${selectedService.label} hostname ${event.currentTarget.value.trim()||'cleared'}.`);}catch(cause){onMessage(`SERVICE CONFIG REJECTED · ${cause instanceof Error?cause.message:String(cause)}`);event.currentTarget.value=selectedService.hostname??'';}}}/></label><button type="button" disabled={historical} data-enabled={selectedService.enabled} onClick={()=>{const enabled=!selectedService.enabled;onServicesChange(upsertBuilderHostedService(context.graph,services,{...selectedService,enabled}));onMessage(`SERVICE CONFIG · ${selectedService.label} listener ${enabled?'enabled':'disabled'} on ${serviceProtocol(selectedService)}.`);}}>{selectedService.enabled?'DISABLE LISTENER':'ENABLE LISTENER'}</button></div>}
+      <div className="builder-service-strip">{services.map((service) => <span key={service.id} data-enabled={service.enabled}><b>{service.kind.toUpperCase()}</b>{serviceProtocol(service)} · {service.hostname ?? 'NO NAME'} · {service.enabled?'LISTENING':'CLOSED'}</span>)}</div>
       {!transaction ? <div className="builder-app-empty"><strong>NO APPLICATION TRANSACTION YET</strong><p>Choose a hosted service and run the request. Transport and application stages do not exist until lower-layer truth passes.</p></div> : <>
         <div className={`builder-app-result ${transaction.success ? 'success' : 'failed'}`}><span>RESULT</span><strong>{transaction.success ? 'COMPLETE' : `STOPPED · ${transaction.firstBrokenBoundary?.replace('_', ' ') ?? 'UNKNOWN'}`}</strong><p>{transaction.summary}</p><small>{transaction.boundary}</small></div>
         {diagnosis&&<div className={`builder-app-diagnosis ${diagnosis.firstBrokenDimension?'failed':'passed'}`}><span>TRACK A · CAUSAL DIAGNOSIS</span><strong>{diagnosis.summary}</strong><p>{diagnosis.dimensions.map((entry)=>`${entry.id} ${entry.status}`).join(' · ')}</p><small>FIRST BROKEN BOUNDARY IS DERIVED FROM THE SHARED TRACK D TRANSACTION · NOT_REACHED NEVER COUNTS AS FAILURE.</small></div>}

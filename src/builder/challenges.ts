@@ -1,4 +1,5 @@
 import { interfacesForBuilderNode, validateBuilderAddressing, type BuilderAddressing } from './addressing.ts';
+import { upsertBuilderHostedService, type BuilderApplicationFamily, type BuilderApplicationTruthBoundary, type BuilderHostedService } from './application.ts';
 import { upsertBuilderAclRule, type BuilderAclConfig, type BuilderAclRule } from './acl.ts';
 import { createBuilderAuthoringSnapshot, type BuilderAuthoringSnapshot } from './authoring.ts';
 import { setBuilderDhcpClient, upsertBuilderDhcpPool, type BuilderDhcpConfig } from './dhcp.ts';
@@ -13,10 +14,10 @@ export const BUILDER_CHALLENGE_SCHEMA = 'hopscotch.builder.challenge' as const;
 export const BUILDER_CHALLENGE_VERSION = 1 as const;
 export const BUILDER_CHALLENGE_EVIDENCE_LIMIT = 40;
 
-export type BuilderChallengeBoundary = 'ADDRESSING' | 'L2' | 'ROUTING' | 'POLICY' | 'TRANSPORT';
+export type BuilderChallengeBoundary = 'ADDRESSING' | 'DNS' | 'L2' | 'ROUTING' | 'POLICY' | 'TRANSPORT';
 export type BuilderChallengeDevicePlane = 'routed' | 'ethernet';
-export type BuilderChallengeEvidenceKind = 'ping' | 'traceroute' | 'ethernet-flow' | 'arp-resolution' | 'nat-flow' | 'dhcp-transaction' | 'ipv6-nd' | 'inspect-config' | 'inspect-state' | 'inspect-events';
-export type BuilderChallengeFamily = 'gateway' | 'access-vlan' | 'trunk-vlan' | 'stp-loop' | 'static-route' | 'ospf-disabled' | 'acl-deny' | 'nat-disabled' | 'dhcp-gateway' | 'ipv6-pmtu';
+export type BuilderChallengeEvidenceKind = 'ping' | 'traceroute' | 'ethernet-flow' | 'arp-resolution' | 'nat-flow' | 'dhcp-transaction' | 'ipv6-nd' | 'application-transaction' | 'inspect-config' | 'inspect-state' | 'inspect-events';
+export type BuilderChallengeFamily = 'gateway' | 'access-vlan' | 'trunk-vlan' | 'stp-loop' | 'static-route' | 'ospf-disabled' | 'acl-deny' | 'nat-disabled' | 'dhcp-gateway' | 'ipv6-pmtu' | 'dns-name' | 'transport-listener';
 
 export interface BuilderGatewayChallengeFault {
   kind: 'missing-default-gateway';
@@ -110,13 +111,34 @@ export interface BuilderIpv6PmtuChallengeFault {
   packetBytes: number;
 }
 
-export type BuilderChallengeFault = BuilderGatewayChallengeFault | BuilderAccessVlanChallengeFault | BuilderTrunkVlanChallengeFault | BuilderStpChallengeFault | BuilderStaticRouteChallengeFault | BuilderOspfDisabledChallengeFault | BuilderAclDenyChallengeFault | BuilderNatDisabledChallengeFault | BuilderDhcpGatewayChallengeFault | BuilderIpv6PmtuChallengeFault;
+export interface BuilderDnsNameChallengeFault {
+  kind: 'service-hostname-missing';
+  boundary: 'DNS';
+  plane: 'routed';
+  nodeId: string;
+  serviceId: string;
+  expectedHostname: string;
+}
+
+export interface BuilderTransportListenerChallengeFault {
+  kind: 'service-listener-disabled';
+  boundary: 'TRANSPORT';
+  plane: 'routed';
+  nodeId: string;
+  serviceId: string;
+  expectedEnabled: true;
+  port: number;
+}
+
+export type BuilderChallengeFault = BuilderGatewayChallengeFault | BuilderAccessVlanChallengeFault | BuilderTrunkVlanChallengeFault | BuilderStpChallengeFault | BuilderStaticRouteChallengeFault | BuilderOspfDisabledChallengeFault | BuilderAclDenyChallengeFault | BuilderNatDisabledChallengeFault | BuilderDhcpGatewayChallengeFault | BuilderIpv6PmtuChallengeFault | BuilderDnsNameChallengeFault | BuilderTransportListenerChallengeFault;
 
 export interface BuilderChallengeVerification {
-  kind: 'routed-probe' | 'ethernet-flow' | 'nat-translation' | 'dhcp-configuration' | 'ipv6-pmtu';
+  kind: 'routed-probe' | 'ethernet-flow' | 'nat-translation' | 'dhcp-configuration' | 'ipv6-pmtu' | 'application-transaction';
   sourceId: string;
   destinationId: string;
   packetBytes?: number;
+  serviceId?: string;
+  family?: BuilderApplicationFamily;
 }
 
 export interface BuilderChallenge {
@@ -145,6 +167,8 @@ export interface BuilderChallengeEvidenceInput {
   effectiveBytes?: number | null;
   pathMtuBytes?: number | null;
   ndResolutionCount?: number | null;
+  serviceId?: string | null;
+  applicationBoundary?: BuilderApplicationTruthBoundary | null;
   repaired: boolean;
   detail: string;
 }
@@ -198,6 +222,7 @@ function defaultHealthySnapshot(): BuilderAuthoringSnapshot {
     nat: scenario.nat,
     dhcp: scenario.dhcp,
     ipv6: scenario.ipv6,
+    services: scenario.services,
     sourceId: scenario.sourceId,
     destinationId: scenario.destinationId,
     layout: scenario.layout,
@@ -219,6 +244,7 @@ function defaultStaticHealthySnapshot(): BuilderAuthoringSnapshot {
     nat: scenario.nat,
     dhcp: scenario.dhcp,
     ipv6: scenario.ipv6,
+    services: scenario.services,
     sourceId: 'client',
     destinationId: 'app',
     layout: scenario.layout,
@@ -550,6 +576,35 @@ export function createIpv6PmtuChallenge(seedInput: string): BuilderChallenge {
   };
 }
 
+export function createDnsNameChallenge(seedInput: string): BuilderChallenge {
+  const seed = normalizeSeed(seedInput);
+  const hash = hashSeed(seed);
+  const healthy = defaultHealthySnapshot();
+  healthy.sourceId = 'client'; healthy.destinationId = 'app';
+  const services = healthy.services ?? [];
+  const candidates = services.filter((service) => service.nodeId === 'app' && service.kind !== 'dns' && Boolean(service.hostname)).sort((a,b)=>a.id.localeCompare(b.id));
+  const service = candidates[hash % candidates.length];
+  if (!service?.hostname) throw new Error('The DNS challenge requires a canonical named application service on APP.');
+  const expectedHostname = service.hostname;
+  const broken = createBuilderAuthoringSnapshot(healthy);
+  broken.services = upsertBuilderHostedService(broken.graph, broken.services ?? [], { ...service, hostname: null });
+  return { schema: BUILDER_CHALLENGE_SCHEMA, version: BUILDER_CHALLENGE_VERSION, id: 'dns-' + hash.toString(16).padStart(8,'0'), seed, family: 'dns-name', title: 'SERVICE NAME DOES NOT RESOLVE', objective: `Restore the deterministic DNS name for ${service.label} on APP. Use the ordinary application transaction and Device Workbench to prove lower layers were never reached, repair canonical hosted-service configuration, then rerun the exact service request.`, difficulty: 'FOUNDATION', healthy, broken, verification: { kind:'application-transaction', sourceId:'client', destinationId:'app', serviceId:service.id, family:'ipv4' }, fault: { kind:'service-hostname-missing', boundary:'DNS', plane:'routed', nodeId:'app', serviceId:service.id, expectedHostname } };
+}
+
+export function createTransportListenerChallenge(seedInput: string): BuilderChallenge {
+  const seed = normalizeSeed(seedInput);
+  const hash = hashSeed(seed);
+  const healthy = defaultHealthySnapshot();
+  healthy.sourceId = 'client'; healthy.destinationId = 'app';
+  const services = healthy.services ?? [];
+  const candidates = services.filter((service) => service.nodeId === 'app' && service.enabled && Boolean(service.hostname) && ['http','https','ssh','tcp'].includes(service.kind) && !(service.kind === 'https' && service.transportProfile === 'quic-h3')).sort((a,b)=>a.id.localeCompare(b.id));
+  const service = candidates[hash % candidates.length];
+  if (!service) throw new Error('The transport challenge requires a canonical named TCP service on APP.');
+  const broken = createBuilderAuthoringSnapshot(healthy);
+  broken.services = upsertBuilderHostedService(broken.graph, broken.services ?? [], { ...service, enabled: false });
+  return { schema: BUILDER_CHALLENGE_SCHEMA, version: BUILDER_CHALLENGE_VERSION, id: 'transport-' + hash.toString(16).padStart(8,'0'), seed, family: 'transport-listener', title: 'SERVICE PORT IS CLOSED', objective: `Restore the ${service.label} listener on APP. Use the ordinary application transaction to prove DNS, L2, routing, policy, and link truth reach the endpoint before transport fails; repair canonical listener configuration and rerun the exact service request.`, difficulty: 'FOUNDATION', healthy, broken, verification: { kind:'application-transaction', sourceId:'client', destinationId:'app', serviceId:service.id, family:'ipv4' }, fault: { kind:'service-listener-disabled', boundary:'TRANSPORT', plane:'routed', nodeId:'app', serviceId:service.id, expectedEnabled:true, port:service.port } };
+}
+
 export function createBuilderChallenge(seedInput: string): BuilderChallenge {
   const seed = normalizeSeed(seedInput);
   const lowered = seed.toLowerCase();
@@ -562,6 +617,8 @@ export function createBuilderChallenge(seedInput: string): BuilderChallenge {
   if (lowered.startsWith('nat-') || lowered.startsWith('pat-')) return createNatDisabledChallenge(seed);
   if (lowered.startsWith('dhcp-')) return createDhcpGatewayChallenge(seed);
   if (lowered.startsWith('mtu-') || lowered.startsWith('pmtu-') || lowered.startsWith('ipv6-mtu-')) return createIpv6PmtuChallenge(seed);
+  if (lowered.startsWith('dns-')) return createDnsNameChallenge(seed);
+  if (lowered.startsWith('transport-') || lowered.startsWith('tcp-') || lowered.startsWith('listener-')) return createTransportListenerChallenge(seed);
   return createDefaultGatewayChallenge(seed);
 }
 
@@ -584,7 +641,7 @@ function sameNumberArray(left: readonly number[] | undefined, right: readonly nu
   return normalized.length === right.length && normalized.every((value, index) => value === right[index]);
 }
 
-export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressing: BuilderAddressing, ethernet: BuilderEthernetConfig, routing: BuilderRoutingConfig, acl: BuilderAclConfig = challenge.broken.acl, nat: BuilderNatConfig = challenge.broken.nat, dhcp: BuilderDhcpConfig = challenge.broken.dhcp, linkProfiles: BuilderLinkProfiles = challenge.broken.linkProfiles): boolean {
+export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressing: BuilderAddressing, ethernet: BuilderEthernetConfig, routing: BuilderRoutingConfig, acl: BuilderAclConfig = challenge.broken.acl, nat: BuilderNatConfig = challenge.broken.nat, dhcp: BuilderDhcpConfig = challenge.broken.dhcp, linkProfiles: BuilderLinkProfiles = challenge.broken.linkProfiles, services: readonly BuilderHostedService[] = challenge.broken.services ?? []): boolean {
   const fault = challenge.fault;
   if (fault.kind === 'missing-default-gateway') return addressing.defaultGateways[fault.nodeId] === fault.expectedGateway;
   if (fault.kind === 'access-vlan-mismatch') {
@@ -609,7 +666,10 @@ export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressi
     const pool = dhcp.pools.find((entry) => entry.id === fault.poolId && entry.serverDeviceId === fault.nodeId);
     return pool?.gateway === fault.expectedGateway;
   }
-  return linkProfiles[fault.linkId]?.mtuBytes === fault.expectedMtuBytes;
+  if (fault.kind === 'path-mtu-reduced') return linkProfiles[fault.linkId]?.mtuBytes === fault.expectedMtuBytes;
+  const service = services.find((entry) => entry.id === fault.serviceId && entry.nodeId === fault.nodeId);
+  if (fault.kind === 'service-hostname-missing') return service?.hostname === fault.expectedHostname;
+  return service?.enabled === fault.expectedEnabled;
 }
 
 export function builderChallengeSolvedExplanation(challenge: BuilderChallenge): string {
@@ -623,7 +683,9 @@ export function builderChallengeSolvedExplanation(challenge: BuilderChallenge): 
   if (fault.kind === 'acl-objective-deny') return `${fault.nodeId.toUpperCase()} had an explicit ICMP deny for the challenge source/destination. Removing the canonical blocking rule restored policy permission and the post-repair probe verified reachability.`;
   if (fault.kind === 'nat-boundary-disabled') return `${fault.nodeId.toUpperCase()} had the canonical NAT boundary disabled. Re-enabling it restored PAT translation; the post-repair NAT flow proved the tuple was translated rather than merely routed.`;
   if (fault.kind === 'dhcp-gateway-option-missing') return `${fault.nodeId.toUpperCase()} ACKed the DHCP lease without a default-gateway option. Restoring ${fault.expectedGateway} to the canonical pool and reacquiring produced a configuration-ready lease.`;
-  return `${fault.linkId.toUpperCase()} was reduced to MTU ${fault.brokenMtuBytes}. Restoring MTU ${fault.expectedMtuBytes}, clearing stale PMTU state, and retransmitting ${fault.packetBytes} bytes proved full-size IPv6 delivery while Neighbor Discovery remained healthy.`;
+  if (fault.kind === 'path-mtu-reduced') return `${fault.linkId.toUpperCase()} was reduced to MTU ${fault.brokenMtuBytes}. Restoring MTU ${fault.expectedMtuBytes}, clearing stale PMTU state, and retransmitting ${fault.packetBytes} bytes proved full-size IPv6 delivery while Neighbor Discovery remained healthy.`;
+  if (fault.kind === 'service-hostname-missing') return `${fault.serviceId} had no deterministic hostname. Restoring ${fault.expectedHostname} repaired the DNS intent boundary; the post-repair application transaction then traversed the normal lower-layer and service stack.`;
+  return `${fault.serviceId} had its canonical listener disabled on port ${fault.port}. Re-enabling the listener repaired the transport boundary after DNS/routing/policy/link truth had already reached ${fault.nodeId.toUpperCase()}.`;
 }
 
 export function appendBuilderChallengeEvidence(
@@ -642,7 +704,8 @@ function hasEvidence(
 }
 
 function isObjectiveEvidence(challenge: BuilderChallenge, entry: BuilderChallengeEvidence): boolean {
-  return entry.sourceId === challenge.verification.sourceId && entry.destinationId === challenge.verification.destinationId;
+  if (entry.sourceId !== challenge.verification.sourceId || entry.destinationId !== challenge.verification.destinationId) return false;
+  return challenge.verification.kind !== 'application-transaction' || entry.serviceId === challenge.verification.serviceId;
 }
 
 function isFaultInspection(challenge: BuilderChallenge, entry: BuilderChallengeEvidence): boolean {
@@ -660,6 +723,7 @@ export function scoreBuilderChallenge(
   nat: BuilderNatConfig = challenge.broken.nat,
   dhcp: BuilderDhcpConfig = challenge.broken.dhcp,
   linkProfiles: BuilderLinkProfiles = challenge.broken.linkProfiles,
+  services: readonly BuilderHostedService[] = challenge.broken.services ?? [],
 ): BuilderChallengeScore {
   const inspectedState = hasEvidence(evidence, (entry) => entry.kind === 'inspect-state' && isFaultInspection(challenge, entry) && !entry.repaired);
   const inspectedConfig = hasEvidence(evidence, (entry) => entry.kind === 'inspect-config' && isFaultInspection(challenge, entry) && !entry.repaired);
@@ -686,6 +750,10 @@ export function scoreBuilderChallenge(
     const observedNd = hasEvidence(evidence, (entry) => entry.kind === 'ipv6-nd' && isObjectiveEvidence(challenge, entry) && entry.success === true && !entry.repaired);
     evidenceScore = (packetTooBig ? 15 : 0) + (observedNd ? 5 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
     hasPrimaryDiagnostic = packetTooBig;
+  } else if (challenge.verification.kind === 'application-transaction') {
+    const failedApplication = hasEvidence(evidence, (entry) => entry.kind === 'application-transaction' && isObjectiveEvidence(challenge, entry) && entry.success === false && entry.applicationBoundary === challenge.fault.boundary && !entry.repaired);
+    evidenceScore = (failedApplication ? 20 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
+    hasPrimaryDiagnostic = failedApplication;
   } else {
     const incompleteConfiguration = hasEvidence(evidence, (entry) => entry.kind === 'dhcp-transaction' && isObjectiveEvidence(challenge, entry) && entry.success === false && !entry.repaired);
     evidenceScore = (incompleteConfiguration ? 20 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
@@ -698,7 +766,7 @@ export function scoreBuilderChallenge(
     ? (hypothesis.boundary === challenge.fault.boundary ? 10 : 0) + (hypothesis.deviceId === challenge.fault.nodeId ? 10 : 0)
     : 0;
 
-  const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet, routing, acl, nat, dhcp, linkProfiles);
+  const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet, routing, acl, nat, dhcp, linkProfiles, services);
   const verified = challenge.verification.kind === 'routed-probe'
     ? hasEvidence(evidence, (entry) => (entry.kind === 'ping' || entry.kind === 'traceroute') && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired)
     : challenge.verification.kind === 'ethernet-flow'
@@ -707,7 +775,9 @@ export function scoreBuilderChallenge(
         ? hasEvidence(evidence, (entry) => entry.kind === 'nat-flow' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired)
         : challenge.verification.kind === 'ipv6-pmtu'
           ? hasEvidence(evidence, (entry) => (entry.kind === 'ping' || entry.kind === 'traceroute') && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired && entry.requestedBytes === (challenge.verification.packetBytes ?? 1500) && entry.effectiveBytes === (challenge.verification.packetBytes ?? 1500))
-          : hasEvidence(evidence, (entry) => entry.kind === 'dhcp-transaction' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired);
+          : challenge.verification.kind === 'application-transaction'
+            ? hasEvidence(evidence, (entry) => entry.kind === 'application-transaction' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired)
+            : hasEvidence(evidence, (entry) => entry.kind === 'dhcp-transaction' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired);
   const repairScore = repaired ? 25 : 0;
   const verificationScore = repaired && verified ? 15 : 0;
   const total = evidenceScore + reasoningScore + repairScore + verificationScore;

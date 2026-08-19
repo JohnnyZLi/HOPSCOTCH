@@ -8,18 +8,26 @@ import {
   createBuilderChallenge,
   createDefaultGatewayChallenge,
   createDhcpGatewayChallenge,
+  createDnsNameChallenge,
   createIpv6PmtuChallenge,
   createMissingStaticRouteChallenge,
   createNatDisabledChallenge,
   createOspfDisabledChallenge,
   createStpLoopChallenge,
   createTrunkVlanChallenge,
+  createTransportListenerChallenge,
   scoreBuilderChallenge,
   seedFromBuilderChallengeToken,
 } from '../src/builder/challenges.ts';
 import { resolveBuilderEthernetFlowArp } from '../src/builder/arp.ts';
+import { runBuilderApplicationTransaction, upsertBuilderHostedService } from '../src/builder/application.ts';
+import { clearBuilderArpCache } from '../src/builder/arp.ts';
+import { clearBuilderDhcpLeases } from '../src/builder/dhcp.ts';
+import { createBuilderIpv6ControlState } from '../src/builder/ipv6-control-plane.ts';
+import { createDefaultBuilderIpv6RoutingDepthState } from '../src/builder/ipv6-routing-depth.ts';
+import { clearBuilderNatSessions } from '../src/builder/nat.ts';
 import { runBuilderDhcpAcquire, upsertBuilderDhcpPool } from '../src/builder/dhcp.ts';
-import { clearBuilderIpv6PmtuCache, createBuilderIpv6ControlState } from '../src/builder/ipv6-control-plane.ts';
+import { clearBuilderIpv6PmtuCache } from '../src/builder/ipv6-control-plane.ts';
 import { runBuilderIpv6Probe } from '../src/builder/ipv6-probes.ts';
 import { updateBuilderLinkProfile } from '../src/builder/link-characteristics.ts';
 import { runBuilderEthernetFlow, validateBuilderEthernetConfig } from '../src/builder/ethernet.ts';
@@ -41,6 +49,10 @@ function runPing(snapshot, sequence = 1) {
     snapshot.nat,
     [],
   );
+}
+
+function runApplication(snapshot, serviceId, sequence = 1) {
+  return runBuilderApplicationTransaction({ graph:snapshot.graph, addressing:snapshot.addressing, routing:snapshot.routing, ethernet:snapshot.ethernet, linkProfiles:snapshot.linkProfiles, acl:snapshot.acl, nat:snapshot.nat, natSessions:clearBuilderNatSessions(), dhcp:snapshot.dhcp, dhcpLeases:clearBuilderDhcpLeases(), dhcpSequence:1, ipv6:snapshot.ipv6, ipv6ControlState:createBuilderIpv6ControlState(), ipv6RoutingDepth:createDefaultBuilderIpv6RoutingDepthState(snapshot.graph), arpCache:clearBuilderArpCache() }, snapshot.services ?? [], snapshot.sourceId, serviceId, 'ipv4', sequence);
 }
 
 function runLan(snapshot, sourceId, destinationId) {
@@ -344,9 +356,63 @@ assert.equal(fullSizeAfterRepair.effectivePacketBytes,pmtuChallenge.fault.packet
 pmtuEvidence=appendBuilderChallengeEvidence(pmtuEvidence,{kind:'ping',sourceId:pmtuChallenge.verification.sourceId,destinationId:pmtuChallenge.verification.destinationId,success:true,requestedBytes:fullSizeAfterRepair.requestedPacketBytes,effectiveBytes:fullSizeAfterRepair.effectivePacketBytes,pathMtuBytes:fullSizeAfterRepair.attempts.at(-1)?.pathMtuBytes??null,repaired:true,detail:fullSizeAfterRepair.summary});
 assert.deepEqual(scoreBuilderChallenge(pmtuChallenge,pmtuEvidence,pmtuHypothesis,pmtuChallenge.broken.addressing,pmtuChallenge.broken.ethernet,pmtuChallenge.broken.routing,pmtuChallenge.broken.acl,pmtuChallenge.broken.nat,pmtuChallenge.broken.dhcp,repairedProfiles),{evidence:40,reasoning:20,repair:25,verification:15,total:100,repaired:true,verified:true,solved:true});
 
-for (const challenge of [access, trunk, stp, staticRoute, ospf, aclChallenge, natChallenge, dhcpChallenge, pmtuChallenge]) {
+
+const dnsChallenge=createDnsNameChallenge('dns-contract-001');
+assert.equal(dnsChallenge.family,'dns-name');
+assert.equal(dnsChallenge.fault.kind,'service-hostname-missing');
+assert.deepEqual(dnsChallenge,createBuilderChallenge('dns-contract-001'));
+const healthyDnsApp=runApplication(dnsChallenge.healthy,dnsChallenge.verification.serviceId,201);
+const brokenDnsApp=runApplication(dnsChallenge.broken,dnsChallenge.verification.serviceId,202);
+assert.equal(healthyDnsApp.success,true,healthyDnsApp.summary);
+assert.equal(brokenDnsApp.success,false);
+assert.equal(brokenDnsApp.firstBrokenBoundary,'DNS');
+const brokenDnsService=(dnsChallenge.broken.services??[]).find((service)=>service.id===dnsChallenge.fault.serviceId);
+assert.ok(brokenDnsService);
+const repairedDnsServices=upsertBuilderHostedService(dnsChallenge.broken.graph,dnsChallenge.broken.services??[],{...brokenDnsService,hostname:dnsChallenge.fault.expectedHostname});
+assert.deepEqual(repairedDnsServices,dnsChallenge.healthy.services,'DNS challenge removes exactly one canonical hostname');
+let dnsEvidence=[];
+dnsEvidence=appendBuilderChallengeEvidence(dnsEvidence,{kind:'application-transaction',sourceId:dnsChallenge.verification.sourceId,destinationId:dnsChallenge.verification.destinationId,serviceId:dnsChallenge.verification.serviceId,success:false,applicationBoundary:brokenDnsApp.firstBrokenBoundary,repaired:false,detail:brokenDnsApp.summary});
+dnsEvidence=recordInspection(dnsEvidence,dnsChallenge,'state');dnsEvidence=recordInspection(dnsEvidence,dnsChallenge,'config');
+const dnsHypothesis={boundary:'DNS',deviceId:dnsChallenge.fault.nodeId};
+assert.deepEqual(scoreBuilderChallenge(dnsChallenge,dnsEvidence,dnsHypothesis,dnsChallenge.broken.addressing,dnsChallenge.broken.ethernet,dnsChallenge.broken.routing,dnsChallenge.broken.acl,dnsChallenge.broken.nat,dnsChallenge.broken.dhcp,dnsChallenge.broken.linkProfiles,dnsChallenge.broken.services),{evidence:40,reasoning:20,repair:0,verification:0,total:60,repaired:false,verified:false,solved:false});
+assert.equal(scoreBuilderChallenge(dnsChallenge,dnsEvidence,dnsHypothesis,dnsChallenge.broken.addressing,dnsChallenge.broken.ethernet,dnsChallenge.broken.routing,dnsChallenge.broken.acl,dnsChallenge.broken.nat,dnsChallenge.broken.dhcp,dnsChallenge.broken.linkProfiles,repairedDnsServices).total,85);
+const healthyDnsOther=(dnsChallenge.healthy.services??[]).find((service)=>service.id!==dnsChallenge.verification.serviceId&&service.hostname);
+assert.ok(healthyDnsOther);
+const unrelatedDnsApp=runApplication({...dnsChallenge.broken,services:repairedDnsServices},healthyDnsOther.id,203);
+dnsEvidence=appendBuilderChallengeEvidence(dnsEvidence,{kind:'application-transaction',sourceId:dnsChallenge.verification.sourceId,destinationId:dnsChallenge.verification.destinationId,serviceId:healthyDnsOther.id,success:unrelatedDnsApp.success,applicationBoundary:unrelatedDnsApp.firstBrokenBoundary,repaired:true,detail:unrelatedDnsApp.summary});
+assert.equal(scoreBuilderChallenge(dnsChallenge,dnsEvidence,dnsHypothesis,dnsChallenge.broken.addressing,dnsChallenge.broken.ethernet,dnsChallenge.broken.routing,dnsChallenge.broken.acl,dnsChallenge.broken.nat,dnsChallenge.broken.dhcp,dnsChallenge.broken.linkProfiles,repairedDnsServices).verified,false,'another healthy service cannot verify the DNS objective');
+const repairedDnsApp=runApplication({...dnsChallenge.broken,services:repairedDnsServices},dnsChallenge.verification.serviceId,204);
+dnsEvidence=appendBuilderChallengeEvidence(dnsEvidence,{kind:'application-transaction',sourceId:dnsChallenge.verification.sourceId,destinationId:dnsChallenge.verification.destinationId,serviceId:dnsChallenge.verification.serviceId,success:true,applicationBoundary:null,repaired:true,detail:repairedDnsApp.summary});
+assert.deepEqual(scoreBuilderChallenge(dnsChallenge,dnsEvidence,dnsHypothesis,dnsChallenge.broken.addressing,dnsChallenge.broken.ethernet,dnsChallenge.broken.routing,dnsChallenge.broken.acl,dnsChallenge.broken.nat,dnsChallenge.broken.dhcp,dnsChallenge.broken.linkProfiles,repairedDnsServices),{evidence:40,reasoning:20,repair:25,verification:15,total:100,repaired:true,verified:true,solved:true});
+
+const transportChallenge=createTransportListenerChallenge('transport-contract-001');
+assert.equal(transportChallenge.family,'transport-listener');
+assert.equal(transportChallenge.fault.kind,'service-listener-disabled');
+assert.deepEqual(transportChallenge,createBuilderChallenge('transport-contract-001'));
+const healthyTransportApp=runApplication(transportChallenge.healthy,transportChallenge.verification.serviceId,211);
+const brokenTransportApp=runApplication(transportChallenge.broken,transportChallenge.verification.serviceId,212);
+assert.equal(healthyTransportApp.success,true,healthyTransportApp.summary);
+assert.equal(brokenTransportApp.success,false);
+assert.equal(brokenTransportApp.firstBrokenBoundary,'TRANSPORT');
+assert.equal(brokenTransportApp.stages.find((stage)=>stage.id==='dns')?.status,'PASS');
+assert.equal(brokenTransportApp.protocolEvents.length,0,'disabled listener cannot produce established transport theater');
+const brokenTransportService=(transportChallenge.broken.services??[]).find((service)=>service.id===transportChallenge.fault.serviceId);
+assert.ok(brokenTransportService);
+const repairedTransportServices=upsertBuilderHostedService(transportChallenge.broken.graph,transportChallenge.broken.services??[],{...brokenTransportService,enabled:true});
+assert.deepEqual(repairedTransportServices,transportChallenge.healthy.services,'transport challenge changes exactly one canonical listener flag');
+let transportEvidence=[];
+transportEvidence=appendBuilderChallengeEvidence(transportEvidence,{kind:'application-transaction',sourceId:transportChallenge.verification.sourceId,destinationId:transportChallenge.verification.destinationId,serviceId:transportChallenge.verification.serviceId,success:false,applicationBoundary:brokenTransportApp.firstBrokenBoundary,repaired:false,detail:brokenTransportApp.summary});
+transportEvidence=recordInspection(transportEvidence,transportChallenge,'state');transportEvidence=recordInspection(transportEvidence,transportChallenge,'config');
+const transportHypothesis={boundary:'TRANSPORT',deviceId:transportChallenge.fault.nodeId};
+assert.deepEqual(scoreBuilderChallenge(transportChallenge,transportEvidence,transportHypothesis,transportChallenge.broken.addressing,transportChallenge.broken.ethernet,transportChallenge.broken.routing,transportChallenge.broken.acl,transportChallenge.broken.nat,transportChallenge.broken.dhcp,transportChallenge.broken.linkProfiles,transportChallenge.broken.services),{evidence:40,reasoning:20,repair:0,verification:0,total:60,repaired:false,verified:false,solved:false});
+assert.equal(scoreBuilderChallenge(transportChallenge,transportEvidence,transportHypothesis,transportChallenge.broken.addressing,transportChallenge.broken.ethernet,transportChallenge.broken.routing,transportChallenge.broken.acl,transportChallenge.broken.nat,transportChallenge.broken.dhcp,transportChallenge.broken.linkProfiles,repairedTransportServices).total,85);
+const repairedTransportApp=runApplication({...transportChallenge.broken,services:repairedTransportServices},transportChallenge.verification.serviceId,213);
+transportEvidence=appendBuilderChallengeEvidence(transportEvidence,{kind:'application-transaction',sourceId:transportChallenge.verification.sourceId,destinationId:transportChallenge.verification.destinationId,serviceId:transportChallenge.verification.serviceId,success:true,applicationBoundary:null,repaired:true,detail:repairedTransportApp.summary});
+assert.deepEqual(scoreBuilderChallenge(transportChallenge,transportEvidence,transportHypothesis,transportChallenge.broken.addressing,transportChallenge.broken.ethernet,transportChallenge.broken.routing,transportChallenge.broken.acl,transportChallenge.broken.nat,transportChallenge.broken.dhcp,transportChallenge.broken.linkProfiles,repairedTransportServices),{evidence:40,reasoning:20,repair:25,verification:15,total:100,repaired:true,verified:true,solved:true});
+
+for (const challenge of [access, trunk, stp, staticRoute, ospf, aclChallenge, natChallenge, dhcpChallenge, pmtuChallenge, dnsChallenge, transportChallenge]) {
   const challengeToken = builderChallengeToken(challenge);
   assert.deepEqual(createBuilderChallenge(seedFromBuilderChallengeToken(challengeToken)), challenge, `${challenge.family} token must reproduce exact deterministic truth`);
 }
 
-console.log('Builder Track J challenge contract passed: gateway plus seeded access-VLAN, trunk-pruning, STP-loop, missing-static-route, OSPF-disabled, ACL-deny, NAT-disabled, DHCP-gateway, and IPv6-PMTU faults use canonical truth, ordinary probes/LAN+ARP/NAT/DHCP/ND+PMTUD evidence, exact repair, objective-scoped verification, causal scoring, and reproducible tokens.');
+console.log('Builder Track J challenge contract passed: gateway plus seeded L2/routing/policy/DHCP/IPv6-PMTU/DNS-name/transport-listener faults use canonical truth, ordinary probe/LAN/NAT/DHCP/ND/PMTUD/application evidence, exact repair, objective-scoped verification, causal scoring, and reproducible tokens.');

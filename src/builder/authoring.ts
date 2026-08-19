@@ -1,5 +1,6 @@
 import { validateBuilderAddressing, type BuilderAddressing } from './addressing.ts';
 import type { BuilderAclConfig } from './acl.ts';
+import type { BuilderHostedService } from './application.ts';
 import type { BuilderDhcpConfig } from './dhcp.ts';
 import { updateBuilderEthernetLink, type BuilderEthernetConfig } from './ethernet.ts';
 import type { BuilderIpv6Config } from './ipv6.ts';
@@ -26,6 +27,7 @@ export interface BuilderAuthoringSnapshot {
   nat: BuilderNatConfig;
   dhcp: BuilderDhcpConfig;
   ipv6: BuilderIpv6Config;
+  services?: BuilderHostedService[];
   sourceId: string;
   destinationId: string;
   layout: BuilderLayout;

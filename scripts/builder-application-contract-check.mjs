@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createDefaultBuilderAddressing, interfacesForBuilderNode } from '../src/builder/addressing.ts';
 import { createDefaultBuilderAclConfig, upsertBuilderAclRule } from '../src/builder/acl.ts';
-import { createDefaultBuilderHostedServices, runBuilderApplicationTransaction } from '../src/builder/application.ts';
+import { createDefaultBuilderHostedServices, runBuilderApplicationTransaction, upsertBuilderHostedService } from '../src/builder/application.ts';
 import { clearBuilderArpCache } from '../src/builder/arp.ts';
 import { createDefaultBuilderDhcpConfig, clearBuilderDhcpLeases } from '../src/builder/dhcp.ts';
 import { createDefaultBuilderEthernetConfig } from '../src/builder/ethernet.ts';
@@ -84,6 +84,26 @@ for (const service of [dns, ssh, udp]) {
   if (service.kind === 'ssh') assert.ok(result.protocolEvents.some((event) => event.kind === 'transport.established'));
 }
 
+const missingNameServices = upsertBuilderHostedService(graph, services, { ...h2, hostname: null });
+const missingName = runBuilderApplicationTransaction(base, missingNameServices, 'client', h2.id, 'ipv4', 61);
+assert.equal(missingName.success, false);
+assert.equal(missingName.firstBrokenBoundary, 'DNS');
+assert.equal(missingName.stages.find((stage) => stage.id === 'dns')?.status, 'FAIL');
+for (const id of ['l2-resolution','routing','policy-nat','link','transport','tls','application','response']) assert.equal(missingName.stages.find((stage)=>stage.id===id)?.status,'NOT_REACHED',`${id} must remain NOT_REACHED after DNS failure`);
+assert.equal(missingName.protocolEvents.length, 0, 'DNS failure must not project an established transport theater');
+assert.equal(missingName.packets.length, 0, 'DNS failure must not fabricate packet bytes beyond the unresolved service intent');
+
+const closedListenerServices = upsertBuilderHostedService(graph, services, { ...h2, enabled: false });
+const closedListener = runBuilderApplicationTransaction(base, closedListenerServices, 'client', h2.id, 'ipv4', 65);
+assert.equal(closedListener.success, false);
+assert.equal(closedListener.firstBrokenBoundary, 'TRANSPORT');
+assert.equal(closedListener.stages.find((stage) => stage.id === 'dns')?.status, 'PASS', 'listener state must not masquerade as DNS truth');
+for (const id of ['l2-resolution','routing','policy-nat','link']) assert.equal(closedListener.stages.find((stage)=>stage.id===id)?.status,'PASS',`${id} must prove the endpoint is reachable before listener failure`);
+assert.equal(closedListener.stages.find((stage) => stage.id === 'transport')?.status, 'FAIL');
+for (const id of ['tls','application','response']) assert.equal(closedListener.stages.find((stage)=>stage.id===id)?.status,'NOT_REACHED',`${id} must remain NOT_REACHED after listener failure`);
+assert.equal(closedListener.protocolEvents.length, 0, 'closed listener must not fabricate transport.established');
+assert.equal(closedListener.packets.length, 0, 'closed listener must not fabricate transport packet bytes');
+
 const sourceAddress = interfacesForBuilderNode(addressing, 'client')[0]?.address;
 const appAddress = interfacesForBuilderNode(addressing, 'app')[0]?.address;
 assert.ok(sourceAddress && appAddress);
@@ -131,4 +151,4 @@ assert.match(applicationUi, /historical/);
 assert.match(builderSource, /<BuilderApplicationPanel/);
 assert.match(builderSource, /onSessionState=\{\(next\)=>\{ setArpCache\(next\.arpCache\); setNatSessions\(next\.natSessions\); setDhcpLeases\(next\.dhcpLeases\); setIpv6ControlState\(next\.ipv6ControlState\); \}\}/);
 
-console.log('Track D application contract passed: hosted DNS/HTTP/HTTPS/SSH/TCP/UDP services, shared DHCP/addressing→L2/ARP/ND→FIB→ACL/NAT→link→canonical TCP/QUIC/TLS/application truth, NOT_REACHED failure semantics, exact Packet bytes, lazy product integration, and Builder/Protocol/Journey/Packet cameras.');
+console.log('Track D application contract passed: canonical hosted DNS/HTTP/HTTPS/SSH/TCP/UDP services, distinct DNS-name and transport-listener boundaries, shared DHCP/addressing→L2/ARP/ND→FIB→ACL/NAT→link→canonical TCP/QUIC/TLS/application truth, NOT_REACHED failure semantics, exact Packet bytes, lazy product integration, and Builder/Protocol/Journey/Packet cameras.');

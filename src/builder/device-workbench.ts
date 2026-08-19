@@ -13,7 +13,7 @@ import type { BuilderLinkProfiles } from './link-characteristics.ts';
 import type { BuilderNatConfig, BuilderNatSessionTable } from './nat.ts';
 import type { BuilderProbeResult } from './probes.ts';
 import { builderOspfState, routeTableForBuilderRouter, type BuilderRouteTableEntry, type BuilderRoutingConfig } from './routing.ts';
-import type { BuilderApplicationTransaction } from './application.ts';
+import type { BuilderApplicationTransaction, BuilderHostedService } from './application.ts';
 
 export type BuilderDevicePlane = 'routed' | 'ethernet';
 export interface BuilderDeviceRef { plane: BuilderDevicePlane; id: string; }
@@ -122,6 +122,7 @@ export interface BuilderWorkbenchTruthGraphs {
 
 export interface BuilderDeviceWorkbenchInput {
   graph: BuilderGraph;
+  services?: BuilderHostedService[];
   linkProfiles?: BuilderLinkProfiles;
   truthGraphs?: BuilderWorkbenchTruthGraphs;
   addressing: BuilderAddressing;
@@ -270,6 +271,7 @@ function routedConfigSections(input:BuilderDeviceWorkbenchInput,deviceId:string)
     const ospfv3Enabled=input.ipv6.enabled&&input.ipv6.ospfv3.enabledRouterIds.includes(deviceId);routingRows.push(row('cfg:ospfv3','OSPFV3',ospfv3Enabled?'ENABLED':'DISABLED',`Areas ${builderOspfv3DepthSummary(input.graph,input.ipv6,input.ipv6RoutingDepth).routerAreas[deviceId]?.join(', ')||'—'}`,ospfv3Enabled?'good':'muted',[why('cfg:ospfv3:why','CONFIG','OSPFV3 PROCESS',ospfv3Enabled?'Router participates in the IPv6 link-state control plane.':'OSPFv3 is disabled on this router.')]));
     const bgpEnabled=input.routing.bgp.enabledRouterIds.includes(deviceId);routingRows.push(row('cfg:bgp','BGP',bgpEnabled?`ENABLED · AS${builderBgpAsnForRouter(input.graph,input.routing.bgp,deviceId)}`:'DISABLED',`${input.routing.bgp.sessions.filter((entry)=>entry.aRouterId===deviceId||entry.bRouterId===deviceId).length} sessions · ${input.routing.bgp.origins.filter((entry)=>entry.routerId===deviceId).length} origins`,bgpEnabled?'good':'muted',[why('cfg:bgp:why','CONFIG','BGP PROCESS',bgpEnabled?'ASN, sessions, origins, and policy are canonical Builder configuration.':'BGP is disabled on this router.')]));
   }
+  const serviceRows:BuilderWorkbenchRow[]=node.kind==='endpoint'?(input.services??[]).filter((service)=>service.nodeId===deviceId).map((service)=>row(`cfg:service:${service.id}`,'HOSTED SERVICE',`${service.label} · ${service.enabled?'LISTENING':'CLOSED'}`,`${service.hostname??'NO DETERMINISTIC NAME'} · ${service.kind.toUpperCase()}/${service.port}`,service.enabled&&service.hostname?'good':service.enabled||service.hostname?'warn':'bad',[why(`cfg:service:${service.id}:name`,'CONFIG','DNS NAME',service.hostname?`${service.hostname} is the canonical deterministic service name.`:'No deterministic hostname is configured; the application transaction stops at DNS.'),why(`cfg:service:${service.id}:listener`,'CONFIG','LISTENER',service.enabled?`${service.kind.toUpperCase()} listener is enabled on port ${service.port}.`:`Listener is disabled on port ${service.port}; lower layers may still reach this endpoint.`)])):[];
   const policyRows:BuilderWorkbenchRow[]=[];
   if(node.kind==='router'){
     input.acl.rules.filter((entry)=>entry.routerId===deviceId).forEach((entry)=>policyRows.push(row(`cfg:acl:${entry.id}`,'IPV4 ACL',`${entry.order} · ${entry.action.toUpperCase()} ${entry.protocol.toUpperCase()}`,`${entry.sourcePrefix} → ${entry.destinationPrefix}${entry.destinationPort?`:${entry.destinationPort}`:''} · ${entry.description||entry.id}`,entry.action==='deny'?'warn':'normal',[why(`cfg:acl:${entry.id}:why`,'CONFIG','FIRST-MATCH RULE',`Rule ${entry.id} is persisted and evaluated in ascending order.`)])));
@@ -278,7 +280,7 @@ function routedConfigSections(input:BuilderDeviceWorkbenchInput,deviceId:string)
     input.nat.staticAddresses.filter((entry)=>entry.routerId===deviceId).forEach((entry)=>policyRows.push(row(`cfg:nat1:${entry.id}`,'STATIC NAT',entry.outsideAddress,`${entry.insideAddress} ↔ ${entry.outsideAddress} · ${entry.description}`,'normal',[why(`cfg:nat1:${entry.id}:why`,'CONFIG','ONE-TO-ONE MAPPING','Static mapping exists independent from active translation state.')]))) ;
     input.nat.staticMappings.filter((entry)=>entry.routerId===deviceId).forEach((entry)=>policyRows.push(row(`cfg:natp:${entry.id}`,'PORT FORWARD',`${entry.outsideAddress}:${entry.outsidePort}/${entry.protocol}`,`→ ${entry.insideAddress}:${entry.insidePort} · ${entry.description}`,'normal',[why(`cfg:natp:${entry.id}:why`,'CONFIG','STATIC PORT MAPPING','Published tuple is persisted; matching flow state remains derived.')]))) ;
   }
-  return [section('interfaces','INTERFACES',[...ipv4,...ipv6,...gateways],'No routed interfaces are configured.'),section('routing-config','ROUTING / CONTROL PLANE',routingRows,'This endpoint has no router control-plane configuration.'),section('policy-config','POLICY / EDGE SERVICES',policyRows,'No explicit policy or edge-service configuration applies to this device.')];
+  return [section('interfaces','INTERFACES',[...ipv4,...ipv6,...gateways],'No routed interfaces are configured.'),section('services-config','HOSTED SERVICES',serviceRows,'No canonical hosted services are configured on this endpoint.'),section('routing-config','ROUTING / CONTROL PLANE',routingRows,'This endpoint has no router control-plane configuration.'),section('policy-config','POLICY / EDGE SERVICES',policyRows,'No explicit policy or edge-service configuration applies to this device.')];
 }
 
 function routedStateSections(input:BuilderDeviceWorkbenchInput,deviceId:string):BuilderWorkbenchSection[]{

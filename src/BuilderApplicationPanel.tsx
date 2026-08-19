@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import type { BuilderApplicationContext, BuilderApplicationTransaction } from './builder/application.ts';
+import type { BuilderApplicationContext, BuilderApplicationTransaction, BuilderHostedService } from './builder/application.ts';
 import type { BuilderArpCache } from './builder/arp.ts';
 import type { BuilderDhcpLeaseTable } from './builder/dhcp.ts';
 import type { BuilderIpv6ControlState } from './builder/ipv6-control-plane.ts';
@@ -8,6 +8,9 @@ import type { BuilderNatSessionTable } from './builder/nat.ts';
 export interface BuilderApplicationPanelProps {
   context: BuilderApplicationContext;
   sourceNodeId: string;
+  services: BuilderHostedService[];
+  onServicesChange: (services: BuilderHostedService[]) => void;
+  preferredServiceId?: string | null;
   historical: boolean;
   onSessionState: (state: { arpCache: BuilderArpCache; natSessions: BuilderNatSessionTable; dhcpLeases: BuilderDhcpLeaseTable; ipv6ControlState: BuilderIpv6ControlState }) => void;
   onTransaction: (transaction: BuilderApplicationTransaction) => void;

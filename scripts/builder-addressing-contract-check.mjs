@@ -13,6 +13,7 @@ import {
 } from '../src/builder/addressing.ts';
 import { cloneBuilderGraph, defaultBuilderGraph, defaultBuilderLayout, findShortestPath } from '../src/builder/model.ts';
 import { createBuilderScenario, deserializeBuilderScenario, serializeBuilderScenario } from '../src/builder/scenario.ts';
+import { createDefaultBuilderHostedServices } from '../src/builder/application.ts';
 
 const graph = cloneBuilderGraph(defaultBuilderGraph);
 const routeBefore = findShortestPath(graph, 'client', 'app');
@@ -90,7 +91,9 @@ assert.doesNotThrow(() => validateBuilderAddressing(contractedGraph, contractedA
 
 const scenario = createBuilderScenario('Addressed topology', graph, 'client', 'app', defaultBuilderLayout, validated);
 assert.equal(scenario.version, 9);
-assert.deepEqual(deserializeBuilderScenario(serializeBuilderScenario(scenario)).addressing, validated);
+const scenarioRoundTrip=deserializeBuilderScenario(serializeBuilderScenario(scenario));
+assert.deepEqual(scenarioRoundTrip.addressing, validated);
+assert.deepEqual(scenarioRoundTrip.services,createDefaultBuilderHostedServices(graph),'schema v9 round trip must persist canonical hosted services');
 
 const now = '2026-08-12T00:00:00.000Z';
 const legacyV2 = {
@@ -108,6 +111,7 @@ const migratedV2 = deserializeBuilderScenario(JSON.stringify(legacyV2));
 assert.equal(migratedV2.version, 9);
 assert.doesNotThrow(() => validateBuilderAddressing(migratedV2.graph, migratedV2.addressing));
 assert.deepEqual(migratedV2.nat.boundaries, [], 'legacy scenarios do not fabricate NAT boundaries');
+assert.deepEqual(migratedV2.services,createDefaultBuilderHostedServices(graph),'legacy scenarios inherit the same deterministic hosted-service catalog the old UI derived at runtime');
 
 const legacyV1 = {
   schema: 'hopscotch.builder',
