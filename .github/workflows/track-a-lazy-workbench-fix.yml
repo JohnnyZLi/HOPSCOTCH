@@ -29,11 +29,11 @@ jobs:
           if imp not in s: raise SystemExit('workbench-depth import marker missing')
           s=s.replace(imp,'',1)
           old="""  const baseStateSections=device.plane==='routed'?routedStateSections(input,device.id):ethernetStateSections(input,device.id);
-            const depthSections=[builderProtocolDatabaseSection(input,device),builderApplicationDiagnosisSection(input,device)].filter((entry):entry is BuilderWorkbenchSection=>Boolean(entry));
-            const stateSections=[...baseStateSections,...depthSections];
-            return{device,configSections,stateSections,events:eventViews(input.events,device),configRowCount:configSections.reduce((sum,current)=>sum+current.rows.length,0),stateRowCount:stateSections.reduce((sum,current)=>sum+current.rows.length,0)};"""
+          const depthSections=[builderProtocolDatabaseSection(input,device),builderApplicationDiagnosisSection(input,device)].filter((entry):entry is BuilderWorkbenchSection=>Boolean(entry));
+          const stateSections=[...baseStateSections,...depthSections];
+          return{device,configSections,stateSections,events:eventViews(input.events,device),configRowCount:configSections.reduce((sum,current)=>sum+current.rows.length,0),stateRowCount:stateSections.reduce((sum,current)=>sum+current.rows.length,0)};"""
           new="""  const stateSections=device.plane==='routed'?routedStateSections(input,device.id):ethernetStateSections(input,device.id);
-            return{device,configSections,stateSections,events:eventViews(input.events,device),configRowCount:configSections.reduce((sum,current)=>sum+current.rows.length,0),stateRowCount:stateSections.reduce((sum,current)=>sum+current.rows.length,0)};"""
+          return{device,configSections,stateSections,events:eventViews(input.events,device),configRowCount:configSections.reduce((sum,current)=>sum+current.rows.length,0),stateRowCount:stateSections.reduce((sum,current)=>sum+current.rows.length,0)};"""
           if old not in s: raise SystemExit('workbench state-section marker missing')
           p.write_text(s.replace(old,new,1))
 
