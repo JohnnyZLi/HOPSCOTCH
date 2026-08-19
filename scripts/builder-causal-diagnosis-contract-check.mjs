@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createDefaultBuilderAddressing, interfacesForBuilderNode } from '../src/builder/addressing.ts';
 import { createDefaultBuilderAclConfig, upsertBuilderAclRule } from '../src/builder/acl.ts';
 import { createDefaultBuilderHostedServices, runBuilderApplicationTransaction } from '../src/builder/application.ts';
@@ -17,6 +18,7 @@ import { cloneBuilderLayout, defaultBuilderGraph, defaultBuilderLayout } from '.
 import { clearBuilderNatSessions, createDefaultBuilderNatConfig } from '../src/builder/nat.ts';
 import { createDefaultBuilderRoutingConfig, setBuilderOspfEverywhere } from '../src/builder/routing.ts';
 import { builderTimelineJournalThroughSequence, builderTimelineSnapshotAtSequence, captureBuilderTimelineSnapshot, createBuilderTimeline } from '../src/builder/timeline.ts';
+import { builderApplicationDiagnosisSection, builderProtocolDatabaseSection } from '../src/builder/workbench-depth.ts';
 
 const graph = defaultBuilderGraph;
 const addressing = createDefaultBuilderAddressing(graph);
@@ -131,14 +133,24 @@ assert.equal(routingSnapshot.state.applicationHistory.length, 1);
 const routingDiagnosis = diagnoseBuilderApplicationTransaction(routingSnapshot.state.applicationHistory[0], routingSnapshot.state.graph, routingSnapshot.state.applicationStageOrder);
 assert.equal(routingDiagnosis.firstBrokenDimension, null);
 assert.equal(routingDiagnosis.dimensions.find((entry) => entry.id === 'POLICY')?.status, 'NOT_REACHED');
-const historicalWorkbench = buildBuilderDeviceWorkbench({ ...routingSnapshot.state, events: builderTimelineJournalThroughSequence(journal, routingSnapshot.sequence) }, { plane: 'routed', id: 'edge' });
-const historicalCausality = historicalWorkbench.stateSections.find((entry) => entry.id === 'application-diagnosis');
+const routingInput = { ...routingSnapshot.state, events: builderTimelineJournalThroughSequence(journal, routingSnapshot.sequence) };
+const historicalWorkbench = buildBuilderDeviceWorkbench(routingInput, { plane: 'routed', id: 'edge' });
+assert.equal(historicalWorkbench.depthInput, routingInput, 'core workbench snapshot should pass through the exact selected canonical input without cloning another truth model');
+const historicalCausality = builderApplicationDiagnosisSection(routingInput, historicalWorkbench.device);
 assert.ok(historicalCausality);
 assert.equal(historicalCausality.rows.some((entry) => entry.id === 'app:first-broken'), false, 'first broken truth cannot leak into the earlier routing snapshot');
-const terminalWorkbench = buildBuilderDeviceWorkbench({ ...terminalSnapshot.state, events: builderTimelineJournalThroughSequence(journal, terminalSnapshot.sequence) }, { plane: 'routed', id: 'edge' });
-const terminalCausality = terminalWorkbench.stateSections.find((entry) => entry.id === 'application-diagnosis');
+const terminalInput = { ...terminalSnapshot.state, events: builderTimelineJournalThroughSequence(journal, terminalSnapshot.sequence) };
+const terminalWorkbench = buildBuilderDeviceWorkbench(terminalInput, { plane: 'routed', id: 'edge' });
+const terminalCausality = builderApplicationDiagnosisSection(terminalInput, terminalWorkbench.device);
 assert.ok(terminalCausality?.rows.some((entry) => entry.id === 'app:first-broken' && entry.value === 'POLICY'));
-assert.ok(terminalWorkbench.stateSections.some((entry) => entry.id === 'protocol-databases'), 'time-native protocol database/counter rows must be present in Device Workbench');
+const protocolDatabase = builderProtocolDatabaseSection(terminalInput, terminalWorkbench.device);
+assert.ok(protocolDatabase && protocolDatabase.rows.length > 0, 'time-native protocol database/counter rows must derive from the selected Device Workbench input');
+
+const workbenchCoreSource = readFileSync('src/builder/device-workbench.ts', 'utf8');
+const workbenchUiSource = readFileSync('src/BuilderDeviceWorkbench.tsx', 'utf8');
+assert.doesNotMatch(workbenchCoreSource, /from ['"]\.\/workbench-depth\.ts['"]/, 'heavy protocol/causal depth must not be statically reachable from the core workbench model');
+assert.match(workbenchUiSource, /lazy\(\(\) => import\('\.\/BuilderWorkbenchDepthPanel\.tsx'\)/, 'Device Workbench depth must live behind an explicit lazy UI boundary');
+assert.match(workbenchUiSource, /snapshot\.depthInput/, 'lazy depth must consume the exact selected canonical snapshot input');
 
 const ipv6Tx = runBuilderApplicationTransaction(base, services, 'client', h3.id, 'ipv6', 31);
 const ipv6Diagnosis = diagnoseBuilderApplicationTransaction(ipv6Tx, graph);
@@ -156,4 +168,4 @@ assert.ok(partitioned.firstBrokenDimension, partitioned.summary);
 assert.equal(partitioned.dimensions.find((entry) => entry.id === 'TRANSPORT')?.status, 'NOT_REACHED');
 assert.ok(partitioned.causalChain.length >= 2);
 
-console.log('Track A causal diagnosis contract passed: independent truth dimensions, canonical application-stage replay, time-native Device Workbench protocol/counter state, exact first-broken-boundary ranking, no future-state leakage, policy vs translation separation, IPv6 no-NAT66 truth, and canonical causal chains.');
+console.log('Track A causal diagnosis contract passed: independent truth dimensions, canonical application-stage replay, time-native protocol/counter state, exact first-broken-boundary ranking, no future-state leakage, policy vs translation separation, IPv6 no-NAT66 truth, canonical causal chains, and a lazy workbench-depth boundary that does not widen startup truth or bundle scope.');
