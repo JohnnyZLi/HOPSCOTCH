@@ -13,7 +13,6 @@ import type { BuilderNatConfig, BuilderNatSessionTable } from './nat.ts';
 import type { BuilderProbeResult } from './probes.ts';
 import { builderOspfState, routeTableForBuilderRouter, type BuilderRouteTableEntry, type BuilderRoutingConfig } from './routing.ts';
 import type { BuilderApplicationTransaction } from './application.ts';
-import { builderApplicationDiagnosisSection, builderProtocolDatabaseSection } from './workbench-depth.ts';
 
 export type BuilderDevicePlane = 'routed' | 'ethernet';
 export interface BuilderDeviceRef { plane: BuilderDevicePlane; id: string; }
@@ -111,6 +110,7 @@ export interface BuilderDeviceWorkbenchSnapshot {
   events: BuilderWorkbenchEventView[];
   configRowCount: number;
   stateRowCount: number;
+  depthInput: BuilderDeviceWorkbenchInput;
 }
 
 export interface BuilderWorkbenchTruthGraphs {
@@ -345,8 +345,6 @@ function eventViews(journal:BuilderWorkbenchEventJournal,device:BuilderDeviceRef
 export function buildBuilderDeviceWorkbench(input:BuilderDeviceWorkbenchInput,requested:BuilderDeviceRef):BuilderDeviceWorkbenchSnapshot{
   const options=builderWorkbenchDeviceOptions(input.graph,input.ethernet);const device=options.find((candidate)=>sameRef(candidate,requested))??options[0]??{plane:'routed' as const,id:'none',label:'NO DEVICE',kind:'NONE',group:'NONE'};
   const configSections=device.plane==='routed'?routedConfigSections(input,device.id):ethernetConfigSections(input,device.id);
-  const baseStateSections=device.plane==='routed'?routedStateSections(input,device.id):ethernetStateSections(input,device.id);
-  const depthSections=[builderProtocolDatabaseSection(input,device),builderApplicationDiagnosisSection(input,device)].filter((entry):entry is BuilderWorkbenchSection=>Boolean(entry));
-  const stateSections=[...baseStateSections,...depthSections];
-  return{device,configSections,stateSections,events:eventViews(input.events,device),configRowCount:configSections.reduce((sum,current)=>sum+current.rows.length,0),stateRowCount:stateSections.reduce((sum,current)=>sum+current.rows.length,0)};
+  const stateSections=device.plane==='routed'?routedStateSections(input,device.id):ethernetStateSections(input,device.id);
+  return{device,configSections,stateSections,events:eventViews(input.events,device),configRowCount:configSections.reduce((sum,current)=>sum+current.rows.length,0),stateRowCount:stateSections.reduce((sum,current)=>sum+current.rows.length,0),depthInput:input};
 }
