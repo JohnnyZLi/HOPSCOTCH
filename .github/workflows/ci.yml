@@ -28,6 +28,7 @@ jobs:
             node scripts/fix-track-j-policy-patcher.mjs
             node scripts/apply-track-j-policy-slice.mjs
           fi
+          node scripts/fix-track-j-policy-integration.mjs
       - run: npm ci
       - run: npm run check
       - name: Commit generated product changes
@@ -39,5 +40,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/builder/challenges.ts src/BuilderChallengePanel.tsx src/BuilderNatPanel.tsx src/NetworkBuilder.tsx scripts/builder-challenge-contract-check.mjs docs/TRACKJ.md
-          git commit -m "Add ACL and NAT troubleshooting challenges"
+          git commit -m "Fix live ACL/NAT challenge repair evidence"
           git push origin HEAD:${{ github.head_ref }}
