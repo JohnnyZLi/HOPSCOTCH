@@ -100,6 +100,7 @@ const networkBuilderSource = readFileSync('src/NetworkBuilder.tsx', 'utf8');
 const panelWrapperSource = readFileSync('src/BuilderAuthoringPanel.tsx', 'utf8');
 const panelContentSource = readFileSync('src/BuilderAuthoringPanelContent.tsx', 'utf8');
 assert.match(networkBuilderSource, /BuilderAuthoringPanel/, 'Network Builder must mount the Track B authoring surface');
+assert.match(networkBuilderSource, /lazy\(\(\) => import\('\.\/BuilderAuthoringPanel\.tsx'\)/, 'the entire Track B authoring shell must remain outside the initial NetworkBuilder chunk');
 assert.match(networkBuilderSource, /builder-canvas-viewport/, 'Builder canvas must expose a camera viewport for zoom/focus');
 assert.match(networkBuilderSource, /builder-marquee/, 'Builder canvas must expose marquee selection');
 assert.match(panelWrapperSource, /lazy\(\(\) => import\('\.\/BuilderAuthoringPanelContent\.tsx'\)/, 'heavy authoring tools must remain behind a lazy boundary');
@@ -107,6 +108,7 @@ assert.match(panelContentSource, /searchBuilderTopology\(/, 'authoring search UI
 assert.match(panelContentSource, /compareBuilderScenarios\(/, 'scenario compare UI must consume the shipped deterministic compare engine');
 assert.match(panelContentSource, /RESTORE BASELINE/, 'authoring workspace must expose a clean baseline restore path');
 assert.match(panelContentSource, /SHOW ROUTED INTERFACE NAMES/, 'authoring workspace must expose interface-name visibility');
+assert.match(panelContentSource, /value="ethN" readOnly/, 'bulk interface authoring must present the canonical ethN contract instead of implying unsupported vendor prefixes');
 assert.match(panelContentSource, /SAVE TEMPLATE/, 'authoring workspace must expose reusable topology templates');
 assert.match(panelContentSource, /SET ACCESS VLAN/, 'authoring workspace must expose bulk VLAN edits');
 
