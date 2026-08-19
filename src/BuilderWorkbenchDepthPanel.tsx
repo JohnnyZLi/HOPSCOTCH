@@ -1,16 +1,16 @@
 import { useEffect, useMemo } from 'react';
 import { builderApplicationDiagnosisSection, builderProtocolDatabaseSection } from './builder/workbench-depth.ts';
-import type { BuilderDeviceRef, BuilderDeviceWorkbenchInput, BuilderWorkbenchRow, BuilderWorkbenchSection } from './builder/device-workbench.ts';
+import type { BuilderDeviceWorkbenchSnapshot, BuilderWorkbenchRow, BuilderWorkbenchSection } from './builder/device-workbench.ts';
 
 function Why({ row }: { row: BuilderWorkbenchRow }) {
   if (row.why.length === 0) return null;
   return <details className="device-workbench-why"><summary>WHY?</summary><div>{row.why.map((step) => <p key={step.id}><span>{step.source}</span><strong>{step.label}</strong><small>{step.detail}</small></p>)}</div></details>;
 }
 
-export function BuilderWorkbenchDepthPanel({ input, device, onRowCount }: { input: BuilderDeviceWorkbenchInput; device: BuilderDeviceRef; onRowCount?: (count: number) => void }) {
+export function BuilderWorkbenchDepthPanel({ snapshot, onRowCount }: { snapshot: BuilderDeviceWorkbenchSnapshot; onRowCount?: (count: number) => void }) {
   const sections = useMemo(
-    () => [builderProtocolDatabaseSection(input, device), builderApplicationDiagnosisSection(input, device)].filter((entry): entry is BuilderWorkbenchSection => Boolean(entry)),
-    [input, device.plane, device.id],
+    () => [builderProtocolDatabaseSection(snapshot), builderApplicationDiagnosisSection(snapshot.depthInput, snapshot.device)].filter((entry): entry is BuilderWorkbenchSection => Boolean(entry)),
+    [snapshot],
   );
   const rowCount = sections.reduce((sum, current) => sum + current.rows.length, 0);
 
