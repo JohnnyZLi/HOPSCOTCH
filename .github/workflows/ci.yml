@@ -26,7 +26,7 @@ jobs:
           text=p.read_text()
           text='\n'.join(line for line in text.splitlines() if 's=s.replace("allowRelationshipLeak:entry.allowRelationshipLeak===true};"' not in line)+'\n'
           text=text.replace("holdTimeMs=Math.max(3000,Math.min(180000,Math.round(Number(entry.holdTimeMs)||90000));return", "holdTimeMs=Math.max(3000,Math.min(180000,Math.round(Number(entry.holdTimeMs)||90000)));return")
-          text=text.replace("onMessage={setMessage} onOpenAsProjection={openBgpProjection}/>} \\", "onMessage={setMessage} onOpenAsProjection={openBgpProjection}/>}\\\"")
+          text=text.replace('/>} ",`','/>}",`')
           p.write_text(text)
           PY
             node scripts/track-f-patch.mjs
