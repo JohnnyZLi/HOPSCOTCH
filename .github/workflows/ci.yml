@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -14,19 +14,6 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: agent/track-c-enterprise-closeout
-          fetch-depth: 0
-      - name: Slim Track C canonical startup boundary once
-        run: |
-          if [ -f scripts/track-c-core-slim.py ]; then
-            python scripts/track-c-core-slim.py
-            git config user.name "Johnny"
-            git config user.email "92900710+JohnnyZLi@users.noreply.github.com"
-            git add src/builder/ethernet.ts src/builder/enterprise.ts
-            git commit -m "Track C: keep enterprise validation lazy"
-            git push origin HEAD:agent/track-c-enterprise-closeout
-          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 24
