@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -14,36 +14,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.head_ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - name: Apply Track J MTU + neighbor slice once
-        run: |
-          if grep -q "'ipv6-pmtu'" src/builder/challenges.ts; then
-            echo "Track J MTU slice already applied."
-          else
-            DOC_LINE=$(grep -n "^const docs='docs/TRACKJ.md';" scripts/apply-track-j-mtu-neighbor-slice.mjs | head -1 | cut -d: -f1)
-            head -n $((DOC_LINE - 1)) scripts/apply-track-j-mtu-neighbor-slice.mjs > /tmp/track-j-mtu-helper.mjs
-            echo "console.log('Applied Track J IPv6 PMTU + neighbor-resolution challenge slice.');" >> /tmp/track-j-mtu-helper.mjs
-            mv /tmp/track-j-mtu-helper.mjs scripts/apply-track-j-mtu-neighbor-slice.mjs
-            node scripts/apply-track-j-mtu-neighbor-slice.mjs
-            python -c "from pathlib import Path; p=Path('src/builder/device-workbench.ts'); t=p.read_text(); p.write_text(t.replace(');})) : [];', ');}) : [];'))"
-          fi
-          node scripts/fix-track-j-pmtu-hardening.mjs
-          node scripts/update-track-j-pmtu-docs.mjs
       - run: npm ci
       - run: npm run check
-      - name: Commit generated product changes
-        run: |
-          if git diff --quiet src/builder/challenges.ts src/BuilderChallengePanel.tsx src/NetworkBuilder.tsx src/builder/device-workbench.ts scripts/builder-challenge-contract-check.mjs docs/TRACKJ.md; then
-            echo "No generated product changes to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/builder/challenges.ts src/BuilderChallengePanel.tsx src/NetworkBuilder.tsx src/builder/device-workbench.ts scripts/builder-challenge-contract-check.mjs docs/TRACKJ.md
-          git commit -m "Document IPv6 PMTU troubleshooting challenge"
-          git push origin HEAD:${{ github.head_ref }}
+      - name: Upload production build
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 3
