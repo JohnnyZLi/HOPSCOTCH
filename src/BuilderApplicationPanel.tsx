@@ -14,8 +14,8 @@ export interface BuilderApplicationPanelProps {
   onMessage: (message: string) => void;
 }
 
-const BuilderApplicationWorkspace = lazy(() => import('./BuilderApplicationWorkspace.tsx').then((module) => ({ default: module.BuilderApplicationWorkspace })));
+const BuilderApplicationWorkspace = lazy(() => import('./BuilderApplicationDataPlaneWorkspace.tsx'));
 
 export function BuilderApplicationPanel(props: BuilderApplicationPanelProps) {
-  return <Suspense fallback={<section className="builder-app-loading" aria-live="polite">LOADING APPLICATION TRANSACTION…</section>}><BuilderApplicationWorkspace {...props} /></Suspense>;
+  return <Suspense fallback={<section className="builder-app-loading" aria-live="polite">LOADING APPLICATION + DATA PLANE…</section>}><BuilderApplicationWorkspace {...props} /></Suspense>;
 }

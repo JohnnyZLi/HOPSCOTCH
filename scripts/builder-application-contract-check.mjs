@@ -117,10 +117,12 @@ assert.ok(ipv6Transaction.ipv6ControlState.ndHistory.length > 0, 'IPv6 applicati
 assert.equal(ipv6Transaction.natRequest, null, 'Track D must not invent NAT66');
 
 const panelSource = readFileSync(new URL('../src/BuilderApplicationPanel.tsx', import.meta.url), 'utf8');
+const compositeSource = readFileSync(new URL('../src/BuilderApplicationDataPlaneWorkspace.tsx', import.meta.url), 'utf8');
 const workspaceSource = readFileSync(new URL('../src/BuilderApplicationWorkspace.tsx', import.meta.url), 'utf8');
 const builderSource = readFileSync(new URL('../src/NetworkBuilder.tsx', import.meta.url), 'utf8');
-const applicationUi = `${panelSource}\n${workspaceSource}`;
-assert.match(panelSource, /lazy\(\(\) => import\('\.\/BuilderApplicationWorkspace\.tsx'\)/);
+const applicationUi = `${panelSource}\n${compositeSource}\n${workspaceSource}`;
+assert.match(panelSource, /lazy\(\(\) => import\('\.\/BuilderApplicationDataPlaneWorkspace\.tsx'\)/, 'application product boundary must remain lazy');
+assert.match(compositeSource, /BuilderApplicationWorkspace/, 'Track E composition must preserve the canonical Track D workspace rather than replacing it');
 assert.match(applicationUi, /ONE REQUEST · ONE CAUSAL TRUTH STACK/);
 assert.match(applicationUi, /BUILDER.*PROTOCOL.*JOURNEY.*PACKET/s);
 assert.match(applicationUi, /OPEN PACKET MICROSCOPE/);
