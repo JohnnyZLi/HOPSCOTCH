@@ -29,6 +29,7 @@ jobs:
             python scripts/apply-track-j-dns-transport.py
           fi
           python scripts/fix-track-j-dns-protocol-events.py
+          python scripts/fix-track-j-scenario-services.py
       - run: npm ci
       - run: npm run check
       - name: Commit generated product changes
