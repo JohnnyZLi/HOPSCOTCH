@@ -154,6 +154,22 @@ Flow hashing, FHRP master selection, route-table derivation, LLDP rows, RSTP con
 - scenario-v9 serialization/deserialization
 - lazy product integration that keeps Track C out of the startup `NetworkBuilder` chunk
 
+## Validation closeout
+
+The code-complete candidate passed the full repository contract suite and enforced production profile with unchanged performance ceilings:
+
+- initial JavaScript: **431,973 gzip bytes** against the existing **432,000-byte** ceiling
+- initial CSS: **34,912 gzip bytes**
+- stress Builder: **900 DOM nodes**, within the existing ceiling
+- production performance and high-density seek/stress budgets: pass
+- Chrome default compatibility: pass
+- Chrome disabled-GPU compatibility: pass
+- Firefox semantic compatibility: pass
+- captured replay browser contract: pass
+- SwiftShader compatibility: first attempt hit the pre-existing 5-second `.measured-workspace` readiness timeout after unusually slow Builder OSPF startup; isolated rerun passed unchanged
+
+No performance ceiling was widened to land Track C.
+
 ## Closeout boundary
 
 Track C is complete when the permanent contract, repository checks, production performance budgets, and compatibility/browser matrix all pass on the final PR head.
