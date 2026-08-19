@@ -33,6 +33,8 @@ export interface BuilderChallenge {
 export interface BuilderChallengeEvidenceInput {
   kind: BuilderChallengeEvidenceKind;
   deviceId?: string | null;
+  sourceId?: string | null;
+  destinationId?: string | null;
   success?: boolean | null;
   repaired: boolean;
   detail: string;
@@ -165,14 +167,18 @@ function hasEvidence(
   return evidence.some(predicate);
 }
 
+function isObjectiveProbe(challenge: BuilderChallenge, entry: BuilderChallengeEvidence): boolean {
+  return entry.sourceId === challenge.broken.sourceId && entry.destinationId === challenge.broken.destinationId;
+}
+
 export function scoreBuilderChallenge(
   challenge: BuilderChallenge,
   evidence: readonly BuilderChallengeEvidence[],
   hypothesis: BuilderChallengeHypothesis | null,
   addressing: BuilderAddressing,
 ): BuilderChallengeScore {
-  const failedPing = hasEvidence(evidence, (entry) => entry.kind === 'ping' && entry.success === false && !entry.repaired);
-  const failedTraceroute = hasEvidence(evidence, (entry) => entry.kind === 'traceroute' && entry.success === false && !entry.repaired);
+  const failedPing = hasEvidence(evidence, (entry) => entry.kind === 'ping' && isObjectiveProbe(challenge, entry) && entry.success === false && !entry.repaired);
+  const failedTraceroute = hasEvidence(evidence, (entry) => entry.kind === 'traceroute' && isObjectiveProbe(challenge, entry) && entry.success === false && !entry.repaired);
   const inspectedState = hasEvidence(evidence, (entry) => entry.kind === 'inspect-state' && entry.deviceId === challenge.fault.nodeId && !entry.repaired);
   const inspectedConfig = hasEvidence(evidence, (entry) => entry.kind === 'inspect-config' && entry.deviceId === challenge.fault.nodeId && !entry.repaired);
   const evidenceScore = (failedPing ? 10 : 0) + (failedTraceroute ? 10 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
@@ -185,7 +191,7 @@ export function scoreBuilderChallenge(
     : 0;
 
   const repaired = builderChallengeIsRepaired(challenge, addressing);
-  const verified = hasEvidence(evidence, (entry) => (entry.kind === 'ping' || entry.kind === 'traceroute') && entry.success === true && entry.repaired);
+  const verified = hasEvidence(evidence, (entry) => (entry.kind === 'ping' || entry.kind === 'traceroute') && isObjectiveProbe(challenge, entry) && entry.success === true && entry.repaired);
   const repairScore = repaired ? 25 : 0;
   const verificationScore = repaired && verified ? 15 : 0;
   const total = evidenceScore + reasoningScore + repairScore + verificationScore;
