@@ -1,7 +1,8 @@
 import { builderStpState, cloneBuilderStpConfig, createDefaultBuilderStpConfig, validateBuilderStpConfig, type BuilderStpConfig } from './stp.ts';
+import { builderEthernetLogicalLinkCarriesVlan } from './ethernet-link.ts';
 
-export type BuilderEthernetDeviceKind = 'endpoint' | 'switch' | 'router';
-export type BuilderEthernetPortMode = 'access' | 'trunk';
+export type BuilderEthernetDeviceKind = 'endpoint' | 'switch' | 'l3-switch' | 'router';
+export type BuilderEthernetPortMode = 'access' | 'trunk' | 'routed';
 
 export interface BuilderEthernetVlan {
   id: number;
@@ -13,6 +14,9 @@ export interface BuilderEthernetInterface {
   vlanId: number;
   address: string;
   gateway?: string | null;
+  vrfId?: string;
+  virtualGateway?: string | null;
+  gatewayPriority?: number;
 }
 
 export interface BuilderEthernetDevice {
@@ -30,7 +34,24 @@ export interface BuilderEthernetLink {
   mode: BuilderEthernetPortMode;
   accessVlan?: number;
   allowedVlans?: number[];
+  nativeVlanA?: number | null;
+  nativeVlanB?: number | null;
+  bundleId?: string | null;
+  bundleProtocol?: 'lacp' | 'static';
+  routedAAddress?: string | null;
+  routedBAddress?: string | null;
+  routedPrefixLength?: number | null;
+  vrfId?: string | null;
   failed: boolean;
+}
+
+export interface BuilderEthernetVrfStaticRoute {
+  id: string;
+  deviceId: string;
+  vrfId: string;
+  prefix: string;
+  nextHopDeviceId: string;
+  linkId: string;
 }
 
 export interface BuilderEthernetPoint { x: number; y: number }
@@ -41,6 +62,7 @@ export interface BuilderEthernetConfig {
   links: BuilderEthernetLink[];
   layout: Record<string, BuilderEthernetPoint>;
   stp: BuilderStpConfig;
+  vrfStaticRoutes?: BuilderEthernetVrfStaticRoute[];
 }
 
 export interface BuilderEthernetFdbEntry {
@@ -89,11 +111,12 @@ export function cloneBuilderEthernetConfig(config: BuilderEthernetConfig): Build
     links: config.links.map((link) => ({ ...link, allowedVlans: link.allowedVlans ? [...link.allowedVlans] : undefined })),
     layout: Object.fromEntries(Object.entries(config.layout).map(([id, point]) => [id, { ...point }])),
     stp: cloneBuilderStpConfig(config.stp),
+    vrfStaticRoutes: config.vrfStaticRoutes?.map((route) => ({ ...route })) ?? [],
   };
 }
 
 export function createEmptyBuilderEthernetConfig(): BuilderEthernetConfig {
-  return { vlans: [], devices: [], links: [], layout: {}, stp: createDefaultBuilderStpConfig() };
+  return { vlans: [], devices: [], links: [], layout: {}, stp: createDefaultBuilderStpConfig(), vrfStaticRoutes: [] };
 }
 
 export function createDefaultBuilderEthernetConfig(): BuilderEthernetConfig {
@@ -140,6 +163,14 @@ function validCidr(value: string): boolean {
   const [address, prefix] = value.split('/');
   return Boolean(address && validIpv4(address) && /^\d{1,2}$/.test(prefix ?? '') && Number(prefix) >= 8 && Number(prefix) <= 30);
 }
+function validRouteCidr(value: string): boolean {
+  const [address, prefix, ...extra] = value.split('/');
+  return extra.length === 0 && Boolean(address && validIpv4(address) && /^\d{1,2}$/.test(prefix ?? '') && Number(prefix) >= 0 && Number(prefix) <= 32);
+}
+function validVrfId(value: string | null | undefined): boolean { return value == null || /^[A-Za-z0-9_.-]{1,24}$/.test(value.trim()); }
+function layer3Kind(kind: BuilderEthernetDeviceKind): boolean { return kind === 'router' || kind === 'l3-switch'; }
+function switchingKind(kind: BuilderEthernetDeviceKind): boolean { return kind === 'switch' || kind === 'l3-switch'; }
+function ifaceVrf(iface: BuilderEthernetInterface): string { return iface.vrfId?.trim().toUpperCase() || 'DEFAULT'; }
 
 export function validateBuilderEthernetConfig(input: BuilderEthernetConfig): BuilderEthernetConfig {
   if (!input || !Array.isArray(input.vlans) || !Array.isArray(input.devices) || !Array.isArray(input.links) || !input.layout || typeof input.layout !== 'object') {
@@ -158,40 +189,61 @@ export function validateBuilderEthernetConfig(input: BuilderEthernetConfig): Bui
   const deviceIds = new Set<string>();
   for (const device of input.devices) {
     if (!/^[a-zA-Z0-9_-]+$/.test(device.id) || deviceIds.has(device.id)) throw new Error(`Ethernet device id ${device.id} is invalid or duplicated.`);
-    if (!device.label || device.label.length > 32 || !['endpoint','switch','router'].includes(device.kind) || !MAC_RE.test(device.mac)) throw new Error(`Ethernet device ${device.id} metadata is invalid.`);
+    if (!device.label || device.label.length > 32 || !['endpoint','switch','l3-switch','router'].includes(device.kind) || !MAC_RE.test(device.mac)) throw new Error(`Ethernet device ${device.id} metadata is invalid.`);
     if (device.kind === 'switch' && device.interfaces.length !== 0) throw new Error(`Switch ${device.id} cannot own routed IPv4 interfaces in this teaching slice.`);
     if (device.kind === 'endpoint' && device.interfaces.length !== 1) throw new Error(`Endpoint ${device.id} must have exactly one access-VLAN interface.`);
     const localVlans = new Set<number>();
     for (const iface of device.interfaces) {
-      if (!vlanIds.has(iface.vlanId) || localVlans.has(iface.vlanId) || !validIpv4(iface.address) || (iface.gateway != null && !validIpv4(iface.gateway))) throw new Error(`Ethernet interface on ${device.id} is invalid.`);
+      if (!vlanIds.has(iface.vlanId) || localVlans.has(iface.vlanId) || !validIpv4(iface.address) || (iface.gateway != null && !validIpv4(iface.gateway)) || (iface.virtualGateway != null && !validIpv4(iface.virtualGateway)) || !validVrfId(iface.vrfId) || (iface.gatewayPriority != null && (!Number.isInteger(iface.gatewayPriority) || iface.gatewayPriority < 1 || iface.gatewayPriority > 255))) throw new Error(`Ethernet interface on ${device.id} is invalid.`);
       localVlans.add(iface.vlanId);
     }
     deviceIds.add(device.id);
   }
 
   const linkIds = new Set<string>();
-  const pairs = new Set<string>();
   for (const link of input.links) {
     if (!/^[a-zA-Z0-9_-]+$/.test(link.id) || linkIds.has(link.id) || !deviceIds.has(link.a) || !deviceIds.has(link.b) || link.a === link.b) throw new Error(`Ethernet link ${link.id} is invalid.`);
-    const pair = [link.a, link.b].sort().join('|');
-    if (pairs.has(pair)) throw new Error(`Duplicate Ethernet link ${pair}.`);
-    pairs.add(pair); linkIds.add(link.id);
+    linkIds.add(link.id);
     const a = input.devices.find((device) => device.id === link.a)!;
     const b = input.devices.find((device) => device.id === link.b)!;
     if (link.mode === 'access') {
       if (!Number.isInteger(link.accessVlan) || !vlanIds.has(link.accessVlan!)) throw new Error(`Access link ${link.id} needs an existing VLAN.`);
+      if (link.bundleId) throw new Error(`Access link ${link.id} cannot be an EtherChannel member in this bounded enterprise slice.`);
     } else if (link.mode === 'trunk') {
       if (a.kind === 'endpoint' || b.kind === 'endpoint') throw new Error(`Endpoint links cannot be trunks (${link.id}).`);
       const allowed = [...new Set(link.allowedVlans ?? [])].sort((x,y)=>x-y);
       if (allowed.length === 0 || allowed.some((id) => !vlanIds.has(id))) throw new Error(`Trunk ${link.id} must allow at least one existing VLAN.`);
-    } else throw new Error(`Ethernet link ${link.id} mode must be access or trunk.`);
+      for (const native of [link.nativeVlanA, link.nativeVlanB]) if (native != null && (!Number.isInteger(native) || !allowed.includes(native))) throw new Error(`Trunk ${link.id} native VLAN must be one of its allowed VLANs.`);
+      if (link.bundleId != null && !/^[A-Za-z0-9_.-]{1,32}$/.test(link.bundleId)) throw new Error(`Trunk ${link.id} has an invalid bundle id.`);
+      if (link.bundleProtocol != null && !link.bundleId) throw new Error(`Trunk ${link.id} cannot set a bundle protocol without a bundle id.`);
+      if (link.bundleProtocol != null && !['lacp','static'].includes(link.bundleProtocol)) throw new Error(`Trunk ${link.id} bundle protocol is invalid.`);
+    } else if (link.mode === 'routed') {
+      if (!layer3Kind(a.kind) || !layer3Kind(b.kind)) throw new Error(`Routed link ${link.id} must connect router or Layer-3-switch devices.`);
+      if (!validIpv4(link.routedAAddress ?? '') || !validIpv4(link.routedBAddress ?? '') || !Number.isInteger(link.routedPrefixLength) || link.routedPrefixLength! < 8 || link.routedPrefixLength! > 31 || !validVrfId(link.vrfId)) throw new Error(`Routed link ${link.id} requires valid endpoint addresses, /8–/31 prefix length, and VRF id.`);
+      if (link.bundleId || link.accessVlan != null || link.allowedVlans?.length) throw new Error(`Routed link ${link.id} cannot simultaneously carry switched VLAN or bundle semantics.`);
+    } else throw new Error(`Ethernet link ${link.id} mode must be access, trunk, or routed.`);
+  }
+
+  const bundles = new Map<string, BuilderEthernetLink[]>();
+  for (const link of input.links) if (link.bundleId) { const members = bundles.get(link.bundleId) ?? []; members.push(link); bundles.set(link.bundleId, members); }
+  for (const [bundleId, members] of bundles) {
+    const first = members[0]!; const pair = [first.a, first.b].sort().join('|');
+    if (members.length < 2 || members.some((member) => [member.a, member.b].sort().join('|') !== pair || member.mode !== 'trunk' || member.bundleProtocol !== first.bundleProtocol || JSON.stringify([...(member.allowedVlans ?? [])].sort((a,b)=>a-b)) !== JSON.stringify([...(first.allowedVlans ?? [])].sort((a,b)=>a-b)) || member.nativeVlanA !== first.nativeVlanA || member.nativeVlanB !== first.nativeVlanB)) throw new Error(`EtherChannel ${bundleId} members must be parallel trunk links with identical VLAN/native/protocol configuration.`);
+  }
+  const vrfStaticRoutes: BuilderEthernetVrfStaticRoute[] = []; const vrfRouteIds = new Set<string>();
+  for (const route of input.vrfStaticRoutes ?? []) {
+    if (!route.id || vrfRouteIds.has(route.id) || !/^[A-Za-z0-9_.:-]{1,80}$/.test(route.id)) throw new Error(`Enterprise VRF static route id ${route.id} is invalid or duplicated.`);
+    vrfRouteIds.add(route.id);
+    const device = input.devices.find((entry) => entry.id === route.deviceId); const nextHop = input.devices.find((entry) => entry.id === route.nextHopDeviceId); const link = input.links.find((entry) => entry.id === route.linkId);
+    if (!device || !nextHop || !layer3Kind(device.kind) || !layer3Kind(nextHop.kind) || !validVrfId(route.vrfId) || !validRouteCidr(route.prefix) || !link || link.mode !== 'routed' || !((link.a === route.deviceId && link.b === route.nextHopDeviceId) || (link.b === route.deviceId && link.a === route.nextHopDeviceId)) || (link.vrfId?.trim().toUpperCase() || 'DEFAULT') !== route.vrfId.trim().toUpperCase()) throw new Error(`Enterprise VRF static route ${route.id} must use a directly connected routed port in the same VRF.`);
+    vrfStaticRoutes.push({ ...route, vrfId: route.vrfId.trim().toUpperCase() });
   }
 
   for (const device of input.devices) {
     const point = input.layout[device.id];
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y) || point.x < 0 || point.x > 100 || point.y < 0 || point.y > 100) throw new Error(`Ethernet layout is missing ${device.id}.`);
   }
-  const normalized = cloneBuilderEthernetConfig({ ...input, stp: cloneBuilderStpConfig(input.stp) });
+  const normalized = cloneBuilderEthernetConfig({ ...input, stp: cloneBuilderStpConfig(input.stp), vrfStaticRoutes });
   normalized.stp = validateBuilderStpConfig(normalized, input.stp);
   return normalized;
 }
@@ -211,13 +263,12 @@ export function updateBuilderEthernetLink(config: BuilderEthernetConfig, linkId:
   return validateBuilderEthernetConfig(next);
 }
 
-function linkCarriesVlanRaw(link: BuilderEthernetLink, vlanId: number): boolean {
-  if (link.failed) return false;
-  return link.mode === 'access' ? link.accessVlan === vlanId : Boolean(link.allowedVlans?.includes(vlanId));
+function linkCarriesVlanRaw(config: BuilderEthernetConfig, link: BuilderEthernetLink, vlanId: number): boolean {
+  return builderEthernetLogicalLinkCarriesVlan(config.links, link, vlanId);
 }
 
 function linkCarriesVlan(config: BuilderEthernetConfig, link: BuilderEthernetLink, vlanId: number): boolean {
-  if (!linkCarriesVlanRaw(link, vlanId)) return false;
+  if (!linkCarriesVlanRaw(config, link, vlanId)) return false;
   return !builderStpState(config, vlanId).blockedLinkIds.includes(link.id);
 }
 
@@ -242,7 +293,7 @@ export function builderEthernetPathForVlan(config: BuilderEthernetConfig, source
       if (!nextDevice) continue;
       const nodes = [...current.nodes,next.id]; const links = [...current.links,next.linkId];
       if (next.id === destinationId) return {nodeIds:nodes,linkIds:links};
-      if (nextDevice.kind !== 'switch') continue;
+      if (!switchingKind(nextDevice.kind)) continue;
       seen.add(next.id); queue.push({id:next.id,nodes,links});
     }
   }
@@ -252,7 +303,7 @@ export function builderEthernetPathForVlan(config: BuilderEthernetConfig, source
 function learn(config: BuilderEthernetConfig, path: {nodeIds:string[];linkIds:string[]}, vlanId:number, mac:string, learnedFrom:string, fdb:Map<string,BuilderEthernetFdbEntry>): void {
   path.nodeIds.forEach((nodeId,index) => {
     const device = deviceById(config,nodeId);
-    if (device?.kind !== 'switch' || index === 0) return;
+    if (!device || !switchingKind(device.kind) || index === 0) return;
     const ingress = path.linkIds[index-1]; if (!ingress) return;
     fdb.set(`${nodeId}:${vlanId}:${mac}`, { switchId:nodeId,vlanId,mac,linkId:ingress,learnedFrom });
   });
@@ -286,11 +337,10 @@ export function runBuilderEthernetFlow(configInput: BuilderEthernetConfig, sourc
       summary:`VLAN ${sourceVlan} stays Layer 2: first unknown unicast floods only inside that VLAN, then learned MAC state enables unicast return.` };
   }
 
-  const router = config.devices.filter((device) => device.kind==='router' && interfaceFor(device,sourceVlan) && interfaceFor(device,destinationVlan)).sort((a,b)=>a.id.localeCompare(b.id))[0];
-  if (!router) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`VLAN ${sourceVlan} and VLAN ${destinationVlan} are isolated: no router has interfaces in both broadcast domains.`);
-  const sourceRouterIf = interfaceFor(router,sourceVlan)!; const destinationRouterIf = interfaceFor(router,destinationVlan)!;
-  if (sourceIf.gateway !== sourceRouterIf.address) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`${source.label} gateway ${sourceIf.gateway ?? 'NONE'} does not match ${router.label} VLAN ${sourceVlan} interface ${sourceRouterIf.address}.`);
-  if (destinationIf.gateway !== destinationRouterIf.address) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`${destination.label} gateway ${destinationIf.gateway ?? 'NONE'} does not match ${router.label} VLAN ${destinationVlan} interface ${destinationRouterIf.address}.`);
+  const routerCandidates = config.devices.filter((device) => layer3Kind(device.kind) && interfaceFor(device,sourceVlan) && interfaceFor(device,destinationVlan)).flatMap((device) => { const sourceRouterIf=interfaceFor(device,sourceVlan)!; const destinationRouterIf=interfaceFor(device,destinationVlan)!; if(ifaceVrf(sourceRouterIf)!==ifaceVrf(destinationRouterIf))return []; if(sourceIf.gateway!==sourceRouterIf.address&&sourceIf.gateway!==sourceRouterIf.virtualGateway)return []; if(destinationIf.gateway!==destinationRouterIf.address&&destinationIf.gateway!==destinationRouterIf.virtualGateway)return []; return [{device,sourceRouterIf,destinationRouterIf}]; }).sort((a,b)=>(b.sourceRouterIf.gatewayPriority??100)-(a.sourceRouterIf.gatewayPriority??100)||a.device.id.localeCompare(b.device.id));
+  const candidate = routerCandidates.find(({device})=>builderEthernetPathForVlan(config,sourceId,device.id,sourceVlan)!==null);
+  if (!candidate) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`VLAN ${sourceVlan} and VLAN ${destinationVlan} are isolated in the current VRF/gateway state: no reachable Layer-3 device owns both broadcast domains.`);
+  const router=candidate.device; const sourceRouterIf=candidate.sourceRouterIf; const destinationRouterIf=candidate.destinationRouterIf;
   const toGateway = builderEthernetPathForVlan(config,sourceId,router.id,sourceVlan);
   if (!toGateway) return fail(sourceId,destinationId,sourceVlan,destinationVlan,`VLAN ${sourceVlan} cannot reach the router trunk/access interface.`);
   const fromRouter = builderEthernetPathForVlan(config,router.id,destinationId,destinationVlan);
@@ -302,5 +352,5 @@ export function runBuilderEthernetFlow(configInput: BuilderEthernetConfig, sourc
       {phase:'to-gateway',vlanId:sourceVlan,nodeIds:toGateway.nodeIds,linkIds:toGateway.linkIds,disposition:'FLOOD THEN LEARN'},
       {phase:'from-router',vlanId:destinationVlan,nodeIds:fromRouter.nodeIds,linkIds:fromRouter.linkIds,disposition:'ROUTED UNICAST'},
     ],fdb:[...fdb.values()].sort((a,b)=>`${a.switchId}:${a.vlanId}:${a.mac}`.localeCompare(`${b.switchId}:${b.vlanId}:${b.mac}`)),failureReason:null,
-    summary:`${router.label} routes VLAN ${sourceVlan} → VLAN ${destinationVlan} using connected router-on-a-stick subinterfaces; IP TTL decreases once at the router.` };
+    summary:`${router.label} routes VLAN ${sourceVlan} → VLAN ${destinationVlan} in VRF ${ifaceVrf(sourceRouterIf)} using connected ${router.kind==='l3-switch'?'SVIs':'router interfaces'}; IP TTL decreases once at the Layer-3 boundary.` };
 }
