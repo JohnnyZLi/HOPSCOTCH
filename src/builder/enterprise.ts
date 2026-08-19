@@ -1,4 +1,5 @@
 import { builderStpState, type BuilderStpState } from './stp.ts';
+import { builderEthernetPathForVlan } from './ethernet.ts';
 import type {
   BuilderEthernetConfig,
   BuilderEthernetDevice,
@@ -8,7 +9,6 @@ import type {
   BuilderFhrpGroup,
   BuilderLacpBundle,
   BuilderVrf,
-  builderEthernetPathForVlan,
 } from './ethernet.ts';
 
 export interface BuilderLacpState {
