@@ -1,6 +1,8 @@
+import { interfacesForBuilderNode, type BuilderAddressing } from './addressing.ts';
 import type { BuilderArpCacheEntry } from './arp.ts';
-import type { BuilderEthernetFdbEntry } from './ethernet.ts';
-import type { BuilderRouteTableEntry } from './routing.ts';
+import type { BuilderEthernetFdbEntry, BuilderEthernetFlowResult } from './ethernet.ts';
+import type { BuilderGraph } from './model.ts';
+import { routeTableForBuilderRouter, type BuilderRouteTableEntry, type BuilderRoutingConfig } from './routing.ts';
 
 export const BUILDER_CLI_SHOW_TARGETS = Object.freeze(['interfaces', 'route', 'arp', 'mac'] as const);
 
@@ -59,6 +61,15 @@ export interface BuilderCliState {
   readonly macEntries: readonly BuilderCliMacFact[];
 }
 
+export interface BuilderCliProjectionInput {
+  readonly graph: BuilderGraph;
+  readonly addressing: BuilderAddressing;
+  readonly routing: BuilderRoutingConfig;
+  readonly truthGraphs?: { readonly ribGraph: BuilderGraph } | null;
+  readonly arpCache: readonly BuilderArpCacheEntry[];
+  readonly ethernetFlow: Readonly<Pick<BuilderEthernetFlowResult, 'fdb'>> | null;
+}
+
 function commandLabel(input: string): string {
   return JSON.stringify(input.trim());
 }
@@ -100,6 +111,34 @@ export function parseBuilderCliCommand(input: string): BuilderCliCommand {
   }
 
   return Object.freeze({ verb: 'show', target }) as BuilderCliCommand;
+}
+
+function linkState(graph: BuilderGraph, linkId: string): 'UP' | 'DOWN' | 'UNKNOWN' {
+  const link = graph.links.find((candidate) => candidate.id === linkId);
+  return !link ? 'UNKNOWN' : link.failed ? 'DOWN' : 'UP';
+}
+
+export function projectBuilderCliState(input: BuilderCliProjectionInput): BuilderCliState {
+  const ribGraph = input.truthGraphs?.ribGraph ?? input.graph;
+  const interfaces = input.graph.nodes.flatMap((node) => interfacesForBuilderNode(input.addressing, node.id).map((entry) => {
+    const physicalState = linkState(input.graph, entry.linkId);
+    return {
+      deviceId: node.id,
+      interfaceName: entry.name,
+      address: entry.address,
+      linkState: physicalState,
+      protocolState: physicalState === 'UP' ? 'UP' : 'DOWN',
+    } satisfies BuilderCliInterfaceFact;
+  }));
+  const routes = ribGraph.nodes
+    .filter((node) => node.kind === 'router')
+    .flatMap((node) => routeTableForBuilderRouter(ribGraph, input.addressing, input.routing, node.id));
+  return {
+    interfaces,
+    routes,
+    arpEntries: input.arpCache.map((entry) => ({ ...entry })),
+    macEntries: (input.ethernetFlow?.fdb ?? []).map((entry) => ({ ...entry })),
+  };
 }
 
 function compareText(left: string, right: string): number {
