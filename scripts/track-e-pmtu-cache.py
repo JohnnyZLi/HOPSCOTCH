@@ -1,0 +1,13 @@
+from pathlib import Path
+p=Path('src/builder/data-plane.ts')
+text=p.read_text()
+text=text.replace("  packetBytes: number;\n  pathMtuBytes: number;\n", "  packetBytes: number;\n  effectivePacketBytes: number;\n  pathMtuBytes: number;\n",1)
+needle="export interface BuilderPmtuFragment { offsetBytes: number; packetBytes: number; moreFragments: boolean }\nexport interface BuilderPmtuCacheEntry { family: BuilderPmtuFamily; destinationKey: string; mtuBytes: number; learnedFrom: 'LOCAL PATH' | 'ICMP FRAG NEEDED' | 'ICMPV6 PACKET TOO BIG' }\n"
+replace=needle+"export type BuilderIpv4PmtuCache = BuilderPmtuCacheEntry[];\n"
+if needle not in text: raise SystemExit('PMTU type needle missing')
+text=text.replace(needle,replace,1)
+text=text.replace("return { family, packetBytes, pathMtuBytes:", "return { family, packetBytes, effectivePacketBytes: packetBytes, pathMtuBytes:")
+append='''\nexport function applyBuilderIpv4PmtuResult(cache: BuilderIpv4PmtuCache, result: BuilderPmtuResult): BuilderIpv4PmtuCache {\n  if (result.family !== 'ipv4' || !result.cacheEntry) return cache.map((entry) => ({ ...entry }));\n  const next = { ...result.cacheEntry, family: 'ipv4' as const };\n  return [...cache.filter((entry) => !(entry.family === 'ipv4' && entry.destinationKey === next.destinationKey)), next].slice(-32);\n}\n\nexport function evaluateBuilderIpv4PmtuWithCache(args: { profiles: BuilderLinkProfiles; linkIds: string[]; packetBytes: number; destinationKey: string; df?: boolean; suppressControlMessage?: boolean; cache: BuilderIpv4PmtuCache }): BuilderPmtuResult {\n  const cached = args.cache.find((entry) => entry.family === 'ipv4' && entry.destinationKey === args.destinationKey) ?? null;\n  if (cached && args.packetBytes > cached.mtuBytes && args.df !== false) {\n    const limit = limitingLink(args.profiles, args.linkIds);\n    const effectivePacketBytes = Math.min(args.packetBytes, cached.mtuBytes);\n    return { family: 'ipv4', packetBytes: args.packetBytes, effectivePacketBytes, pathMtuBytes: limit.mtuBytes, limitingLinkId: limit.linkId, df: true, controlMessageDelivered: false, outcome: 'DELIVERED', fragments: [], cacheEntry: { ...cached }, transportEffect: 'NONE', summary: `IPv4 PMTU cache constrains ${args.packetBytes} B to ${effectivePacketBytes} B for ${args.destinationKey}; no oversized packet is emitted.`, provenance: 'SIMULATED' };\n  }\n  return evaluateBuilderPmtu({ profiles: args.profiles, linkIds: args.linkIds, family: 'ipv4', packetBytes: args.packetBytes, destinationKey: args.destinationKey, df: args.df, suppressControlMessage: args.suppressControlMessage });\n}\n'''
+if 'export function evaluateBuilderIpv4PmtuWithCache' not in text:
+    text += append
+p.write_text(text)
