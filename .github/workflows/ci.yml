@@ -20,8 +20,17 @@ jobs:
       - name: Apply Track C integration once
         run: |
           if [ -f scripts/track-c-integrate.py ]; then
+            python - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/track-c-integrate.py')
+          text=p.read_text()
+          start=text.index("replace_once('src/builder/ethernet.ts',\n\"    summary:")
+          end=text.index("\n\n# STP config gains", start)
+          p.write_text(text[:start]+text[end:])
+          PY
             python scripts/track-c-integrate.py
             python scripts/track-c-stp-fix.py
+            python scripts/track-c-summary-fix.py
             git config user.name "Johnny"
             git config user.email "92900710+JohnnyZLi@users.noreply.github.com"
             git add src/builder/ethernet.ts src/builder/stp.ts src/BuilderAuthoringPanelContent.tsx package.json
