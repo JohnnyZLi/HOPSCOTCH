@@ -21,9 +21,9 @@ text=text.replace("  const normalized = cloneBuilderEthernetConfig({ ...input, s
 p.write_text(text)
 
 p=Path('src/builder/enterprise.ts'); text=p.read_text()
-marker="export function validateBuilderEnterpriseConfig(configInput: BuilderEthernetConfig): BuilderEthernetConfig {\n  const config = validateBuilderEthernetConfig(configInput);\n"
+marker="export function validateBuilderEnterpriseConfig(configInput: BuilderEthernetConfig): BuilderEthernetConfig {\n  const config=validateBuilderEthernetConfig(configInput);\n"
 extra="""export function validateBuilderEnterpriseConfig(configInput: BuilderEthernetConfig): BuilderEthernetConfig {
-  const config = validateBuilderEthernetConfig(configInput);
+  const config=validateBuilderEthernetConfig(configInput);
   const ip=(value:string|null|undefined)=>{if(!value||!/^\\d{1,3}(?:\\.\\d{1,3}){3}$/.test(value))return false;return value.split('.').every((part)=>Number(part)<=255);};
   const validVrf=(value:string|null|undefined)=>value==null||/^[A-Za-z0-9_.-]{1,24}$/.test(value.trim());
   for(const device of config.devices)for(const iface of device.interfaces)if(!validVrf(iface.vrfId)||(iface.virtualGateway!=null&&!ip(iface.virtualGateway))||(iface.gatewayPriority!=null&&(!Number.isInteger(iface.gatewayPriority)||iface.gatewayPriority<1||iface.gatewayPriority>255)))throw new Error(`Enterprise interface on ${device.id} has invalid VRF, virtual gateway, or priority.`);
