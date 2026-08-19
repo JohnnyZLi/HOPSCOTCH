@@ -308,7 +308,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
     setSelectedProbeId(result.id);
     setSelectedProbeAttempt(result.attempts.length > 0 ? result.attempts.length - 1 : 0);
     if (challenge && probeFamily === 'ipv4' && !isHistorical) {
-      const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet, routing);
+      const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet, routing, acl, nat);
       setChallengeEvidence((current) => appendBuilderChallengeEvidence(current, { kind, sourceId, destinationId, success: result.success, repaired, detail: result.summary }));
     }
     setMessage(`${kind.toUpperCase()} · ${result.summary}`);
