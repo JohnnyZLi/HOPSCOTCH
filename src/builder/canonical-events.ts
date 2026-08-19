@@ -280,7 +280,14 @@ function deriveBgpEvents(before: BuilderTimelineState, after: BuilderTimelineSta
   output.push(spec('bgp:control-plane', 'control-plane', 'routing', 'BGP CONTROL PLANE CHANGED', bgpDetail(after), 24, refs, after.routing.bgp.sessions.map((entry) => entry.id)));
 }
 
+function mergeProjection(output: BuilderWorkbenchEventSpec[], startIndex: number, projection: BuilderWorkbenchEventProjection): void {
+  const last=output.length>startIndex?output.length-1:-1;
+  if(last<0)return;
+  output[last]={...output[last],projection:{...(output[last].projection??{}),...projection}};
+}
+
 function deriveArpEvents(before: BuilderTimelineState, after: BuilderTimelineState, output: BuilderWorkbenchEventSpec[]): void {
+  const startIndex=output.length;
   const key = (entry: { ownerDeviceId: string; vlanId: number; address: string }) => entry.ownerDeviceId + ':' + entry.vlanId + ':' + entry.address;
   const prior = new Map(before.arpCache.map((entry) => [key(entry), entry]));
   const next = new Map(after.arpCache.map((entry) => [key(entry), entry]));
@@ -295,9 +302,11 @@ function deriveArpEvents(before: BuilderTimelineState, after: BuilderTimelineSta
     if (next.has(id)) continue;
     output.push(spec('arp:removed:' + id, 'resolution', 'neighbor', 'ARP ENTRY REMOVED · ' + entry.address, labelForEthernet(before, entry.ownerDeviceId) + ' no longer retains the mapping for ' + entry.address + '.', offset++, ethernetRefs(entry.ownerDeviceId), [entry.address]));
   }
+  mergeProjection(output,startIndex,{arpCache:'after'});
 }
 
 function deriveEthernetEvents(before: BuilderTimelineState, after: BuilderTimelineState, output: BuilderWorkbenchEventSpec[]): void {
+  const startIndex=output.length;
   const beforeFlow = before.ethernetFlow;
   const afterFlow = after.ethernetFlow;
   if (afterFlow && stable(beforeFlow) !== stable(afterFlow)) {
@@ -337,9 +346,11 @@ function deriveEthernetEvents(before: BuilderTimelineState, after: BuilderTimeli
       // A VLAN can disappear as part of a valid configuration edit.
     }
   }
+  mergeProjection(output,startIndex,{ethernetFlow:'after'});
 }
 
 function deriveNatEvents(before: BuilderTimelineState, after: BuilderTimelineState, output: BuilderWorkbenchEventSpec[]): void {
+  const startIndex=output.length;
   const prior = mapById(before.natSessions);
   const next = mapById(after.natSessions);
   let offset = 120;
@@ -353,6 +364,7 @@ function deriveNatEvents(before: BuilderTimelineState, after: BuilderTimelineSta
     if (next.has(id)) continue;
     output.push(spec('nat:removed:' + id, 'translation', 'nat', 'NAT STATE REMOVED', entry.id + ' expired, was cleared, or was invalidated by configuration/topology change.', offset++, routedRefs(entry.routerId), [entry.id]));
   }
+  mergeProjection(output,startIndex,{natSessions:'after'});
 }
 
 function dhcpActionClientId(before: BuilderTimelineState, after: BuilderTimelineState, action: BuilderWorkbenchEvent): string | null {
@@ -480,6 +492,7 @@ function deriveDhcpEvents(before: BuilderTimelineState, after: BuilderTimelineSt
 }
 
 function deriveIpv6Events(before: BuilderTimelineState, after: BuilderTimelineState, output: BuilderWorkbenchEventSpec[]): void {
+  const startIndex=output.length;
   let offset = 160;
   for (const entry of newById(before.ipv6ControlState.ndHistory, after.ipv6ControlState.ndHistory)) {
     output.push(spec('ipv6:nd:' + entry.id, 'resolution', 'ipv6', 'ND · ' + (entry.cacheHit ? 'CACHE HIT' : 'NS / NA'), entry.detail, offset++, routedRefs(entry.nodeId, entry.targetNodeId), [entry.id, entry.linkId, entry.targetAddress]));
@@ -512,9 +525,11 @@ function deriveIpv6Events(before: BuilderTimelineState, after: BuilderTimelineSt
     if (old?.status === entry.status) continue;
     output.push(spec('ipv6:prefix:' + entry.id + ':' + entry.status, 'control-plane', 'ipv6', 'RA PREFIX · ' + entry.status, entry.prefix + ' on ' + labelForRouted(after, entry.endpointId) + ' changed from ' + (old?.status ?? 'NONE') + ' to ' + entry.status + '.', offset++, routedRefs(entry.endpointId, entry.routerId), [entry.id, entry.linkId, entry.prefix]));
   }
+  mergeProjection(output,startIndex,{ipv6ControlState:'after',ipv6LifecycleState:'after'});
 }
 
 function deriveProbeEvents(before: BuilderTimelineState, after: BuilderTimelineState, output: BuilderWorkbenchEventSpec[]): void {
+  const startIndex=output.length;
   const priorIds = new Set(before.probeHistory.map((probe) => probe.id));
   const probes = after.probeHistory.filter((probe) => !priorIds.has(probe.id)).sort((a, b) => a.sequence - b.sequence);
   let probeOffset = 220;
@@ -563,6 +578,41 @@ function deriveProbeEvents(before: BuilderTimelineState, after: BuilderTimelineS
       ));
     }
   }
+  mergeProjection(output,startIndex,{probeHistory:'after'});
+}
+
+function applicationEventKind(stage: BuilderTimelineState['applicationHistory'][number]['stages'][number]): BuilderWorkbenchEventKind {
+  if(stage.boundary==='L2'||stage.boundary==='RESOLUTION')return'resolution';
+  if(stage.boundary==='ROUTING')return'fib';
+  if(stage.boundary==='POLICY_NAT')return'policy';
+  if(stage.boundary==='LINK')return'forwarding';
+  if(stage.boundary==='TRANSPORT')return'transport';
+  if(stage.boundary==='TLS'||stage.boundary==='APPLICATION')return'application';
+  if(stage.boundary==='RESPONSE')return'flow';
+  return'control-plane';
+}
+
+function deriveApplicationEvents(before: BuilderTimelineState, after: BuilderTimelineState, output: BuilderWorkbenchEventSpec[]): void {
+  const priorIds=new Set(before.applicationHistory.map((transaction)=>transaction.id));
+  const transactions=after.applicationHistory.filter((transaction)=>!priorIds.has(transaction.id));
+  let offset=260;
+  for(const transaction of transactions){
+    const evaluated=transaction.stages.filter((stage)=>stage.status!=='NOT_REACHED');
+    let previousKey:string|null=null;
+    for(let index=0;index<evaluated.length;index+=1){
+      const stage=evaluated[index];
+      const final=index===evaluated.length-1;
+      const key='application:'+transaction.id+':'+stage.id;
+      output.push(spec(
+        key,applicationEventKind(stage),'application',
+        'APPLICATION · '+stage.label+' · '+stage.status,
+        stage.summary+' · '+stage.detail,offset++,routedRefs(...stage.nodeIds),
+        [transaction.id,stage.id,...stage.linkIds],previousKey,
+        { ...(index===0?{applicationHistory:'after' as const}:{}), applicationStageOrder:final?null:stage.order },
+      ));
+      previousKey=key;
+    }
+  }
 }
 
 export function deriveBuilderCanonicalEventSpecs(
@@ -582,6 +632,7 @@ export function deriveBuilderCanonicalEventSpecs(
   deriveDhcpEvents(before, after, action, output);
   deriveIpv6Events(before, after, output);
   deriveProbeEvents(before, after, output);
+  deriveApplicationEvents(before, after, output);
 
   const unique = output.filter((entry, index, all) => all.findIndex((candidate) => candidate.key === entry.key) === index);
   return unique

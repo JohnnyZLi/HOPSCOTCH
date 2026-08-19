@@ -93,6 +93,14 @@ export function captureBuilderTimelineSnapshot(timeline: BuilderTimeline, journa
   const afterGraph=finalState.graph;
   const stageDhcpLeases=uncaptured.some((event)=>event.projection?.dhcpLeases==='after'||Boolean(event.projection?.dhcpRemoveLeaseIds?.length));
   const stageDhcpSequence=uncaptured.some((event)=>event.projection?.dhcpSequence!==undefined);
+  const stageArpCache=uncaptured.some((event)=>event.projection?.arpCache==='after');
+  const stageEthernetFlow=uncaptured.some((event)=>event.projection?.ethernetFlow==='after');
+  const stageNatSessions=uncaptured.some((event)=>event.projection?.natSessions==='after');
+  const stageIpv6ControlState=uncaptured.some((event)=>event.projection?.ipv6ControlState==='after');
+  const stageIpv6LifecycleState=uncaptured.some((event)=>event.projection?.ipv6LifecycleState==='after');
+  const stageProbeHistory=uncaptured.some((event)=>event.projection?.probeHistory==='after');
+  const stageApplicationHistory=uncaptured.some((event)=>event.projection?.applicationHistory==='after');
+  const stageApplicationOrder=uncaptured.some((event)=>event.projection?.applicationStageOrder!==undefined);
   let truthGraphs={controlGraph:beforeGraph,ribGraph:beforeGraph,fibGraph:beforeGraph};
   let state:BuilderTimelineState={
     ...finalState,
@@ -100,6 +108,14 @@ export function captureBuilderTimelineSnapshot(timeline: BuilderTimeline, journa
     truthGraphs,
     ...(stageDhcpLeases?{dhcpLeases:cloneValue(priorState!.dhcpLeases)}:{}),
     ...(stageDhcpSequence?{dhcpSequence:priorState!.dhcpSequence}:{}),
+    ...(stageArpCache?{arpCache:cloneValue(priorState!.arpCache)}:{}),
+    ...(stageEthernetFlow?{ethernetFlow:cloneValue(priorState!.ethernetFlow)}:{}),
+    ...(stageNatSessions?{natSessions:cloneValue(priorState!.natSessions)}:{}),
+    ...(stageIpv6ControlState?{ipv6ControlState:cloneValue(priorState!.ipv6ControlState)}:{}),
+    ...(stageIpv6LifecycleState?{ipv6LifecycleState:cloneValue(priorState!.ipv6LifecycleState)}:{}),
+    ...(stageProbeHistory?{probeHistory:cloneValue(priorState!.probeHistory)}:{}),
+    ...(stageApplicationHistory?{applicationHistory:cloneValue(priorState!.applicationHistory)}:{}),
+    ...(stageApplicationOrder?{applicationStageOrder:priorState!.applicationStageOrder}:{}),
   };
   const snapshots=uncaptured.map((event):BuilderTimelineSnapshot=>{
     const projection=event.projection;
@@ -118,7 +134,17 @@ export function captureBuilderTimelineSnapshot(timeline: BuilderTimeline, journa
       if(projection.dhcpLeases==='after')dhcpLeases=finalState.dhcpLeases;
       const dhcpSequence=projection.dhcpSequence==='after'?finalState.dhcpSequence:(typeof projection.dhcpSequence==='number'?projection.dhcpSequence:state.dhcpSequence);
       truthGraphs=nextTruth;
-      state={...state,graph,truthGraphs,dhcpLeases,dhcpSequence};
+      state={
+        ...state,graph,truthGraphs,dhcpLeases,dhcpSequence,
+        ...(projection.arpCache==='after'?{arpCache:finalState.arpCache}:{}),
+        ...(projection.ethernetFlow==='after'?{ethernetFlow:finalState.ethernetFlow}:{}),
+        ...(projection.natSessions==='after'?{natSessions:finalState.natSessions}:{}),
+        ...(projection.ipv6ControlState==='after'?{ipv6ControlState:finalState.ipv6ControlState}:{}),
+        ...(projection.ipv6LifecycleState==='after'?{ipv6LifecycleState:finalState.ipv6LifecycleState}:{}),
+        ...(projection.probeHistory==='after'?{probeHistory:finalState.probeHistory}:{}),
+        ...(projection.applicationHistory==='after'?{applicationHistory:finalState.applicationHistory}:{}),
+        ...(projection.applicationStageOrder!==undefined?{applicationStageOrder:projection.applicationStageOrder}:{}),
+      };
     }
     return {
       eventId:event.id,
