@@ -189,6 +189,15 @@ export function upsertBuilderHostedService(graph: BuilderGraph, services: readon
   return validateBuilderHostedServices(graph, [...services.filter((candidate) => candidate.id !== service.id), service]);
 }
 
+export function cloneBuilderHostedServices(graph: BuilderGraph, services: readonly BuilderHostedService[]): BuilderHostedService[] {
+  return validateBuilderHostedServices(graph, services);
+}
+
+export function reconcileBuilderHostedServices(graph: BuilderGraph, services: readonly BuilderHostedService[]): BuilderHostedService[] {
+  const endpointIds = new Set(graph.nodes.filter((node) => node.kind === 'endpoint').map((node) => node.id));
+  return validateBuilderHostedServices(graph, services.filter((service) => endpointIds.has(service.nodeId)));
+}
+
 function protocolFor(service: BuilderHostedService): 'tcp' | 'udp' {
   if (service.kind === 'dns' || service.kind === 'udp' || (service.kind === 'https' && service.transportProfile === 'quic-h3')) return 'udp';
   return 'tcp';
@@ -284,7 +293,7 @@ export function runBuilderApplicationTransaction(context: BuilderApplicationCont
   if (!context.graph.nodes.some((node) => node.id === sourceNodeId && node.kind === 'endpoint')) throw new Error('Builder application source must be an endpoint.');
   const stages: BuilderApplicationStage[] = [];
   const packets: BuilderApplicationPacket[] = [];
-  const protocolEvents = journeyProtocolEvents(service);
+  const protocolEvents = service.enabled && Boolean(service.hostname || service.kind === 'dns') ? journeyProtocolEvents(service) : [];
   let firstBroken: BuilderApplicationTruthBoundary | null = null;
   let arpCache = context.arpCache.map((entry) => ({ ...entry }));
   let natSessions = context.natSessions.map((entry) => ({ ...entry }));
@@ -321,9 +330,9 @@ export function runBuilderApplicationTransaction(context: BuilderApplicationCont
   stages.push(stage(1, 'addressing', 'ADDRESSING', 'DHCP / ADDRESSING', firstBroken ? 'FAIL' : 'PASS', firstBroken ? 'HOST CONFIGURATION NOT READY' : dhcpTransaction ? dhcpTransaction.summary : `${family.toUpperCase()} source and destination addresses are ready.`, firstBroken ? (dhcpTransaction?.failureReason ?? 'The source or destination has no usable address configuration.') : dhcpTransaction ? 'The application request consumed the existing DHCP DORA transaction before routing.' : 'This endpoint is statically addressed or already has valid session DHCP state.', [sourceNodeId, destinationNodeId]));
 
   if (!firstBroken) {
-    const dnsOk = service.enabled && Boolean(service.hostname || service.kind === 'dns');
+    const dnsOk = Boolean(service.hostname || service.kind === 'dns');
     if (!dnsOk) firstBroken = 'DNS';
-    stages.push(stage(2, 'dns', 'DNS', 'SERVICE / DNS INTENT', dnsOk ? 'PASS' : 'FAIL', dnsOk ? `${service.hostname ?? service.nodeId} → ${destinationAddress}` : 'SERVICE NAME UNAVAILABLE', dnsOk ? `The hosted-service catalog resolves the selected deterministic service to ${nodeLabel(context.graph, destinationNodeId)}. No public DNS evidence is implied.` : 'The service is disabled or has no deterministic name mapping.', [destinationNodeId]));
+    stages.push(stage(2, 'dns', 'DNS', 'SERVICE / DNS INTENT', dnsOk ? 'PASS' : 'FAIL', dnsOk ? `${service.hostname ?? service.nodeId} → ${destinationAddress}` : 'SERVICE NAME UNAVAILABLE', dnsOk ? `The canonical hosted-service catalog resolves the selected deterministic service to ${nodeLabel(context.graph, destinationNodeId)}. Listener availability is a later transport boundary; no public DNS evidence is implied.` : 'Canonical hosted-service configuration has no deterministic name mapping for this service.', [destinationNodeId]));
   } else stages.push(notReached(2, 'dns', 'DNS', 'SERVICE / DNS INTENT', firstBroken));
 
   const sourceAccess = accessConfig(context.graph, effectiveAddressing, context.ethernet, sourceNodeId);
@@ -394,7 +403,9 @@ export function runBuilderApplicationTransaction(context: BuilderApplicationCont
 
   if (!firstBroken) {
     const transportSummary = transport === 'tcp' ? (service.kind === 'https' && service.transportProfile === 'quic-h3' ? 'QUIC' : 'TCP') : service.kind === 'https' ? 'QUIC / UDP' : 'UDP';
-    stages.push(stage(7, 'transport', 'TRANSPORT', 'TRANSPORT', 'PASS', `${transportSummary} SESSION READY`, protocolEvents.length ? `${protocolEvents.filter((event) => event.kind.startsWith('transport.')).map((event) => event.title).join(' → ')}. These events are reused from the canonical Journey/Lab 03 model.` : `${service.kind.toUpperCase()} uses deterministic UDP datagram semantics; no fake TCP state is created.`, [sourceNodeId, destinationNodeId], requestLinks));
+    const listenerReady = service.enabled;
+    if (!listenerReady) firstBroken = 'TRANSPORT';
+    stages.push(stage(7, 'transport', 'TRANSPORT', 'TRANSPORT', listenerReady ? 'PASS' : 'FAIL', listenerReady ? `${transportSummary} SESSION READY` : `${transportSummary} LISTENER UNAVAILABLE`, listenerReady ? (protocolEvents.length ? `${protocolEvents.filter((event) => event.kind.startsWith('transport.')).map((event) => event.title).join(' → ')}. These events are reused from the canonical Journey/Lab 03 model.` : `${service.kind.toUpperCase()} uses deterministic UDP datagram semantics; no fake TCP state is created.`) : `${nodeLabel(context.graph, destinationNodeId)} has no enabled ${service.kind.toUpperCase()} listener on ${transport.toUpperCase()}/${service.port}. Lower-layer routing and policy already reached the endpoint; no established transport event or packet bytes are fabricated.`, [sourceNodeId, destinationNodeId], requestLinks));
   } else stages.push(notReached(7, 'transport', 'TRANSPORT', 'TRANSPORT', firstBroken));
 
   if (!firstBroken) {

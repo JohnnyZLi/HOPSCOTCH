@@ -275,3 +275,19 @@ Track J now includes a deterministic `mtu-*` / `pmtu-*` / `ipv6-mtu-*` family bu
 This slice intentionally does not invent a standalone ND-only fault. The current canonical IPv6 model has no independent ND failure knob separate from link, addressing, and routing faults already represented elsewhere. ARP remains ordinary evidence in the existing VLAN/trunk/STP families for the same reason: challenge logic observes neighbor resolution; it does not manufacture it.
 
 PMTU scoring preserves the 100-point contract: Packet Too Big evidence (15) + successful ND narrowing evidence (5) + target STATE (10) + target CONFIG (10), then 20 causal-reasoning points, 25 exact MTU-repair points, and 15 full-size post-repair verification points.
+
+
+## Seventh slice — DNS names and transport listeners
+
+Track J now promotes the existing Track D hosted-service catalog from derived UI state into canonical Builder scenario configuration. This is a backward-compatible schema-v9 extension: new saves persist `services`, while old v9 scenarios that omit the field normalize to the same deterministic default catalog the application workspace already derived at runtime.
+
+Two new seeded families use that truth:
+
+- `dns-*`: exactly one named APP service loses its canonical hostname. The ordinary application transaction stops at **DNS**; L2, routing, policy, link, transport, TLS, application, and response remain `NOT_REACHED`. Repair is the normal hosted-service hostname editor.
+- `transport-*` / `tcp-*` / `listener-*`: exactly one named TCP service keeps its DNS name but has its canonical listener disabled. Addressing, DNS, resolution, routing, policy/NAT, and link truth pass before **TRANSPORT** fails. No `transport.established` event or packet bytes are fabricated for the closed listener. Repair is the normal listener enable control.
+
+Device Workbench CONFIG now projects hosted-service hostname and listener state on endpoint devices. Challenge application evidence is objective-scoped by source, destination, and service ID. An unrelated healthy service cannot verify the repair.
+
+Both families retain the 100-point contract: failed ordinary application transaction at the exact expected first-broken boundary (20) + target STATE (10) + target CONFIG (10), causal hypothesis (20), exact canonical repair (25), and a successful post-repair request to the exact challenged service (15).
+
+The service catalog remains networking truth rather than challenge metadata. Challenge code does not answer DNS queries, open sockets, or decide transaction outcomes; Track D's existing causal transaction consumes canonical service configuration and determines where the request stops.

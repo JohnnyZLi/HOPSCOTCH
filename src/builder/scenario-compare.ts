@@ -10,14 +10,15 @@ export const BUILDER_SCENARIO_CONFIGURATION_FIELDS = [
   'nat',
   'dhcp',
   'ipv6',
+  'services',
   'sourceId',
   'destinationId',
 ] as const satisfies readonly (keyof BuilderScenario)[];
 
-export type BuilderScenarioConfigurationSnapshot = Pick<
+export type BuilderScenarioConfigurationSnapshot = Omit<Pick<
   BuilderScenario,
   (typeof BUILDER_SCENARIO_CONFIGURATION_FIELDS)[number]
->;
+>, 'services'> & { services?: BuilderScenario['services'] };
 
 export type BuilderScenarioChangeType = 'added' | 'removed' | 'changed';
 export type BuilderScenarioObjectCategory = 'device' | 'link' | 'configuration';
@@ -265,6 +266,7 @@ function configurationProjection(snapshot: Readonly<BuilderScenarioConfiguration
     nat: snapshot.nat,
     dhcp: snapshot.dhcp,
     ipv6: snapshot.ipv6,
+    services: snapshot.services ?? [],
     sourceId: snapshot.sourceId,
     destinationId: snapshot.destinationId,
   };
