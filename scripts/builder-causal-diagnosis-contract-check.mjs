@@ -3,16 +3,20 @@ import { createDefaultBuilderAddressing, interfacesForBuilderNode } from '../src
 import { createDefaultBuilderAclConfig, upsertBuilderAclRule } from '../src/builder/acl.ts';
 import { createDefaultBuilderHostedServices, runBuilderApplicationTransaction } from '../src/builder/application.ts';
 import { clearBuilderArpCache } from '../src/builder/arp.ts';
+import { deriveBuilderCanonicalEventSpecs } from '../src/builder/canonical-events.ts';
 import { diagnoseBuilderApplicationTransaction } from '../src/builder/causal-diagnosis.ts';
 import { clearBuilderDhcpLeases, createDefaultBuilderDhcpConfig } from '../src/builder/dhcp.ts';
+import { appendBuilderWorkbenchEventBatch, appendBuilderWorkbenchMessageEvent, buildBuilderDeviceWorkbench, createBuilderWorkbenchEventJournal } from '../src/builder/device-workbench.ts';
 import { createDefaultBuilderEthernetConfig } from '../src/builder/ethernet.ts';
 import { createBuilderIpv6ControlState } from '../src/builder/ipv6-control-plane.ts';
+import { createBuilderIpv6LifecycleState } from '../src/builder/ipv6-lifecycle.ts';
 import { createDefaultBuilderIpv6RoutingDepthState } from '../src/builder/ipv6-routing-depth.ts';
 import { createDefaultBuilderIpv6Config, setBuilderOspfv3Everywhere } from '../src/builder/ipv6.ts';
 import { createDefaultBuilderLinkProfiles } from '../src/builder/link-characteristics.ts';
-import { defaultBuilderGraph } from '../src/builder/model.ts';
+import { cloneBuilderLayout, defaultBuilderGraph, defaultBuilderLayout } from '../src/builder/model.ts';
 import { clearBuilderNatSessions, createDefaultBuilderNatConfig } from '../src/builder/nat.ts';
 import { createDefaultBuilderRoutingConfig, setBuilderOspfEverywhere } from '../src/builder/routing.ts';
+import { builderTimelineJournalThroughSequence, builderTimelineSnapshotAtSequence, captureBuilderTimelineSnapshot, createBuilderTimeline } from '../src/builder/timeline.ts';
 
 const graph = defaultBuilderGraph;
 const addressing = createDefaultBuilderAddressing(graph);
@@ -78,6 +82,64 @@ assert.equal(denied.dimensions.find((entry) => entry.id === 'TRANSPORT')?.status
 assert.equal(denied.causalChain.at(-1)?.dimension, 'POLICY');
 assert.match(denied.summary, /FIRST BROKEN TRUTH BOUNDARY/);
 
+// The same failed transaction must be time-native: ROUTING history cannot see the later ACL decision,
+// and Device Workbench exposes the first broken truth only at the canonical policy event.
+const timelineBase = {
+  ...base,
+  acl: deniedAcl,
+  ipv6LifecycleState: createBuilderIpv6LifecycleState(),
+  layout: cloneBuilderLayout(defaultBuilderLayout),
+  ethernetFlow: null,
+  arpResolutions: [],
+  probeHistory: [],
+  applicationHistory: [],
+  applicationStageOrder: null,
+  sourceId: 'client',
+  destinationId: 'app',
+};
+let journal = createBuilderWorkbenchEventJournal();
+let timeline = captureBuilderTimelineSnapshot(createBuilderTimeline(), journal, timelineBase);
+journal = appendBuilderWorkbenchMessageEvent(journal, `APPLICATION · ${deniedTx.summary}`, [{ plane: 'routed', id: 'client' }, { plane: 'routed', id: 'edge' }, { plane: 'routed', id: 'app' }]);
+const rootAction = journal.at(-1);
+assert.ok(rootAction && rootAction.kind === 'action');
+const finalTimelineState = {
+  ...timelineBase,
+  arpCache: deniedTx.arpCache,
+  natSessions: deniedTx.natSessions,
+  dhcpLeases: deniedTx.dhcpLeases,
+  ipv6ControlState: deniedTx.ipv6ControlState,
+  applicationHistory: [deniedTx],
+};
+const derived = deriveBuilderCanonicalEventSpecs(timeline.snapshots.at(-1).state, finalTimelineState, rootAction);
+const applicationSpecs = derived.filter((entry) => entry.category === 'application');
+const evaluatedStages = deniedTx.stages.filter((stage) => stage.status !== 'NOT_REACHED');
+assert.equal(applicationSpecs.length, evaluatedStages.length, 'every evaluated Track D stage must have one canonical timeline event');
+assert.equal(applicationSpecs[0].projection?.applicationHistory, 'after');
+assert.deepEqual(applicationSpecs.map((entry) => entry.projection?.applicationStageOrder), [1, 2, 3, 4, null]);
+assert.ok(applicationSpecs.slice(1).every((entry) => entry.causeKey), 'application stage events must form one deterministic causal chain');
+journal = appendBuilderWorkbenchEventBatch(journal, derived);
+timeline = captureBuilderTimelineSnapshot(timeline, journal, finalTimelineState);
+const applicationEvents = journal.filter((event) => event.category === 'application');
+const routingEvent = applicationEvents.find((event) => event.projection?.applicationStageOrder === 4);
+const terminalEvent = applicationEvents.at(-1);
+assert.ok(routingEvent && terminalEvent);
+const routingSnapshot = builderTimelineSnapshotAtSequence(timeline, routingEvent.sequence);
+const terminalSnapshot = builderTimelineSnapshotAtSequence(timeline, terminalEvent.sequence);
+assert.ok(routingSnapshot && terminalSnapshot);
+assert.equal(routingSnapshot.state.applicationStageOrder, 4);
+assert.equal(routingSnapshot.state.applicationHistory.length, 1);
+const routingDiagnosis = diagnoseBuilderApplicationTransaction(routingSnapshot.state.applicationHistory[0], routingSnapshot.state.graph, routingSnapshot.state.applicationStageOrder);
+assert.equal(routingDiagnosis.firstBrokenDimension, null);
+assert.equal(routingDiagnosis.dimensions.find((entry) => entry.id === 'POLICY')?.status, 'NOT_REACHED');
+const historicalWorkbench = buildBuilderDeviceWorkbench({ ...routingSnapshot.state, events: builderTimelineJournalThroughSequence(journal, routingSnapshot.sequence) }, { plane: 'routed', id: 'edge' });
+const historicalCausality = historicalWorkbench.stateSections.find((entry) => entry.id === 'application-diagnosis');
+assert.ok(historicalCausality);
+assert.equal(historicalCausality.rows.some((entry) => entry.id === 'app:first-broken'), false, 'first broken truth cannot leak into the earlier routing snapshot');
+const terminalWorkbench = buildBuilderDeviceWorkbench({ ...terminalSnapshot.state, events: builderTimelineJournalThroughSequence(journal, terminalSnapshot.sequence) }, { plane: 'routed', id: 'edge' });
+const terminalCausality = terminalWorkbench.stateSections.find((entry) => entry.id === 'application-diagnosis');
+assert.ok(terminalCausality?.rows.some((entry) => entry.id === 'app:first-broken' && entry.value === 'POLICY'));
+assert.ok(terminalWorkbench.stateSections.some((entry) => entry.id === 'protocol-databases'), 'time-native protocol database/counter rows must be present in Device Workbench');
+
 const ipv6Tx = runBuilderApplicationTransaction(base, services, 'client', h3.id, 'ipv6', 31);
 const ipv6Diagnosis = diagnoseBuilderApplicationTransaction(ipv6Tx, graph);
 assert.equal(ipv6Diagnosis.success, true);
@@ -94,4 +156,4 @@ assert.ok(partitioned.firstBrokenDimension, partitioned.summary);
 assert.equal(partitioned.dimensions.find((entry) => entry.id === 'TRANSPORT')?.status, 'NOT_REACHED');
 assert.ok(partitioned.causalChain.length >= 2);
 
-console.log('Track A causal diagnosis contract passed: independent truth dimensions, exact first-broken-boundary ranking, no future-state leakage during historical replay, policy vs translation separation, IPv6 no-NAT66 truth, and canonical causal chains.');
+console.log('Track A causal diagnosis contract passed: independent truth dimensions, canonical application-stage replay, time-native Device Workbench protocol/counter state, exact first-broken-boundary ranking, no future-state leakage, policy vs translation separation, IPv6 no-NAT66 truth, and canonical causal chains.');
