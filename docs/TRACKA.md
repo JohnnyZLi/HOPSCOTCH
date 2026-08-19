@@ -116,3 +116,7 @@ Application transaction history remains session-only and bounded to 24 completed
 - protocol database/counter projection in Device Workbench.
 
 **Track A is complete when this contract, the existing Builder timeline/canonical-event contracts, repository CI, production performance budgets, and browser compatibility matrix are green on the final closeout head.**
+
+## Roadmap handoff
+
+Track A closes the simulator's time/causality integration gap. The active roadmap now promotes **Track B — Builder authoring environment** as the next product priority; its authoring operations must continue to mutate the same canonical Builder configuration consumed by this time machine rather than introduce an editor-only state model.
