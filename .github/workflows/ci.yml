@@ -25,7 +25,33 @@ jobs:
           if grep -q "'ipv6-pmtu'" src/builder/challenges.ts; then
             echo "Track J MTU slice already applied."
           else
+            python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/apply-track-j-mtu-neighbor-slice.mjs')
+          text = path.read_text()
+          text = text.split("const docs='docs/TRACKJ.md';", 1)[0]
+          text += "\nconsole.log('Applied Track J IPv6 PMTU + neighbor-resolution challenge slice.');\n"
+          path.write_text(text)
+          PY
             node scripts/apply-track-j-mtu-neighbor-slice.mjs
+            python - <<'PY'
+          from pathlib import Path
+          path = Path('docs/TRACKJ.md')
+          text = path.read_text()
+          marker = '## MTU / PMTUD + neighbor-resolution slice'
+          if marker not in text:
+              text += '''
+
+## MTU / PMTUD + neighbor-resolution slice
+
+The `mtu-*` / `pmtu-*` family adds the first IPv6 data-plane troubleshooting challenge without adding a second simulator. The healthy baseline enables the existing OSPFv3 path from CLIENT to APP. The broken snapshot changes exactly one canonical routed-link characteristic: a 1500-byte MTU becomes 1280 bytes on one deterministic path link.
+
+The objective deliberately distinguishes **reachability** from **full-size delivery**. A 1500-byte IPv6 Ping first performs ordinary Neighbor Discovery, reaches the constraining hop, receives ICMPv6 Packet Too Big, and caches PMTU 1280. That failed full-size probe plus observed NS/NA exchanges are challenge evidence: successful ND narrows the fault above neighbor resolution instead of being treated as noise. After the canonical MTU is restored, a retry can still succeed at only 1280 bytes because the PMTU cache is session state. Verification therefore requires clearing stale PMTU state and proving that the requested 1500 bytes are also the effective transmitted size.
+
+Device Workbench now projects routed-link MTU and physical characteristics beside interface configuration so the challenged link can be inspected through the same CONFIG surface used by the rest of Track J. The existing access-VLAN, trunk, and STP families continue to use ordinary ARP observations as Layer-2 evidence. No standalone ND-only failure is fabricated in this slice: current canonical IPv6 configuration does not expose a truthful independent ND failure knob beyond route/link/addressing faults already represented elsewhere.
+'''
+              path.write_text(text)
+          PY
           fi
       - run: npm ci
       - run: npm run check
