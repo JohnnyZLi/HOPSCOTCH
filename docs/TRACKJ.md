@@ -179,7 +179,7 @@ While a challenge is active, these configuration-replacement shortcuts are block
 - `RESET LAN`,
 - the bulk authoring workspace.
 
-The actual repair controls remain available: endpoint gateway, access VLAN, trunk allow-list, STP toggle, routed configuration, and normal diagnostic surfaces.
+The actual repair controls remain available: endpoint gateway, access VLAN, trunk allow-list, STP toggle, routed configuration, hosted-service hostname/listener configuration, and normal diagnostic surfaces.
 
 ## Loading and performance boundary
 
@@ -195,8 +195,8 @@ The challenge panel is lazy-loaded and is never rendered in the Builder stress h
 - `gateway-*` compatibility with the first slice,
 - access-VLAN, trunk-pruning, and STP-loop seed dispatch,
 - exactly one canonical fault per current family,
-- healthy ordinary routed/LAN workflows succeed,
-- each broken family fails through the ordinary canonical diagnostic path,
+- healthy ordinary routed/LAN/application workflows succeed,
+- each broken family fails through the ordinary canonical diagnostic path, including exact DNS vs transport first-broken boundaries,
 - STP-disabled loop preserves the useful distinction between ARP reachability and unsafe forwarding,
 - share-token round-trip reproduces every family,
 - unrelated objective traffic does not count as verification,
@@ -220,8 +220,8 @@ Remaining canonical fault depth includes:
 - deeper ACL/NAT composition beyond the shipped single-fault policy families,
 - deeper DHCP relay/options failures beyond the shipped missing-gateway-option family,
 - additional MTU / PMTUD cases beyond the shipped IPv6 reduced-path-MTU family,
-- DNS failures,
-- transport failures,
+- deeper DNS behavior beyond the shipped deterministic missing-name family,
+- deeper transport behavior beyond the shipped disabled-listener family,
 - BGP policy failures,
 - later bounded multi-fault composition after the single-fault catalog is trustworthy.
 
