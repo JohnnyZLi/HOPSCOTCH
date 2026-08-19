@@ -104,6 +104,8 @@ assert.match(networkBuilderSource, /lazy\(\(\) => import\('\.\/BuilderAuthoringP
 assert.match(networkBuilderSource, /restoreCanonicalBuilderConfig\(scenario\)/, 'scenario restore and Track B undo/branch restore must share one canonical configuration-application boundary');
 assert.match(networkBuilderSource, /builder-canvas-viewport/, 'Builder canvas must expose a camera viewport for zoom/focus');
 assert.match(networkBuilderSource, /builder-marquee/, 'Builder canvas must expose marquee selection');
+assert.doesNotMatch(networkBuilderSource, /builder-site-bound/, 'presentation-only site bounds belong in the lazy authoring minimap, not the always-loaded main canvas');
+assert.match(panelContentSource, /siteBounds\.map\(/, 'lazy authoring minimap must project site grouping bounds');
 assert.match(panelWrapperSource, /lazy\(\(\) => import\('\.\/BuilderAuthoringPanelContent\.tsx'\)/, 'heavy authoring tools must remain behind a lazy boundary');
 assert.match(panelContentSource, /searchBuilderTopology\(/, 'authoring search UI must consume the shipped deterministic topology-search engine');
 assert.match(panelContentSource, /compareBuilderScenarios\(/, 'scenario compare UI must consume the shipped deterministic compare engine');

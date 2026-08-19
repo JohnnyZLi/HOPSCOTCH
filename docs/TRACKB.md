@@ -53,7 +53,7 @@ The heavy authoring workspace is closed by default and lazy-loaded only after **
 
 ### Sites and templates
 
-**Sites** are authoring presentation groups over routed device IDs. They provide named canvas bounds and collapsible group detail in the authoring workspace. Site membership never changes network behavior.
+**Sites** are authoring presentation groups over routed device IDs. They provide named grouping bounds in the lazy authoring minimap plus collapsible group detail in the authoring workspace. Site membership never changes network behavior.
 
 **Templates** are reusable routed topology fragments:
 

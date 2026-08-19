@@ -94,7 +94,7 @@ Track B makes the existing Builder model practical to author at scale without cr
 
 - [x] bounded undo/redo over canonical configuration snapshots with runtime-state reset on restore
 - [x] modifier + marquee multi-select, routed topology copy/paste, alignment, and distribution
-- [x] named presentation-only sites plus reusable browser-local routed topology templates
+- [x] named presentation-only minimap sites plus reusable browser-local routed topology templates
 - [x] topology-search UI consuming the shipped deterministic search engine, stable zoom/focus targets, minimap, annotations, and routed interface-name visibility
 - [x] bulk canonical device-label, `ethN` interface-renumbering, routed-link cost/state, Ethernet access-VLAN, trunk-allowed-VLAN, and Ethernet link-state edits
 - [x] clean authoring baseline plus bounded in-session named branch snapshots and restore
