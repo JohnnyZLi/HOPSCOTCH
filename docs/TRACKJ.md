@@ -217,9 +217,9 @@ Remaining canonical fault depth includes:
 - dedicated ARP/ND failures beyond ARP as evidence,
 - connected/static/dynamic routing failures,
 - OSPF adjacency/policy failures,
-- ACL and NAT failures,
-- DHCP failures,
-- MTU / PMTUD failures,
+- deeper ACL/NAT composition beyond the shipped single-fault policy families,
+- deeper DHCP relay/options failures beyond the shipped missing-gateway-option family,
+- additional MTU / PMTUD cases beyond the shipped IPv6 reduced-path-MTU family,
 - DNS failures,
 - transport failures,
 - BGP policy failures,
@@ -259,3 +259,19 @@ Track J now includes a deterministic `dhcp-*` family. The canonical VLAN 10 DHCP
 Diagnosis uses the ordinary DHCP DORA / ACQUIRE surface plus Device Workbench CONFIG / STATE / EVENTS. Repair uses the normal pool GATEWAY editor; the existing pool edit path clears affected leases, so the learner must reacquire and prove a configuration-ready ACK.
 
 Challenge scoring treats an incomplete objective DHCP transaction as 20 points of primary evidence, plus target STATE and CONFIG inspection. The remaining 60 points retain the standard causal-hypothesis, exact canonical repair, and post-repair objective verification contract. DHCP leases and challenge evidence remain session-only; DHCP config remains canonical scenario truth.
+
+
+## Sixth slice — IPv6 PMTU and neighbor resolution
+
+Track J now includes a deterministic `mtu-*` / `pmtu-*` / `ipv6-mtu-*` family built entirely on the existing IPv6 forwarding, Neighbor Discovery, link-characteristics, and PMTU models.
+
+- The healthy CLIENT → APP baseline enables the existing OSPFv3 control plane and keeps every routed-link MTU at 1500 bytes.
+- The broken snapshot changes exactly one deterministic path link from MTU 1500 to 1280; topology, IPv6 addresses, routes, policy, and all other link characteristics stay unchanged.
+- A normal 1500-byte IPv6 Ping performs ordinary NS/NA resolution, reaches the constraining hop, receives ICMPv6 Packet Too Big, and learns a session-only PMTU of 1280.
+- Successful Neighbor Discovery is explicit narrowing evidence: it demonstrates that next-hop resolution is healthy while full-size delivery fails at the MTU boundary.
+- Repair uses the existing selected-link MTU control. Device Workbench now projects routed-link MTU and physical link characteristics beside interface configuration.
+- Restoring MTU 1500 earns canonical repair points, but a retry still constrained to 1280 by stale PMTU cache does not verify the objective. Verification requires clearing PMTU state and proving requested bytes = effective transmitted bytes = 1500.
+
+This slice intentionally does not invent a standalone ND-only fault. The current canonical IPv6 model has no independent ND failure knob separate from link, addressing, and routing faults already represented elsewhere. ARP remains ordinary evidence in the existing VLAN/trunk/STP families for the same reason: challenge logic observes neighbor resolution; it does not manufacture it.
+
+PMTU scoring preserves the 100-point contract: Packet Too Big evidence (15) + successful ND narrowing evidence (5) + target STATE (10) + target CONFIG (10), then 20 causal-reasoning points, 25 exact MTU-repair points, and 15 full-size post-repair verification points.

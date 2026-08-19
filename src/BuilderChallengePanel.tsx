@@ -19,6 +19,7 @@ function evidenceLabel(entry: BuilderChallengeEvidence): string {
   if (entry.kind === 'arp-resolution') return 'ARP';
   if (entry.kind === 'nat-flow') return 'NAT FLOW';
   if (entry.kind === 'dhcp-transaction') return 'DHCP DORA';
+  if (entry.kind === 'ipv6-nd') return 'IPV6 ND';
   if (entry.kind === 'inspect-config') return 'INSPECT CONFIG';
   if (entry.kind === 'inspect-state') return 'INSPECT STATE';
   return 'INSPECT EVENTS';
@@ -98,7 +99,9 @@ export default function BuilderChallengePanel({
           ? 'Run the ordinary LAN SEND FRAME / PACKET flow, inspect its ARP result, and use CONFIG / STATE / EVENTS in Device Workbench. Repair the normal VLAN / trunk / STP controls, then rerun the exact LAN objective to prove the fix.'
           : verificationKind === 'nat-translation'
             ? 'Run the ordinary NAT RUN OUTBOUND tool and inspect CONFIG / STATE / EVENTS in Device Workbench. A delivered but untranslated tuple is still a failed objective. Repair the canonical NAT boundary, then rerun the same outbound flow to prove PAT translation.'
-            : 'Run the ordinary DHCP DORA / ACQUIRE flow and inspect CONFIG / STATE / EVENTS in Device Workbench. An ACK with incomplete options is failed objective evidence. Repair the pool default-gateway option, then reacquire a configuration-ready lease.'}</p>
+            : verificationKind === 'ipv6-pmtu'
+              ? 'Run the ordinary IPv6 Ping / Traceroute at the challenge packet size. Use NS/NA plus Packet Too Big / PMTU state to separate healthy neighbor resolution from the MTU failure, inspect CONFIG / STATE / EVENTS, repair the selected routed-link MTU, clear stale PMTU cache, then prove the same full-size packet is actually transmitted.'
+              : 'Run the ordinary DHCP DORA / ACQUIRE flow and inspect CONFIG / STATE / EVENTS in Device Workbench. An ACK with incomplete options is failed objective evidence. Repair the pool default-gateway option, then reacquire a configuration-ready lease.'}</p>
     </div>
 
     <div className="builder-challenge-hypothesis">
