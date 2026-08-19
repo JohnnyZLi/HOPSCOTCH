@@ -18,6 +18,7 @@ function evidenceLabel(entry: BuilderChallengeEvidence): string {
   if (entry.kind === 'ethernet-flow') return 'LAN FLOW';
   if (entry.kind === 'arp-resolution') return 'ARP';
   if (entry.kind === 'nat-flow') return 'NAT FLOW';
+  if (entry.kind === 'dhcp-transaction') return 'DHCP DORA';
   if (entry.kind === 'inspect-config') return 'INSPECT CONFIG';
   if (entry.kind === 'inspect-state') return 'INSPECT STATE';
   return 'INSPECT EVENTS';
@@ -95,7 +96,9 @@ export default function BuilderChallengePanel({
         ? 'Run the ordinary Builder Ping / Traceroute tools and inspect CONFIG / STATE / EVENTS in Device Workbench. Repair the network with the normal Builder configuration controls, then prove the repair with another objective probe.'
         : verificationKind === 'ethernet-flow'
           ? 'Run the ordinary LAN SEND FRAME / PACKET flow, inspect its ARP result, and use CONFIG / STATE / EVENTS in Device Workbench. Repair the normal VLAN / trunk / STP controls, then rerun the exact LAN objective to prove the fix.'
-          : 'Run the ordinary NAT RUN OUTBOUND tool and inspect CONFIG / STATE / EVENTS in Device Workbench. A delivered but untranslated tuple is still a failed objective. Repair the canonical NAT boundary, then rerun the same outbound flow to prove PAT translation.'}</p>
+          : verificationKind === 'nat-translation'
+            ? 'Run the ordinary NAT RUN OUTBOUND tool and inspect CONFIG / STATE / EVENTS in Device Workbench. A delivered but untranslated tuple is still a failed objective. Repair the canonical NAT boundary, then rerun the same outbound flow to prove PAT translation.'
+            : 'Run the ordinary DHCP DORA / ACQUIRE flow and inspect CONFIG / STATE / EVENTS in Device Workbench. An ACK with incomplete options is failed objective evidence. Repair the pool default-gateway option, then reacquire a configuration-ready lease.'}</p>
     </div>
 
     <div className="builder-challenge-hypothesis">

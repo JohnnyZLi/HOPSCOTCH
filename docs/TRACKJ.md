@@ -250,3 +250,12 @@ Track J now includes two deterministic policy families:
 The scoring contract remains 40 evidence + 20 causal reasoning + 25 canonical repair + 15 objective verification. NAT evidence awards the 20 diagnostic-flow points when the objective outbound flow is observed without translation, plus normal target STATE and CONFIG inspection.
 
 Challenge scoring now consumes live ACL and NAT configuration in addition to addressing, Ethernet, and routing truth. Evidence and scores remain session-only and never influence ACL evaluation, NAT translation, forwarding, or provenance.
+
+
+## Fifth slice — DHCP bootstrap options
+
+Track J now includes a deterministic `dhcp-*` family. The canonical VLAN 10 DHCP client still completes DORA, but the server pool omits the default-gateway option. This is intentionally not modeled as a DHCP timeout: the ACK succeeds and allocates an address while `configurationReady` remains false with `DEFAULT GATEWAY MISSING`.
+
+Diagnosis uses the ordinary DHCP DORA / ACQUIRE surface plus Device Workbench CONFIG / STATE / EVENTS. Repair uses the normal pool GATEWAY editor; the existing pool edit path clears affected leases, so the learner must reacquire and prove a configuration-ready ACK.
+
+Challenge scoring treats an incomplete objective DHCP transaction as 20 points of primary evidence, plus target STATE and CONFIG inspection. The remaining 60 points retain the standard causal-hypothesis, exact canonical repair, and post-repair objective verification contract. DHCP leases and challenge evidence remain session-only; DHCP config remains canonical scenario truth.
