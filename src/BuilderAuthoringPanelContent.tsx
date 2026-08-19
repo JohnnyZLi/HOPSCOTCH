@@ -61,9 +61,10 @@ export default function BuilderAuthoringPanelContent({ snapshot, view, historica
   const snapshotKey = useMemo(() => builderAuthoringSnapshotKey(snapshot), [snapshot]);
 
   useEffect(() => {
+    if (historical) return;
     setHistory((current) => recordBuilderAuthoringSnapshot(current, snapshot));
     if (!view.baseline) onViewChange({ ...view, baseline: createBuilderAuthoringSnapshot(snapshot) });
-  }, [snapshotKey]);
+  }, [snapshotKey, historical]);
 
   useEffect(() => {
     const nodeIds = new Set(snapshot.graph.nodes.map((node) => node.id));

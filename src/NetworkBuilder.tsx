@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   cloneBuilderAddressing,
   createDefaultBuilderAddressing,
@@ -73,6 +73,8 @@ import { BuilderDhcpPanel } from './BuilderDhcpPanel.tsx';
 import { BuilderDeviceWorkbench } from './BuilderDeviceWorkbench.tsx';
 import { BuilderTimeMachine } from './BuilderTimeMachine.tsx';
 import { BuilderApplicationPanel } from './BuilderApplicationPanel.tsx';
+import { BuilderAuthoringPanel } from './BuilderAuthoringPanel.tsx';
+import type { BuilderAuthoringSession, BuilderAuthoringSnapshot } from './builder/authoring.ts';
 import type { BuilderApplicationTransaction } from './builder/application.ts';
 import { appendBuilderWorkbenchEventBatch, appendBuilderWorkbenchMessageEvent, buildBuilderDeviceWorkbench, builderWorkbenchDeviceOptions, classifyBuilderWorkbenchMessage, createBuilderWorkbenchEventJournal, type BuilderDeviceRef, type BuilderDeviceWorkbenchInput, type BuilderWorkbenchEventJournal } from './builder/device-workbench.ts';
 import { deriveBuilderCanonicalEventSpecs } from './builder/canonical-events.ts';
@@ -86,6 +88,10 @@ function labelFor(graph: BuilderGraph, id: string): string {
 function chooseValidNode(graph: BuilderGraph, preferred: string, avoid?: string): string {
   if (graph.nodes.some((node) => node.id === preferred) && preferred !== avoid) return preferred;
   return graph.nodes.find((node) => node.id !== avoid)?.id ?? '';
+}
+
+function BuilderCanvasViewport({ enabled, style, children }: { enabled: boolean; style: CSSProperties; children: ReactNode }) {
+  return enabled ? <div className="builder-canvas-viewport" style={style}>{children}</div> : <>{children}</>;
 }
 
 export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, onOpenBgpProjection, initialGraph = defaultBuilderGraph, initialLayout = defaultBuilderLayout, initialAddressing, initialRouting, initialEthernet, initialLinkProfiles, initialAcl, initialNat, initialDhcp, initialIpv6, initialSourceId = 'client', initialDestinationId = 'app', initialScenarioName = 'My topology', stressLabel }: { onExit: () => void; onOpenFailureStory: () => void; onOpenProbePacket?: (seed: BuilderProbePacketSeed) => void; onOpenBgpProjection?: (payload: { projection: BuilderBgpAsProjection; scenario: BuilderScenarioV8 }) => void; initialGraph?: BuilderGraph; initialLayout?: BuilderLayout; initialAddressing?: BuilderAddressing; initialRouting?: BuilderRoutingConfig; initialEthernet?: BuilderEthernetConfig; initialLinkProfiles?: BuilderLinkProfiles; initialAcl?: BuilderAclConfig; initialNat?: BuilderNatConfig; initialDhcp?: BuilderDhcpConfig; initialIpv6?: BuilderIpv6Config; initialSourceId?: string; initialDestinationId?: string; initialScenarioName?: string; stressLabel?: string }) {
@@ -123,6 +129,8 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const [timelineCursor, setTimelineCursor] = useState<number | null>(null);
   const [probeHistory, setProbeHistory] = useState<BuilderProbeResult[]>([]);
   const [applicationHistory, setApplicationHistory] = useState<BuilderApplicationTransaction[]>([]);
+  const [authoringView, setAuthoringView] = useState<BuilderAuthoringSession>(() => ({ selection:[initialSourceId], ethernetLinkSelection:[], clipboard:null, sites:[], annotations:{}, showInterfaces:false, camera:{x:50,y:50,scale:1}, branches:[], baseline:null }));
+  const [authoringMarquee, setAuthoringMarquee] = useState<{startX:number;startY:number;endX:number;endY:number;additive:boolean}|null>(null);
   const [selectedProbeId, setSelectedProbeId] = useState<string | null>(null);
   const [selectedProbeAttempt, setSelectedProbeAttempt] = useState(0);
   const [probeFamily, setProbeFamily] = useState<'ipv4'|'ipv6'>('ipv4');
@@ -198,6 +206,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const sceneEthernetDestinationId = sceneEthernet.devices.some((device) => device.id === ethernetDestinationId) ? ethernetDestinationId : (sceneEthernetEndpoints.find((device) => device.id !== sceneEthernetSourceId)?.id ?? sceneEthernetSourceId);
   const sceneSelectedEthernetLinkId = sceneEthernet.links.some((link) => link.id === selectedEthernetLinkId) ? selectedEthernetLinkId : (sceneEthernet.links[0]?.id ?? '');
   const sceneRenderState = { ...sceneState, selectedNodeId: sceneSelectedNodeId, selectedLinkId: sceneSelectedLinkId, ethernetSourceId: sceneEthernetSourceId, ethernetDestinationId: sceneEthernetDestinationId, selectedEthernetLinkId: sceneSelectedEthernetLinkId };
+  const displayedAuthoringSnapshot:BuilderAuthoringSnapshot={graph:sceneGraph,addressing:sceneAddressing,routing:sceneRouting,ethernet:sceneEthernet,linkProfiles:sceneLinkProfiles,acl:sceneAcl,nat:sceneNat,dhcp:sceneDhcp,ipv6:sceneIpv6,sourceId:sceneSourceId,destinationId:sceneDestinationId,layout:sceneLayout};
 
   const route = useMemo(() => findShortestPath(sceneGraph, sceneSourceId, sceneDestinationId), [sceneGraph, sceneSourceId, sceneDestinationId]);
   const forwardingTrace = useMemo(() => traceBuilderForwarding(sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId, sceneFibGraph), [sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId, sceneFibGraph]);
@@ -302,6 +311,20 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
     setIpv6(reconcileBuilderIpv6Config(graph,next,ipv6));
     setNatSessions(clearBuilderNatSessions());
   };
+
+
+  const applyAuthoringSnapshot = (next:BuilderAuthoringSnapshot,nextMessage:string) => {
+    setGraph(cloneBuilderGraph(next.graph)); setAddressing(cloneBuilderAddressing(next.addressing)); setRouting(cloneBuilderRoutingConfig(next.routing)); setIpv6(cloneBuilderIpv6Config(next.ipv6)); setEthernet(cloneBuilderEthernetConfig(next.ethernet)); setLinkProfiles(cloneBuilderLinkProfiles(next.linkProfiles)); setAcl(cloneBuilderAclConfig(next.acl)); setNat(cloneBuilderNatConfig(next.nat)); setDhcp(cloneBuilderDhcpConfig(next.dhcp)); setLayout(cloneBuilderLayout(next.layout)); setSourceId(next.sourceId); setDestinationId(next.destinationId);
+    setSelectedNodeId(next.graph.nodes.some((node)=>node.id===selectedNodeId)?selectedNodeId:next.sourceId); setSelectedLinkId(next.graph.links.some((link)=>link.id===selectedLinkId)?selectedLinkId:(next.graph.links[0]?.id??''));
+    setNatSessions(clearBuilderNatSessions()); setDhcpLeases(clearBuilderDhcpLeases()); setDhcpSequence(1); setIpv6ControlState(createBuilderIpv6ControlState()); setIpv6LifecycleState(createBuilderIpv6LifecycleState()); setIpv6RoutingDepth(createDefaultBuilderIpv6RoutingDepthState(next.graph)); setArpCache(clearBuilderArpCache()); setArpResolutions([]); setEthernetFlow(null); setProbeHistory([]); setApplicationHistory([]);
+    setAuthoringView((current)=>({...current,selection:current.selection.filter((id)=>next.graph.nodes.some((node)=>node.id===id)),ethernetLinkSelection:current.ethernetLinkSelection.filter((id)=>next.ethernet.links.some((link)=>link.id===id))}));
+    setMessage(nextMessage);
+  };
+  const commitAuthoringGraph=(nextGraph:BuilderGraph,nextLayout:BuilderLayout|null,nextMessage:string)=>{if(nextLayout)setLayout(cloneBuilderLayout(nextLayout));commitGraph(nextGraph);setMessage(nextMessage);};
+  const commitAuthoringAddressing=(next:BuilderAddressing,nextMessage:string)=>{commitAddressing(next);setMessage(nextMessage);};
+  const commitAuthoringEthernet=(next:BuilderEthernetConfig,nextMessage:string)=>{setEthernet(cloneBuilderEthernetConfig(next));setEthernetFlow(null);setArpCache(clearBuilderArpCache());setArpResolutions([]);setMessage(nextMessage);};
+  const setAuthoringLayout=(next:BuilderLayout,nextMessage:string)=>{setLayout(cloneBuilderLayout(next));setMessage(nextMessage);};
+  const focusAuthoringDevice=(deviceId:string)=>{if(!graph.nodes.some((node)=>node.id===deviceId))return;setSelectedNodeId(deviceId);setWorkbenchDevice({plane:'routed',id:deviceId});};
 
   const patchSelectedLinkProfile = (patch: Parameters<typeof updateBuilderLinkProfile>[3]) => {
     if (!selectedLink) return;
@@ -465,11 +488,13 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
     } catch (error) { setMessage(`BGP PROJECTION REJECTED · ${error instanceof Error ? error.message : 'Unable to snapshot Builder truth.'}`); }
   };
 
+  const authoringCanvasPoint=(clientX:number,clientY:number)=>{const canvas=canvasRef.current;if(!canvas)return null;const rect=canvas.getBoundingClientRect();const screenX=((clientX-rect.left)/Math.max(1,rect.width))*100;const screenY=((clientY-rect.top)/Math.max(1,rect.height))*100;const scale=authoringView.camera.scale;const tx=50-authoringView.camera.x*scale;const ty=50-authoringView.camera.y*scale;return{x:(screenX-tx)/scale,y:(screenY-ty)/scale};};
+
   const onNodeDragEnd = (nodeId: string, offsetX: number, offsetY: number) => {
     const canvas = canvasRef.current; const current = layout[nodeId]; if (!canvas || !current) return;
     const rect = canvas.getBoundingClientRect();
-    const x = Math.max(0, Math.min(100, current.x + (offsetX / Math.max(rect.width, 1)) * 100));
-    const y = Math.max(0, Math.min(100, current.y + (offsetY / Math.max(rect.height, 1)) * 100));
+    const x = Math.max(0, Math.min(100, current.x + (offsetX / Math.max(rect.width * authoringView.camera.scale, 1)) * 100));
+    const y = Math.max(0, Math.min(100, current.y + (offsetY / Math.max(rect.height * authoringView.camera.scale, 1)) * 100));
     setLayout((prior) => ({ ...prior, [nodeId]: { x, y } }));
     setMessage(`${labelFor(graph, nodeId)} moved visually. Route truth remains ${route.reachable ? `cost ${route.totalCost}` : 'unreachable'}.`);
   };
@@ -484,7 +509,10 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
       <div className="builder-main">
         <section className="builder-stage">
           <div className="builder-stage-meta">{isHistorical&&<div className="builder-history-meta"><span>TIME MACHINE</span><strong>HISTORY #{String(historicalTimelineSnapshot?.sequence??0).padStart(3,'0')} · READ ONLY</strong></div>}<div><span>GRAPH PATH</span><strong>{route.reachable ? `YES · COST ${route.totalCost}` : 'NO PATH'}</strong></div><div><span>L3 FORWARDING</span><strong>{forwardingTrace.reachable ? 'REACHABLE' : 'NO ROUTE'}</strong></div><div><span>ACTIVE PROBE</span><strong>{selectedProbe ? `${selectedProbe.kind.toUpperCase()} · ${selectedProbe.success ? 'PASS' : 'FAIL'}${selectedProbe.natApplied ? ' · NAT' : ''}` : 'IDLE'}</strong></div><div><span>OSPF AREA 0</span><strong>{ospfState.enabledRouterIds.length === 0 ? 'OFF' : `${ospfState.enabledRouterIds.length} RTR · ${ospfState.fullAdjacencyCount} FULL`}</strong></div><div><span>STATIC</span><strong>{routing.staticRoutes.length} ROUTES</strong></div>{!stressLabel&&<div><span>NAT/PAT</span><strong>{nat.boundaries.length === 0 ? 'OFF' : `${nat.boundaries.length} BOUNDARY · ${natSessions.length} STATE`}</strong></div>}<div><span>GRAPH</span><strong>{graph.nodes.length} NODES · {graph.links.length} LINKS</strong></div></div>
-          <div ref={canvasRef} className="builder-canvas">
+          <div ref={canvasRef} className={`builder-canvas ${authoringView.camera.scale!==1?'is-authoring-zoomed':''}`} onPointerDown={(event)=>{if(isHistorical||stressLabel)return;const target=event.target;if(target instanceof Element&&target.closest('.builder-node,.builder-link'))return;const point=authoringCanvasPoint(event.clientX,event.clientY);if(!point)return;setAuthoringMarquee({startX:point.x,startY:point.y,endX:point.x,endY:point.y,additive:event.shiftKey||event.metaKey||event.ctrlKey});event.currentTarget.setPointerCapture(event.pointerId);}} onPointerMove={(event)=>{if(!authoringMarquee)return;const point=authoringCanvasPoint(event.clientX,event.clientY);if(point)setAuthoringMarquee((current)=>current?{...current,endX:point.x,endY:point.y}:current);}} onPointerUp={()=>{if(!authoringMarquee)return;const minX=Math.min(authoringMarquee.startX,authoringMarquee.endX),maxX=Math.max(authoringMarquee.startX,authoringMarquee.endX),minY=Math.min(authoringMarquee.startY,authoringMarquee.endY),maxY=Math.max(authoringMarquee.startY,authoringMarquee.endY);const picked=graph.nodes.filter((node)=>{const point=layout[node.id];return Boolean(point&&point.x>=minX&&point.x<=maxX&&point.y>=minY&&point.y<=maxY);}).map((node)=>node.id);setAuthoringView((current)=>({...current,selection:authoringMarquee.additive?[...new Set([...current.selection,...picked])]:picked}));setAuthoringMarquee(null);}} onPointerCancel={()=>setAuthoringMarquee(null)}>
+            <BuilderCanvasViewport enabled={!stressLabel} style={{transform:`translate(${50-authoringView.camera.x*authoringView.camera.scale}%, ${50-authoringView.camera.y*authoringView.camera.scale}%) scale(${authoringView.camera.scale})`}}>
+            {authoringView.sites.map((site)=>{const points=site.nodeIds.flatMap((id)=>layout[id]?[layout[id]]:[]);if(points.length===0)return null;const left=Math.max(0,Math.min(...points.map((point)=>point.x))-6),top=Math.max(0,Math.min(...points.map((point)=>point.y))-6),right=Math.min(100,Math.max(...points.map((point)=>point.x))+6),bottom=Math.min(100,Math.max(...points.map((point)=>point.y))+6);return <div key={site.id} className={`builder-site-bound ${site.collapsed?'collapsed':''}`} style={{left:`${left}%`,top:`${top}%`,width:`${Math.max(4,right-left)}%`,height:`${Math.max(4,bottom-top)}%`}}><span>{site.label} · {site.nodeIds.length}</span></div>;})}
+            {authoringMarquee&&<div className="builder-marquee" style={{left:`${Math.min(authoringMarquee.startX,authoringMarquee.endX)}%`,top:`${Math.min(authoringMarquee.startY,authoringMarquee.endY)}%`,width:`${Math.abs(authoringMarquee.endX-authoringMarquee.startX)}%`,height:`${Math.abs(authoringMarquee.endY-authoringMarquee.startY)}%`}}/>}
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Weighted routed topology">
               {graph.links.map((link) => {
                 const a = layout[link.a]; const b = layout[link.b]; if (!a || !b) return null;
@@ -498,11 +526,12 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
               const point = layout[node.id]; if (!point) return null;
               const onRoute = route.nodeIds.includes(node.id);
               return <div key={node.id} className="builder-node-anchor" style={{ left: `${point.x}%`, top: `${point.y}%` }}>
-                <motion.div className={`builder-node ${node.kind} ${onRoute ? 'on-route' : ''} ${selectedNode?.id === node.id ? 'selected' : ''}`} drag={!isHistorical} dragMomentum={false} dragElastic={0} onPointerDown={() => { setSelectedNodeId(node.id); setWorkbenchDevice({ plane: 'routed', id: node.id }); }} onDragEnd={(_, info) => { if (!isHistorical) onNodeDragEnd(node.id, info.offset.x, info.offset.y); }} whileDrag={reduceMotion ? undefined : { scale: 1.08, zIndex: 8 }}>
-                  <span>{node.kind === 'router' ? 'RTR' : 'END'}</span><strong>{node.label}</strong>{!node.builtin && <button type="button" disabled={isHistorical} onPointerDown={(event) => event.stopPropagation()} onClick={() => deleteNode(node.id)} aria-label={`Delete ${node.label}`}>×</button>}
+                <motion.div className={`builder-node ${node.kind} ${onRoute ? 'on-route' : ''} ${selectedNode?.id === node.id ? 'selected' : ''} ${authoringView.selection.includes(node.id)?'is-multi-selected':''}`} drag={!isHistorical} dragMomentum={false} dragElastic={0} onPointerDown={(event) => { event.stopPropagation(); const additive=event.shiftKey||event.metaKey||event.ctrlKey; setAuthoringView((current)=>({...current,selection:additive?(current.selection.includes(node.id)?current.selection.filter((id)=>id!==node.id):[...current.selection,node.id]):[node.id]})); setSelectedNodeId(node.id); setWorkbenchDevice({ plane: 'routed', id: node.id }); }} onDragEnd={(_, info) => { if (!isHistorical) onNodeDragEnd(node.id, info.offset.x, info.offset.y); }} whileDrag={reduceMotion ? undefined : { scale: 1.08, zIndex: 8 }}>
+                  <span>{node.kind === 'router' ? 'RTR' : 'END'}</span><strong>{node.label}</strong>{authoringView.showInterfaces&&<small className="builder-node-interface-names">{interfacesForBuilderNode(addressing,node.id).map((entry)=>entry.name).join(' · ')||'NO ROUTED INTERFACES'}</small>}{authoringView.annotations[node.id]&&<small className="builder-node-annotation">{authoringView.annotations[node.id]}</small>}{!node.builtin && <button type="button" disabled={isHistorical} onPointerDown={(event) => event.stopPropagation()} onClick={() => deleteNode(node.id)} aria-label={`Delete ${node.label}`}>×</button>}
                 </motion.div>
               </div>;
             })}
+            </BuilderCanvasViewport>
           </div>
           <div className={`builder-route ${route.reachable ? '' : 'unreachable'}`}><span>WEIGHTED GRAPH PATH</span><strong>{route.reachable ? route.nodeIds.map((id) => labelFor(graph,id)).join(' → ') : 'NO VIABLE PATH'}</strong><p>{route.explanation}</p></div>
           <div className={`builder-ospf-summary ${ospfState.enabledRouterIds.length === 0 ? 'off' : ''}`}><span>OSPF CONTROL PLANE · AREA 0</span><strong>{ospfState.enabledRouterIds.length === 0 ? 'DISABLED · NO DYNAMIC ROUTES' : `${ospfState.components.length} LSDB VIEW${ospfState.components.length === 1 ? '' : 'S'} · ${ospfState.fullAdjacencyCount} FULL · ${ospfState.downAdjacencyCount} DOWN`}</strong><p>{ospfState.enabledRouterIds.length === 0 ? 'Enable OSPF on Builder routers to derive dynamic routes without changing weighted graph truth.' : 'Enabled routers form adjacencies only across active router-router links. SPF uses Builder link cost; connected and static routes keep their own precedence.'}</p></div>
@@ -524,6 +553,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
         <aside className="builder-controls">
           {!stressLabel&&<BuilderTimeMachine timeline={timeline} cursor={timelineCursor} onSeek={setTimelineCursor}/>}
           {!stressLabel&&workbenchSnapshot&&<BuilderDeviceWorkbench snapshot={workbenchSnapshot} options={workbenchOptions} historicalSequence={historicalTimelineSnapshot?.sequence??null} diff={workbenchTimelineDiff} onSelect={(ref)=>{setWorkbenchDevice(ref);if(ref.plane==='routed')setSelectedNodeId(ref.id);}}/>}
+          {!stressLabel&&<BuilderAuthoringPanel snapshot={displayedAuthoringSnapshot} view={authoringView} historical={isHistorical} onViewChange={setAuthoringView} onApplySnapshot={applyAuthoringSnapshot} onCommitGraph={commitAuthoringGraph} onCommitAddressing={commitAuthoringAddressing} onCommitEthernet={commitAuthoringEthernet} onSetLayout={setAuthoringLayout} onFocusDevice={focusAuthoringDevice} onMessage={setMessage}/>}
           {!stressLabel&&isHistorical&&<div className="builder-history-lock"><strong>HISTORICAL SCENE · READ ONLY</strong><span>Canvas, forwarding overlays, LAN/STP/ARP state, protocol panels, route tables, NAT/DHCP state, and the Device Workbench are all projected from event #{String(historicalTimelineSnapshot?.sequence??0).padStart(3,'0')}. Return to LIVE to edit.</span></div>}
           <fieldset className="builder-live-controls" disabled={isHistorical}>
           <section><div className="control-title"><span>ENDPOINTS</span><strong>GRAPH ↔ IP</strong></div><label>SOURCE<select value={sourceId} onChange={(e)=>setSourceId(e.currentTarget.value)}>{graph.nodes.map((node)=><option key={node.id} value={node.id}>{node.label}</option>)}</select></label><label>DESTINATION<select value={destinationId} onChange={(e)=>setDestinationId(e.currentTarget.value)}>{graph.nodes.map((node)=><option key={node.id} value={node.id}>{node.label}</option>)}</select></label><div className="button-row"><button type="button" onClick={installCurrentStaticPath}>INSTALL STATIC PATH</button><button type="button" onClick={clearStaticRoutes}>CLEAR STATICS</button></div><small className="builder-routing-note">INSTALL snapshots the current weighted path. Static routes do not reconverge when a link fails.</small></section>
