@@ -1,0 +1,71 @@
+name: Track J L2 integration
+
+on:
+  push:
+    branches:
+      - agent/track-j-l2-challenges
+    paths:
+      - .github/workflows/track-j-l2-integration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-builder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/track-j-l2-challenges
+      - name: Apply bounded Builder integration
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/NetworkBuilder.tsx')
+          text = path.read_text()
+          replacements = [
+            ("import { appendBuilderChallengeEvidence, builderChallengeIsRepaired, createDefaultGatewayChallenge, scoreBuilderChallenge, seedFromBuilderChallengeToken, type BuilderChallenge, type BuilderChallengeEvidence, type BuilderChallengeHypothesis } from './builder/challenges.ts';",
+             "import { appendBuilderChallengeEvidence, builderChallengeIsRepaired, createBuilderChallenge, scoreBuilderChallenge, seedFromBuilderChallengeToken, type BuilderChallenge, type BuilderChallengeEvidence, type BuilderChallengeHypothesis } from './builder/challenges.ts';"),
+            ("const [challengeSeed, setChallengeSeed] = useState('gateway-001');",
+             "const [challengeSeed, setChallengeSeed] = useState('vlan-001');"),
+            ("const challengeScore = useMemo(() => challenge ? scoreBuilderChallenge(challenge, challengeEvidence, challengeHypothesis, addressing) : null, [challenge, challengeEvidence, challengeHypothesis, addressing]);",
+             "const challengeScore = useMemo(() => challenge ? scoreBuilderChallenge(challenge, challengeEvidence, challengeHypothesis, addressing, ethernet) : null, [challenge, challengeEvidence, challengeHypothesis, addressing, ethernet]);"),
+            ("  const resetEthernetDemo = () => {\n    const next = createDefaultBuilderEthernetConfig(); setEthernet(next); setDhcp(createDefaultBuilderDhcpConfig(next)); setDhcpLeases(clearBuilderDhcpLeases()); setDhcpSequence(1); setEthernetSourceId('lan-a'); setEthernetDestinationId('lan-b'); setSelectedEthernetLinkId(next.links[0]?.id ?? ''); setEthernetFlow(null); setArpCache(clearBuilderArpCache()); setArpResolutions([]); setMessage('LAN FABRIC RESET · VLANs, STP, ARP/DHCP runtime state, trunks, and router-on-a-stick interfaces restored.');\n  };",
+             "  const resetEthernetDemo = () => {\n    if(challenge){setMessage('RESET LAN DISABLED · use RESTART SAME SEED while a troubleshooting challenge is active.');return;}\n    const next = createDefaultBuilderEthernetConfig(); setEthernet(next); setDhcp(createDefaultBuilderDhcpConfig(next)); setDhcpLeases(clearBuilderDhcpLeases()); setDhcpSequence(1); setEthernetSourceId('lan-a'); setEthernetDestinationId('lan-b'); setSelectedEthernetLinkId(next.links[0]?.id ?? ''); setEthernetFlow(null); setArpCache(clearBuilderArpCache()); setArpResolutions([]); setMessage('LAN FABRIC RESET · VLANs, STP, ARP/DHCP runtime state, trunks, and router-on-a-stick interfaces restored.');\n  };"),
+            ("  const runEthernet = () => { const arp=resolveBuilderEthernetFlowArp(runtimeEthernet,ethernetSourceId,ethernetDestinationId,arpCache); setArpCache(arp.cache); setArpResolutions(arp.resolutions); if(!arp.success){setEthernetFlow(null);setMessage(`ARP FAILED · ${arp.failureReason ?? 'Address resolution failed.'}`);return;} const result = runBuilderEthernetFlow(runtimeEthernet,ethernetSourceId,ethernetDestinationId); setEthernetFlow(result); setMessage(`LAN FABRIC · ${arp.resolutions.map((entry)=>entry.cacheHit?'ARP CACHE HIT':'ARP RESOLVED').join(' + ')} · ${result.summary}`); };",
+             "  const runEthernet = () => {\n    const arp=resolveBuilderEthernetFlowArp(runtimeEthernet,ethernetSourceId,ethernetDestinationId,arpCache);\n    setArpCache(arp.cache); setArpResolutions(arp.resolutions);\n    const repaired=challenge?builderChallengeIsRepaired(challenge,addressing,ethernet):false;\n    if(challenge&&challenge.verification.kind==='ethernet-flow'&&!isHistorical){\n      const observation=arp.resolutions.at(-1);\n      setChallengeEvidence((current)=>appendBuilderChallengeEvidence(current,{kind:'arp-resolution',sourceId:ethernetSourceId,destinationId:ethernetDestinationId,success:observation?.success??arp.success,repaired,detail:observation?.summary??arp.failureReason??'ARP state observed during the LAN attempt.'}));\n    }\n    if(!arp.success){\n      setEthernetFlow(null);\n      if(challenge&&challenge.verification.kind==='ethernet-flow'&&!isHistorical)setChallengeEvidence((current)=>appendBuilderChallengeEvidence(current,{kind:'ethernet-flow',sourceId:ethernetSourceId,destinationId:ethernetDestinationId,success:false,repaired,detail:arp.failureReason??'ARP prevented the LAN flow.'}));\n      setMessage(`ARP FAILED · ${arp.failureReason ?? 'Address resolution failed.'}`);return;\n    }\n    const result=runBuilderEthernetFlow(runtimeEthernet,ethernetSourceId,ethernetDestinationId); setEthernetFlow(result);\n    if(challenge&&challenge.verification.kind==='ethernet-flow'&&!isHistorical)setChallengeEvidence((current)=>appendBuilderChallengeEvidence(current,{kind:'ethernet-flow',sourceId:ethernetSourceId,destinationId:ethernetDestinationId,success:result.success,repaired,detail:result.summary}));\n    setMessage(`LAN FABRIC · ${arp.resolutions.map((entry)=>entry.cacheHit?'ARP CACHE HIT':'ARP RESOLVED').join(' + ')} · ${result.summary}`);\n  };"),
+            ("const repaired = builderChallengeIsRepaired(challenge, addressing);",
+             "const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet);"),
+            ("      const next=createDefaultGatewayChallenge(seed);",
+             "      const next=createBuilderChallenge(seed);"),
+            ("      loadChallengeSnapshot(next.broken,`TRACK J CHALLENGE · ${next.title} · seed ${next.seed}. Diagnose with normal Builder evidence before repairing the network.`);",
+             "      loadChallengeSnapshot(next.broken,`TRACK J CHALLENGE · ${next.title} · seed ${next.seed}. Diagnose with normal Builder evidence before repairing the network.`);\n      if(next.verification.kind==='ethernet-flow'){setEthernetSourceId(next.verification.sourceId);setEthernetDestinationId(next.verification.destinationId);setWorkbenchDevice({plane:'ethernet',id:next.fault.nodeId});if('linkId' in next.fault)setSelectedEthernetLinkId(next.fault.linkId);}"),
+            ("    loadChallengeSnapshot(challenge.broken,`TRACK J CHALLENGE RESTARTED · ${challenge.title} · seed ${challenge.seed}.`);",
+             "    loadChallengeSnapshot(challenge.broken,`TRACK J CHALLENGE RESTARTED · ${challenge.title} · seed ${challenge.seed}.`);\n    if(challenge.verification.kind==='ethernet-flow'){setEthernetSourceId(challenge.verification.sourceId);setEthernetDestinationId(challenge.verification.destinationId);setWorkbenchDevice({plane:'ethernet',id:challenge.fault.nodeId});if('linkId' in challenge.fault)setSelectedEthernetLinkId(challenge.fault.linkId);}"),
+            ("<button type=\"button\" disabled={isHistorical} onClick={()=>startChallenge(challengeSeed)}>START GATEWAY CHALLENGE</button><small className=\"builder-routing-note\">FIRST SLICE · DETERMINISTIC CANONICAL FAULT · NORMAL BUILDER PROBES / WORKBENCH / CONFIG REPAIR · SESSION-ONLY SCORE.</small>",
+             "<div className=\"button-row\"><button type=\"button\" onClick={()=>setChallengeSeed('gateway-001')}>GATEWAY</button><button type=\"button\" onClick={()=>setChallengeSeed('vlan-001')}>ACCESS VLAN</button><button type=\"button\" onClick={()=>setChallengeSeed('trunk-001')}>TRUNK</button><button type=\"button\" onClick={()=>setChallengeSeed('stp-001')}>STP LOOP</button></div><button type=\"button\" disabled={isHistorical} onClick={()=>startChallenge(challengeSeed)}>START CHALLENGE</button><small className=\"builder-routing-note\">SEED PREFIX SELECTS FAMILY · GATEWAY / VLAN / TRUNK / STP · NORMAL BUILDER PROBES, LAN FLOW, ARP, WORKBENCH, AND CONFIG CONTROLS · SESSION-ONLY SCORE.</small>"),
+            ("onLockHypothesis={(next)=>{if(challengeHypothesis||isHistorical)return;setChallengeHypothesis(next);setMessage(`CHALLENGE HYPOTHESIS LOCKED · ${next.boundary} · ${labelFor(graph,next.deviceId)}.`);}}",
+             "onLockHypothesis={(next)=>{if(challengeHypothesis||isHistorical)return;setChallengeHypothesis(next);const challengeLabel=challenge?.fault.plane==='ethernet'?(ethernet.devices.find((device)=>device.id===next.deviceId)?.label??next.deviceId.toUpperCase()):labelFor(graph,next.deviceId);setMessage(`CHALLENGE HYPOTHESIS LOCKED · ${next.boundary} · ${challengeLabel}.`);}}"),
+            ("onInspect={(inspection)=>{if(!challenge||isHistorical||inspection.device.plane!=='routed')return;const kind=inspection.tab==='config'?'inspect-config':inspection.tab==='state'?'inspect-state':'inspect-events';const repaired=builderChallengeIsRepaired(challenge,addressing);setChallengeEvidence((current)=>appendBuilderChallengeEvidence(current,{kind,deviceId:inspection.device.id,repaired,detail:`Inspected ${inspection.tab.toUpperCase()} on ${labelFor(graph,inspection.device.id)} in the normal Device Workbench.`}));}}",
+             "onInspect={(inspection)=>{if(!challenge||isHistorical)return;const kind=inspection.tab==='config'?'inspect-config':inspection.tab==='state'?'inspect-state':'inspect-events';const repaired=builderChallengeIsRepaired(challenge,addressing,ethernet);const inspectedLabel=inspection.device.plane==='ethernet'?(ethernet.devices.find((device)=>device.id===inspection.device.id)?.label??inspection.device.id.toUpperCase()):labelFor(graph,inspection.device.id);setChallengeEvidence((current)=>appendBuilderChallengeEvidence(current,{kind,deviceId:inspection.device.id,devicePlane:inspection.device.plane,repaired,detail:`Inspected ${inspection.tab.toUpperCase()} on ${inspectedLabel} in the normal Device Workbench.`}));}}"),
+            ("{!stressLabel&&<Suspense fallback={null}><BuilderAuthoringPanel",
+             "{!stressLabel&&!challenge&&<Suspense fallback={null}><BuilderAuthoringPanel"),
+            ("<button type=\"button\" onClick={resetEthernetDemo}>RESET LAN</button>",
+             "<button type=\"button\" disabled={Boolean(challenge)} onClick={resetEthernetDemo}>RESET LAN</button>"),
+          ]
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected exactly one match, got {count}: {old[:120]!r}')
+              text = text.replace(old, new)
+          path.write_text(text)
+          PY
+      - name: Commit Builder integration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/NetworkBuilder.tsx
+          git commit -m "Integrate Layer 2 troubleshooting challenges"
+          git push origin HEAD:agent/track-j-l2-challenges
