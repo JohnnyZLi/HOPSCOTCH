@@ -7,6 +7,7 @@ import {
   createAclDenyChallenge,
   createBuilderChallenge,
   createDefaultGatewayChallenge,
+  createDhcpGatewayChallenge,
   createMissingStaticRouteChallenge,
   createNatDisabledChallenge,
   createOspfDisabledChallenge,
@@ -16,6 +17,7 @@ import {
   seedFromBuilderChallengeToken,
 } from '../src/builder/challenges.ts';
 import { resolveBuilderEthernetFlowArp } from '../src/builder/arp.ts';
+import { runBuilderDhcpAcquire, upsertBuilderDhcpPool } from '../src/builder/dhcp.ts';
 import { runBuilderEthernetFlow, validateBuilderEthernetConfig } from '../src/builder/ethernet.ts';
 import { runBuilderNatOutboundFlow, validateBuilderNatConfig } from '../src/builder/nat.ts';
 import { runBuilderProbe } from '../src/builder/probes.ts';
@@ -272,9 +274,40 @@ assert.ok(repairedNatFlow.translation);
 natEvidence=appendBuilderChallengeEvidence(natEvidence,{kind:'nat-flow',sourceId:'client',destinationId:'app',success:true,repaired:true,detail:repairedNatFlow.explanation});
 assert.deepEqual(scoreBuilderChallenge(natChallenge,natEvidence,natHypothesis,natChallenge.broken.addressing,natChallenge.broken.ethernet,natChallenge.broken.routing,natChallenge.broken.acl,repairedNat),{evidence:40,reasoning:20,repair:25,verification:15,total:100,repaired:true,verified:true,solved:true});
 
-for (const challenge of [access, trunk, stp, staticRoute, ospf, aclChallenge, natChallenge]) {
+const dhcpChallenge=createDhcpGatewayChallenge('dhcp-contract-001');
+assert.equal(dhcpChallenge.family,'dhcp-gateway');
+assert.equal(dhcpChallenge.fault.kind,'dhcp-gateway-option-missing');
+assert.deepEqual(dhcpChallenge,createBuilderChallenge('dhcp-contract-001'));
+const healthyDhcp=runBuilderDhcpAcquire(dhcpChallenge.healthy.ethernet,dhcpChallenge.healthy.dhcp,[],dhcpChallenge.fault.clientDeviceId,1);
+const brokenDhcp=runBuilderDhcpAcquire(dhcpChallenge.broken.ethernet,dhcpChallenge.broken.dhcp,[],dhcpChallenge.fault.clientDeviceId,1);
+assert.equal(healthyDhcp.success,true);
+assert.equal(healthyDhcp.configurationReady,true,'healthy DHCP baseline must return a configuration-ready ACK');
+assert.equal(brokenDhcp.success,true,'missing gateway option must not invent a DORA timeout');
+assert.equal(brokenDhcp.configurationReady,false,'broken DHCP ACK must remain explicitly incomplete');
+assert.ok(brokenDhcp.optionsIssues.includes('DEFAULT GATEWAY MISSING'));
+const brokenDhcpPool=dhcpChallenge.broken.dhcp.pools.find((entry)=>entry.id===dhcpChallenge.fault.poolId);
+assert.ok(brokenDhcpPool);
+const repairedDhcp=upsertBuilderDhcpPool(dhcpChallenge.broken.ethernet,dhcpChallenge.broken.dhcp,{...brokenDhcpPool,gateway:dhcpChallenge.fault.expectedGateway});
+assert.deepEqual(repairedDhcp,dhcpChallenge.healthy.dhcp,'DHCP challenge removes exactly one canonical pool gateway option');
+assert.equal(builderChallengeIsRepaired(dhcpChallenge,dhcpChallenge.broken.addressing,dhcpChallenge.broken.ethernet,dhcpChallenge.broken.routing,dhcpChallenge.broken.acl,dhcpChallenge.broken.nat,dhcpChallenge.broken.dhcp),false);
+assert.equal(builderChallengeIsRepaired(dhcpChallenge,dhcpChallenge.broken.addressing,dhcpChallenge.broken.ethernet,dhcpChallenge.broken.routing,dhcpChallenge.broken.acl,dhcpChallenge.broken.nat,repairedDhcp),true);
+let dhcpEvidence=[];
+dhcpEvidence=appendBuilderChallengeEvidence(dhcpEvidence,{kind:'dhcp-transaction',sourceId:dhcpChallenge.verification.sourceId,destinationId:dhcpChallenge.verification.destinationId,success:false,repaired:false,detail:brokenDhcp.summary});
+dhcpEvidence=recordInspection(dhcpEvidence,dhcpChallenge,'state');
+dhcpEvidence=recordInspection(dhcpEvidence,dhcpChallenge,'config');
+const dhcpHypothesis={boundary:'ADDRESSING',deviceId:dhcpChallenge.fault.nodeId};
+assert.deepEqual(scoreBuilderChallenge(dhcpChallenge,dhcpEvidence,dhcpHypothesis,dhcpChallenge.broken.addressing,dhcpChallenge.broken.ethernet,dhcpChallenge.broken.routing,dhcpChallenge.broken.acl,dhcpChallenge.broken.nat,dhcpChallenge.broken.dhcp),{evidence:40,reasoning:20,repair:0,verification:0,total:60,repaired:false,verified:false,solved:false});
+assert.equal(scoreBuilderChallenge(dhcpChallenge,dhcpEvidence,dhcpHypothesis,dhcpChallenge.broken.addressing,dhcpChallenge.broken.ethernet,dhcpChallenge.broken.routing,dhcpChallenge.broken.acl,dhcpChallenge.broken.nat,repairedDhcp).total,85);
+dhcpEvidence=appendBuilderChallengeEvidence(dhcpEvidence,{kind:'dhcp-transaction',sourceId:'lan-b',destinationId:dhcpChallenge.verification.destinationId,success:true,repaired:true,detail:'A different DHCP client is ready.'});
+assert.equal(scoreBuilderChallenge(dhcpChallenge,dhcpEvidence,dhcpHypothesis,dhcpChallenge.broken.addressing,dhcpChallenge.broken.ethernet,dhcpChallenge.broken.routing,dhcpChallenge.broken.acl,dhcpChallenge.broken.nat,repairedDhcp).verified,false,'a different DHCP client cannot verify the objective');
+const repairedDhcpTx=runBuilderDhcpAcquire(dhcpChallenge.broken.ethernet,repairedDhcp,[],dhcpChallenge.fault.clientDeviceId,2);
+assert.equal(repairedDhcpTx.configurationReady,true);
+dhcpEvidence=appendBuilderChallengeEvidence(dhcpEvidence,{kind:'dhcp-transaction',sourceId:dhcpChallenge.verification.sourceId,destinationId:dhcpChallenge.verification.destinationId,success:true,repaired:true,detail:repairedDhcpTx.summary});
+assert.deepEqual(scoreBuilderChallenge(dhcpChallenge,dhcpEvidence,dhcpHypothesis,dhcpChallenge.broken.addressing,dhcpChallenge.broken.ethernet,dhcpChallenge.broken.routing,dhcpChallenge.broken.acl,dhcpChallenge.broken.nat,repairedDhcp),{evidence:40,reasoning:20,repair:25,verification:15,total:100,repaired:true,verified:true,solved:true});
+
+for (const challenge of [access, trunk, stp, staticRoute, ospf, aclChallenge, natChallenge, dhcpChallenge]) {
   const challengeToken = builderChallengeToken(challenge);
   assert.deepEqual(createBuilderChallenge(seedFromBuilderChallengeToken(challengeToken)), challenge, `${challenge.family} token must reproduce exact deterministic truth`);
 }
 
-console.log('Builder Track J challenge contract passed: gateway plus seeded access-VLAN, trunk-pruning, STP-loop, missing-static-route, OSPF-disabled, ACL-deny, and NAT-disabled faults use canonical truth, ordinary probes/LAN+ARP/NAT evidence, exact repair, objective-scoped verification, causal scoring, and reproducible tokens.');
+console.log('Builder Track J challenge contract passed: gateway plus seeded access-VLAN, trunk-pruning, STP-loop, missing-static-route, OSPF-disabled, ACL-deny, NAT-disabled, and DHCP-gateway faults use canonical truth, ordinary probes/LAN+ARP/NAT/DHCP evidence, exact repair, objective-scoped verification, causal scoring, and reproducible tokens.');

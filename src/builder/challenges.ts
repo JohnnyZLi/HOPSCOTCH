@@ -1,6 +1,7 @@
 import { interfacesForBuilderNode, validateBuilderAddressing, type BuilderAddressing } from './addressing.ts';
 import { upsertBuilderAclRule, type BuilderAclConfig, type BuilderAclRule } from './acl.ts';
 import { createBuilderAuthoringSnapshot, type BuilderAuthoringSnapshot } from './authoring.ts';
+import { setBuilderDhcpClient, upsertBuilderDhcpPool, type BuilderDhcpConfig } from './dhcp.ts';
 import { validateBuilderEthernetConfig, type BuilderEthernetConfig } from './ethernet.ts';
 import { validateBuilderNatConfig, type BuilderNatConfig } from './nat.ts';
 import { installStaticRoutesForWeightedPath, setBuilderOspfEverywhere, setBuilderOspfRouterEnabled, validateBuilderRoutingConfig, type BuilderRoutingConfig } from './routing.ts';
@@ -12,8 +13,8 @@ export const BUILDER_CHALLENGE_EVIDENCE_LIMIT = 40;
 
 export type BuilderChallengeBoundary = 'ADDRESSING' | 'L2' | 'ROUTING' | 'POLICY' | 'TRANSPORT';
 export type BuilderChallengeDevicePlane = 'routed' | 'ethernet';
-export type BuilderChallengeEvidenceKind = 'ping' | 'traceroute' | 'ethernet-flow' | 'arp-resolution' | 'nat-flow' | 'inspect-config' | 'inspect-state' | 'inspect-events';
-export type BuilderChallengeFamily = 'gateway' | 'access-vlan' | 'trunk-vlan' | 'stp-loop' | 'static-route' | 'ospf-disabled' | 'acl-deny' | 'nat-disabled';
+export type BuilderChallengeEvidenceKind = 'ping' | 'traceroute' | 'ethernet-flow' | 'arp-resolution' | 'nat-flow' | 'dhcp-transaction' | 'inspect-config' | 'inspect-state' | 'inspect-events';
+export type BuilderChallengeFamily = 'gateway' | 'access-vlan' | 'trunk-vlan' | 'stp-loop' | 'static-route' | 'ospf-disabled' | 'acl-deny' | 'nat-disabled' | 'dhcp-gateway';
 
 export interface BuilderGatewayChallengeFault {
   kind: 'missing-default-gateway';
@@ -86,10 +87,20 @@ export interface BuilderNatDisabledChallengeFault {
   expectedEnabled: true;
 }
 
-export type BuilderChallengeFault = BuilderGatewayChallengeFault | BuilderAccessVlanChallengeFault | BuilderTrunkVlanChallengeFault | BuilderStpChallengeFault | BuilderStaticRouteChallengeFault | BuilderOspfDisabledChallengeFault | BuilderAclDenyChallengeFault | BuilderNatDisabledChallengeFault;
+export interface BuilderDhcpGatewayChallengeFault {
+  kind: 'dhcp-gateway-option-missing';
+  boundary: 'ADDRESSING';
+  plane: 'ethernet';
+  nodeId: string;
+  poolId: string;
+  clientDeviceId: string;
+  expectedGateway: string;
+}
+
+export type BuilderChallengeFault = BuilderGatewayChallengeFault | BuilderAccessVlanChallengeFault | BuilderTrunkVlanChallengeFault | BuilderStpChallengeFault | BuilderStaticRouteChallengeFault | BuilderOspfDisabledChallengeFault | BuilderAclDenyChallengeFault | BuilderNatDisabledChallengeFault | BuilderDhcpGatewayChallengeFault;
 
 export interface BuilderChallengeVerification {
-  kind: 'routed-probe' | 'ethernet-flow' | 'nat-translation';
+  kind: 'routed-probe' | 'ethernet-flow' | 'nat-translation' | 'dhcp-configuration';
   sourceId: string;
   destinationId: string;
 }
@@ -466,6 +477,28 @@ export function createNatDisabledChallenge(seedInput: string): BuilderChallenge 
   };
 }
 
+export function createDhcpGatewayChallenge(seedInput: string): BuilderChallenge {
+  const seed = normalizeSeed(seedInput);
+  const hash = hashSeed(seed);
+  const healthy = defaultHealthySnapshot();
+  const clientDeviceId = 'lan-a';
+  const pool = healthy.dhcp.pools.find((entry) => entry.id === 'dhcp-lan-r1-v10');
+  if (!pool || !pool.gateway) throw new Error('The DHCP challenge requires the canonical VLAN 10 pool with a default gateway.');
+  healthy.dhcp = setBuilderDhcpClient(healthy.ethernet, healthy.dhcp, clientDeviceId, true);
+  const expectedGateway = pool.gateway;
+  const broken = createBuilderAuthoringSnapshot(healthy);
+  const brokenPool = broken.dhcp.pools.find((entry) => entry.id === pool.id);
+  if (!brokenPool) throw new Error('The DHCP challenge pool disappeared while cloning canonical truth.');
+  broken.dhcp = upsertBuilderDhcpPool(broken.ethernet, broken.dhcp, { ...brokenPool, gateway: null });
+  return {
+    schema: BUILDER_CHALLENGE_SCHEMA, version: BUILDER_CHALLENGE_VERSION, id: 'dhcp-' + hash.toString(16).padStart(8, '0'), seed, family: 'dhcp-gateway',
+    title: 'DHCP ACK MISSES THE GATEWAY',
+    objective: 'Restore a complete DHCP configuration for PC-A. DORA may still ACK an address; use the ordinary DHCP transaction, pool config, and Device Workbench to identify the missing default-gateway option, repair it, and reacquire a configuration-ready lease.',
+    difficulty: 'FOUNDATION', healthy, broken, verification: { kind: 'dhcp-configuration', sourceId: clientDeviceId, destinationId: pool.serverDeviceId },
+    fault: { kind: 'dhcp-gateway-option-missing', boundary: 'ADDRESSING', plane: 'ethernet', nodeId: pool.serverDeviceId, poolId: pool.id, clientDeviceId, expectedGateway },
+  };
+}
+
 export function createBuilderChallenge(seedInput: string): BuilderChallenge {
   const seed = normalizeSeed(seedInput);
   const lowered = seed.toLowerCase();
@@ -476,6 +509,7 @@ export function createBuilderChallenge(seedInput: string): BuilderChallenge {
   if (lowered.startsWith('ospf-')) return createOspfDisabledChallenge(seed);
   if (lowered.startsWith('acl-') || lowered.startsWith('firewall-')) return createAclDenyChallenge(seed);
   if (lowered.startsWith('nat-') || lowered.startsWith('pat-')) return createNatDisabledChallenge(seed);
+  if (lowered.startsWith('dhcp-')) return createDhcpGatewayChallenge(seed);
   return createDefaultGatewayChallenge(seed);
 }
 
@@ -498,7 +532,7 @@ function sameNumberArray(left: readonly number[] | undefined, right: readonly nu
   return normalized.length === right.length && normalized.every((value, index) => value === right[index]);
 }
 
-export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressing: BuilderAddressing, ethernet: BuilderEthernetConfig, routing: BuilderRoutingConfig, acl: BuilderAclConfig = challenge.broken.acl, nat: BuilderNatConfig = challenge.broken.nat): boolean {
+export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressing: BuilderAddressing, ethernet: BuilderEthernetConfig, routing: BuilderRoutingConfig, acl: BuilderAclConfig = challenge.broken.acl, nat: BuilderNatConfig = challenge.broken.nat, dhcp: BuilderDhcpConfig = challenge.broken.dhcp): boolean {
   const fault = challenge.fault;
   if (fault.kind === 'missing-default-gateway') return addressing.defaultGateways[fault.nodeId] === fault.expectedGateway;
   if (fault.kind === 'access-vlan-mismatch') {
@@ -515,8 +549,12 @@ export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressi
   }
   if (fault.kind === 'ospf-router-disabled') return routing.ospf.enabledRouterIds.includes(fault.nodeId) === fault.expectedEnabled;
   if (fault.kind === 'acl-objective-deny') return !acl.rules.some((rule) => rule.id === fault.blockingRule.id);
-  const boundary = nat.boundaries.find((entry) => entry.id === fault.boundaryId && entry.routerId === fault.nodeId);
-  return boundary?.enabled === fault.expectedEnabled;
+  if (fault.kind === 'nat-boundary-disabled') {
+    const boundary = nat.boundaries.find((entry) => entry.id === fault.boundaryId && entry.routerId === fault.nodeId);
+    return boundary?.enabled === fault.expectedEnabled;
+  }
+  const pool = dhcp.pools.find((entry) => entry.id === fault.poolId && entry.serverDeviceId === fault.nodeId);
+  return pool?.gateway === fault.expectedGateway;
 }
 
 export function builderChallengeSolvedExplanation(challenge: BuilderChallenge): string {
@@ -528,7 +566,8 @@ export function builderChallengeSolvedExplanation(challenge: BuilderChallenge): 
   if (fault.kind === 'missing-static-route') return `${fault.nodeId.toUpperCase()} was missing static route ${fault.expectedRoute.prefix} via ${fault.expectedRoute.nextHop}. Restoring that canonical route repaired forwarding and the post-repair routed probe verified it.`;
   if (fault.kind === 'ospf-router-disabled') return `${fault.nodeId.toUpperCase()} was not participating in OSPF. Re-enabling the canonical OSPF process restored route learning and the post-repair routed probe verified reachability.`;
   if (fault.kind === 'acl-objective-deny') return `${fault.nodeId.toUpperCase()} had an explicit ICMP deny for the challenge source/destination. Removing the canonical blocking rule restored policy permission and the post-repair probe verified reachability.`;
-  return `${fault.nodeId.toUpperCase()} had the canonical NAT boundary disabled. Re-enabling it restored PAT translation; the post-repair NAT flow proved the tuple was translated rather than merely routed.`;
+  if (fault.kind === 'nat-boundary-disabled') return `${fault.nodeId.toUpperCase()} had the canonical NAT boundary disabled. Re-enabling it restored PAT translation; the post-repair NAT flow proved the tuple was translated rather than merely routed.`;
+  return `${fault.nodeId.toUpperCase()} ACKed the DHCP lease without a default-gateway option. Restoring ${fault.expectedGateway} to the canonical pool and reacquiring produced a configuration-ready lease.`;
 }
 
 export function appendBuilderChallengeEvidence(
@@ -563,6 +602,7 @@ export function scoreBuilderChallenge(
   routing: BuilderRoutingConfig,
   acl: BuilderAclConfig = challenge.broken.acl,
   nat: BuilderNatConfig = challenge.broken.nat,
+  dhcp: BuilderDhcpConfig = challenge.broken.dhcp,
 ): BuilderChallengeScore {
   const inspectedState = hasEvidence(evidence, (entry) => entry.kind === 'inspect-state' && isFaultInspection(challenge, entry) && !entry.repaired);
   const inspectedConfig = hasEvidence(evidence, (entry) => entry.kind === 'inspect-config' && isFaultInspection(challenge, entry) && !entry.repaired);
@@ -579,10 +619,14 @@ export function scoreBuilderChallenge(
     const observedArp = hasEvidence(evidence, (entry) => entry.kind === 'arp-resolution' && isObjectiveEvidence(challenge, entry) && !entry.repaired);
     evidenceScore = (failedLanFlow ? 15 : 0) + (observedArp ? 5 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
     hasPrimaryDiagnostic = failedLanFlow;
-  } else {
+  } else if (challenge.verification.kind === 'nat-translation') {
     const missingTranslation = hasEvidence(evidence, (entry) => entry.kind === 'nat-flow' && isObjectiveEvidence(challenge, entry) && entry.success === false && !entry.repaired);
     evidenceScore = (missingTranslation ? 20 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
     hasPrimaryDiagnostic = missingTranslation;
+  } else {
+    const incompleteConfiguration = hasEvidence(evidence, (entry) => entry.kind === 'dhcp-transaction' && isObjectiveEvidence(challenge, entry) && entry.success === false && !entry.repaired);
+    evidenceScore = (incompleteConfiguration ? 20 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
+    hasPrimaryDiagnostic = incompleteConfiguration;
   }
 
   const hasInspectionEvidence = inspectedState || inspectedConfig;
@@ -591,12 +635,14 @@ export function scoreBuilderChallenge(
     ? (hypothesis.boundary === challenge.fault.boundary ? 10 : 0) + (hypothesis.deviceId === challenge.fault.nodeId ? 10 : 0)
     : 0;
 
-  const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet, routing, acl, nat);
+  const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet, routing, acl, nat, dhcp);
   const verified = challenge.verification.kind === 'routed-probe'
     ? hasEvidence(evidence, (entry) => (entry.kind === 'ping' || entry.kind === 'traceroute') && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired)
     : challenge.verification.kind === 'ethernet-flow'
       ? hasEvidence(evidence, (entry) => entry.kind === 'ethernet-flow' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired)
-      : hasEvidence(evidence, (entry) => entry.kind === 'nat-flow' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired);
+      : challenge.verification.kind === 'nat-translation'
+        ? hasEvidence(evidence, (entry) => entry.kind === 'nat-flow' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired)
+        : hasEvidence(evidence, (entry) => entry.kind === 'dhcp-transaction' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired);
   const repairScore = repaired ? 25 : 0;
   const verificationScore = repaired && verified ? 15 : 0;
   const total = evidenceScore + reasoningScore + repairScore + verificationScore;
