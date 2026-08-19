@@ -23,7 +23,7 @@ export interface BuilderAuthoringPanelProps {
 export function BuilderAuthoringPanel(props: BuilderAuthoringPanelProps) {
   const [open, setOpen] = useState(false);
   if (!open) {
-    return <section className="builder-authoring-shell is-collapsed"><div><span>AUTHORING</span><strong>{props.historical ? 'HISTORICAL · READ ONLY' : `${props.view.selection.length} SELECTED`}</strong></div><button type="button" onClick={() => setOpen(true)}>OPEN AUTHORING</button></section>;
+    return <section className="builder-authoring-shell"><div><span>AUTHORING</span><strong>{props.historical ? 'HISTORICAL · READ ONLY' : `${props.view.selection.length} SELECTED`}</strong></div><div className="builder-authoring-toolbar"><button type="button" onClick={() => setOpen(true)}>OPEN AUTHORING</button></div></section>;
   }
-  return <div className="builder-authoring-open"><button className="builder-authoring-close" type="button" onClick={() => setOpen(false)}>CLOSE AUTHORING</button><Suspense fallback={<section className="builder-authoring-shell"><span>AUTHORING</span><strong>LOADING TOOLS…</strong></section>}><BuilderAuthoringPanelContent {...props}/></Suspense></div>;
+  return <div><div className="builder-authoring-toolbar"><button type="button" onClick={() => setOpen(false)}>CLOSE AUTHORING</button></div><Suspense fallback={<section className="builder-authoring-shell"><span>AUTHORING</span><strong>LOADING TOOLS…</strong></section>}><BuilderAuthoringPanelContent {...props}/></Suspense></div>;
 }
