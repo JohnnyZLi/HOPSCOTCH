@@ -94,7 +94,9 @@ export default function BuilderChallengePanel({
 
     <div className="builder-challenge-instructions">
       <strong>USE THE NETWORK, NOT A HINT SYSTEM.</strong>
-      <p>{verificationKind === 'routed-probe'
+      <p>{challenge.family === 'bgp-import-policy'
+        ? 'Run the ordinary Builder Ping / Traceroute tools, inspect the BGP RIB and IMPORT / EXPORT POLICY panel, and inspect CONFIG / STATE / EVENTS on the suspected router in Device Workbench. Remove the blocking canonical BGP policy with the normal BGP control, then prove the repair with the same objective probe.'
+        : verificationKind === 'routed-probe'
         ? 'Run the ordinary Builder Ping / Traceroute tools and inspect CONFIG / STATE / EVENTS in Device Workbench. Repair the network with the normal Builder configuration controls, then prove the repair with another objective probe.'
         : verificationKind === 'ethernet-flow'
           ? 'Run the ordinary LAN SEND FRAME / PACKET flow, inspect its ARP result, and use CONFIG / STATE / EVENTS in Device Workbench. Repair the normal VLAN / trunk / STP controls, then rerun the exact LAN objective to prove the fix.'

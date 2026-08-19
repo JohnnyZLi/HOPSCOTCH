@@ -1,5 +1,6 @@
 import { interfacesForBuilderNode, validateBuilderAddressing, type BuilderAddressing } from './addressing.ts';
 import { upsertBuilderHostedService, type BuilderApplicationFamily, type BuilderApplicationTruthBoundary, type BuilderHostedService } from './application.ts';
+import { setBuilderBgpRouterAsn, updateBuilderBgpSession, upsertBuilderBgpOrigin, upsertBuilderBgpPolicy, upsertBuilderBgpSession, type BuilderBgpPolicyRule } from './bgp.ts';
 import { upsertBuilderAclRule, type BuilderAclConfig, type BuilderAclRule } from './acl.ts';
 import { createBuilderAuthoringSnapshot, type BuilderAuthoringSnapshot } from './authoring.ts';
 import { setBuilderDhcpClient, upsertBuilderDhcpPool, type BuilderDhcpConfig } from './dhcp.ts';
@@ -17,7 +18,7 @@ export const BUILDER_CHALLENGE_EVIDENCE_LIMIT = 40;
 export type BuilderChallengeBoundary = 'ADDRESSING' | 'DNS' | 'L2' | 'ROUTING' | 'POLICY' | 'TRANSPORT';
 export type BuilderChallengeDevicePlane = 'routed' | 'ethernet';
 export type BuilderChallengeEvidenceKind = 'ping' | 'traceroute' | 'ethernet-flow' | 'arp-resolution' | 'nat-flow' | 'dhcp-transaction' | 'ipv6-nd' | 'application-transaction' | 'inspect-config' | 'inspect-state' | 'inspect-events';
-export type BuilderChallengeFamily = 'gateway' | 'access-vlan' | 'trunk-vlan' | 'stp-loop' | 'static-route' | 'ospf-disabled' | 'acl-deny' | 'nat-disabled' | 'dhcp-gateway' | 'ipv6-pmtu' | 'dns-name' | 'transport-listener';
+export type BuilderChallengeFamily = 'gateway' | 'access-vlan' | 'trunk-vlan' | 'stp-loop' | 'static-route' | 'ospf-disabled' | 'acl-deny' | 'nat-disabled' | 'dhcp-gateway' | 'ipv6-pmtu' | 'dns-name' | 'transport-listener' | 'bgp-import-policy';
 
 export interface BuilderGatewayChallengeFault {
   kind: 'missing-default-gateway';
@@ -130,7 +131,17 @@ export interface BuilderTransportListenerChallengeFault {
   port: number;
 }
 
-export type BuilderChallengeFault = BuilderGatewayChallengeFault | BuilderAccessVlanChallengeFault | BuilderTrunkVlanChallengeFault | BuilderStpChallengeFault | BuilderStaticRouteChallengeFault | BuilderOspfDisabledChallengeFault | BuilderAclDenyChallengeFault | BuilderNatDisabledChallengeFault | BuilderDhcpGatewayChallengeFault | BuilderIpv6PmtuChallengeFault | BuilderDnsNameChallengeFault | BuilderTransportListenerChallengeFault;
+export interface BuilderBgpImportPolicyChallengeFault {
+  kind: 'bgp-import-deny';
+  boundary: 'POLICY';
+  plane: 'routed';
+  nodeId: string;
+  sessionId: string;
+  targetPrefix: string;
+  blockingPolicy: BuilderBgpPolicyRule;
+}
+
+export type BuilderChallengeFault = BuilderGatewayChallengeFault | BuilderAccessVlanChallengeFault | BuilderTrunkVlanChallengeFault | BuilderStpChallengeFault | BuilderStaticRouteChallengeFault | BuilderOspfDisabledChallengeFault | BuilderAclDenyChallengeFault | BuilderNatDisabledChallengeFault | BuilderDhcpGatewayChallengeFault | BuilderIpv6PmtuChallengeFault | BuilderDnsNameChallengeFault | BuilderTransportListenerChallengeFault | BuilderBgpImportPolicyChallengeFault;
 
 export interface BuilderChallengeVerification {
   kind: 'routed-probe' | 'ethernet-flow' | 'nat-translation' | 'dhcp-configuration' | 'ipv6-pmtu' | 'application-transaction';
@@ -234,6 +245,49 @@ function defaultStaticHealthySnapshot(): BuilderAuthoringSnapshot {
   let routing = setBuilderOspfEverywhere(scenario.graph, scenario.addressing, scenario.routing, false);
   routing = installStaticRoutesForWeightedPath(scenario.graph, scenario.addressing, routing, 'client', 'app').routing;
   routing = installStaticRoutesForWeightedPath(scenario.graph, scenario.addressing, routing, 'app', 'client').routing;
+  return createBuilderAuthoringSnapshot({
+    graph: scenario.graph,
+    addressing: scenario.addressing,
+    routing,
+    ethernet: scenario.ethernet,
+    linkProfiles: scenario.linkProfiles,
+    acl: scenario.acl,
+    nat: scenario.nat,
+    dhcp: scenario.dhcp,
+    ipv6: scenario.ipv6,
+    services: scenario.services,
+    sourceId: 'client',
+    destinationId: 'app',
+    layout: scenario.layout,
+  });
+}
+
+
+function defaultBgpHealthySnapshot(): BuilderAuthoringSnapshot {
+  const scenario = defaultBuilderScenario();
+  let routing = setBuilderOspfEverywhere(scenario.graph, scenario.addressing, scenario.routing, false);
+  let bgp = routing.bgp;
+  bgp = setBuilderBgpRouterAsn(scenario.graph, bgp, 'edge', 64496);
+  bgp = setBuilderBgpRouterAsn(scenario.graph, bgp, 'r1', 64500);
+  bgp = setBuilderBgpRouterAsn(scenario.graph, bgp, 'core', 65538);
+
+  bgp = upsertBuilderBgpSession(scenario.graph, bgp, 'edge-r1', 'customer-provider');
+  const edgeR1 = bgp.sessions.find((entry) => entry.linkId === 'edge-r1');
+  if (!edgeR1) throw new Error('The BGP policy challenge requires the canonical EDGE ↔ R1 peering link.');
+  bgp = updateBuilderBgpSession(scenario.graph, bgp, edgeR1.id, { relationship: 'customer-provider', customerRouterId: 'edge' });
+
+  bgp = upsertBuilderBgpSession(scenario.graph, bgp, 'r1-core', 'customer-provider');
+  const r1Core = bgp.sessions.find((entry) => entry.linkId === 'r1-core');
+  if (!r1Core) throw new Error('The BGP policy challenge requires the canonical R1 ↔ CORE peering link.');
+  bgp = updateBuilderBgpSession(scenario.graph, bgp, r1Core.id, { relationship: 'customer-provider', customerRouterId: 'r1' });
+
+  const clientPrefix = scenario.addressing.segments['client-edge']?.cidr;
+  const appPrefix = scenario.addressing.segments['core-app']?.cidr;
+  if (!clientPrefix || !appPrefix) throw new Error('The BGP policy challenge requires canonical CLIENT and APP edge prefixes.');
+  bgp = upsertBuilderBgpOrigin(scenario.graph, bgp, { routerId: 'edge', prefix: clientPrefix, med: 0, communities: ['64496:100'], description: 'CLIENT edge prefix' });
+  bgp = upsertBuilderBgpOrigin(scenario.graph, bgp, { routerId: 'core', prefix: appPrefix, med: 0, communities: ['65538:100'], description: 'APP edge prefix' });
+  routing = validateBuilderRoutingConfig(scenario.graph, scenario.addressing, { ...routing, bgp });
+
   return createBuilderAuthoringSnapshot({
     graph: scenario.graph,
     addressing: scenario.addressing,
@@ -605,6 +659,59 @@ export function createTransportListenerChallenge(seedInput: string): BuilderChal
   return { schema: BUILDER_CHALLENGE_SCHEMA, version: BUILDER_CHALLENGE_VERSION, id: 'transport-' + hash.toString(16).padStart(8,'0'), seed, family: 'transport-listener', title: 'SERVICE PORT IS CLOSED', objective: `Restore the ${service.label} listener on APP. Use the ordinary application transaction to prove DNS, L2, routing, policy, and link truth reach the endpoint before transport fails; repair canonical listener configuration and rerun the exact service request.`, difficulty: 'FOUNDATION', healthy, broken, verification: { kind:'application-transaction', sourceId:'client', destinationId:'app', serviceId:service.id, family:'ipv4' }, fault: { kind:'service-listener-disabled', boundary:'TRANSPORT', plane:'routed', nodeId:'app', serviceId:service.id, expectedEnabled:true, port:service.port } };
 }
 
+
+export function createBgpImportPolicyChallenge(seedInput: string): BuilderChallenge {
+  const seed = normalizeSeed(seedInput);
+  const hash = hashSeed(seed);
+  const healthy = defaultBgpHealthySnapshot();
+  const edgeSession = healthy.routing.bgp.sessions.find((entry) => entry.linkId === 'edge-r1');
+  const coreSession = healthy.routing.bgp.sessions.find((entry) => entry.linkId === 'r1-core');
+  const clientPrefix = healthy.addressing.segments['client-edge']?.cidr;
+  const appPrefix = healthy.addressing.segments['core-app']?.cidr;
+  if (!edgeSession || !coreSession || !clientPrefix || !appPrefix) throw new Error('The BGP policy challenge requires canonical edge/core sessions and endpoint prefixes.');
+  const candidates = [
+    { nodeId: 'edge', sessionId: edgeSession.id, targetPrefix: appPrefix, label: 'APP service prefix' },
+    { nodeId: 'core', sessionId: coreSession.id, targetPrefix: clientPrefix, label: 'CLIENT return prefix' },
+  ];
+  const target = candidates[hash % candidates.length];
+  const blockingPolicy: BuilderBgpPolicyRule = {
+    id: `challenge-bgp-import-${hash.toString(16).padStart(8, '0')}`,
+    routerId: target.nodeId,
+    direction: 'import',
+    sessionId: target.sessionId,
+    order: 5,
+    action: 'deny',
+    prefix: target.targetPrefix,
+    setLocalPref: null,
+    setMed: null,
+    addCommunity: null,
+    matchCommunity: null,
+    removeCommunity: null,
+    prependAsCount: 0,
+    allowRelationshipLeak: false,
+    description: `Track J deny ${target.label}`,
+  };
+  const broken = createBuilderAuthoringSnapshot(healthy);
+  broken.routing = validateBuilderRoutingConfig(broken.graph, broken.addressing, {
+    ...broken.routing,
+    bgp: upsertBuilderBgpPolicy(broken.graph, broken.routing.bgp, blockingPolicy),
+  });
+  return {
+    schema: BUILDER_CHALLENGE_SCHEMA,
+    version: BUILDER_CHALLENGE_VERSION,
+    id: `bgp-policy-${hash.toString(16).padStart(8, '0')}`,
+    seed,
+    family: 'bgp-import-policy',
+    title: 'BGP IMPORT POLICY BLACKHOLES THE SERVICE',
+    objective: `Restore CLIENT ↔ APP IPv4 reachability in a BGP-only routed baseline. One explicit import policy rejects the required ${target.label}; use ordinary Ping / Traceroute, BGP RIB/policy state, and Device Workbench before removing the canonical deny and proving the same objective again.`,
+    difficulty: 'FOUNDATION',
+    healthy,
+    broken,
+    verification: { kind: 'routed-probe', sourceId: 'client', destinationId: 'app' },
+    fault: { kind: 'bgp-import-deny', boundary: 'POLICY', plane: 'routed', nodeId: target.nodeId, sessionId: target.sessionId, targetPrefix: target.targetPrefix, blockingPolicy },
+  };
+}
+
 export function createBuilderChallenge(seedInput: string): BuilderChallenge {
   const seed = normalizeSeed(seedInput);
   const lowered = seed.toLowerCase();
@@ -619,6 +726,7 @@ export function createBuilderChallenge(seedInput: string): BuilderChallenge {
   if (lowered.startsWith('mtu-') || lowered.startsWith('pmtu-') || lowered.startsWith('ipv6-mtu-')) return createIpv6PmtuChallenge(seed);
   if (lowered.startsWith('dns-')) return createDnsNameChallenge(seed);
   if (lowered.startsWith('transport-') || lowered.startsWith('tcp-') || lowered.startsWith('listener-')) return createTransportListenerChallenge(seed);
+  if (lowered.startsWith('bgp-') || lowered.startsWith('bgp-policy-')) return createBgpImportPolicyChallenge(seed);
   return createDefaultGatewayChallenge(seed);
 }
 
@@ -667,6 +775,7 @@ export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressi
     return pool?.gateway === fault.expectedGateway;
   }
   if (fault.kind === 'path-mtu-reduced') return linkProfiles[fault.linkId]?.mtuBytes === fault.expectedMtuBytes;
+  if (fault.kind === 'bgp-import-deny') return !routing.bgp.policies.some((rule) => rule.id === fault.blockingPolicy.id);
   const service = services.find((entry) => entry.id === fault.serviceId && entry.nodeId === fault.nodeId);
   if (fault.kind === 'service-hostname-missing') return service?.hostname === fault.expectedHostname;
   return service?.enabled === fault.expectedEnabled;
@@ -685,7 +794,8 @@ export function builderChallengeSolvedExplanation(challenge: BuilderChallenge): 
   if (fault.kind === 'dhcp-gateway-option-missing') return `${fault.nodeId.toUpperCase()} ACKed the DHCP lease without a default-gateway option. Restoring ${fault.expectedGateway} to the canonical pool and reacquiring produced a configuration-ready lease.`;
   if (fault.kind === 'path-mtu-reduced') return `${fault.linkId.toUpperCase()} was reduced to MTU ${fault.brokenMtuBytes}. Restoring MTU ${fault.expectedMtuBytes}, clearing stale PMTU state, and retransmitting ${fault.packetBytes} bytes proved full-size IPv6 delivery while Neighbor Discovery remained healthy.`;
   if (fault.kind === 'service-hostname-missing') return `${fault.serviceId} had no deterministic hostname. Restoring ${fault.expectedHostname} repaired the DNS intent boundary; the post-repair application transaction then traversed the normal lower-layer and service stack.`;
-  return `${fault.serviceId} had its canonical listener disabled on port ${fault.port}. Re-enabling the listener repaired the transport boundary after DNS/routing/policy/link truth had already reached ${fault.nodeId.toUpperCase()}.`;
+  if (fault.kind === 'service-listener-disabled') return `${fault.serviceId} had its canonical listener disabled on port ${fault.port}. Re-enabling the listener repaired the transport boundary after DNS/routing/policy/link truth had already reached ${fault.nodeId.toUpperCase()}.`;
+  return `${fault.nodeId.toUpperCase()} imported an explicit BGP deny for ${fault.targetPrefix} on ${fault.sessionId}. Removing that canonical policy restored the required best path, and the post-repair routed probe proved end-to-end reachability.`;
 }
 
 export function appendBuilderChallengeEvidence(

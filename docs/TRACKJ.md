@@ -222,7 +222,7 @@ Remaining canonical fault depth includes:
 - additional MTU / PMTUD cases beyond the shipped IPv6 reduced-path-MTU family,
 - deeper DNS behavior beyond the shipped deterministic missing-name family,
 - deeper transport behavior beyond the shipped disabled-listener family,
-- BGP policy failures,
+- deeper BGP best-path / relationship-policy failures beyond the shipped import-deny family,
 - later bounded multi-fault composition after the single-fault catalog is trustworthy.
 
 Difficulty should come from modeled topology, fault composition, observability, and protocol depth—not from hiding canonical facts or inventing misleading answer text.
@@ -291,3 +291,12 @@ Device Workbench CONFIG now projects hosted-service hostname and listener state 
 Both families retain the 100-point contract: failed ordinary application transaction at the exact expected first-broken boundary (20) + target STATE (10) + target CONFIG (10), causal hypothesis (20), exact canonical repair (25), and a successful post-repair request to the exact challenged service (15).
 
 The service catalog remains networking truth rather than challenge metadata. Challenge code does not answer DNS queries, open sockets, or decide transaction outcomes; Track D's existing causal transaction consumes canonical service configuration and determines where the request stops.
+
+
+## Eighth slice — BGP import policy
+
+Track J now includes a deterministic `bgp-*` / `bgp-policy-*` family built on the existing Builder BGP engine. The healthy snapshot is deliberately BGP-only for the CLIENT ↔ APP edge prefixes: OSPF is disabled, EDGE and CORE originate their directly attached endpoint prefixes, and two customer/provider eBGP sessions propagate those routes through R1.
+
+The broken snapshot adds exactly one canonical import-policy object. Depending on the seed, either EDGE denies the APP service prefix on the EDGE ↔ R1 session or CORE denies the CLIENT return prefix on the R1 ↔ CORE session. BGP sessions remain ESTABLISHED; the failure is policy, not fabricated peering loss. Ordinary Ping / Traceroute exposes the reachability break, the BGP RIB and Device Workbench expose route/policy truth, and the existing BGP policy delete control performs the repair.
+
+Scoring remains the common 40 evidence + 20 causal reasoning + 25 exact canonical repair + 15 post-repair objective verification contract. The challenge panel remains absent from stress mode, and no challenge-specific BGP route computation or policy evaluator exists.
