@@ -167,32 +167,36 @@ Unknown-MAC ingress replication is observable but never treated as proof of dest
 
 ---
 
-## Current priority order
+### Completed active track — Track I native companion integration
 
-With captured evidence, end-to-end application truth, causal replay, authoring, enterprise L2/L3 depth, data-plane realism, routing-policy depth, and service-provider overlays closed, the next highest-value work is correlating local native measurements with the existing provenance-aware network model.
+Track I connects the existing Network Diagnostics report-v2 / loopback companion evidence to HOPSCOTCH's public Internet evidence without collapsing provenance.
 
-### 1. Track I — native companion integration
+- [x] surface local interfaces, routes, DNS configuration, traceroute/ICMP, and bounded transport telemetry as `LOCAL MEASURED`
+- [x] correlate local measurements with edge, public-routing, and public-facility context without conflating evidence sources
+- [x] visualize local host → gateway → measured hops → explicit observation boundary → public observations → destination with provenance on every stage
+- [x] retain the no-credentials, no-scanning/discovery, no-hidden-background-collection boundary
 
-**Shipped boundary:** measured evidence and the loopback-only Network Diagnostics bridge already exist.
-
-- [ ] surface local interfaces, routes, DNS configuration, traceroute/ICMP, and bounded transport telemetry as `LOCAL MEASURED`
-- [ ] correlate local measurements with public routing/facility observations without conflating the evidence sources
-- [ ] visualize local host → gateway → measured hops → public observations → destination with explicit provenance transitions
-- [ ] retain the no-credentials, no-scanning/discovery, no-hidden-background-collection boundary
+The existing report-v2 adapter already carried the required native facts, so Track I does not broaden the Network Diagnostics bridge or add a command API. Public context loads only after an explicit action and reuses the existing HOPSCOTCH Internet-evidence and PeeringDB APIs. Measured traceroute hops never inherit an ASN, facility, or location from independent public data; same-city facilities are context rather than proof of traversal. `docs/TRACKI.md` is the closeout architecture record.
 
 ---
 
-## Remaining regular tracks
+## Current priority order
 
-These remain real product work. They should follow Track I unless a bounded dependency requires a different order.
+With captured evidence, application truth, causal replay, authoring, enterprise depth, data-plane realism, routing policy, provider overlays, and native/public evidence correlation closed, the next highest-value work is deterministic troubleshooting practice over canonical broken networks.
 
-### Track J — troubleshooting challenges
+### 1. Track J — troubleshooting challenges
 
 - [ ] generate deterministic broken networks from canonical configuration/state rather than hand-authored answer text
 - [ ] cover addressing, gateway, VLAN, trunk, STP, ARP/ND, routing, OSPF, ACL, NAT, DHCP, MTU, DNS, transport, and BGP policy failures
 - [ ] users diagnose with normal Builder inspectors/probes, not challenge-only shortcuts
 - [ ] score evidence gathering and causal reasoning, not just the final repair
 - [ ] reproducible challenge seeds and shareable scenarios
+
+---
+
+## Remaining regular tracks
+
+These remain real product work. They should follow Track J unless a bounded dependency requires a different order.
 
 ### Track K — vendor-neutral HOPSCOTCH CLI
 
