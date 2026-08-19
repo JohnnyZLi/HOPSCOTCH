@@ -198,6 +198,21 @@ The same input scenario and Builder link profiles produce the same queue schedul
 
 Existing IPv6 control-plane contracts continue to cover the deeper canonical PTB reverse-route and PMTU-cache behavior that Track E reuses.
 
+## Validation baseline
+
+The code-complete candidate passed the full repository contract suite, enforced production performance profile, Chrome default, Chrome GPU-disabled, Chrome SwiftShader, Firefox semantic compatibility, and real PCAP/PCAPNG capture replay.
+
+The production profile measured:
+
+- initial JavaScript: **431,980 gzip bytes / 432,000-byte ceiling**
+- initial CSS: **34,912 gzip bytes**
+- stress Builder: **900 DOM nodes / 900-node ceiling**
+- all heap, ready-time, normal seek, and high-density seek/stress budgets: pass
+
+No production ceiling was widened. The Track E application/data-plane implementation remains in its lazy workspace chunk rather than becoming startup cost.
+
+An earlier capture-replay attempt failed before opening HOPSCOTCH because Chrome DevTools never became reachable (`fetch failed`); the next unchanged semantic-head run passed capture replay normally.
+
 ## Closeout boundary
 
 Track E is complete only when the permanent contracts, full repository checks, production performance budgets, Chrome default/disabled/SwiftShader, Firefox semantic compatibility, and captured-replay browser gate pass on the exact final PR head.
