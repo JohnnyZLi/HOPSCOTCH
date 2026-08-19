@@ -1,0 +1,120 @@
+name: Track J routing hardening
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.ref == 'agent/track-j-routing-ospf-challenges'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/track-j-routing-ospf-challenges
+      - name: Harden routed challenge UX and contracts
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path=Path('src/NetworkBuilder.tsx')
+          text=path.read_text()
+          old="else{setSourceId(next.verification.sourceId);setDestinationId(next.verification.destinationId);setWorkbenchDevice({plane:'routed',id:next.fault.nodeId});setSelectedNodeId(next.fault.nodeId);}"
+          new="else{setSourceId(next.verification.sourceId);setDestinationId(next.verification.destinationId);setWorkbenchDevice({plane:'routed',id:next.verification.sourceId});setSelectedNodeId(next.verification.sourceId);}"
+          if text.count(old)!=1: raise SystemExit('start routed focus pattern mismatch')
+          text=text.replace(old,new)
+          old="else{setSourceId(challenge.verification.sourceId);setDestinationId(challenge.verification.destinationId);setWorkbenchDevice({plane:'routed',id:challenge.fault.nodeId});setSelectedNodeId(challenge.fault.nodeId);}"
+          new="else{setSourceId(challenge.verification.sourceId);setDestinationId(challenge.verification.destinationId);setWorkbenchDevice({plane:'routed',id:challenge.verification.sourceId});setSelectedNodeId(challenge.verification.sourceId);}"
+          if text.count(old)!=1: raise SystemExit('restart routed focus pattern mismatch')
+          path.write_text(text.replace(old,new))
+
+          path=Path('src/builder/challenges.ts')
+          text=path.read_text()
+          if text.count("title: 'OSPF EDGE FALLS SILENT'")!=1: raise SystemExit('OSPF title pattern mismatch')
+          path.write_text(text.replace("title: 'OSPF EDGE FALLS SILENT'", "title: 'OSPF ROUTER FALLS SILENT'"))
+
+          path=Path('scripts/builder-challenge-contract-check.mjs')
+          text=path.read_text()
+          marker="function runLan(snapshot, sourceId, destinationId) {"
+          helper="""function runTraceroute(snapshot, sequence = 2) {
+  return runBuilderProbe(
+    snapshot.graph,
+    snapshot.addressing,
+    snapshot.routing,
+    'traceroute',
+    snapshot.sourceId,
+    snapshot.destinationId,
+    sequence,
+    snapshot.linkProfiles,
+    snapshot.acl,
+    snapshot.nat,
+    [],
+  );
+}
+
+"""+marker
+          if text.count(marker)!=1: raise SystemExit('runLan marker mismatch')
+          text=text.replace(marker,helper)
+
+          old="""  const healthyPing = runPing(challenge.healthy);
+  const brokenPing = runPing(challenge.broken);
+  assert.equal(healthyPing.success, true, `${challenge.family} healthy baseline must pass`);
+  assert.equal(brokenPing.success, false, `${challenge.family} broken baseline must fail ordinary Ping`);"""
+          new="""  const healthyPing = runPing(challenge.healthy);
+  const brokenPing = runPing(challenge.broken);
+  const brokenTraceroute = runTraceroute(challenge.broken);
+  assert.equal(healthyPing.success, true, `${challenge.family} healthy baseline must pass`);
+  assert.equal(brokenPing.success, false, `${challenge.family} broken baseline must fail ordinary Ping`);
+  assert.equal(brokenTraceroute.success, false, `${challenge.family} broken baseline must fail ordinary Traceroute`);"""
+          if text.count(old)!=1: raise SystemExit('routed probe setup mismatch')
+          text=text.replace(old,new)
+          old="evidence = appendBuilderChallengeEvidence(evidence, { kind:'traceroute', sourceId:objective.sourceId, destinationId:objective.destinationId, success:false, repaired:false, detail:'Objective traceroute fails in the broken routed state.' });"
+          new="evidence = appendBuilderChallengeEvidence(evidence, { kind:'traceroute', sourceId:objective.sourceId, destinationId:objective.destinationId, success:brokenTraceroute.success, repaired:false, detail:brokenTraceroute.summary });"
+          if text.count(old)!=1: raise SystemExit('traceroute evidence mismatch')
+          text=text.replace(old,new)
+
+          marker="const staticRoute = createMissingStaticRouteChallenge('static-contract-001');"
+          helper="""function restoreStaticChallengeRouting(challenge) {
+  return validateBuilderRoutingConfig(challenge.broken.graph, challenge.broken.addressing, {
+    ...challenge.broken.routing,
+    staticRoutes: [...challenge.broken.routing.staticRoutes, challenge.fault.expectedRoute],
+  });
+}
+
+"""+marker
+          if text.count(marker)!=1: raise SystemExit('static block marker mismatch')
+          text=text.replace(marker,helper)
+          old="const restoredStatic = validateBuilderRoutingConfig(staticRoute.broken.graph, staticRoute.broken.addressing, { ...staticRoute.broken.routing, staticRoutes:[...staticRoute.broken.routing.staticRoutes, staticRoute.fault.expectedRoute] });"
+          if text.count(old)!=1: raise SystemExit('restored static line mismatch')
+          text=text.replace(old,"const restoredStatic = restoreStaticChallengeRouting(staticRoute);")
+          marker="scoreRoutedChallenge(staticRoute, restoredStatic);"
+          addition="""scoreRoutedChallenge(staticRoute, restoredStatic);
+
+const staticRouteReverse = createMissingStaticRouteChallenge('static-contract-002');
+assert.equal(staticRouteReverse.fault.nodeId, 'core', 'alternate static seed must cover the reverse-path CORE route');
+const restoredStaticReverse = restoreStaticChallengeRouting(staticRouteReverse);
+assert.equal(builderChallengeIsRepaired(staticRouteReverse, staticRouteReverse.broken.addressing, staticRouteReverse.broken.ethernet, restoredStaticReverse), true);
+scoreRoutedChallenge(staticRouteReverse, restoredStaticReverse);"""
+          if text.count(marker)!=1: raise SystemExit('static scoring marker mismatch')
+          text=text.replace(marker,addition)
+          marker="scoreRoutedChallenge(ospf, ospf.healthy.routing);"
+          addition="""scoreRoutedChallenge(ospf, ospf.healthy.routing);
+
+const ospfCore = createOspfDisabledChallenge('ospf-contract-002');
+assert.equal(ospfCore.fault.nodeId, 'core', 'alternate OSPF seed must cover CORE participation loss');
+assert.equal(ospfCore.broken.routing.ospf.enabledRouterIds.includes('core'), false);
+scoreRoutedChallenge(ospfCore, ospfCore.healthy.routing);"""
+          if text.count(marker)!=1: raise SystemExit('OSPF scoring marker mismatch')
+          text=text.replace(marker,addition)
+          path.write_text(text)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/NetworkBuilder.tsx src/builder/challenges.ts scripts/builder-challenge-contract-check.mjs
+          git commit -m "Harden routed challenge diagnosis contracts"
+          git push origin HEAD:agent/track-j-routing-ospf-challenges
