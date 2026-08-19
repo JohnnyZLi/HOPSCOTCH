@@ -28,7 +28,7 @@ export interface BuilderStpState {
 }
 
 export function createDefaultBuilderStpConfig(): BuilderStpConfig { return { enabled: true, bridgePriorities: {}, protocol: 'stp' }; }
-export function cloneBuilderStpConfig(config: BuilderStpConfig | undefined): BuilderStpConfig { return { enabled: config?.enabled !== false, bridgePriorities: { ...(config?.bridgePriorities ?? {}) }, protocol: config?.protocol === 'rstp' ? 'rstp' : 'stp' }; }
+export function cloneBuilderStpConfig(config: BuilderStpConfig | undefined): BuilderStpConfig { return { enabled: config?.enabled !== false, bridgePriorities: { ...(config?.bridgePriorities ?? {}) }, protocol: config?.protocol }; }
 
 function carriesVlan(link: BuilderEthernetLink, vlanId: number): boolean {
   if (link.failed) return false;
@@ -51,7 +51,7 @@ export function validateBuilderStpConfig(config: BuilderEthernetConfig, input: B
     if(!Number.isInteger(value)||value<0||value>61440||value%4096!==0)throw new Error(`STP bridge priority for ${id} must be 0–61440 in increments of 4096.`);
     priorities[id]=value;
   }
-  return { enabled: next.enabled, bridgePriorities: priorities, protocol: next.protocol === 'rstp' ? 'rstp' : 'stp' };
+  return { enabled: next.enabled, bridgePriorities: priorities, protocol: next.protocol };
 }
 
 function activeSwitchEdges(config: BuilderEthernetConfig, vlanId: number): Array<{linkId:string;a:string;b:string}> {
