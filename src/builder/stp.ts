@@ -29,22 +29,14 @@ export interface BuilderStpState {
 }
 
 export function createDefaultBuilderStpConfig(): BuilderStpConfig { return { enabled: true, bridgePriorities: {} }; }
-export function cloneBuilderStpConfig(config: BuilderStpConfig | undefined): BuilderStpConfig { return { enabled: config?.enabled !== false, ...(config?.protocol ? { protocol: config.protocol } : {}), bridgePriorities: { ...(config?.bridgePriorities ?? {}) } }; }
+export function cloneBuilderStpConfig(config: BuilderStpConfig | undefined): BuilderStpConfig { return { ...config, enabled: config?.enabled !== false, bridgePriorities: { ...(config?.bridgePriorities ?? {}) } }; }
 
 function carriesVlan(config: BuilderEthernetConfig, link: BuilderEthernetLink, vlanId: number): boolean { return builderEthernetLogicalLinkCarriesVlan(config.links, link, vlanId); }
 
 function deviceById(config: BuilderEthernetConfig, id: string): BuilderEthernetDevice | undefined { return config.devices.find((device)=>device.id===id); }
 function isSwitch(device: BuilderEthernetDevice | undefined): boolean { return device?.kind==='switch'||device?.kind==='l3-switch'; }
 function switchIds(config: BuilderEthernetConfig): string[] { return config.devices.filter((device)=>isSwitch(device)).map((device)=>device.id).sort(); }
-function switchIdsForVlan(config: BuilderEthernetConfig, vlanId: number): string[] {
-  const ids=new Set<string>();
-  for(const link of config.links){
-    if(!carriesVlan(config,link,vlanId))continue;
-    if(isSwitch(deviceById(config,link.a)))ids.add(link.a);
-    if(isSwitch(deviceById(config,link.b)))ids.add(link.b);
-  }
-  return [...ids].sort();
-}
+function switchIdsForVlan(config: BuilderEthernetConfig, vlanId: number): string[] { return switchIds(config).filter((id)=>config.links.some((link)=>carriesVlan(config,link,vlanId)&&(link.a===id||link.b===id))); }
 function priority(config: BuilderEthernetConfig, id: string): number { return config.stp?.bridgePriorities?.[id] ?? 32768; }
 function bridgeKey(config: BuilderEthernetConfig, id: string): string {
   const device=deviceById(config,id); return `${String(priority(config,id)).padStart(5,'0')}:${device?.mac??'ff:ff:ff:ff:ff:ff'}:${id}`;
@@ -59,8 +51,7 @@ export function validateBuilderStpConfig(config: BuilderEthernetConfig, input: B
     if(!Number.isInteger(value)||value<0||value>61440||value%4096!==0)throw new Error(`STP bridge priority for ${id} must be 0–61440 in increments of 4096.`);
     priorities[id]=value;
   }
-  if(next.protocol!=null&&!['stp','rstp'].includes(next.protocol))throw new Error('Spanning-tree protocol must be stp or rstp.');
-  return { enabled: next.enabled, ...(next.protocol ? {protocol:next.protocol}:{}), bridgePriorities: priorities };
+  return { ...next, bridgePriorities: priorities };
 }
 
 function activeSwitchEdges(config: BuilderEthernetConfig, vlanId: number): Array<{linkId:string;a:string;b:string}> {
@@ -81,7 +72,7 @@ export function builderStpState(config: BuilderEthernetConfig, vlanId: number): 
   const edges=activeSwitchEdges(config,vlanId);
   const loopDetected=hasCycle(switches,edges);
   if(switches.length===0)return{vlanId,enabled:config.stp?.enabled!==false,rootBridgeId:null,rootBridgeLabel:null,loopDetected:false,ports:[],blockedLinkIds:[],forwardingLinkIds:[],explanation:'No switches participate in this VLAN.'};
-  const root=[...switches].sort((a,b)=>bridgeKey(config,a).localeCompare(bridgeKey(config,b)))[0];
+  const root=switches.sort((a,b)=>bridgeKey(config,a).localeCompare(bridgeKey(config,b)))[0];
   const enabled=config.stp?.enabled!==false;
   if(!enabled){
     const ports=config.links.map((link):BuilderStpPortState=>{

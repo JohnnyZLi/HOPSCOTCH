@@ -163,7 +163,6 @@ function validCidr(value: string): boolean {
   const [address, prefix] = value.split('/');
   return Boolean(address && validIpv4(address) && /^\d{1,2}$/.test(prefix ?? '') && Number(prefix) >= 8 && Number(prefix) <= 30);
 }
-function layer3Kind(kind: BuilderEthernetDeviceKind): boolean { return kind === 'router' || kind === 'l3-switch'; }
 function switchingKind(kind: BuilderEthernetDeviceKind): boolean { return kind === 'switch' || kind === 'l3-switch'; }
 
 export function validateBuilderEthernetConfig(input: BuilderEthernetConfig): BuilderEthernetConfig {
@@ -206,9 +205,7 @@ export function validateBuilderEthernetConfig(input: BuilderEthernetConfig): Bui
       if (a.kind === 'endpoint' || b.kind === 'endpoint') throw new Error(`Endpoint links cannot be trunks (${link.id}).`);
       const allowed = [...new Set(link.allowedVlans ?? [])].sort((x,y)=>x-y);
       if (allowed.length === 0 || allowed.some((id) => !vlanIds.has(id))) throw new Error(`Trunk ${link.id} must allow at least one existing VLAN.`);
-    } else if (link.mode === 'routed') {
-      if (!layer3Kind(a.kind) || !layer3Kind(b.kind)) throw new Error(`Routed link ${link.id} must connect router or Layer-3-switch devices.`);
-    } else throw new Error(`Ethernet link ${link.id} mode must be access, trunk, or routed.`);
+    } else if (link.mode !== 'routed') throw new Error(`Ethernet link ${link.id} mode must be access, trunk, or routed.`);
   }
 
   for (const device of input.devices) {
