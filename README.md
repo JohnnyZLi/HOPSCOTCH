@@ -2,124 +2,166 @@
 
 **See the Internet happen.**
 
-HOPSCOTCH is an interactive network-systems laboratory for making invisible behavior visible—from packet bytes and transport recovery to routing convergence, autonomous-system policy, physical Internet infrastructure, and a single URL request moving across every abstraction layer.
+HOPSCOTCH is an interactive network-systems laboratory for making invisible behavior visible—from individual packet bytes and transport recovery to enterprise routing, overlays, public Internet evidence, and a complete application request moving through a deterministic network.
 
-It is not a Packet Tracer clone. HOPSCOTCH treats **time, causality, abstraction, and provenance** as first-class parts of the model. The same scenario can be paused, scrubbed, replayed, inspected, and projected into different semantic views without making animation the source of truth.
+It is not a Packet Tracer clone. HOPSCOTCH treats **time, causality, abstraction, and provenance** as first-class parts of the model. Animation is a projection of canonical state; it never creates network truth.
+
+## Product model
+
+HOPSCOTCH deliberately keeps different kinds of truth separate:
+
+- `SIMULATED` — deterministic Builder, Journey, protocol, packet, routing, policy, queue, and overlay state.
+- `CAPTURED` — immutable bytes and fields decoded from an explicitly selected PCAP/PCAPNG file.
+- `INFERRED` — relationships or conclusions derived from evidence without pretending they were directly observed.
+- `IMPORTED EVIDENCE` — user-selected runtime evidence such as traceroute, route-table, interface, or device-state snapshots.
+- `PARSED CONFIG` — bounded Cisco, Juniper, and FRR configuration facts, explicitly distinct from runtime state.
+- `LOCAL MEASURED` — Network Diagnostics observations from the local host.
+- `EDGE OBSERVED`, `PUBLIC COLLECTOR`, and `PUBLIC DATA` — independently sourced Internet evidence that never becomes simulated forwarding truth.
+
+The central architectural rule is simple: **presentation may explain truth, but presentation cannot manufacture it.**
 
 ## What is implemented
 
-### Failure + routing
-
-- deterministic six-node routed topology
-- OSPF-style failure propagation and route recomputation
-- traffic failover with causal event inspection
-- pause / scrub / replay time machine
-
-### Packet microscope
-
-- Ethernet + IPv4/IPv6 + TCP/UDP packet construction
-- real IPv4 and TCP/UDP checksum derivation
-- raw-byte ↔ header-field mapping
-- animated length/checksum relationships
-
-### Captured-data replay · Track T
-
-- explicit local-only `.pcap` / `.pcapng` import with no upload or silent persistence
-- immutable `CAPTURED` frame evidence separated from `INFERRED` conversation/transport interpretations
-- deterministic conversation index, semantic event rail, capture time machine, and FOLLOW FLOW focus
-- Ethernet/VLAN, IPv4/IPv6, TCP/UDP, ICMP, DNS, and capture-visible TLS metadata decoding
-- event → frame → protocol field → exact captured byte lineage
-- read-only captured mode in Packet Microscope; generated teaching packets remain explicitly `SIMULATED`
-
-### Protocol theater
-
-- TCP handshake, loss, fast retransmit, congestion response, and teardown
-- recursive DNS resolution and cache behavior
-- TLS 1.3 negotiation, certificate validation, encryption boundary, and key-schedule stages
-- synchronized HTTP/2-over-TCP vs HTTP/3-over-QUIC loss comparison
-
 ### Network Builder
 
-- draggable mutable topology with graph truth separated from visual layout
-- deterministic weighted route selection
-- link-cost edits, failure/restore, partitions, endpoint selection
-- router/endpoint/link authoring and deletion
-- scenario schema v2 save/restore/import/export with v1 migration
+The Builder is the main deterministic network workbench. Its canonical scenario format is currently **schema v9**, with migration from older scenario versions.
 
-### Internet scale
+Implemented depth includes:
 
-- Canvas autonomous-system policy theater using documentation ASNs
-- typed peer / provider / customer relationships and deterministic rerouting
-- Cloudflare edge-observed + RIPE public-routing evidence with strict provenance
-- Three.js/WebGL physical Internet globe backed by public PeeringDB facility coordinates
-- inferred geometric corridors explicitly separated from measured paths
+- topology authoring, persistence, import/export, templates, copy/paste, multi-select, alignment, minimap, annotations, search, snapshots, compare, and bounded undo/redo
+- IPv4 and IPv6 addressing, connected/static routing, route selection, RIB/FIB projection, ECMP, PBR, summarization/discard routes, and active ping/traceroute probes
+- OSPF/OSPFv3 including timed convergence, multiple areas, ABRs, summarization, stub/NSSA behavior, redistribution, and interface timer policy
+- BGP including policy, communities, AS prepend, route reflectors, withdrawal behavior, redistribution provenance, and public-facing AS projection
+- bounded IS-IS L1/L2/L1L2
+- Ethernet switching, VLANs, trunks, native VLAN behavior, ARP/ND, STP/RSTP, LLDP, LACP/EtherChannel, SVIs, routed switch ports, FHRP, and VRFs
+- ACLs, NAT/PAT, DHCP/DHCPv6, IPv6 lifecycle/control-plane state, and PMTU behavior
+- deterministic application transactions through addressing → L2 → resolution → routing → policy/NAT → transport → TLS → application
+- packet queues, serialization delay, ECN/tail drop, bandwidth sharing, traffic generators, fragmentation/PTB/PMTUD, and transport congestion response
+- GRE/IP-in-IP, bounded encrypted-tunnel semantics, MPLS, VXLAN, and EVPN
+- a Builder-wide deterministic time machine, historical state, protocol databases/counters, and causal `WHY?` diagnosis from the first broken truth boundary
+
+The Builder does not maintain separate hidden simulators for application traffic, overlays, troubleshooting, or presentation. Those surfaces consume the same canonical state.
+
+### Packet Microscope
+
+- Ethernet + IPv4/IPv6 + TCP/UDP/ICMP packet construction
+- real IPv4 and transport checksum/length derivation
+- raw-byte ↔ field mapping
+- exact originating packet bytes from Builder application/probe state
+- read-only captured-packet mode with exact evidence lineage
+
+### Protocol Theater
+
+- TCP handshake, loss, retransmission, congestion response, and teardown
+- recursive DNS and cache behavior
+- TLS 1.3 negotiation and encryption boundaries
+- HTTP/2-over-TCP versus HTTP/3-over-QUIC behavior
+- captured-protocol projections that keep missing or midstream evidence explicit rather than synthesizing a clean story
 
 ### URL Journey + GOD MODE
 
-One canonical time machine explains a URL request continuously across application, routing, Internet, transport, and packet scales.
+One canonical Journey explains a URL request across application, DNS, routing, Internet, transport, TLS, packets, time, sharing, and replay.
 
-The Journey composes independent transport and DNS axes with a deterministic ordered GOD MODE modifier set:
+Composable deterministic modifiers include DNS failure, pre-transport route failure, BGP route leak, HTTP 503/retry, packet loss, active-path outage, latency spike, ECN congestion, and terminal partition state. Different failures retain different causal boundaries instead of collapsing into generic “network down.”
 
-- **Transport:** TCP + TLS 1.3 + HTTP/2 or QUIC + integrated TLS 1.3 + HTTP/3
-- **DNS:** cache miss with the full authority walk or cache hit with deterministic TTL state
-- **GOD MODE:** DNS failure/retry, pre-transport route failure, BGP route leak, HTTP 503 service failure/retry, packet loss, mid-transfer path outage, latency spike, ECN congestion/queue growth, and terminal network partition
+### Captured evidence · Track H
 
-The modifiers deliberately preserve different failure boundaries instead of collapsing everything into “the network is down”:
+Track T remains the historical first PCAP/PCAPNG slice; the completed product track is **Track H**.
 
-- DNS timeout is absence of a DNS response; a cache hit can shield the upstream outage entirely.
-- ROUTE converges before transport begins; OUTAGE breaks an active response transfer while preserving the established transport/TLS connection.
-- TCP and QUIC recover loss/outage with their own sequence/ACK versus packet-number/STREAM/timer semantics.
-- CONGESTION is a zero-drop ECN teaching story: queue growth and congestion response occur without inventing packet loss.
-- SERVER is a real HTTP 503 + `Retry-After` episode on the same healthy transport/TLS connection; replay is explicitly justified only for the curated idempotent `GET /`.
-- LEAK reuses the existing Lab 05 AS-policy graph to show that **reachability and policy correctness are separate dimensions**.
-- PARTITION is terminal: both routed exits disappear, SPF finds zero candidates, transport becomes stalled rather than magically closed, and the Journey ends `network-unreachable` instead of inventing recovery.
+Track H includes:
 
-`ROUTE` and `OUTAGE` remain mutually exclusive on the current two-path teaching topology rather than inventing a third recovery path. Other compatible modifiers compose in canonical causal order, independent of UI selection order.
+- explicit local PCAP/PCAPNG import with no upload, sniffing, scanning, credentials, or silent persistence
+- immutable captured frames with exact frame → field → byte lineage
+- deterministic conversations, semantic events, capture time machine, and FOLLOW FLOW
+- bounded TCP byte-stream reconstruction that never invents missing bytes
+- retransmission, overlap, out-of-order, midstream, one-direction, and truncation handling
+- capture-visible RTT/ACK-delay observations only when the evidence supports attribution
+- worker-backed parse/protocol/conversation/index work with deterministic fallback
+- aggregate captured-evidence views without inferred topology
+- capture-vs-capture comparison
+- captured evidence versus canonical simulated counterfactual comparison with provenance kept separate
+- strict runtime-evidence sidecars and bounded `PARSED CONFIG` import
 
-Optional live/public endpoint evidence can decorate the Journey, but never rewrites its simulated forwarding path, protocol state, modifier set, or causal event log.
+### Local measurement + public correlation · Track I
+
+HOPSCOTCH consumes the existing Network Diagnostics report-v2 / loopback bridge as a bounded `LOCAL MEASURED` source.
+
+It can surface local interface, route, DNS, ICMP, traceroute, and transport observations, then—only after an explicit user action—place independently sourced edge/public routing/facility context beyond an explicit observation boundary.
+
+Measured traceroute hops never inherit ASN, facility, or geography claims from unrelated public data. Same-city facility data is context, not proof of traversal. The bridge remains loopback-only, credential-free, fixed-endpoint, explicit-action-only, and does not add LAN discovery or arbitrary command execution.
+
+### Internet scale
+
+- deterministic AS-policy simulation
+- independently sourced edge/public-routing evidence with provenance
+- PeeringDB-backed physical Internet facility context
+- Three.js/WebGL physical Internet globe with honest fallback behavior
+- explicit separation between observed/public evidence and inferred geometric corridors
 
 ## Architecture
 
 ```text
-scenario / live source
+configuration / captured evidence / measured evidence
         ↓
-canonical configuration
+canonical truth or provenance-bounded evidence store
         ↓
-ordered modifier pipeline
+deterministic reducers / protocol models / derived projections
         ↓
-canonical events
+time + causal event model
         ↓
-deterministic reducer + time machine
+workspace-specific camera
         ↓
-semantic scene state
-        ↓
-scale-specific renderer
-        ↓
-Motion / Anime.js choreography
+Motion / Anime.js / SVG / Canvas / WebGL presentation
 ```
 
-Animation reacts to state. It never determines state.
+Heavy workspaces are loaded behind lazy boundaries so the overview shell does not absorb Builder, protocol, measured, capture, or Three.js implementation cost at startup.
 
-HOPSCOTCH keeps provenance explicit:
+See `docs/ARCHITECTURE.md` for the system boundary, `docs/ROADMAP.md` for active product work, `docs/ROADMAP-MOONSHOTS.md` for deliberately long-horizon ideas, and the individual `docs/TRACK*.md` records for completed track architecture.
 
-- `SIMULATED`
-- `CAPTURED` — immutable bytes and fields decoded from a user-selected packet capture
-- `EDGE OBSERVED`
-- `PUBLIC COLLECTOR`
-- `PUBLIC DATA`
-- `INFERRED`
-- `LOCAL MEASURED` — local-host, capture-bounded evidence that never becomes simulated Journey truth
+## Current roadmap
 
-See `docs/ARCHITECTURE.md` for the full system boundary, `docs/TRACKT.md` for captured replay, and `docs/ROADMAP.md` for completed and upcoming work.
+The completed active integration/depth tracks are:
+
+- **Track H** — captured evidence + replay
+- **Track D** — end-to-end application traffic inside Builder
+- **Track A** — Builder-wide time machine + causal troubleshooting
+- **Track B** — Builder authoring environment
+- **Track C** — enterprise L2/L3 depth
+- **Track E** — data-plane realism
+- **Track F** — routing + policy depth
+- **Track G** — service-provider + overlay networking
+- **Track I** — native companion/public evidence correlation
+
+The current priority is **Track J — deterministic troubleshooting challenges**. Challenges are intended to generate broken networks from canonical configuration/state, use the normal Builder inspection/probe surfaces, and score evidence gathering plus causal reasoning rather than only the final repair.
+
+Track K then deepens the existing vendor-neutral read-only CLI foundation into an actual Builder terminal surface and, later, bounded configuration commands that mutate the same canonical configuration as the GUI.
+
+## Performance and validation
+
+The repository treats performance and compatibility as product contracts rather than informal targets.
+
+`npm run check` runs TypeScript validation plus the Builder, Journey, capture, measurement, navigation/product, and native-companion contract suites before the production build.
+
+The dedicated production profiler enforces versioned structural/semantic budgets for:
+
+- linked initial JavaScript and CSS
+- representative DOM and heap use
+- high-density Builder, AS, and physical-Internet fixtures
+- repeated time-machine seek/churn behavior
+- Chrome default, disabled-WebGL, and SwiftShader paths
+- Firefox semantic compatibility
+- real PCAP/PCAPNG replay
+
+Timing values remain diagnostic; stable bundle/DOM/heap/semantic limits are the enforced gates.
 
 ## Stack
 
 - React + TypeScript + Vite
-- Motion for UI, layout, gesture, focus, and cross-scale transitions
+- Motion for UI/layout/gesture/focus transitions
 - Anime.js for protocol/topology choreography
-- SVG for focused protocol/topology scenes
-- Canvas for denser autonomous-system views
-- Three.js / WebGL for the physical Internet globe
+- SVG for focused topology/protocol scenes
+- Canvas for dense autonomous-system views
+- Three.js / WebGL for physical Internet visualization
 - Cloudflare Workers + Static Assets for production hosting and public-data adapters
 
 Production is configured for `hopscotch.johnnyli.dev`.
@@ -131,22 +173,21 @@ npm ci
 npm run dev
 ```
 
-Full contract/type/build validation:
+Full correctness/type/build validation:
 
 ```bash
 npm run check
 ```
 
-Production renderer profiling is intentionally separate from the normal correctness gate. Build first, then run the Chrome/Chromium CDP profiler:
+Production performance profiling:
 
 ```bash
 npm run build
 npm run performance:profile
-# Enforce the versioned stable budgets:
 npm run performance:check
 ```
 
-Use `CHROME_PATH=/path/to/chrome` when browser auto-discovery is not appropriate. Timing counters are diagnostic; stable bundle/DOM/heap/overflow/semantic budgets are enforced by the dedicated Performance workflow.
+Use `CHROME_PATH=/path/to/chrome` when browser auto-discovery is not appropriate.
 
 Cloudflare local runtime:
 
@@ -160,9 +201,3 @@ Deploy:
 ```bash
 npm run deploy
 ```
-
-## Project status
-
-The core product architecture and the full curated Lab 07 GOD MODE modifier series are implemented: deterministic routing, packet inspection, protocol theater, topology authoring, Internet-scale policy/physical views, the cross-scale URL Journey, portable scenarios, multi-cause composition, recoverable cross-layer failures, congestion, application/DNS failures, terminal partition state, and BGP policy anomalies all exist as integrated experiences. Track T now adds the first deterministic captured-data vertical slice from local PCAP/PCAPNG import through conversation/time/event/frame/field/exact-byte lineage without turning evidence into simulation.
-
-Production performance budgets, deterministic high-density stress profiles, and a production-artifact browser/GPU matrix now cover the normal product, the 160/220 AS Canvas fixture, Builder at its real 32/96 ceiling, a 2,000-point SIMULATED WebGL fixture, repeated Journey churn, Chrome default/SwiftShader/WebGL-disabled rendering, and Firefox/Gecko semantic compatibility with an honest WebGL fallback. Native measurement now has a strict `LOCAL MEASURED` provenance/schema contract, a separate measured-state projection, whitelist-only Network Diagnostics Suite report-v2 ingestion, an explicit session-only measured workspace, and optional target-scoped Journey sidecars without entering simulated truth. Lab 09 can acquire the same validated report either by explicit JSON import or through an explicit loopback-only Network Diagnostics bridge with fixed endpoints, no credentials, no scanning/discovery, and no background polling. The remaining native-side work is **an optional companion bridge/server implementation outside HOPSCOTCH; the web app already has the bounded acquisition contract it needs**.
