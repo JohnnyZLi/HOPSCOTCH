@@ -33,16 +33,17 @@ jobs:
             python -c "from pathlib import Path; p=Path('src/builder/device-workbench.ts'); t=p.read_text(); p.write_text(t.replace(');})) : [];', ');}) : [];'))"
           fi
           node scripts/fix-track-j-pmtu-hardening.mjs
+          node scripts/update-track-j-pmtu-docs.mjs
       - run: npm ci
       - run: npm run check
       - name: Commit generated product changes
         run: |
-          if git diff --quiet src/builder/challenges.ts src/BuilderChallengePanel.tsx src/NetworkBuilder.tsx src/builder/device-workbench.ts scripts/builder-challenge-contract-check.mjs; then
+          if git diff --quiet src/builder/challenges.ts src/BuilderChallengePanel.tsx src/NetworkBuilder.tsx src/builder/device-workbench.ts scripts/builder-challenge-contract-check.mjs docs/TRACKJ.md; then
             echo "No generated product changes to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/builder/challenges.ts src/BuilderChallengePanel.tsx src/NetworkBuilder.tsx src/builder/device-workbench.ts scripts/builder-challenge-contract-check.mjs
-          git commit -m "Harden IPv6 PMTU challenge evidence"
+          git add src/builder/challenges.ts src/BuilderChallengePanel.tsx src/NetworkBuilder.tsx src/builder/device-workbench.ts scripts/builder-challenge-contract-check.mjs docs/TRACKJ.md
+          git commit -m "Document IPv6 PMTU troubleshooting challenge"
           git push origin HEAD:${{ github.head_ref }}
