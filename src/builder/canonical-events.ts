@@ -593,8 +593,8 @@ function applicationEventKind(stage: BuilderTimelineState['applicationHistory'][
 }
 
 function deriveApplicationEvents(before: BuilderTimelineState, after: BuilderTimelineState, output: BuilderWorkbenchEventSpec[]): void {
-  const priorIds=new Set(before.applicationHistory.map((transaction)=>transaction.id));
-  const transactions=after.applicationHistory.filter((transaction)=>!priorIds.has(transaction.id));
+  const priorIds=new Set((before.applicationHistory??[]).map((transaction)=>transaction.id));
+  const transactions=(after.applicationHistory??[]).filter((transaction)=>!priorIds.has(transaction.id));
   let offset=260;
   for(const transaction of transactions){
     const evaluated=transaction.stages.filter((stage)=>stage.status!=='NOT_REACHED');
