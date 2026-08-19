@@ -127,7 +127,7 @@ The bounded EVPN control-plane projection is intentionally narrower than a produ
 - EVPN enablement, local MAC/IP bindings, and learned Type-2 rows,
 - VXLAN forwarding samples that distinguish EVPN unicast from ingress replication.
 
-The main `NetworkBuilder` does not import `builder/provider.ts` or `BuilderProviderPanel` directly. This keeps advanced service-provider depth out of the startup bundle and out of stress-mode DOM.
+The main `NetworkBuilder` does not import `builder/provider.ts` or `BuilderProviderPanel` directly. The routing-policy workspace itself is lazy, and Track G adds a second closed-by-default shell inside it: tunnel/MPLS/VXLAN/EVPN projection hooks and the full provider editor do not mount until **OPEN TRACK G** is selected. This keeps advanced service-provider depth out of startup, stress-mode DOM, and unrelated OSPF/BGP inspection.
 
 ## Permanent contract
 

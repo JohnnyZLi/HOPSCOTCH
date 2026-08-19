@@ -10,7 +10,7 @@ import './BuilderProviderPanel.css';
 function labelFor(graph:BuilderGraph,id:string){return graph.nodes.find((node)=>node.id===id)?.label??id.toUpperCase();}
 function firstAddress(addressing:BuilderAddressing,id:string){return interfacesForBuilderNode(addressing,id)[0]?.address??'';}
 
-export default function BuilderProviderPanel({graph,addressing,routing,linkProfiles,selectedNodeId,historical,onChange,onMessage}:{graph:BuilderGraph;addressing:BuilderAddressing;routing:BuilderRoutingConfig;linkProfiles:BuilderLinkProfiles;selectedNodeId:string;historical:boolean;onChange:(next:BuilderRoutingConfig)=>void;onMessage:(message:string)=>void;}){
+function BuilderProviderPanelContent({graph,addressing,routing,linkProfiles,selectedNodeId,historical,onChange,onMessage}:{graph:BuilderGraph;addressing:BuilderAddressing;routing:BuilderRoutingConfig;linkProfiles:BuilderLinkProfiles;selectedNodeId:string;historical:boolean;onChange:(next:BuilderRoutingConfig)=>void;onMessage:(message:string)=>void;}){
   const provider=routing.provider??createDefaultBuilderProviderConfig(),routers=graph.nodes.filter((node)=>node.kind==='router'),selectedRouter=routers.find((node)=>node.id===selectedNodeId)??null,otherRouters=selectedRouter?routers.filter((node)=>node.id!==selectedRouter.id):routers;
   const [remoteRouterId,setRemoteRouterId]=useState(otherRouters[0]?.id??'');const [tunnelKind,setTunnelKind]=useState<BuilderTunnelKind>('gre');const [securityState,setSecurityState]=useState<BuilderTunnelSecurityState>('ready');const [overlayPrefix,setOverlayPrefix]=useState('172.31.255.0/30');const [localTunnelAddress,setLocalTunnelAddress]=useState('172.31.255.1');const [remoteTunnelAddress,setRemoteTunnelAddress]=useState('172.31.255.2');const [fecPrefix,setFecPrefix]=useState('10.0.0.0/8');const [vniValue,setVniValue]=useState(10100);const [routeTarget,setRouteTarget]=useState('65000:10100');const [mac,setMac]=useState('02:00:00:00:10:01');const [bindingIp,setBindingIp]=useState('10.10.0.10');
   const facts=useMemo(()=>builderProviderFacts(graph,addressing,routing,linkProfiles),[graph,addressing,routing,linkProfiles]);const selectedEvpn=useMemo(()=>selectedRouter?builderEvpnRoutes(graph,addressing,routing,selectedRouter.id):[],[graph,addressing,routing,selectedRouter]);const selectedMpls=useMemo(()=>selectedRouter?builderMplsForwardingTable(graph,addressing,routing,selectedRouter.id):[],[graph,addressing,routing,selectedRouter]);
@@ -34,4 +34,11 @@ export default function BuilderProviderPanel({graph,addressing,routing,linkProfi
     </div>
     <small className="builder-provider-boundary">UNDERLAY ROUTING / FAILURES REMAIN CANONICAL BUILDER RIB/FIB TRUTH · TUNNELS ADD EXPLICIT OUTER HEADERS WITHOUT REWRITING INNER ADDRESSES · MPLS OPERATIONS ARE DERIVED FROM THE CANONICAL UNDERLAY PATH · VXLAN/EVPN KEEP VTEP REACHABILITY AND MAC/IP LEARNING SEPARATE · ENCRYPTED-TUNNEL STATE IS A TEACHING SEMANTIC, NOT PRODUCTION CRYPTOGRAPHY.</small>
   </section>;
+}
+
+export default function BuilderProviderPanel(props:Parameters<typeof BuilderProviderPanelContent>[0]){
+  const [open,setOpen]=useState(false);
+  const provider=props.routing.provider??createDefaultBuilderProviderConfig();
+  if(!open)return <section className="builder-provider builder-provider-shell" aria-label="Track G service provider and overlay networking"><div className="builder-provider-title"><div><span>TRACK G · SERVICE PROVIDER / OVERLAY</span><strong>UNDERLAY TRUTH → ENCAPSULATION → OVERLAY</strong></div><small>{provider.tunnels.length} TUNNELS · {provider.mpls.lsps.length} LSPS · {provider.vxlan.vnis.length} VNIS</small></div><button className="builder-provider-open" onClick={()=>setOpen(true)}>OPEN TRACK G</button><small className="builder-provider-boundary">ADVANCED PROVIDER PROJECTIONS STAY UNMOUNTED UNTIL OPENED · OSPF/BGP INSPECTION DOES NOT PAY TRACK G DOM OR COMPUTE COST.</small></section>;
+  return <><button className="builder-provider-close" onClick={()=>setOpen(false)}>CLOSE TRACK G</button><BuilderProviderPanelContent {...props}/></>;
 }
