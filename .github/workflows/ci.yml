@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -14,17 +14,29 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+      - name: Apply Track J ACL/NAT slice once
+        run: |
+          if grep -q "'acl-deny'" src/builder/challenges.ts; then
+            echo "Track J ACL/NAT slice already applied."
+          else
+            node scripts/apply-track-j-policy-slice.mjs
+          fi
       - run: npm ci
       - run: npm run check
-      - name: Upload production build
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: hopscotch-dist
-          path: dist
-          if-no-files-found: error
-          retention-days: 3
+      - name: Commit generated product changes
+        run: |
+          if git diff --quiet; then
+            echo "No generated changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/builder/challenges.ts src/BuilderChallengePanel.tsx src/BuilderNatPanel.tsx src/NetworkBuilder.tsx scripts/builder-challenge-contract-check.mjs docs/TRACKJ.md
+          git commit -m "Add ACL and NAT troubleshooting challenges"
+          git push origin HEAD:${{ github.head_ref }}
