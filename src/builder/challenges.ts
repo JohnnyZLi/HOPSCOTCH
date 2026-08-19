@@ -1,5 +1,6 @@
 import { validateBuilderAddressing, type BuilderAddressing } from './addressing.ts';
 import { createBuilderAuthoringSnapshot, type BuilderAuthoringSnapshot } from './authoring.ts';
+import { validateBuilderEthernetConfig, type BuilderEthernetConfig } from './ethernet.ts';
 import { setBuilderOspfEverywhere } from './routing.ts';
 import { defaultBuilderScenario } from './scenario.ts';
 
@@ -8,13 +9,54 @@ export const BUILDER_CHALLENGE_VERSION = 1 as const;
 export const BUILDER_CHALLENGE_EVIDENCE_LIMIT = 40;
 
 export type BuilderChallengeBoundary = 'ADDRESSING' | 'L2' | 'ROUTING' | 'POLICY' | 'TRANSPORT';
-export type BuilderChallengeEvidenceKind = 'ping' | 'traceroute' | 'inspect-config' | 'inspect-state' | 'inspect-events';
+export type BuilderChallengeDevicePlane = 'routed' | 'ethernet';
+export type BuilderChallengeEvidenceKind = 'ping' | 'traceroute' | 'ethernet-flow' | 'arp-resolution' | 'inspect-config' | 'inspect-state' | 'inspect-events';
+export type BuilderChallengeFamily = 'gateway' | 'access-vlan' | 'trunk-vlan' | 'stp-loop';
 
-export interface BuilderChallengeFault {
+export interface BuilderGatewayChallengeFault {
   kind: 'missing-default-gateway';
   boundary: 'ADDRESSING';
+  plane: 'routed';
   nodeId: string;
   expectedGateway: string;
+}
+
+export interface BuilderAccessVlanChallengeFault {
+  kind: 'access-vlan-mismatch';
+  boundary: 'L2';
+  plane: 'ethernet';
+  nodeId: string;
+  linkId: string;
+  expectedAccessVlan: number;
+  brokenAccessVlan: number;
+}
+
+export interface BuilderTrunkVlanChallengeFault {
+  kind: 'trunk-vlan-pruned';
+  boundary: 'L2';
+  plane: 'ethernet';
+  nodeId: string;
+  linkId: string;
+  vlanId: number;
+  expectedAllowedVlans: number[];
+  brokenAllowedVlans: number[];
+}
+
+export interface BuilderStpChallengeFault {
+  kind: 'stp-disabled-loop';
+  boundary: 'L2';
+  plane: 'ethernet';
+  nodeId: string;
+  vlanId: number;
+  expectedEnabled: true;
+}
+
+export type BuilderChallengeFault = BuilderGatewayChallengeFault | BuilderAccessVlanChallengeFault | BuilderTrunkVlanChallengeFault | BuilderStpChallengeFault;
+
+export interface BuilderChallengeVerification {
+  kind: 'routed-probe' | 'ethernet-flow';
+  sourceId: string;
+  destinationId: string;
 }
 
 export interface BuilderChallenge {
@@ -22,17 +64,20 @@ export interface BuilderChallenge {
   version: typeof BUILDER_CHALLENGE_VERSION;
   id: string;
   seed: string;
+  family: BuilderChallengeFamily;
   title: string;
   objective: string;
   difficulty: 'FOUNDATION';
   healthy: BuilderAuthoringSnapshot;
   broken: BuilderAuthoringSnapshot;
+  verification: BuilderChallengeVerification;
   fault: BuilderChallengeFault;
 }
 
 export interface BuilderChallengeEvidenceInput {
   kind: BuilderChallengeEvidenceKind;
   deviceId?: string | null;
+  devicePlane?: BuilderChallengeDevicePlane | null;
   sourceId?: string | null;
   destinationId?: string | null;
   success?: boolean | null;
@@ -95,6 +140,17 @@ function defaultHealthySnapshot(): BuilderAuthoringSnapshot {
   });
 }
 
+function ethernetDeviceLabel(snapshot: BuilderAuthoringSnapshot, id: string): string {
+  return snapshot.ethernet.devices.find((device) => device.id === id)?.label ?? id.toUpperCase();
+}
+
+function withValidatedEthernet(snapshot: BuilderAuthoringSnapshot, mutate: (ethernet: BuilderEthernetConfig) => void): BuilderAuthoringSnapshot {
+  const next = createBuilderAuthoringSnapshot(snapshot);
+  mutate(next.ethernet);
+  next.ethernet = validateBuilderEthernetConfig(next.ethernet);
+  return next;
+}
+
 export function createDefaultGatewayChallenge(seedInput: string): BuilderChallenge {
   const seed = normalizeSeed(seedInput);
   const healthy = defaultHealthySnapshot();
@@ -120,18 +176,147 @@ export function createDefaultGatewayChallenge(seedInput: string): BuilderChallen
     version: BUILDER_CHALLENGE_VERSION,
     id: `gateway-${hash.toString(16).padStart(8, '0')}`,
     seed,
+    family: 'gateway',
     title: 'REMOTE SERVICE UNREACHABLE',
     objective: `Restore IPv4 reachability from ${target.label} to ${destination.label}. Diagnose the failure with ordinary Builder evidence before repairing canonical configuration.`,
     difficulty: 'FOUNDATION',
     healthy,
     broken,
+    verification: { kind: 'routed-probe', sourceId: target.id, destinationId: destination.id },
     fault: {
       kind: 'missing-default-gateway',
       boundary: 'ADDRESSING',
+      plane: 'routed',
       nodeId: target.id,
       expectedGateway,
     },
   };
+}
+
+export function createAccessVlanChallenge(seedInput: string): BuilderChallenge {
+  const seed = normalizeSeed(seedInput);
+  const hash = hashSeed(seed);
+  const healthy = defaultHealthySnapshot();
+  const candidates = [
+    { linkId: 'lan-a-sw1', nodeId: 'lan-sw1', endpointId: 'lan-a', peerId: 'lan-b' },
+    { linkId: 'lan-b-sw2', nodeId: 'lan-sw2', endpointId: 'lan-b', peerId: 'lan-a' },
+  ];
+  const target = candidates[hash % candidates.length];
+  const link = healthy.ethernet.links.find((entry) => entry.id === target.linkId);
+  if (!link || link.mode !== 'access' || link.accessVlan !== 10) throw new Error('The access-VLAN challenge requires the canonical VLAN 10 edge ports.');
+  const broken = withValidatedEthernet(healthy, (ethernet) => {
+    const targetLink = ethernet.links.find((entry) => entry.id === target.linkId);
+    if (!targetLink) throw new Error(`Missing challenge link ${target.linkId}.`);
+    targetLink.accessVlan = 20;
+  });
+
+  return {
+    schema: BUILDER_CHALLENGE_SCHEMA,
+    version: BUILDER_CHALLENGE_VERSION,
+    id: `vlan-${hash.toString(16).padStart(8, '0')}`,
+    seed,
+    family: 'access-vlan',
+    title: 'VLAN 10 HOST ISOLATED',
+    objective: `Restore Layer-2 reachability from ${ethernetDeviceLabel(healthy, target.endpointId)} to ${ethernetDeviceLabel(healthy, target.peerId)}. Use the normal LAN flow, ARP observations, and Device Workbench before repairing the switch-port configuration.`,
+    difficulty: 'FOUNDATION',
+    healthy,
+    broken,
+    verification: { kind: 'ethernet-flow', sourceId: target.endpointId, destinationId: target.peerId },
+    fault: {
+      kind: 'access-vlan-mismatch',
+      boundary: 'L2',
+      plane: 'ethernet',
+      nodeId: target.nodeId,
+      linkId: target.linkId,
+      expectedAccessVlan: 10,
+      brokenAccessVlan: 20,
+    },
+  };
+}
+
+export function createTrunkVlanChallenge(seedInput: string): BuilderChallenge {
+  const seed = normalizeSeed(seedInput);
+  const hash = hashSeed(seed);
+  const healthy = defaultHealthySnapshot();
+  const candidates = [
+    { linkId: 'lan-sw1-sw2', nodeId: 'lan-sw1' },
+    { linkId: 'lan-sw1-r1', nodeId: 'lan-sw1' },
+  ];
+  const target = candidates[hash % candidates.length];
+  const link = healthy.ethernet.links.find((entry) => entry.id === target.linkId);
+  if (!link || link.mode !== 'trunk' || !link.allowedVlans?.includes(20)) throw new Error('The trunk challenge requires a canonical trunk carrying VLAN 20.');
+  const expectedAllowedVlans = [...link.allowedVlans].sort((a, b) => a - b);
+  const brokenAllowedVlans = expectedAllowedVlans.filter((vlanId) => vlanId !== 20);
+  if (brokenAllowedVlans.length === 0) throw new Error('The trunk challenge must leave at least one VLAN allowed on the trunk.');
+  const broken = withValidatedEthernet(healthy, (ethernet) => {
+    const targetLink = ethernet.links.find((entry) => entry.id === target.linkId);
+    if (!targetLink) throw new Error(`Missing challenge link ${target.linkId}.`);
+    targetLink.allowedVlans = [...brokenAllowedVlans];
+  });
+
+  return {
+    schema: BUILDER_CHALLENGE_SCHEMA,
+    version: BUILDER_CHALLENGE_VERSION,
+    id: `trunk-${hash.toString(16).padStart(8, '0')}`,
+    seed,
+    family: 'trunk-vlan',
+    title: 'SERVER VLAN DISAPPEARS',
+    objective: `Restore routed LAN reachability from ${ethernetDeviceLabel(healthy, 'lan-a')} to ${ethernetDeviceLabel(healthy, 'lan-c')}. Diagnose where VLAN 20 stops propagating before repairing the normal trunk allow-list.`,
+    difficulty: 'FOUNDATION',
+    healthy,
+    broken,
+    verification: { kind: 'ethernet-flow', sourceId: 'lan-a', destinationId: 'lan-c' },
+    fault: {
+      kind: 'trunk-vlan-pruned',
+      boundary: 'L2',
+      plane: 'ethernet',
+      nodeId: target.nodeId,
+      linkId: target.linkId,
+      vlanId: 20,
+      expectedAllowedVlans,
+      brokenAllowedVlans,
+    },
+  };
+}
+
+export function createStpLoopChallenge(seedInput: string): BuilderChallenge {
+  const seed = normalizeSeed(seedInput);
+  const hash = hashSeed(seed);
+  const healthy = defaultHealthySnapshot();
+  const broken = withValidatedEthernet(healthy, (ethernet) => {
+    ethernet.stp.enabled = false;
+  });
+
+  return {
+    schema: BUILDER_CHALLENGE_SCHEMA,
+    version: BUILDER_CHALLENGE_VERSION,
+    id: `stp-${hash.toString(16).padStart(8, '0')}`,
+    seed,
+    family: 'stp-loop',
+    title: 'VLAN 10 LOOP UNSAFE',
+    objective: `Restore safe Layer-2 forwarding from ${ethernetDeviceLabel(healthy, 'lan-a')} to ${ethernetDeviceLabel(healthy, 'lan-b')}. The physical links are intact; use normal STP state and LAN forwarding evidence to find the broken control-plane boundary.`,
+    difficulty: 'FOUNDATION',
+    healthy,
+    broken,
+    verification: { kind: 'ethernet-flow', sourceId: 'lan-a', destinationId: 'lan-b' },
+    fault: {
+      kind: 'stp-disabled-loop',
+      boundary: 'L2',
+      plane: 'ethernet',
+      nodeId: 'lan-sw1',
+      vlanId: 10,
+      expectedEnabled: true,
+    },
+  };
+}
+
+export function createBuilderChallenge(seedInput: string): BuilderChallenge {
+  const seed = normalizeSeed(seedInput);
+  const lowered = seed.toLowerCase();
+  if (lowered.startsWith('vlan-') || lowered.startsWith('l2-vlan-')) return createAccessVlanChallenge(seed);
+  if (lowered.startsWith('trunk-') || lowered.startsWith('l2-trunk-')) return createTrunkVlanChallenge(seed);
+  if (lowered.startsWith('stp-') || lowered.startsWith('l2-stp-')) return createStpLoopChallenge(seed);
+  return createDefaultGatewayChallenge(seed);
 }
 
 export function builderChallengeToken(challenge: Pick<BuilderChallenge, 'version' | 'seed'>): string {
@@ -148,8 +333,31 @@ export function seedFromBuilderChallengeToken(token: string): string {
   }
 }
 
-export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressing: BuilderAddressing): boolean {
-  return addressing.defaultGateways[challenge.fault.nodeId] === challenge.fault.expectedGateway;
+function sameNumberArray(left: readonly number[] | undefined, right: readonly number[]): boolean {
+  const normalized = [...(left ?? [])].sort((a, b) => a - b);
+  return normalized.length === right.length && normalized.every((value, index) => value === right[index]);
+}
+
+export function builderChallengeIsRepaired(challenge: BuilderChallenge, addressing: BuilderAddressing, ethernet: BuilderEthernetConfig): boolean {
+  const fault = challenge.fault;
+  if (fault.kind === 'missing-default-gateway') return addressing.defaultGateways[fault.nodeId] === fault.expectedGateway;
+  if (fault.kind === 'access-vlan-mismatch') {
+    const link = ethernet.links.find((entry) => entry.id === fault.linkId);
+    return link?.mode === 'access' && link.accessVlan === fault.expectedAccessVlan;
+  }
+  if (fault.kind === 'trunk-vlan-pruned') {
+    const link = ethernet.links.find((entry) => entry.id === fault.linkId);
+    return link?.mode === 'trunk' && sameNumberArray(link.allowedVlans, fault.expectedAllowedVlans);
+  }
+  return ethernet.stp.enabled === fault.expectedEnabled;
+}
+
+export function builderChallengeSolvedExplanation(challenge: BuilderChallenge): string {
+  const fault = challenge.fault;
+  if (fault.kind === 'missing-default-gateway') return `The endpoint had no default gateway. Restoring canonical gateway ${fault.expectedGateway} repaired forwarding, and the post-repair routed probe verified the outcome.`;
+  if (fault.kind === 'access-vlan-mismatch') return `The access port ${fault.linkId.toUpperCase()} was assigned to VLAN ${fault.brokenAccessVlan} instead of VLAN ${fault.expectedAccessVlan}. Restoring the canonical access VLAN repaired ARP and Layer-2 forwarding.`;
+  if (fault.kind === 'trunk-vlan-pruned') return `VLAN ${fault.vlanId} was pruned from trunk ${fault.linkId.toUpperCase()}. Restoring the canonical allow-list (${fault.expectedAllowedVlans.join(', ')}) repaired the tagged path and the post-repair LAN flow verified it.`;
+  return `STP was disabled while VLAN ${fault.vlanId} had a physical Layer-2 cycle. Re-enabling canonical STP restored a loop-safe forwarding tree and the post-repair LAN flow verified it.`;
 }
 
 export function appendBuilderChallengeEvidence(
@@ -167,8 +375,12 @@ function hasEvidence(
   return evidence.some(predicate);
 }
 
-function isObjectiveProbe(challenge: BuilderChallenge, entry: BuilderChallengeEvidence): boolean {
-  return entry.sourceId === challenge.broken.sourceId && entry.destinationId === challenge.broken.destinationId;
+function isObjectiveEvidence(challenge: BuilderChallenge, entry: BuilderChallengeEvidence): boolean {
+  return entry.sourceId === challenge.verification.sourceId && entry.destinationId === challenge.verification.destinationId;
+}
+
+function isFaultInspection(challenge: BuilderChallenge, entry: BuilderChallengeEvidence): boolean {
+  return entry.deviceId === challenge.fault.nodeId && entry.devicePlane === challenge.fault.plane;
 }
 
 export function scoreBuilderChallenge(
@@ -176,22 +388,35 @@ export function scoreBuilderChallenge(
   evidence: readonly BuilderChallengeEvidence[],
   hypothesis: BuilderChallengeHypothesis | null,
   addressing: BuilderAddressing,
+  ethernet: BuilderEthernetConfig,
 ): BuilderChallengeScore {
-  const failedPing = hasEvidence(evidence, (entry) => entry.kind === 'ping' && isObjectiveProbe(challenge, entry) && entry.success === false && !entry.repaired);
-  const failedTraceroute = hasEvidence(evidence, (entry) => entry.kind === 'traceroute' && isObjectiveProbe(challenge, entry) && entry.success === false && !entry.repaired);
-  const inspectedState = hasEvidence(evidence, (entry) => entry.kind === 'inspect-state' && entry.deviceId === challenge.fault.nodeId && !entry.repaired);
-  const inspectedConfig = hasEvidence(evidence, (entry) => entry.kind === 'inspect-config' && entry.deviceId === challenge.fault.nodeId && !entry.repaired);
-  const evidenceScore = (failedPing ? 10 : 0) + (failedTraceroute ? 10 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
+  const inspectedState = hasEvidence(evidence, (entry) => entry.kind === 'inspect-state' && isFaultInspection(challenge, entry) && !entry.repaired);
+  const inspectedConfig = hasEvidence(evidence, (entry) => entry.kind === 'inspect-config' && isFaultInspection(challenge, entry) && !entry.repaired);
 
-  const hasProbeEvidence = failedPing || failedTraceroute;
+  let evidenceScore = 0;
+  let hasPrimaryDiagnostic = false;
+  if (challenge.verification.kind === 'routed-probe') {
+    const failedPing = hasEvidence(evidence, (entry) => entry.kind === 'ping' && isObjectiveEvidence(challenge, entry) && entry.success === false && !entry.repaired);
+    const failedTraceroute = hasEvidence(evidence, (entry) => entry.kind === 'traceroute' && isObjectiveEvidence(challenge, entry) && entry.success === false && !entry.repaired);
+    evidenceScore = (failedPing ? 10 : 0) + (failedTraceroute ? 10 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
+    hasPrimaryDiagnostic = failedPing || failedTraceroute;
+  } else {
+    const failedLanFlow = hasEvidence(evidence, (entry) => entry.kind === 'ethernet-flow' && isObjectiveEvidence(challenge, entry) && entry.success === false && !entry.repaired);
+    const observedArp = hasEvidence(evidence, (entry) => entry.kind === 'arp-resolution' && isObjectiveEvidence(challenge, entry) && !entry.repaired);
+    evidenceScore = (failedLanFlow ? 15 : 0) + (observedArp ? 5 : 0) + (inspectedState ? 10 : 0) + (inspectedConfig ? 10 : 0);
+    hasPrimaryDiagnostic = failedLanFlow;
+  }
+
   const hasInspectionEvidence = inspectedState || inspectedConfig;
-  const reasoningEligible = hasProbeEvidence && hasInspectionEvidence;
+  const reasoningEligible = hasPrimaryDiagnostic && hasInspectionEvidence;
   const reasoningScore = reasoningEligible && hypothesis
     ? (hypothesis.boundary === challenge.fault.boundary ? 10 : 0) + (hypothesis.deviceId === challenge.fault.nodeId ? 10 : 0)
     : 0;
 
-  const repaired = builderChallengeIsRepaired(challenge, addressing);
-  const verified = hasEvidence(evidence, (entry) => (entry.kind === 'ping' || entry.kind === 'traceroute') && isObjectiveProbe(challenge, entry) && entry.success === true && entry.repaired);
+  const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet);
+  const verified = challenge.verification.kind === 'routed-probe'
+    ? hasEvidence(evidence, (entry) => (entry.kind === 'ping' || entry.kind === 'traceroute') && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired)
+    : hasEvidence(evidence, (entry) => entry.kind === 'ethernet-flow' && isObjectiveEvidence(challenge, entry) && entry.success === true && entry.repaired);
   const repairScore = repaired ? 25 : 0;
   const verificationScore = repaired && verified ? 15 : 0;
   const total = evidenceScore + reasoningScore + repairScore + verificationScore;
