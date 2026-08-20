@@ -1,0 +1,1 @@
+Temporary branch-only note. PR validation renders all five overview scale states at 1600×947 from the production artifact. Remove this file before final merge.
