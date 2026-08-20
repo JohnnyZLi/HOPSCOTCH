@@ -27,6 +27,11 @@ jobs:
           else
             python scripts/apply-overview-scale-motion.py
           fi
+          if grep -q 'activeLayerTop' src/App.tsx; then
+            echo "Travelling scale explanation already applied."
+          else
+            python scripts/refine-overview-scale-motion.py
+          fi
       - run: npm ci
       - run: npm run check
       - name: Capture overview scale motion
@@ -47,7 +52,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- src/App.tsx src/styles.css src/NetworkField.tsx scripts/ui-stability-contract-check.mjs
-          git commit -m "Animate overview scale transitions"
+          git commit -m "Refine travelling overview scale transition"
           git push origin HEAD:${{ github.head_ref }}
       - name: Upload production build
         if: github.event_name == 'pull_request'
