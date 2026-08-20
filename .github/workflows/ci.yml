@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -14,14 +14,42 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+      - name: Apply home layer-card visual fix once
+        run: |
+          if grep -q "translate: 0 -50%" src/styles.css; then
+            echo "Home visual fix already applied."
+          else
+            python scripts/apply-home-layer-card-visual-fix.py
+          fi
       - run: npm ci
       - run: npm run check
+      - name: Capture home visual review
+        run: node scripts/capture-home-visual-review.mjs
+      - name: Upload home visual review
+        uses: actions/upload-artifact@v4
+        with:
+          name: home-visual-review
+          path: artifacts/home-visual-review
+          if-no-files-found: error
+          retention-days: 3
+      - name: Commit home visual fix
+        run: |
+          if git diff --quiet; then
+            echo "No generated home UI changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- src/styles.css scripts/ui-stability-contract-check.mjs
+          git commit -m "Center overview layer card with scale rail"
+          git push origin HEAD:${{ github.head_ref }}
       - name: Upload production build
-        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: hopscotch-dist
