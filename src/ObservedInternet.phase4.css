@@ -1,8 +1,12 @@
 .observed-internet.visual-workspace {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0;
   width: calc(100% - 20px);
   max-width: none;
   height: calc(100dvh - 89px);
   min-height: 600px;
+  margin: 0 auto;
   padding: 0;
 }
 

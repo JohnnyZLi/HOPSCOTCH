@@ -23,6 +23,7 @@ assert.match(observed, /Collector paths are never presented as the browser’s m
 assert.match(observed, /setActiveDrawer\(null\)/, 'successful evidence load must return focus to the scene instead of retaining the query drawer');
 assert.doesNotMatch(observed, /<section className="observed-main"[\s\S]*?<aside className="collector-panel"/, 'collector observations must not reserve a permanent world column');
 assert.match(observedCss, /\.observed-internet\.visual-workspace\s*\{[\s\S]*?width:\s*calc\(100% - 20px\);[\s\S]*?max-width:\s*none;/);
+assert.match(observedCss, /\.observed-internet\.visual-workspace\s*\{[\s\S]*?grid-template-rows:\s*minmax\(0, 1fr\) auto;/, 'legacy Internet Evidence rows must not collapse the shared visual stage');
 assert.match(observedCss, /grid-template-columns:\s*minmax\(270px,[\s\S]*?minmax\(210px,[\s\S]*?minmax\(300px/);
 assert.doesNotMatch(observedCss, /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+390px/, 'Phase 4 evidence scene must not restore the permanent collector column');
 
