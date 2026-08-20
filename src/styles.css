@@ -296,7 +296,7 @@ button {
 .layer-card {
   position: absolute;
   z-index: 3;
-  right: max(32px, calc((100vw - min(1500px, calc(100vw - 64px))) / 2));
+  right: max(206px, calc((100vw - min(1500px, calc(100vw - 64px))) / 2 + 174px));
   bottom: 112px;
   width: min(330px, calc(100% - 64px));
   padding: 20px;
