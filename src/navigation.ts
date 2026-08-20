@@ -1,4 +1,4 @@
-import { WORKSPACE_PATHS, type ExploreDestination } from './workspace-catalog';
+import { WORKSPACE_PATHS, type ExploreDestination } from './workspace-catalog.ts';
 
 export type AppRouteKind = 'overview' | 'lab' | 'legacy-journey' | 'unknown';
 
