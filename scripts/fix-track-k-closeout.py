@@ -28,3 +28,9 @@ text = Path(path).read_text()
 old = "`SESSIONS · ${sessionRows.length / 2 === 0 && !deviceId ? bgp.sessions.length : sessionRows.length} VIEW${sessionRows.length === 1 ? '' : 'S'}`"
 if old in text:
     Path(path).write_text(text.replace(old, "`SESSION VIEWS · ${sessionRows.length}`", 1))
+
+test_path = Path('scripts/builder-cli-contract-check.mjs')
+test_text = test_path.read_text()
+old_assert = "assert.match(formatBuilderCliSessionShow({ verb: 'show', target: 'bgp' }, operationalState, null), /SESSIONS/, 'BGP CLI view must project canonical BGP state even when empty');"
+if old_assert in test_text:
+    test_path.write_text(test_text.replace(old_assert, "assert.match(formatBuilderCliSessionShow({ verb: 'show', target: 'bgp' }, operationalState, null), /SESSION VIEWS/, 'BGP CLI view must project canonical BGP state even when empty');", 1))
