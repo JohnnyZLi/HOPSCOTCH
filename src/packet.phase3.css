@@ -6,7 +6,7 @@
 .packet-visual-workspace {
   width: calc(100% - 20px);
   max-width: none;
-  height: calc(100dvh - 76px);
+  height: calc(100dvh - 89px);
   min-height: 610px;
 }
 

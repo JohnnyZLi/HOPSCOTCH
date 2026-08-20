@@ -131,6 +131,7 @@ assert.ok(!asTheater.includes('className="internet-heading"'), 'AS Routing title
 assert.match(asCss, /\.as-cinematic-stage \{[\s\S]*position: absolute;/);
 assert.match(asCss, /\.as-cinematic-stage > \.internet-canvas-wrap \{[\s\S]*position: absolute;/);
 assert.match(asCss, /\.as-visual-workspace \{[\s\S]*width: calc\(100% - 20px\);[\s\S]*max-width: none;/);
+assert.match(asCss, /\.as-visual-workspace \{[\s\S]*height: calc\(100dvh - 89px\);/);
 
 assert.match(physical, /className="physical-visual-workspace interactive-world-workspace"/);
 assert.match(physical, /activeDrawer=\{activeDrawer\}/);
@@ -143,6 +144,7 @@ assert.match(physicalCss, /\.physical-cinematic-stage > \.globe-viewport[\s\S]*i
 assert.ok(!physical.includes('SELECT TWO FACILITIES'), 'Physical Atlas must not reserve an inactive corridor card');
 assert.match(physical, /\{\(corridorA \|\| corridorB\) && <article className=\{`physical-corridor-card/);
 assert.match(physicalCss, /\.physical-visual-workspace \{[\s\S]*width: calc\(100% - 20px\);[\s\S]*max-width: none;/);
+assert.match(physicalCss, /\.physical-visual-workspace \{[\s\S]*height: calc\(100dvh - 89px\);/);
 
 assert.match(packet, /className="packet-visual-workspace interactive-world-workspace"/);
 assert.match(packet, /packet-field-lens/);
@@ -156,6 +158,7 @@ assert.match(packetCss, /\.packet-visual-workspace \.packet-stage \{[\s\S]*posit
 assert.match(packetCss, /\.packet-visual-workspace \.visual-workspace__stage > \.packet-inspector \{[\s\S]*display: none;/);
 assert.match(packetCss, /\.packet-inspector\.packet-drawer-panel/);
 assert.match(packetCss, /\.packet-visual-workspace \{[\s\S]*width: calc\(100% - 20px\);[\s\S]*max-width: none;/);
+assert.match(packetCss, /\.packet-visual-workspace \{[\s\S]*height: calc\(100dvh - 89px\);/);
 
 assert.match(builder, /builder-visual-workspace interactive-world-workspace/);
 assert.match(builder, /data-builder-drawer=\{builderDrawer \?\? 'closed'\}/);
@@ -176,6 +179,7 @@ const builderHud = builder.match(/<div className="builder-stage-meta">([\s\S]*?)
 for (const state of ['PATH', 'FORWARDING', 'PROBE', 'OSPF', 'GRAPH']) assert.ok(builderHud.includes(`>${state}<`), `Builder HUD must retain high-value ${state} state`);
 for (const redundant of ['ROUTED POLICY', '>STATIC<', 'NAT/PAT']) assert.ok(!builderHud.includes(redundant), `Builder HUD must keep ${redundant.replaceAll(/[><]/g, '')} contextual`);
 assert.match(builderCss, /\.builder-workspace\.builder-visual-workspace \{[\s\S]*width: calc\(100% - 20px\);[\s\S]*max-width: none;/);
+assert.match(builderCss, /\.builder-workspace\.builder-visual-workspace \{[\s\S]*height: calc\(100dvh - 89px\);/);
 
 assert.match(app, /<FailureStoryWorkspace/);
 assert.ok(!app.includes('className="lab-workspace"'), 'App must not retain the legacy Failure Story dashboard shell');

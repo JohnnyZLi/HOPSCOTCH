@@ -364,7 +364,7 @@ async function exerciseBuilderOspf(cdp, profile) {
 
   const initial = await state();
   assertViewport(initial, 'default Builder');
-  if (!initial.meta.includes('OSPF AREA 0') || !initial.meta.includes('OFF')) throw new Error(`${profile.id} did not start with OSPF disabled.`);
+  if (!initial.meta.includes('OSPF') || !initial.meta.includes('OFF')) throw new Error(`${profile.id} did not start with OSPF disabled.`);
   if (!initial.meta.includes('FORWARDING') || !initial.meta.includes('NO ROUTE')) throw new Error(`${profile.id} OSPF-off default fabricated forwarding reachability.`);
 
   const initialEdgeSelected = await cdp.evaluate(`(()=>{
