@@ -82,7 +82,8 @@
 
 .journey-cinematic-stage .journey-scene {
   width: min(94%, 1060px);
-  min-height: min(62vh, 590px);
+  height: min(100%, 590px);
+  min-height: min(56vh, 430px);
   gap: 30px;
 }
 
@@ -113,6 +114,176 @@
 .journey-cinematic-stage .browser-frame section { padding: 76px 30px; }
 .journey-cinematic-stage .browser-frame section strong { font-size: 0.88rem; }
 .journey-cinematic-stage .browser-frame section p { max-width: 540px; font-size: 0.64rem; }
+
+/* The semantic scene, not empty stage area, carries each abstraction. */
+.journey-cinematic-stage .dns-scene {
+  grid-template-rows: minmax(190px, 1fr) auto auto;
+  align-items: center;
+}
+
+.journey-cinematic-stage .dns-chain {
+  position: relative;
+  min-height: 210px;
+  align-items: center;
+}
+
+.journey-cinematic-stage .dns-chain::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  right: 8%;
+  left: 8%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(121, 242, 218, 0.32) 12%, rgba(121, 242, 218, 0.12) 88%, transparent);
+}
+
+.journey-cinematic-stage .dns-chain > div {
+  position: relative;
+  z-index: 1;
+  gap: 13px;
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.journey-cinematic-stage .dns-chain > div.active { transform: scale(1.08); }
+
+.journey-cinematic-stage .dns-chain i {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  background: radial-gradient(circle, rgba(121, 242, 218, 0.08), #050b0f 68%);
+  box-shadow: 0 0 0 12px rgba(121, 242, 218, 0.018);
+}
+
+.journey-cinematic-stage .dns-chain i::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #52636b;
+  transform: translate(-50%, -50%);
+}
+
+.journey-cinematic-stage .dns-chain .active i {
+  box-shadow: 0 0 0 14px rgba(121, 242, 218, 0.035), 0 0 34px rgba(121, 242, 218, 0.24);
+}
+
+.journey-cinematic-stage .dns-chain .active i::after {
+  background: var(--cyan);
+  box-shadow: 0 0 14px rgba(121, 242, 218, 0.72);
+}
+
+.journey-cinematic-stage .dns-chain span { font-size: 0.59rem; }
+.journey-cinematic-stage .dns-answer { min-height: 86px; padding: 22px 30px; }
+.journey-cinematic-stage .dns-answer span,
+.journey-cinematic-stage .dns-answer strong { font-size: 0.94rem; }
+
+.journey-cinematic-stage .routing-scene {
+  grid-template-rows: minmax(250px, 1fr) auto;
+  align-items: stretch;
+}
+
+.journey-cinematic-stage .route-topology {
+  min-height: 250px;
+  align-items: center;
+}
+
+.journey-cinematic-stage .route-node {
+  min-width: 124px;
+  min-height: 120px;
+  align-content: center;
+  gap: 8px;
+}
+
+.journey-cinematic-stage .route-link { height: 2px; }
+.journey-cinematic-stage .route-table { min-height: 82px; align-content: center; padding: 17px 19px; }
+
+.journey-cinematic-stage .route-god-scene {
+  grid-template-rows: minmax(260px, 1fr) auto;
+}
+
+.journey-cinematic-stage .route-god-topology { min-height: 260px; }
+.journey-cinematic-stage .route-god-node { min-height: 118px; align-content: center; }
+.journey-cinematic-stage .route-branch-row { min-height: 70px; padding: 13px 15px; }
+.journey-cinematic-stage .route-god-metrics > div { min-height: 72px; align-content: center; padding: 13px 15px; }
+
+.journey-cinematic-stage .transport-scene {
+  grid-template-rows: auto minmax(190px, 1fr) auto;
+  align-items: stretch;
+}
+
+.journey-cinematic-stage .transport-endpoints > div {
+  min-height: 108px;
+  align-content: center;
+  gap: 8px;
+  padding: 22px;
+}
+
+.journey-cinematic-stage .transport-wire {
+  min-height: 190px;
+  height: auto;
+  border: 0;
+}
+
+.journey-cinematic-stage .transport-wire::before,
+.journey-cinematic-stage .transport-wire::after {
+  top: 50%;
+  width: 15px;
+  height: 15px;
+  transform: translateY(-50%);
+}
+
+.journey-cinematic-stage .transport-wire::before { left: 0; }
+.journey-cinematic-stage .transport-wire::after { right: 0; }
+.journey-cinematic-stage .transport-wire i { right: 0; left: 0; }
+.journey-cinematic-stage .transport-wire b { padding: 10px 13px; font-size: 0.55rem; }
+.journey-cinematic-stage .sequence-state > div { min-height: 76px; align-content: center; padding: 13px 15px; }
+
+.journey-cinematic-stage .tls-scene {
+  grid-template-rows: minmax(225px, 1fr) auto auto;
+  align-items: stretch;
+}
+
+.journey-cinematic-stage .tls-peers { min-height: 225px; }
+
+.journey-cinematic-stage .tls-peers > div:not(.tls-boundary) {
+  min-height: 160px;
+  align-content: center;
+  gap: 9px;
+  padding: 28px;
+  background: radial-gradient(circle at 50% 45%, rgba(121, 242, 218, 0.045), transparent 58%), #071017;
+}
+
+.journey-cinematic-stage .tls-peers span { font-size: 0.51rem; }
+.journey-cinematic-stage .tls-peers strong { font-size: 0.86rem; }
+.journey-cinematic-stage .tls-boundary { min-height: 150px; }
+.journey-cinematic-stage .tls-boundary b { padding: 16px 15px; font-size: 0.55rem; }
+.journey-cinematic-stage .tls-schedule span { min-height: 62px; display: grid; place-items: center; padding: 14px; font-size: 0.5rem; }
+
+.journey-cinematic-stage .http-scene { align-content: stretch; }
+.journey-cinematic-stage .http-request-line { min-height: 92px; align-items: center; padding: 22px 25px; }
+.journey-cinematic-stage .http-request-line span { font-size: 0.56rem; }
+.journey-cinematic-stage .http-request-line strong { font-size: 0.82rem; }
+.journey-cinematic-stage .http-stream { min-height: 86px; grid-template-columns: 112px 1fr 70px; gap: 18px; }
+.journey-cinematic-stage .http-stream > span { font-size: 0.51rem; }
+.journey-cinematic-stage .http-stream > i { height: 14px; }
+.journey-cinematic-stage .http-stream > strong { font-size: 0.59rem; }
+
+.journey-cinematic-stage .packet-scene { align-content: center; }
+.journey-cinematic-stage .packet-layers > div { min-height: 158px; align-content: center; gap: 9px; padding: 28px 16px; }
+.journey-cinematic-stage .packet-layers span { font-size: 0.51rem; }
+.journey-cinematic-stage .packet-layers strong { font-size: 0.75rem; }
+.journey-cinematic-stage .packet-bytes { gap: 8px; }
+.journey-cinematic-stage .packet-bytes b { padding: 10px; font-size: 0.62rem; }
+
+.journey-cinematic-stage .response-scene { place-items: center; }
+.journey-cinematic-stage .response-scene .browser-frame { width: min(94%, 960px); }
+.journey-cinematic-stage .response-scene .browser-frame section { min-height: 320px; place-content: center; padding: 80px 40px; }
+.journey-cinematic-stage .response-scene .browser-frame section b { font-size: 3.6rem; }
+.journey-cinematic-stage .response-scene .browser-frame section strong { font-size: 1rem; }
 
 .journey-depth-overlay {
   position: absolute;
@@ -356,13 +527,19 @@
   .journey-depth-overlay { top: auto; bottom: 18px; left: 14px; display: flex; width: auto; transform: none; }
   .journey-depth-overlay > div { grid-template-columns: 7px auto; }
   .journey-callout-overlay { right: 14px; bottom: 18px; width: min(330px, 46vw); }
+  .journey-cinematic-stage .dns-chain { min-height: 160px; }
+  .journey-cinematic-stage .route-topology,
+  .journey-cinematic-stage .route-god-topology { min-height: 205px; }
+  .journey-cinematic-stage .transport-wire { min-height: 145px; }
+  .journey-cinematic-stage .tls-peers { min-height: 185px; }
+  .journey-cinematic-stage .tls-peers > div:not(.tls-boundary) { min-height: 125px; }
 }
 
 @media (max-width: 680px) {
   .journey-visual-tools { min-width: 0; }
   .journey-visual-tools .visual-drawer-tabs { max-width: calc(100vw - 172px); }
   .journey-cinematic-stage .journey-scene-transition { inset: 105px 10px 132px; }
-  .journey-cinematic-stage .journey-scene { min-height: 300px; gap: 16px; }
+  .journey-cinematic-stage .journey-scene { height: 100%; min-height: 300px; gap: 16px; }
   .journey-cinematic-stage .journey-world { width: 100%; }
   .journey-depth-overlay { right: 8px; bottom: 88px; left: 8px; justify-content: center; gap: 4px; padding: 7px; }
   .journey-depth-overlay > div { gap: 4px; }
@@ -373,6 +550,34 @@
   .journey-callout-overlay p { font-size: 0.52rem; }
   .journey-callout-overlay button { display: none; }
   .journey-cinematic-stage .transport-endpoints > div { min-width: 0; padding: 12px; }
-  .journey-cinematic-stage .transport-wire { height: 72px; }
-  .journey-cinematic-stage .browser-frame section { padding: 42px 18px; }
+  .journey-cinematic-stage .transport-endpoints > div { min-height: 64px; }
+  .journey-cinematic-stage .transport-wire { min-height: 90px; height: 90px; }
+  .journey-cinematic-stage .dns-scene { grid-template-rows: minmax(105px, 1fr) auto auto; }
+  .journey-cinematic-stage .dns-chain { min-height: 105px; }
+  .journey-cinematic-stage .dns-chain i { width: 23px; height: 23px; box-shadow: none; }
+  .journey-cinematic-stage .dns-chain .active i { box-shadow: 0 0 18px rgba(121, 242, 218, 0.22); }
+  .journey-cinematic-stage .dns-chain span { font-size: 0.38rem; }
+  .journey-cinematic-stage .dns-answer { min-height: 54px; padding: 11px; }
+  .journey-cinematic-stage .dns-answer span,
+  .journey-cinematic-stage .dns-answer strong { font-size: 0.55rem; }
+  .journey-cinematic-stage .routing-scene,
+  .journey-cinematic-stage .route-god-scene { grid-template-rows: minmax(145px, 1fr) auto; }
+  .journey-cinematic-stage .route-topology,
+  .journey-cinematic-stage .route-god-topology { min-height: 145px; }
+  .journey-cinematic-stage .route-node { min-height: 72px; }
+  .journey-cinematic-stage .route-god-node { min-height: 62px; }
+  .journey-cinematic-stage .route-branch-row { min-height: 44px; padding: 8px; }
+  .journey-cinematic-stage .tls-scene { grid-template-rows: auto auto auto; }
+  .journey-cinematic-stage .tls-peers { min-height: 0; }
+  .journey-cinematic-stage .tls-peers > div:not(.tls-boundary) { min-height: 62px; padding: 10px; }
+  .journey-cinematic-stage .tls-boundary { min-height: 44px; }
+  .journey-cinematic-stage .tls-boundary b { padding: 7px 8px; font-size: 0.42rem; }
+  .journey-cinematic-stage .tls-schedule span { min-height: 38px; padding: 8px 4px; }
+  .journey-cinematic-stage .http-request-line { min-height: 60px; padding: 12px; }
+  .journey-cinematic-stage .http-stream { min-height: 54px; grid-template-columns: 70px 1fr 48px; gap: 8px; }
+  .journey-cinematic-stage .packet-layers > div { min-height: 78px; padding: 11px 7px; }
+  .journey-cinematic-stage .packet-bytes { gap: 4px; }
+  .journey-cinematic-stage .packet-bytes b { padding: 5px; font-size: 0.46rem; }
+  .journey-cinematic-stage .response-scene .browser-frame section { min-height: 190px; padding: 42px 18px; }
+  .journey-cinematic-stage .response-scene .browser-frame section b { font-size: 2.5rem; }
 }
