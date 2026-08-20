@@ -31,7 +31,7 @@ assert.match(sharedCss, /\.visual-drawer \{[\s\S]*position: absolute;/);
 assert.match(sharedCss, /\.visual-drawer-backdrop \{[\s\S]*position: absolute;/);
 assert.match(sharedCss, /\.visual-workspace__toolbar \{[\s\S]*position: absolute;/);
 assert.match(sharedCss, /\.visual-workspace__hud \{[\s\S]*position: absolute;/);
-assert.match(sharedCss, /height: calc\(100dvh - 86px\)/);
+assert.match(sharedCss, /height: calc\(100dvh - 89px\)/);
 assert.ok(!sharedCss.includes('grid-template-columns: minmax(0, 1fr) 350px'), 'shared visual shell must not reserve a permanent inspector column');
 
 assert.match(journey, /className="journey-visual-workspace"/);

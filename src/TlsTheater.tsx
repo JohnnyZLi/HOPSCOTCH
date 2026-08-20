@@ -84,12 +84,16 @@ export function TlsTheater({
     if (!root || reduceMotion) return;
     const animations: Array<ReturnType<typeof animate>> = [];
     const token = root.querySelector<HTMLElement>('.tls-message-token');
+    const wireStage = root.querySelector<HTMLElement>('.tls-wire-stage');
     const keyNodes = root.querySelectorAll('.tls-key-stage.active');
     const transcriptItems = root.querySelectorAll('.tls-transcript-item.current');
 
-    if (activeEvent.direction !== 'local' && token) {
+    if (activeEvent.direction !== 'local' && token && wireStage) {
       const leftToRight = activeEvent.direction === 'client-to-server';
-      animations.push(animate(token, { left: leftToRight ? ['12%', '88%'] : ['88%', '12%'], opacity: [0, 1, 1, 0.96], scale: [0.78, 1.04, 1], duration: 820, ease: 'inOutSine' }));
+      const endpoint = root.querySelector<HTMLElement>('.tls-endpoint');
+      const endpointOffset = endpoint ? endpoint.offsetLeft + endpoint.offsetWidth : 0;
+      const safeInset = Math.min(34, Math.max(12, ((endpointOffset + token.offsetWidth / 2 + 14) / Math.max(wireStage.clientWidth, 1)) * 100));
+      animations.push(animate(token, { left: leftToRight ? [`${safeInset}%`, `${100 - safeInset}%`] : [`${100 - safeInset}%`, `${safeInset}%`], opacity: [0, 1, 1, 0.96], scale: [0.78, 1.04, 1], duration: 820, ease: 'inOutSine' }));
     }
     if (keyNodes.length > 0) animations.push(animate(keyNodes, { opacity: [0.62, 1], translateY: [4, 0], delay: stagger(32), duration: 420, ease: 'outExpo' }));
     if (transcriptItems.length > 0) animations.push(animate(transcriptItems, { opacity: [0.35, 1], scale: [0.96, 1], duration: 360, ease: 'outExpo' }));

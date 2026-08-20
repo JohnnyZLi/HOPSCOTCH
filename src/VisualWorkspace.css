@@ -4,7 +4,7 @@
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   width: min(1680px, calc(100% - 32px));
-  height: calc(100dvh - 86px);
+  height: calc(100dvh - 89px);
   min-height: 570px;
   margin: 0 auto;
   overflow: hidden;
@@ -467,7 +467,7 @@
 @media (max-width: 680px) {
   .visual-workspace {
     width: 100%;
-    height: calc(100dvh - 70px);
+    height: calc(100dvh - 89px);
     min-height: 510px;
   }
 
@@ -544,7 +544,7 @@
 }
 
 @media (max-height: 720px) and (min-width: 681px) {
-  .visual-workspace { height: calc(100dvh - 72px); }
+  .visual-workspace { height: calc(100dvh - 89px); }
   .visual-workspace__hud { top: 56px; }
   .visual-time-rail { min-height: 58px; padding-block: 6px; }
   .visual-time-rail__track { height: 38px; }

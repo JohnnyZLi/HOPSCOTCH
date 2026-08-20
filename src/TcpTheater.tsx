@@ -115,7 +115,9 @@ export function TcpTheater({ onExit, onOpenPacket }: { onExit: () => void; onOpe
 
     if (activeEvent.direction !== 'local' && token && wireStage) {
       const leftToRight = activeEvent.direction === 'client-to-server';
-      const safeInset = Math.min(34, Math.max(11, ((token.offsetWidth / 2 + 10) / Math.max(wireStage.clientWidth, 1)) * 100));
+      const endpoint = root.querySelector<HTMLElement>('.tcp-endpoint');
+      const endpointOffset = endpoint ? endpoint.offsetLeft + endpoint.offsetWidth : 0;
+      const safeInset = Math.min(34, Math.max(11, ((endpointOffset + token.offsetWidth / 2 + 14) / Math.max(wireStage.clientWidth, 1)) * 100));
       const start = leftToRight ? `${safeInset}%` : `${100 - safeInset}%`;
       const end = leftToRight ? `${100 - safeInset}%` : `${safeInset}%`;
       const lost = activeEvent.kind === 'data.loss';
