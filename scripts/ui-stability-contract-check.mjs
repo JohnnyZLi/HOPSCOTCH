@@ -41,6 +41,10 @@ assert.ok(
   'overview scale changes must expose a travelling cursor plus bounded transition wave/ripple',
 );
 assert.ok(
+  app.includes('const activeLayerTop = 24.5 +') && app.includes('animate={{ top: activeLayerTop }}') && app.includes('className="layer-card-copy"'),
+  'scale explanation and connector must physically travel between rows while their contents resolve independently',
+);
+assert.ok(
   app.includes("setScaleDirection(nextIndex > currentIndex ? 'inward' : 'outward')"),
   'overview scale motion must preserve whether the user is diving inward or pulling outward',
 );

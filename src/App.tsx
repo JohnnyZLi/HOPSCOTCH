@@ -91,6 +91,7 @@ export default function App() {
   const [captureReturnPending, setCaptureReturnPending] = useState(false);
   const reduceMotion = useReducedMotion();
   const active = layers.find((item) => item.id === layer) ?? layers[0];
+  const activeLayerTop = 24.5 + Math.max(0, layers.findIndex((item) => item.id === layer)) * 52;
   const labState = useMemo(() => lab01StateAt(timeMs), [timeMs]);
   const activeEvent = useMemo(() => latestEventAtOrBefore(lab01Scenario, timeMs), [timeMs]);
   const activePath = lab01Scenario.paths.find((path) => path.id === labState.activePathId) ?? lab01Scenario.paths[0];
@@ -382,11 +383,15 @@ export default function App() {
               <div className="scale-inspector" data-active-scale={layer} data-direction={scaleDirection}>
                 {!reduceMotion && <motion.i key={`wave-${layer}`} className="scale-depth-wave" aria-hidden="true" initial={{ opacity: 0, scaleX: 0.03 }} animate={{ opacity: [0, 0.42, 0], scaleX: [0.03, 1, 1] }} transition={{ duration: 0.78, times: [0, 0.28, 1], ease: [0.16, 1, 0.3, 1] }} />}
                 {!reduceMotion && <motion.i key={`ripple-${layer}`} className="scale-depth-ripple" aria-hidden="true" initial={{ opacity: 0.52, scale: 0.3 }} animate={{ opacity: 0, scale: 1.75 }} transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1] }} />}
-                <motion.aside key={active.id} className="layer-card" aria-label={`${active.label} scale details`} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, x: 18, y: scaleDirection === 'inward' ? -10 : 10, scale: 0.985, filter: 'blur(10px)' }} animate={{ opacity: 1, x: 0, y: 0, scale: 1, filter: 'blur(0px)' }} transition={{ duration: 0.52, ease: [0.16, 1, 0.3, 1] }}>
-                  <motion.i className="scale-connector" aria-hidden="true" initial={reduceMotion ? false : { opacity: 0, scaleX: 0 }} animate={{ opacity: 1, scaleX: 1 }} transition={{ delay: 0.04, duration: 0.34, ease: [0.16, 1, 0.3, 1] }} />
-                  <motion.p initial={reduceMotion ? false : { opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1, duration: 0.34 }}>{active.description}</motion.p>
-                  <motion.div className="card-rule" initial={reduceMotion ? false : { scaleX: 0, opacity: 0 }} animate={{ scaleX: 1, opacity: 1 }} transition={{ delay: 0.16, duration: 0.38, ease: [0.16, 1, 0.3, 1] }} />
-                  <motion.small initial={reduceMotion ? false : { opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.24, duration: 0.3 }}>{layer === 'packet' ? 'PACKET MICROSCOPE READY' : layer === 'transport' ? 'TCP PROTOCOL THEATER READY' : layer === 'application' ? 'HTTP + TLS + DNS THEATER READY' : layer === 'routing' ? 'DYNAMIC NETWORK BUILDER READY' : 'PHYSICAL + SIMULATED + OBSERVED INTERNET MODES READY'}</motion.small>
+                <motion.aside className="layer-card" aria-label={`${active.label} scale details`} initial={false} animate={{ top: activeLayerTop }} transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 220, damping: 27, mass: 0.75 }}>
+                  <motion.i className="scale-connector" aria-hidden="true" initial={false} animate={{ opacity: 1, scaleX: 1 }} transition={{ duration: reduceMotion ? 0 : 0.24 }} />
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.div key={active.id} className="layer-card-copy" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, x: 16, y: scaleDirection === 'inward' ? -8 : 8, filter: 'blur(9px)' }} animate={{ opacity: 1, x: 0, y: 0, filter: 'blur(0px)' }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -8, y: scaleDirection === 'inward' ? 5 : -5, filter: 'blur(5px)' }} transition={{ duration: reduceMotion ? 0 : 0.24, ease: [0.16, 1, 0.3, 1] }}>
+                      <motion.p initial={reduceMotion ? false : { opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.04, duration: 0.28 }}>{active.description}</motion.p>
+                      <motion.div className="card-rule" initial={reduceMotion ? false : { scaleX: 0, opacity: 0 }} animate={{ scaleX: 1, opacity: 1 }} transition={{ delay: 0.08, duration: 0.3, ease: [0.16, 1, 0.3, 1] }} />
+                      <motion.small initial={reduceMotion ? false : { opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.13, duration: 0.24 }}>{layer === 'packet' ? 'PACKET MICROSCOPE READY' : layer === 'transport' ? 'TCP PROTOCOL THEATER READY' : layer === 'application' ? 'HTTP + TLS + DNS THEATER READY' : layer === 'routing' ? 'DYNAMIC NETWORK BUILDER READY' : 'PHYSICAL + SIMULATED + OBSERVED INTERNET MODES READY'}</motion.small>
+                    </motion.div>
+                  </AnimatePresence>
                 </motion.aside>
                 <nav className="scale-rail" aria-label="Network scale">
                   {layers.map((item) => {
