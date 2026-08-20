@@ -2,15 +2,15 @@
 
 **See the Internet happen.**
 
-HOPSCOTCH is an interactive network-systems laboratory for making invisible behavior visible—from individual packet bytes and transport recovery to enterprise routing, overlays, public Internet evidence, and a complete application request moving through a deterministic network.
+HOPSCOTCH is an interactive network-systems laboratory for making invisible behavior visible—from individual packet bytes and transport recovery to enterprise routing, overlays, public Internet evidence, troubleshooting, CLI operations, deterministic explanations, and a complete application request moving through a canonical network.
 
-It is not a Packet Tracer clone. HOPSCOTCH treats **time, causality, abstraction, and provenance** as first-class parts of the model. Animation is a projection of canonical state; it never creates network truth.
+It is not a Packet Tracer clone. HOPSCOTCH treats **time, causality, abstraction, and provenance** as first-class parts of the model. Animation and explanation are projections of canonical state; neither creates network truth.
 
 ## Product model
 
 HOPSCOTCH deliberately keeps different kinds of truth separate:
 
-- `SIMULATED` — deterministic Builder, Journey, protocol, packet, routing, policy, queue, and overlay state.
+- `SIMULATED` — deterministic Builder, Journey, protocol, packet, routing, policy, queue, overlay, troubleshooting, CLI, and explanation state.
 - `CAPTURED` — immutable bytes and fields decoded from an explicitly selected PCAP/PCAPNG file.
 - `INFERRED` — relationships or conclusions derived from evidence without pretending they were directly observed.
 - `IMPORTED EVIDENCE` — user-selected runtime evidence such as traceroute, route-table, interface, or device-state snapshots.
@@ -39,8 +39,11 @@ Implemented depth includes:
 - packet queues, serialization delay, ECN/tail drop, bandwidth sharing, traffic generators, fragmentation/PTB/PMTUD, and transport congestion response
 - GRE/IP-in-IP, bounded encrypted-tunnel semantics, MPLS, VXLAN, and EVPN
 - a Builder-wide deterministic time machine, historical state, protocol databases/counters, and causal `WHY?` diagnosis from the first broken truth boundary
+- deterministic troubleshooting challenges that mutate ordinary canonical configuration and score evidence, reasoning, repair, and objective verification
+- a vendor-neutral terminal for canonical inspection, IPv4/IPv6 probes, routed device context, and bounded configuration changes through the same Builder mutation paths as the GUI
+- an `EXPLAIN` workspace that projects structured cause/effect facts and exact evidence references for network, route, OSPF, policy, packet, application, and event outcomes
 
-The Builder does not maintain separate hidden simulators for application traffic, overlays, troubleshooting, or presentation. Those surfaces consume the same canonical state.
+The Builder does not maintain separate hidden simulators for application traffic, overlays, troubleshooting, CLI, explanation, or presentation. Those surfaces consume the same canonical state and existing protocol/data-plane engines.
 
 ### Packet Microscope
 
@@ -98,6 +101,34 @@ Measured traceroute hops never inherit ASN, facility, or geography claims from u
 - Three.js/WebGL physical Internet globe with honest fallback behavior
 - explicit separation between observed/public evidence and inferred geometric corridors
 
+### Troubleshooting challenges · Track J
+
+Track J turns the ordinary Builder into a deterministic troubleshooting environment rather than adding a challenge-only simulator.
+
+It includes single-fault families spanning addressing, DNS, L2, routing, policy, transport, BGP, DHCP, IPv6/PMTU, NAT, ACLs, and bounded two-fault composition. Challenge scoring rewards evidence gathering, causal reasoning, exact canonical repair, and objective post-repair verification. Shareable challenge tokens reproduce the same canonical broken state.
+
+### Vendor-neutral Builder CLI · Track K
+
+Track K provides one terminal over the same Builder truth used by the GUI and Device Workbench.
+
+It supports canonical route/interface/ARP/MAC/OSPF/BGP/ACL/NAT inspection, terminal-local routed-device context, IPv4/IPv6 Ping and Traceroute through the existing probe engines, and bounded configuration commands for OSPF/BGP enablement, endpoint gateway, routed-link state, and static routes. Time Machine remains inspection-only. HOPSCOTCH deliberately does not emulate IOS, Junos, FRR, or device images.
+
+### Explain This Network · Track L
+
+Track L adds deterministic explanation without giving prose or AI authority over the simulator.
+
+The explanation engine first emits a versioned structured fact graph with exact `CONFIG`, `STATE`, `OUTCOME`, and `EVENT` citations. The lazy Builder workspace can explain:
+
+- the current network objective and major protocol/policy state
+- why a route won in the RIB and what the FIB is actually forwarding, including explicit convergence divergence
+- why an OSPF adjacency is `FULL` or `DOWN`
+- why ACL policy permitted or denied the current flow
+- why a recorded Ping/Traceroute attempt produced its immutable packet outcome
+- why an application transaction succeeded or stopped at its first broken dependency
+- why a recorded causal event followed from earlier journal events
+
+`NOVICE`, `OPERATIONAL`, and `PROTOCOL DETAIL` modes change wording only; they preserve the same structured facts and evidence references. A machine-readable query pack may be used by an AI to summarize or answer from cited facts, but it explicitly cannot decide routing, forwarding, policy, protocol state, mutations, outcomes, or provenance.
+
 ## Architecture
 
 ```text
@@ -114,7 +145,7 @@ workspace-specific camera
 Motion / Anime.js / SVG / Canvas / WebGL presentation
 ```
 
-Heavy workspaces are loaded behind lazy boundaries so the overview shell does not absorb Builder, protocol, measured, capture, or Three.js implementation cost at startup.
+Heavy workspaces are loaded behind lazy boundaries so the overview shell does not absorb Builder, protocol, measured, capture, CLI, explanation, or Three.js implementation cost at startup.
 
 See `docs/ARCHITECTURE.md` for the system boundary, `docs/ROADMAP.md` for active product work, `docs/ROADMAP-MOONSHOTS.md` for deliberately long-horizon ideas, and the individual `docs/TRACK*.md` records for completed track architecture.
 
@@ -131,16 +162,17 @@ The completed active integration/depth tracks are:
 - **Track F** — routing + policy depth
 - **Track G** — service-provider + overlay networking
 - **Track I** — native companion/public evidence correlation
+- **Track J** — deterministic troubleshooting challenges
+- **Track K** — vendor-neutral Builder CLI
+- **Track L** — deterministic Explain This Network layer
 
-The current priority is **Track J — deterministic troubleshooting challenges**. Challenges are intended to generate broken networks from canonical configuration/state, use the normal Builder inspection/probe surfaces, and score evidence gathering plus causal reasoning rather than only the final repair.
-
-Track K then deepens the existing vendor-neutral read-only CLI foundation into an actual Builder terminal surface and, later, bounded configuration commands that mutate the same canonical configuration as the GUI.
+The regular A–L product roadmap is implemented. The next priority is integrated product hardening: make the completed simulation, evidence, troubleshooting, CLI, and explanation layers work as one coherent product, while keeping the existing performance, provenance, and canonical-truth boundaries intact rather than inventing another lettered track by default.
 
 ## Performance and validation
 
 The repository treats performance and compatibility as product contracts rather than informal targets.
 
-`npm run check` runs TypeScript validation plus the Builder, Journey, capture, measurement, navigation/product, and native-companion contract suites before the production build.
+`npm run check` runs TypeScript validation plus the Builder, Journey, capture, measurement, navigation/product, native-companion, CLI, troubleshooting, and explanation contract suites before the production build.
 
 The dedicated production profiler enforces versioned structural/semantic budgets for:
 
