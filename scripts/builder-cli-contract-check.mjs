@@ -2,10 +2,13 @@ import assert from 'node:assert/strict';
 import { createDefaultBuilderAddressing, interfacesForBuilderNode } from '../src/builder/addressing.ts';
 import {
   BuilderCliCommandError,
+  executeBuilderCliCommand,
   formatBuilderCliCommand,
+  formatBuilderCliProbeResult,
   parseBuilderCliCommand,
   projectBuilderCliCommand,
   projectBuilderCliState,
+  resolveBuilderCliProbeDestination,
 } from '../src/builder/cli.ts';
 import { defaultBuilderGraph } from '../src/builder/model.ts';
 import { createDefaultBuilderRoutingConfig } from '../src/builder/routing.ts';
@@ -44,6 +47,8 @@ const beforeProjection = structuredClone(suppliedState);
 
 assert.deepEqual(parseBuilderCliCommand('  ShOw\tRoUtE  '), { verb: 'show', target: 'route' });
 assert.deepEqual(parseBuilderCliCommand('SHOW INTERFACES'), { verb: 'show', target: 'interfaces' });
+assert.deepEqual(parseBuilderCliCommand(' PiNg\tAPP '), { verb: 'ping', destination: 'APP' });
+assert.deepEqual(parseBuilderCliCommand('TRACEROUTE core'), { verb: 'traceroute', destination: 'core' });
 
 const interfaceOutput = projectBuilderCliCommand('show interfaces', suppliedState);
 const routeOutput = projectBuilderCliCommand('show route', suppliedState);
@@ -99,19 +104,30 @@ const rejected = [
   ['show', 'AMBIGUOUS_COMMAND'],
   ['show routes', 'UNSUPPORTED_COMMAND'],
   ['show route detail', 'UNSUPPORTED_SYNTAX'],
+  ['ping', 'AMBIGUOUS_COMMAND'],
+  ['ping app extra', 'UNSUPPORTED_SYNTAX'],
+  ['traceroute', 'AMBIGUOUS_COMMAND'],
   ['configure terminal', 'UNSUPPORTED_COMMAND'],
   ['interface eth0', 'UNSUPPORTED_COMMAND'],
   ['no shutdown', 'UNSUPPORTED_COMMAND'],
-  ['ping 10.0.0.1', 'UNSUPPORTED_COMMAND'],
-  ['traceroute 203.0.113.1', 'UNSUPPORTED_COMMAND'],
 ];
 for (const [command, code] of rejected) {
   assert.throws(
-    () => projectBuilderCliCommand(command, suppliedState),
+    () => parseBuilderCliCommand(command),
     (error) => error instanceof BuilderCliCommandError && error.code === code,
     `${JSON.stringify(command)} must fail closed with ${code}`,
   );
 }
+assert.throws(
+  () => projectBuilderCliCommand('ping app', suppliedState),
+  (error) => error instanceof BuilderCliCommandError && error.code === 'EXECUTION_REQUIRED',
+  'active probe commands must not be projected as read-only show output',
+);
+assert.throws(
+  () => executeBuilderCliCommand('traceroute app', { state: suppliedState, probeUnavailableReason: 'Time Machine is read only.' }),
+  (error) => error instanceof BuilderCliCommandError && error.code === 'READ_ONLY_CONTEXT' && /Time Machine/.test(error.message),
+  'active probes must fail closed when the execution context is read only',
+);
 
 assert.equal(formatBuilderCliCommand({ verb: 'show', target: 'route' }, suppliedState), routeOutput);
 assert.deepEqual(suppliedState, beforeProjection, 'the CLI projection must not mutate supplied canonical facts');
@@ -153,4 +169,56 @@ assert.equal(historicalProjection.interfaces.find((entry) => entry.deviceId === 
 assert.deepEqual(historicalProjection.routes, liveProjection.routes, 'historical CLI projection must honor an explicit RIB truth graph independently of physical interface state');
 assert.match(projectBuilderCliCommand('show interfaces', liveProjection), /^DEVICE\s+INTERFACE\s+ADDRESS\s+LINK\s+PROTOCOL/m);
 
-console.log('Builder CLI contract passed: four read-only show projections, deterministic parsing/order, canonical live/historical state adapter, explicit empty state, fail-closed syntax, and immutable supplied truth.');
+const destinationNode = graph.nodes.find((node) => node.id === 'app') ?? graph.nodes.at(-1);
+assert.ok(destinationNode, 'default Builder graph must expose a routed destination');
+const destinationAddress = interfacesForBuilderNode(addressing, destinationNode.id)[0]?.address;
+assert.ok(destinationAddress, 'default routed destination must expose an IPv4 address');
+assert.equal(resolveBuilderCliProbeDestination({ graph, addressing }, destinationNode.id.toUpperCase()).nodeId, destinationNode.id, 'node ids resolve case-insensitively');
+assert.equal(resolveBuilderCliProbeDestination({ graph, addressing }, destinationNode.label.toUpperCase()).nodeId, destinationNode.id, 'unique labels resolve case-insensitively');
+assert.equal(resolveBuilderCliProbeDestination({ graph, addressing }, destinationAddress).nodeId, destinationNode.id, 'configured IPv4 addresses resolve to routed nodes');
+assert.equal(resolveBuilderCliProbeDestination({ graph, addressing }, `${destinationAddress}/30`).nodeId, destinationNode.id, 'CIDR-suffixed IPv4 input resolves by host address');
+assert.throws(
+  () => resolveBuilderCliProbeDestination({ graph, addressing }, 'not-a-node'),
+  (error) => error instanceof BuilderCliCommandError && error.code === 'UNKNOWN_DESTINATION',
+);
+const ambiguousGraph = structuredClone(graph);
+ambiguousGraph.nodes = ambiguousGraph.nodes.map((node, index) => index < 2 ? { ...node, label: 'DUPLICATE' } : node);
+assert.throws(
+  () => resolveBuilderCliProbeDestination({ graph: ambiguousGraph, addressing }, 'duplicate'),
+  (error) => error instanceof BuilderCliCommandError && error.code === 'AMBIGUOUS_DESTINATION',
+);
+
+const fakePing = deepFreeze({
+  id: 'probe-7-ping', sequence: 7, kind: 'ping', plane: 'ROUTED IPV4', sourceNodeId: 'client', destinationNodeId: destinationNode.id,
+  sourceAddress: '10.0.0.1', destinationAddress, success: true,
+  attempts: [{ index: 0, ttl: 64, status: 'echo-reply', responderNodeId: destinationNode.id, responderAddress: destinationAddress, requestNodeIds: ['client', 'edge', 'core', destinationNode.id], requestLinkIds: ['client-edge', 'edge-core', 'core-app'], responseNodeIds: [destinationNode.id, 'core', 'edge', 'client'], responseLinkIds: ['core-app', 'edge-core', 'client-edge'], detail: 'Existing Builder probe engine delivered an Echo Reply.', packet: null, simulatedRttMs: 3.25, jitterMs: 0.5, bottleneckMbps: 1000, pathMtuBytes: 1500, pathLossPercent: 0, dropLinkId: null, natDetail: null }],
+  summary: 'APP replied.', snapshotNote: 'session only', natApplied: false, natTranslationId: null, natSessions: [],
+});
+const fakeTrace = deepFreeze({
+  ...fakePing,
+  id: 'probe-8-traceroute', sequence: 8, kind: 'traceroute',
+  attempts: [
+    { ...fakePing.attempts[0], index: 0, ttl: 1, status: 'time-exceeded', responderNodeId: 'edge', responderAddress: '10.0.0.2', simulatedRttMs: 1.1 },
+    { ...fakePing.attempts[0], index: 1, ttl: 2, status: 'time-exceeded', responderNodeId: 'core', responderAddress: '10.0.0.5', simulatedRttMs: 2.2 },
+    { ...fakePing.attempts[0], index: 2, ttl: 3, status: 'echo-reply', responderNodeId: destinationNode.id, responderAddress: destinationAddress, simulatedRttMs: 3.25 },
+  ],
+  summary: 'Destination reached at TTL 3.',
+});
+assert.match(formatBuilderCliProbeResult(fakePing), /^PING · client · 10\.0\.0\.1 → /);
+assert.match(formatBuilderCliProbeResult(fakePing), /RESULT PASS · ECHO REPLY/);
+assert.match(formatBuilderCliProbeResult(fakePing), /RTT 3\.25 ms · PATH MTU 1500 · LOSS 0\.0000%/);
+assert.match(formatBuilderCliProbeResult(fakeTrace), /^TRACEROUTE · /);
+assert.match(formatBuilderCliProbeResult(fakeTrace), /TTL\s+STATUS\s+RESPONDER\s+ADDRESS\s+RTT MS/);
+assert.match(formatBuilderCliProbeResult(fakeTrace), /TIME EXCEEDED\s+edge/);
+
+let requestedProbe = null;
+const executedPing = executeBuilderCliCommand(`ping ${destinationNode.id}`, {
+  state: liveProjection,
+  runProbe: (command) => { requestedProbe = command; return fakePing; },
+});
+assert.deepEqual(requestedProbe, { verb: 'ping', destination: destinationNode.id }, 'CLI execution must delegate the parsed probe request instead of deciding network truth');
+assert.equal(executedPing.probeResult, fakePing, 'CLI execution must return the exact Builder probe result supplied by the engine callback');
+assert.equal(executedPing.output, formatBuilderCliProbeResult(fakePing), 'CLI output must be a formatter over the supplied Builder probe result');
+assert.deepEqual(liveProjectionInput, liveProjectionBefore, 'active-command parsing/formatting must not mutate canonical projection input');
+
+console.log('Builder CLI contract passed: deterministic show projections, canonical live/historical state adapter, vendor-neutral ping/traceroute parsing + destination resolution, delegated probe execution/formatting, read-only Time Machine failure, fail-closed unsupported syntax, and immutable supplied truth.');

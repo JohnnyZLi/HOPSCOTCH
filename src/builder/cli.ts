@@ -2,22 +2,36 @@ import { interfacesForBuilderNode, type BuilderAddressing } from './addressing.t
 import type { BuilderArpCacheEntry } from './arp.ts';
 import type { BuilderEthernetFdbEntry, BuilderEthernetFlowResult } from './ethernet.ts';
 import type { BuilderGraph } from './model.ts';
+import type { BuilderProbeKind, BuilderProbeResult } from './probes.ts';
 import { routeTableForBuilderRouter, type BuilderRouteTableEntry, type BuilderRoutingConfig } from './routing.ts';
 
 export const BUILDER_CLI_SHOW_TARGETS = Object.freeze(['interfaces', 'route', 'arp', 'mac'] as const);
+export const BUILDER_CLI_PROBE_VERBS = Object.freeze(['ping', 'traceroute'] as const);
 
 export type BuilderCliShowTarget = (typeof BUILDER_CLI_SHOW_TARGETS)[number];
+export type BuilderCliProbeVerb = (typeof BUILDER_CLI_PROBE_VERBS)[number];
 
-export interface BuilderCliCommand {
+export interface BuilderCliShowCommand {
   readonly verb: 'show';
   readonly target: BuilderCliShowTarget;
 }
+
+export interface BuilderCliProbeCommand {
+  readonly verb: BuilderCliProbeVerb;
+  readonly destination: string;
+}
+
+export type BuilderCliCommand = BuilderCliShowCommand | BuilderCliProbeCommand;
 
 export type BuilderCliCommandErrorCode =
   | 'EMPTY_COMMAND'
   | 'AMBIGUOUS_COMMAND'
   | 'UNSUPPORTED_COMMAND'
-  | 'UNSUPPORTED_SYNTAX';
+  | 'UNSUPPORTED_SYNTAX'
+  | 'EXECUTION_REQUIRED'
+  | 'READ_ONLY_CONTEXT'
+  | 'UNKNOWN_DESTINATION'
+  | 'AMBIGUOUS_DESTINATION';
 
 export class BuilderCliCommandError extends Error {
   readonly code: BuilderCliCommandErrorCode;
@@ -70,6 +84,29 @@ export interface BuilderCliProjectionInput {
   readonly ethernetFlow: Readonly<Pick<BuilderEthernetFlowResult, 'fdb'>> | null;
 }
 
+export interface BuilderCliProbeDestinationInput {
+  readonly graph: BuilderGraph;
+  readonly addressing: BuilderAddressing;
+}
+
+export interface BuilderCliResolvedDestination {
+  readonly nodeId: string;
+  readonly label: string;
+  readonly address: string | null;
+}
+
+export interface BuilderCliExecutionContext {
+  readonly state: BuilderCliState;
+  readonly runProbe?: (command: BuilderCliProbeCommand) => BuilderProbeResult;
+  readonly probeUnavailableReason?: string;
+}
+
+export interface BuilderCliExecutionResult {
+  readonly command: BuilderCliCommand;
+  readonly output: string;
+  readonly probeResult: BuilderProbeResult | null;
+}
+
 function commandLabel(input: string): string {
   return JSON.stringify(input.trim());
 }
@@ -81,36 +118,50 @@ export function parseBuilderCliCommand(input: string): BuilderCliCommand {
   }
 
   const tokens = trimmed.split(/\s+/);
-  if (tokens[0].toLowerCase() !== 'show') {
-    throw new BuilderCliCommandError(
-      'UNSUPPORTED_COMMAND',
-      `Unsupported command ${commandLabel(input)}. This read-only slice accepts only explicit show commands.`,
-    );
+  const verb = tokens[0].toLowerCase();
+  if (verb === 'show') {
+    if (tokens.length === 1) {
+      throw new BuilderCliCommandError(
+        'AMBIGUOUS_COMMAND',
+        `Ambiguous command ${commandLabel(input)}. Specify one of: ${BUILDER_CLI_SHOW_TARGETS.join(', ')}.`,
+      );
+    }
+    if (tokens.length !== 2) {
+      throw new BuilderCliCommandError(
+        'UNSUPPORTED_SYNTAX',
+        `Unsupported syntax ${commandLabel(input)}. Expected exactly "show <target>".`,
+      );
+    }
+    const target = tokens[1].toLowerCase();
+    if (!BUILDER_CLI_SHOW_TARGETS.some((candidate) => candidate === target)) {
+      throw new BuilderCliCommandError(
+        'UNSUPPORTED_COMMAND',
+        `Unsupported show target ${JSON.stringify(tokens[1])}. Supported targets: ${BUILDER_CLI_SHOW_TARGETS.join(', ')}.`,
+      );
+    }
+    return Object.freeze({ verb: 'show', target }) as BuilderCliShowCommand;
   }
 
-  if (tokens.length === 1) {
-    throw new BuilderCliCommandError(
-      'AMBIGUOUS_COMMAND',
-      `Ambiguous command ${commandLabel(input)}. Specify one of: ${BUILDER_CLI_SHOW_TARGETS.join(', ')}.`,
-    );
+  if (BUILDER_CLI_PROBE_VERBS.some((candidate) => candidate === verb)) {
+    if (tokens.length === 1) {
+      throw new BuilderCliCommandError(
+        'AMBIGUOUS_COMMAND',
+        `Ambiguous command ${commandLabel(input)}. Specify one routed destination by node id, label, or IPv4 address.`,
+      );
+    }
+    if (tokens.length !== 2) {
+      throw new BuilderCliCommandError(
+        'UNSUPPORTED_SYNTAX',
+        `Unsupported syntax ${commandLabel(input)}. Expected exactly "${verb} <destination>".`,
+      );
+    }
+    return Object.freeze({ verb: verb as BuilderCliProbeVerb, destination: tokens[1] });
   }
 
-  if (tokens.length !== 2) {
-    throw new BuilderCliCommandError(
-      'UNSUPPORTED_SYNTAX',
-      `Unsupported syntax ${commandLabel(input)}. Expected exactly "show <target>".`,
-    );
-  }
-
-  const target = tokens[1].toLowerCase();
-  if (!BUILDER_CLI_SHOW_TARGETS.some((candidate) => candidate === target)) {
-    throw new BuilderCliCommandError(
-      'UNSUPPORTED_COMMAND',
-      `Unsupported show target ${JSON.stringify(tokens[1])}. Supported targets: ${BUILDER_CLI_SHOW_TARGETS.join(', ')}.`,
-    );
-  }
-
-  return Object.freeze({ verb: 'show', target }) as BuilderCliCommand;
+  throw new BuilderCliCommandError(
+    'UNSUPPORTED_COMMAND',
+    `Unsupported command ${commandLabel(input)}. Supported verbs: show, ping, traceroute.`,
+  );
 }
 
 function linkState(graph: BuilderGraph, linkId: string): 'UP' | 'DOWN' | 'UNKNOWN' {
@@ -139,6 +190,42 @@ export function projectBuilderCliState(input: BuilderCliProjectionInput): Builde
     arpEntries: input.arpCache.map((entry) => ({ ...entry })),
     macEntries: (input.ethernetFlow?.fdb ?? []).map((entry) => ({ ...entry })),
   };
+}
+
+function addressOnly(value: string): string {
+  return value.trim().toLowerCase().split('/')[0] ?? value.trim().toLowerCase();
+}
+
+export function resolveBuilderCliProbeDestination(input: BuilderCliProbeDestinationInput, target: string): BuilderCliResolvedDestination {
+  const normalized = target.trim().toLowerCase();
+  const normalizedAddress = addressOnly(target);
+  const matches = new Map<string, BuilderCliResolvedDestination>();
+
+  for (const node of input.graph.nodes) {
+    const interfaces = interfacesForBuilderNode(input.addressing, node.id);
+    const matchingInterface = interfaces.find((entry) => addressOnly(entry.address) === normalizedAddress);
+    if (node.id.toLowerCase() === normalized || node.label.toLowerCase() === normalized || matchingInterface) {
+      matches.set(node.id, {
+        nodeId: node.id,
+        label: node.label,
+        address: matchingInterface?.address ?? interfaces[0]?.address ?? null,
+      });
+    }
+  }
+
+  if (matches.size === 0) {
+    throw new BuilderCliCommandError(
+      'UNKNOWN_DESTINATION',
+      `Unknown routed destination ${JSON.stringify(target)}. Use a Builder node id, unique label, or configured IPv4 address.`,
+    );
+  }
+  if (matches.size > 1) {
+    throw new BuilderCliCommandError(
+      'AMBIGUOUS_DESTINATION',
+      `Ambiguous routed destination ${JSON.stringify(target)}. Use a unique Builder node id or IPv4 address.`,
+    );
+  }
+  return [...matches.values()][0];
 }
 
 function compareText(left: string, right: string): number {
@@ -235,7 +322,7 @@ function formatMac(state: BuilderCliState): string {
   return formatTable(['SWITCH', 'VLAN', 'MAC', 'PORT', 'LEARNED FROM'], rows);
 }
 
-export function formatBuilderCliCommand(command: BuilderCliCommand, state: BuilderCliState): string {
+export function formatBuilderCliCommand(command: BuilderCliShowCommand, state: BuilderCliState): string {
   switch (command.target) {
     case 'interfaces': return formatInterfaces(state);
     case 'route': return formatRoutes(state);
@@ -244,6 +331,72 @@ export function formatBuilderCliCommand(command: BuilderCliCommand, state: Build
   }
 }
 
+function probeStatusLabel(value: string): string {
+  return value.replaceAll('-', ' ').toUpperCase();
+}
+
+function formatProbeMetric(value: number | null, suffix = ''): string {
+  return value == null ? '—' : `${value}${suffix}`;
+}
+
+export function formatBuilderCliProbeResult(result: BuilderProbeResult): string {
+  const source = `${result.sourceNodeId}${result.sourceAddress ? ` · ${result.sourceAddress}` : ''}`;
+  const destination = `${result.destinationNodeId}${result.destinationAddress ? ` · ${result.destinationAddress}` : ''}`;
+  if (result.kind === 'ping') {
+    const attempt = result.attempts.at(-1) ?? null;
+    const lines = [
+      `PING · ${source} → ${destination}`,
+      `RESULT ${result.success ? 'PASS' : 'FAIL'}${attempt ? ` · ${probeStatusLabel(attempt.status)}` : ''}`,
+    ];
+    if (attempt) {
+      lines.push(`RTT ${formatProbeMetric(attempt.simulatedRttMs, ' ms')} · PATH MTU ${formatProbeMetric(attempt.pathMtuBytes)} · LOSS ${attempt.pathLossPercent.toFixed(4)}%`);
+      if (attempt.requestNodeIds.length > 0) lines.push(`PATH ${attempt.requestNodeIds.join(' → ')}`);
+      lines.push(`DETAIL ${attempt.detail}`);
+    }
+    if (result.natApplied) lines.push(`NAT ${result.natTranslationId ?? 'TRANSLATION APPLIED'}`);
+    lines.push(`SUMMARY ${result.summary}`);
+    return lines.join('\n');
+  }
+
+  const rows = result.attempts.map((attempt) => [
+    String(attempt.ttl),
+    probeStatusLabel(attempt.status),
+    attempt.responderNodeId ?? '*',
+    attempt.responderAddress ?? '—',
+    formatProbeMetric(attempt.simulatedRttMs),
+  ]);
+  const lines = [
+    `TRACEROUTE · ${source} → ${destination}`,
+    rows.length > 0 ? formatTable(['TTL', 'STATUS', 'RESPONDER', 'ADDRESS', 'RTT MS'], rows) : 'No traceroute attempts produced.',
+    `RESULT ${result.success ? 'PASS' : 'FAIL'}`,
+  ];
+  if (result.natApplied) lines.push(`NAT ${result.natTranslationId ?? 'TRANSLATION APPLIED'}`);
+  lines.push(`SUMMARY ${result.summary}`);
+  return lines.join('\n');
+}
+
 export function projectBuilderCliCommand(input: string, state: BuilderCliState): string {
-  return formatBuilderCliCommand(parseBuilderCliCommand(input), state);
+  const command = parseBuilderCliCommand(input);
+  if (command.verb !== 'show') {
+    throw new BuilderCliCommandError(
+      'EXECUTION_REQUIRED',
+      `${command.verb.toUpperCase()} is an active probe command and must run through the Builder probe engine.`,
+    );
+  }
+  return formatBuilderCliCommand(command, state);
+}
+
+export function executeBuilderCliCommand(input: string, context: BuilderCliExecutionContext): BuilderCliExecutionResult {
+  const command = parseBuilderCliCommand(input);
+  if (command.verb === 'show') {
+    return { command, output: formatBuilderCliCommand(command, context.state), probeResult: null };
+  }
+  if (!context.runProbe) {
+    throw new BuilderCliCommandError(
+      'READ_ONLY_CONTEXT',
+      context.probeUnavailableReason ?? 'Active probe commands are unavailable in this terminal context.',
+    );
+  }
+  const probeResult = context.runProbe(command);
+  return { command, output: formatBuilderCliProbeResult(probeResult), probeResult };
 }

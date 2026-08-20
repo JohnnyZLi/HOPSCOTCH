@@ -10,55 +10,72 @@ The command parser may decide whether syntax is supported. The formatter may dec
 
 ## First interactive slice — Builder terminal surface
 
-The existing read-only command model now has a real Builder UI surface.
-
-Supported commands remain intentionally bounded:
+The original read-only command model gained a real Builder UI surface with:
 
 - `show interfaces`
 - `show route`
 - `show arp`
 - `show mac`
 
-Unsupported configuration, probe, and vendor-specific syntax still fails closed. `ping`, `traceroute`, OSPF/BGP detail commands, ACL/NAT inspection, and configuration commands are later Track K slices.
+`projectBuilderCliState(...)` projects the same routed interfaces, RIB state, session ARP cache, and learned FDB facts used elsewhere in Builder. Time Machine can supply a historical RIB truth graph independently from historical physical-link state.
 
-### Canonical state adapter
+The terminal is a lazy-loaded, full-width dock above the normal Builder stage/control row. It is closed by default and absent from stress Builder. Its capped transcript, command history, clear action, quick commands, and open/closed state are session-only UI state.
 
-`projectBuilderCliState(...)` converts the same Builder facts used by the rest of the product into the four existing CLI projections:
+## Second interactive slice — active Ping + Traceroute
 
-- routed IPv4 interfaces come from canonical Builder addressing plus physical routed-link state,
-- route rows come from the canonical RIB graph and routing configuration,
-- ARP rows come from the session ARP cache,
-- MAC rows come from the learned FDB attached to the current Ethernet-flow session state.
+`ping <destination>` and `traceroute <destination>` are now first-class CLI commands, but the CLI still does not simulate them.
 
-The adapter copies session rows and never mutates its input.
+### Command boundary
 
-Historical Time Machine scenes can provide a historical RIB truth graph independently from historical physical-link state. CLI queries therefore inspect the selected historical snapshot instead of silently recomputing current live state.
+The parser recognizes exactly one destination token. The destination can identify a routed Builder node by:
 
-### Terminal UX
+- canonical node id,
+- unique node label,
+- configured IPv4 interface address.
 
-The terminal is a lazy-loaded, full-width dock above the normal Builder stage/control row. It is closed by default and absent from stress Builder.
+Resolution is deterministic and fails closed for unknown or ambiguous destinations. Broad hostname resolution, vendor aliases, source-interface switches, packet-size flags, and other CLI grammar are intentionally deferred.
 
-The wide dock is deliberate: route and interface tables are operational data and should not be squeezed into the 360 px Builder control column.
+### Existing probe engine only
 
-Terminal behavior is session-only UI state:
+In LIVE Builder, an active CLI command resolves the target node and delegates to the same IPv4 `runBuilderProbe(...)` path used by ordinary Builder Ping/Traceroute controls.
 
-- command transcript is capped,
-- command history supports Up/Down,
-- Ctrl/Cmd+L clears the local transcript,
-- Escape closes the dock,
-- quick-command buttons execute only the four supported `show` commands,
-- each transcript entry records whether it queried LIVE or a Time Machine history snapshot,
-- opening or using the terminal does not create canonical Builder events or alter network state.
+That means CLI probes inherit existing truth rather than duplicating it:
+
+- current routed source selection,
+- canonical addressing and RIB/FIB behavior,
+- ACL policy,
+- NAT/PAT translation and session state,
+- link latency/jitter/loss/MTU behavior,
+- probe history,
+- Device Workbench / timeline probe events,
+- Track J challenge evidence and verification when the command matches the objective.
+
+The CLI receives the returned `BuilderProbeResult` and only formats it. Ping output exposes status, RTT, path MTU, loss, path, detail, and NAT state when present. Traceroute output formats the engine's actual TTL attempts and responders.
+
+### Time Machine remains inspection-only
+
+Time Machine continues to support the four `show` commands against the selected historical snapshot. Active `ping` and `traceroute` commands fail with `READ_ONLY_CONTEXT` instead of running a hypothetical probe against historical truth.
+
+This is deliberate: historical replay is an observation of recorded state, not a counterfactual execution environment.
+
+### Terminal state semantics
+
+The distinction is now explicit:
+
+- `show ...` changes no network/session state and creates no Builder event,
+- terminal transcript/history remains local UI state,
+- LIVE `ping` / `traceroute` are genuine Builder probe actions and therefore update the same probe/NAT/challenge/session state and event journal as the ordinary GUI controls,
+- Time Machine never executes active probe commands.
 
 ## Deliberate non-goals
 
-This track does not aim to emulate a vendor CLI grammar, boot a NOS image, or reproduce every operational command. Syntax should remain small and coherent enough that the same command means the same HOPSCOTCH concept everywhere.
+Track K does not aim to emulate a vendor CLI grammar, boot a NOS image, or reproduce every operational command. Syntax should remain small and coherent enough that the same command means the same HOPSCOTCH concept everywhere.
 
-Configuration commands, when they arrive, must mutate the exact same canonical configuration objects as the GUI. Probe commands must call the existing probe engines rather than implement terminal-specific packet logic.
+Configuration commands, when they arrive, must mutate the exact same canonical configuration objects as the GUI. Protocol inspection commands must project existing protocol state rather than deriving independent control-plane truth.
 
 ## Next slices
 
-1. Route `ping` and `traceroute` through the existing Builder probe engines.
-2. Add read-only protocol/policy inspection: `show ospf neighbors`, `show bgp`, `show acl`, and `show nat`.
-3. Add device-scoped terminal context only where it improves operational clarity without fragmenting canonical truth.
-4. Add bounded configuration commands against the same canonical configuration mutations used by Builder controls.
+1. Add read-only protocol/policy inspection: `show ospf neighbors`, `show bgp`, `show acl`, and `show nat`.
+2. Add device-scoped terminal context only where it improves operational clarity without fragmenting canonical truth.
+3. Add bounded configuration commands against the same canonical configuration mutations used by Builder controls.
+4. Extend active probes to IPv6 only through the existing IPv6 probe/control-plane engine, with syntax that makes address-family intent unambiguous.

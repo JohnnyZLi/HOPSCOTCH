@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEven
 import {
   BUILDER_CLI_SHOW_TARGETS,
   BuilderCliCommandError,
-  projectBuilderCliCommand,
+  executeBuilderCliCommand,
   projectBuilderCliState,
+  type BuilderCliProbeCommand,
   type BuilderCliProjectionInput,
   type BuilderCliShowTarget,
 } from './builder/cli.ts';
+import type { BuilderProbeResult } from './builder/probes.ts';
 import './BuilderCliTerminal.css';
 
 interface BuilderCliTranscriptEntry {
@@ -26,10 +28,16 @@ function commandFor(target: BuilderCliShowTarget): string {
 export default function BuilderCliTerminal({
   input,
   contextLabel,
+  defaultProbeTarget,
+  onProbe,
+  probeUnavailableReason,
   onClose,
 }: {
   input: BuilderCliProjectionInput;
   contextLabel: string;
+  defaultProbeTarget: string;
+  onProbe?: (command: BuilderCliProbeCommand) => BuilderProbeResult;
+  probeUnavailableReason?: string;
   onClose: () => void;
 }) {
   const state = useMemo(() => projectBuilderCliState(input), [input]);
@@ -39,6 +47,7 @@ export default function BuilderCliTerminal({
   const nextEntryId = useRef(1);
   const inputRef = useRef<HTMLInputElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const probeEnabled = Boolean(onProbe);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -53,7 +62,11 @@ export default function BuilderCliTerminal({
     let output: string;
     let error = false;
     try {
-      output = projectBuilderCliCommand(rawCommand, state);
+      output = executeBuilderCliCommand(rawCommand, {
+        state,
+        runProbe: onProbe,
+        probeUnavailableReason,
+      }).output;
     } catch (caught) {
       error = true;
       output = caught instanceof BuilderCliCommandError
@@ -115,7 +128,7 @@ export default function BuilderCliTerminal({
   return <section id="builder-cli-terminal" className="builder-cli-terminal" aria-label="HOPSCOTCH Builder terminal">
     <header className="builder-cli-header">
       <div>
-        <span>HOPSCOTCH CLI · READ ONLY</span>
+        <span>HOPSCOTCH CLI · {probeEnabled ? 'LIVE CONTROL' : 'READ ONLY'}</span>
         <strong>{contextLabel} CANONICAL STATE</strong>
       </div>
       <div className="builder-cli-header-meta" aria-label="Projected CLI fact counts">
@@ -132,8 +145,10 @@ export default function BuilderCliTerminal({
 
     <div ref={transcriptRef} className="builder-cli-transcript" aria-live="polite">
       {transcript.length === 0 && <div className="builder-cli-empty">
-        <strong>QUERY THE BUILDER, NOT A DEVICE IMAGE.</strong>
-        <span>Outputs are deterministic projections of current HOPSCOTCH truth. Configuration and probe commands remain unsupported in this slice.</span>
+        <strong>QUERY CANONICAL TRUTH. INVOKE THE EXISTING PROBE ENGINE.</strong>
+        <span>{probeEnabled
+          ? 'Show commands are read-only projections. Ping and traceroute use the current Builder routed source and execute the ordinary IPv4 probe engine; configuration syntax remains unsupported.'
+          : 'Show commands inspect this Time Machine snapshot. Active ping and traceroute commands fail closed here so historical inspection never creates counterfactual network state.'}</span>
       </div>}
       {transcript.map((entry) => <article key={entry.id} className={entry.error ? 'is-error' : ''}>
         <div className="builder-cli-command-line"><span>{entry.contextLabel.toLowerCase()}$</span><strong>{entry.command || '∅'}</strong></div>
@@ -160,6 +175,10 @@ export default function BuilderCliTerminal({
 
     <div className="builder-cli-shortcuts" aria-label="Supported CLI commands">
       {BUILDER_CLI_SHOW_TARGETS.map((target) => <button key={target} type="button" onClick={() => execute(commandFor(target))}>{commandFor(target).toUpperCase()}</button>)}
+      {probeEnabled && <>
+        <button type="button" onClick={() => execute(`ping ${defaultProbeTarget}`)}>PING {defaultProbeTarget.toUpperCase()}</button>
+        <button type="button" onClick={() => execute(`traceroute ${defaultProbeTarget}`)}>TRACEROUTE {defaultProbeTarget.toUpperCase()}</button>
+      </>}
       <small>↑/↓ HISTORY · CTRL/CMD+L CLEAR · ESC CLOSE</small>
     </div>
   </section>;
