@@ -112,6 +112,46 @@ function query(parameters) {
 const maxModifierSet = 'dns-failure,route-failure,route-leak,server-failure,single-loss,latency-spike,congestion,partition';
 const profiles = [
   {
+    id: 'firefox-protocol-tcp',
+    width: 1440,
+    height: 1000,
+    path: '/labs/tcp',
+    query: '',
+    readySelector: '.tcp-visual-workspace',
+    expected: ['TCP THEATER', 'CLIENT SEQUENCE SPACE', 'CONGESTION WINDOW', 'PROVENANCE'],
+    protocolWorkspace: true,
+  },
+  {
+    id: 'firefox-protocol-dns-mobile',
+    width: 390,
+    height: 844,
+    path: '/labs/dns',
+    query: '',
+    readySelector: '.dns-visual-workspace',
+    expected: ['DNS THEATER', 'www.example.test', 'NAMESPACE', 'PROVENANCE'],
+    protocolWorkspace: true,
+  },
+  {
+    id: 'firefox-protocol-tls',
+    width: 1280,
+    height: 900,
+    path: '/labs/tls',
+    query: '',
+    readySelector: '.tls-visual-workspace',
+    expected: ['TLS 1.3 THEATER', 'SYMBOLIC KEY SCHEDULE', 'WIRE VISIBILITY', 'PROVENANCE'],
+    protocolWorkspace: true,
+  },
+  {
+    id: 'firefox-protocol-http-mobile',
+    width: 390,
+    height: 844,
+    path: '/labs/http2-vs-http3',
+    query: '',
+    readySelector: '.http-visual-workspace',
+    expected: ['HTTP A/B THEATER', 'HTTP/2', 'HTTP/3', 'SAME LOSS', 'PROVENANCE'],
+    protocolWorkspace: true,
+  },
+  {
     id: 'firefox-max-composed-terminal',
     width: 1440,
     height: 1000,
@@ -245,7 +285,7 @@ async function main() {
       if (bidi && bidiContext) {
         await bidi.call('browsingContext.setViewport', { context: bidiContext, viewport: { width: profile.width, height: profile.height }, devicePixelRatio: 1 });
       }
-      await webdriver('POST', '/url', { url: `${production.origin}/${profile.query}` });
+      await webdriver('POST', '/url', { url: `${production.origin}${profile.path ?? '/'}${profile.query}` });
 
       const deadline = performance.now() + 8000;
       let ready = false;
@@ -275,12 +315,32 @@ async function main() {
         webglCanvas: Boolean(document.querySelector('.globe-render-host canvas')),
         rendererText: document.querySelector('.physical-stage-meta > div:first-child strong')?.innerText ?? null,
         fallbackText: document.querySelector('.globe-fallback')?.innerText ?? null,
+        protocol: (() => {
+          const stage = document.querySelector('.protocol-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
+          const scene = document.querySelector('.protocol-cinematic-stage')?.getBoundingClientRect();
+          return {
+            active: Boolean(stage && scene),
+            stageWidth: stage?.width ?? 0,
+            stageHeight: stage?.height ?? 0,
+            sceneWidth: scene?.width ?? 0,
+            sceneHeight: scene?.height ?? 0,
+            drawerTabs: document.querySelectorAll('.protocol-visual-workspace .visual-drawer-tabs button').length,
+            timeRail: Boolean(document.querySelector('.protocol-visual-workspace .visual-time-rail')),
+            permanentInspectors: document.querySelectorAll('.tcp-inspector,.dns-inspector,.tls-inspector,.http-inspector').length,
+          };
+        })(),
       };`);
 
       if (structural.innerWidth !== profile.width) throw new Error(`${profile.id} viewport width ${structural.innerWidth}; expected ${profile.width}.`);
       if (structural.scrollWidth > structural.innerWidth) throw new Error(`${profile.id} horizontally overflows: ${structural.scrollWidth} > ${structural.innerWidth}.`);
       if (structural.scrollY !== 0) throw new Error(`${profile.id} moved document scrollY to ${structural.scrollY}.`);
       if (!structural.reducedMotion) throw new Error(`${profile.id} did not honor Firefox reduced-motion preference.`);
+      if (profile.protocolWorkspace) {
+        if (!structural.protocol.active) throw new Error(`${profile.id} did not render a protocol scene inside the shared visual workspace.`);
+        if (structural.protocol.sceneWidth < structural.protocol.stageWidth * 0.98 || structural.protocol.sceneHeight < structural.protocol.stageHeight * 0.98) throw new Error(`${profile.id} scene does not occupy the shared visual stage.`);
+        if (structural.protocol.drawerTabs < 3 || !structural.protocol.timeRail) throw new Error(`${profile.id} did not expose the expected drawers and Time Rail.`);
+        if (structural.protocol.permanentInspectors !== 0) throw new Error(`${profile.id} retained a permanent legacy inspector.`);
+      }
       if (profile.stress) {
         for (const [key, value] of Object.entries(profile.stress)) {
           if (structural[key] !== value) throw new Error(`${profile.id} structural ${key}=${structural[key]}; expected ${value}.`);

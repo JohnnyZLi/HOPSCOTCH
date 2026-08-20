@@ -58,6 +58,7 @@ const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8
 const labCss = readFileSync(new URL('../src/lab.css', import.meta.url), 'utf8');
 const tcpCss = readFileSync(new URL('../src/tcp.css', import.meta.url), 'utf8');
 const dnsCss = readFileSync(new URL('../src/dns.css', import.meta.url), 'utf8');
+const protocolWorkspaceCss = readFileSync(new URL('../src/protocol-workspaces.css', import.meta.url), 'utf8');
 const journeyCss = readFileSync(new URL('../src/JourneyTheater.css', import.meta.url), 'utf8');
 const exploreCss = readFileSync(new URL('../src/ExploreLauncher.css', import.meta.url), 'utf8');
 
@@ -100,6 +101,8 @@ assert.match(labCss, /Integrated visual hardening formerly isolated in visual-au
 assert.match(tcpCss, /Integrated TCP hardening formerly isolated in tcp-audit\.css/);
 assert.match(dnsCss, /Integrated DNS hardening formerly isolated in dns-audit\.css/);
 assert.match(journeyCss, /Integrated Journey hardening formerly isolated in journey-audit\.css/);
+assert.match(main, /import '\.\/protocol-workspaces\.css';/);
+assert.match(protocolWorkspaceCss, /Phase 2 scene-first overrides for TLS and HTTP comparison theaters/);
 assert.match(styles, /Integrated keyboard focus contract/);
 assert.match(styles, /:focus-visible/);
 assert.match(exploreCss, /Explore focus containment ring/);

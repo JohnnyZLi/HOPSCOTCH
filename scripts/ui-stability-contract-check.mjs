@@ -8,6 +8,11 @@ const visualWorkspace = readFileSync(new URL('../src/VisualWorkspace.tsx', impor
 const visualWorkspaceCss = readFileSync(new URL('../src/VisualWorkspace.css', import.meta.url), 'utf8');
 const journeySource = readFileSync(new URL('../src/JourneyTheaterV2.tsx', import.meta.url), 'utf8');
 const journeyCss = readFileSync(new URL('../src/JourneyTheater.css', import.meta.url), 'utf8');
+const tcpSource = readFileSync(new URL('../src/TcpTheater.tsx', import.meta.url), 'utf8');
+const dnsSource = readFileSync(new URL('../src/DnsTheater.tsx', import.meta.url), 'utf8');
+const tlsSource = readFileSync(new URL('../src/TlsTheater.tsx', import.meta.url), 'utf8');
+const httpSource = readFileSync(new URL('../src/HttpComparisonTheater.tsx', import.meta.url), 'utf8');
+const protocolCss = readFileSync(new URL('../src/protocol-workspaces.css', import.meta.url), 'utf8');
 
 // Keep the selected scale explanation structurally attached to the rail; production review covers all five rows.
 assert.ok(
@@ -110,4 +115,19 @@ assert.ok(
   'Journey scale transitions must remain inside a stable full-stage positioning context',
 );
 
-console.log('UI stability contract passed: overview scale motion and visual workspace overlays preserve geometry, focus, reduced motion, and Time Rail stability.');
+for (const [name, source] of [['TCP', tcpSource], ['DNS', dnsSource], ['TLS', tlsSource], ['HTTP', httpSource]]) {
+  assert.ok(
+    source.includes('protocol-cinematic-stage') && source.includes('protocol-scene-annotation'),
+    `${name} must keep its active explanation attached to the stable scene positioning context`,
+  );
+  assert.ok(
+    source.includes("setActiveDrawer('inspect')") && source.includes('setActiveDrawer(null)'),
+    `${name} playback must deterministically trade the inspection overlay for unobstructed motion`,
+  );
+}
+assert.ok(
+  protocolCss.includes('.tls-workspace-stage') && protocolCss.includes('.http-workspace-stage') && protocolCss.includes('@media (max-width: 680px)'),
+  'TLS and HTTP scene planes must own explicit full-stage and mobile geometry',
+);
+
+console.log('UI stability contract passed: overview scale motion and all visual workspace overlays preserve geometry, focus, reduced motion, and Time Rail stability.');

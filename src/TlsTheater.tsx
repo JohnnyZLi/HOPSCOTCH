@@ -2,6 +2,15 @@ import { animate, stagger } from 'animejs';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  VisualDrawerTabs,
+  VisualTimeRail,
+  VisualWorkspaceShell,
+  type VisualDrawerDefinition,
+  type VisualDrawerId,
+  type VisualTimelineEvent,
+  type VisualTimelineMilestone,
+} from './VisualWorkspace';
+import {
   TLS_HOST,
   clampTlsTime,
   tlsDurationMs,
@@ -9,6 +18,7 @@ import {
   tlsLatestEventAtOrBefore,
   tlsStateAt,
   type TlsKeyStage,
+  type TlsProtection,
 } from './protocol/tls';
 
 const keyStages: Array<{ id: TlsKeyStage; label: string; note: string }> = [
@@ -24,6 +34,13 @@ function formatTime(timeMs: number): string {
   return `00:${seconds}.${milliseconds}`;
 }
 
+function eventTone(protection: TlsProtection): VisualTimelineEvent['tone'] {
+  if (protection === 'application') return 'success';
+  if (protection === 'handshake') return 'evidence';
+  if (protection === 'local') return 'warning';
+  return 'neutral';
+}
+
 export function TlsTheater({
   onExit,
   onOpenDns,
@@ -37,7 +54,8 @@ export function TlsTheater({
 }) {
   const [timeMs, setTimeMs] = useState(0);
   const [playing, setPlaying] = useState(true);
-  const rootRef = useRef<HTMLElement>(null);
+  const [activeDrawer, setActiveDrawer] = useState<VisualDrawerId | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
   const state = useMemo(() => tlsStateAt(timeMs), [timeMs]);
   const activeEvent = useMemo(() => tlsLatestEventAtOrBefore(timeMs), [timeMs]);
@@ -71,47 +89,13 @@ export function TlsTheater({
 
     if (activeEvent.direction !== 'local' && token) {
       const leftToRight = activeEvent.direction === 'client-to-server';
-      animations.push(animate(token, {
-        left: leftToRight ? ['12%', '88%'] : ['88%', '12%'],
-        opacity: [0, 1, 1, 0.96],
-        scale: [0.78, 1.04, 1],
-        duration: 820,
-        ease: 'inOutSine',
-      }));
+      animations.push(animate(token, { left: leftToRight ? ['12%', '88%'] : ['88%', '12%'], opacity: [0, 1, 1, 0.96], scale: [0.78, 1.04, 1], duration: 820, ease: 'inOutSine' }));
     }
-
-    if (keyNodes.length > 0) {
-      animations.push(animate(keyNodes, {
-        opacity: [0.62, 1],
-        translateY: [4, 0],
-        delay: stagger(32),
-        duration: 420,
-        ease: 'outExpo',
-      }));
-    }
-
-    if (transcriptItems.length > 0) {
-      animations.push(animate(transcriptItems, {
-        opacity: [0.35, 1],
-        scale: [0.96, 1],
-        duration: 360,
-        ease: 'outExpo',
-      }));
-    }
-
+    if (keyNodes.length > 0) animations.push(animate(keyNodes, { opacity: [0.62, 1], translateY: [4, 0], delay: stagger(32), duration: 420, ease: 'outExpo' }));
+    if (transcriptItems.length > 0) animations.push(animate(transcriptItems, { opacity: [0.35, 1], scale: [0.96, 1], duration: 360, ease: 'outExpo' }));
     const pulse = root.querySelector('.tls-local-pulse');
-    if (activeEvent.direction === 'local' && pulse) {
-      animations.push(animate(pulse, {
-        opacity: [0, 0.8, 0],
-        scale: [0.8, 1.35, 1.8],
-        duration: 900,
-        ease: 'outExpo',
-      }));
-    }
-
-    return () => {
-      animations.forEach((animation) => animation.cancel());
-    };
+    if (activeEvent.direction === 'local' && pulse) animations.push(animate(pulse, { opacity: [0, 0.8, 0], scale: [0.8, 1.35, 1.8], duration: 900, ease: 'outExpo' }));
+    return () => animations.forEach((animation) => animation.cancel());
   }, [activeEvent.id, reduceMotion, state.activeKeys.length, state.transcript.length]);
 
   const seek = (nextTime: number) => {
@@ -122,189 +106,80 @@ export function TlsTheater({
   const togglePlayback = () => {
     if (playing) {
       setPlaying(false);
+      setActiveDrawer('inspect');
       return;
     }
+    setActiveDrawer(null);
     if (timeMs >= tlsDurationMs) setTimeMs(0);
     setPlaying(true);
+  };
+
+  const openDrawer = (drawer: VisualDrawerId) => {
+    if (playing) setPlaying(false);
+    setActiveDrawer((current) => current === drawer ? null : drawer);
   };
 
   const handshakeKeysReady = state.activeKeys.includes('handshake');
   const wireProtection = state.applicationReady ? 'application' : handshakeKeysReady ? 'handshake' : 'cleartext';
   const wireEncrypted = wireProtection !== 'cleartext';
-  const protectionLabel = wireProtection === 'cleartext'
-    ? 'VISIBLE HANDSHAKE'
-    : wireProtection === 'handshake'
-      ? 'HANDSHAKE KEYS'
-      : 'APPLICATION KEYS';
-  const boundaryTitle = activeEvent.direction === 'local'
-    ? 'LOCAL STATE TRANSITION'
-    : wireEncrypted
-      ? 'ENCRYPTED TLS RECORD'
-      : activeEvent.message;
-  const boundaryNote = activeEvent.direction === 'local'
-    ? `No wire message · wire protection remains ${wireProtection === 'cleartext' ? 'cleartext' : `${wireProtection} keys`}`
-    : wireEncrypted
-      ? 'Handshake/application semantic label shown by curated trace'
-      : 'Negotiation remains visible at this point';
+  const protectionLabel = wireProtection === 'cleartext' ? 'VISIBLE HANDSHAKE' : wireProtection === 'handshake' ? 'HANDSHAKE KEYS' : 'APPLICATION KEYS';
+  const boundaryTitle = activeEvent.direction === 'local' ? 'LOCAL STATE TRANSITION' : wireEncrypted ? 'ENCRYPTED TLS RECORD' : activeEvent.message;
+  const boundaryNote = activeEvent.direction === 'local' ? `No wire message · protection remains ${wireProtection}` : wireEncrypted ? 'Semantic label supplied by the curated trace' : 'Negotiation remains visible at this point';
+  const timelineEvents: VisualTimelineEvent[] = tlsEvents.map((event) => ({ id: event.id, atMs: event.atMs, label: event.title, tone: eventTone(event.protection) }));
+  const timelineMilestones: VisualTimelineMilestone[] = [
+    { id: 'offer', atMs: 0, label: 'OFFER' },
+    { id: 'keys', atMs: 680, label: 'KEYS' },
+    { id: 'identity', atMs: 1690, label: 'IDENTITY' },
+    { id: 'finished', atMs: 2350, label: 'FINISHED' },
+    { id: 'data', atMs: 2720, label: 'DATA' },
+    { id: 'ready', atMs: 3500, label: 'READY' },
+  ];
 
-  return (
-    <motion.section
-      ref={rootRef}
-      className="tls-theater"
-      initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.985 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.015 }}
-      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-    >
-      <header className="tls-heading">
-        <div>
-          <p className="eyebrow">Lab 03C · Protocol theater</p>
-          <h1>WATCH TLS<br /><span>DISAPPEAR INTO CIPHERTEXT.</span></h1>
-        </div>
-        <div className="tls-heading-actions">
-          <span className="tls-model-badge">CURATED TLS 1.3 · NO LIVE KEY MATERIAL</span>
-          <button type="button" className="lab-mode" onClick={onOpenDns}>DNS ↗</button>
-          <button type="button" className="lab-mode" onClick={onOpenTcp}>TCP ↗</button>
-          <button type="button" className="lab-mode" onClick={onOpenPacket}>PACKET ↗</button>
-          <button type="button" className="lab-mode" onClick={onExit}>EXIT LAB</button>
-        </div>
-      </header>
+  const inspectContent = <div className="protocol-inspect-drawer tls-protocol-drawer">
+    <article className={`protocol-inspect-event protection-${activeEvent.protection}`}><div><span>{formatTime(activeEvent.atMs)}</span><b>CURATED TLS 1.3</b></div><h3>{activeEvent.title}</h3><p>{activeEvent.summary}</p><small>{activeEvent.detail}</small>{activeEvent.fields && <div className="tls-field-chips">{activeEvent.fields.map((field) => <span key={field.label}><b>{field.label}</b>{field.value}</span>)}</div>}</article>
+    <section><span>NEGOTIATED STATE</span><div className="protocol-fact-grid"><div><small>VERSION</small><strong>{state.negotiatedVersion ?? 'PENDING'}</strong></div><div><small>ALPN</small><strong>{state.negotiatedAlpn ?? 'PENDING'}</strong></div><div><small>GROUP</small><strong>{state.negotiatedGroup ?? 'PENDING'}</strong></div><div><small>CERTIFICATE</small><strong>{state.certificateState.toUpperCase()}</strong></div></div></section>
+    <section><span>WIRE VISIBILITY</span><p>{boundaryNote}. Once handshake keys exist, HOPSCOTCH labels semantic content from the deterministic model; it does not claim passive decryption.</p></section>
+  </div>;
 
-      <div className="tls-stage">
-        <div className="tls-stage-meta">
-          <div><span>PHASE</span><strong>{state.phaseLabel}</strong></div>
-          <div><span>WIRE PROTECTION</span><strong>{protectionLabel}</strong></div>
-          <div><span>ALPN</span><strong>{state.negotiatedAlpn ?? 'OFFERING h2 / http1.1'}</strong></div>
-        </div>
+  const eventsContent = <section className="protocol-events-drawer tls-events-drawer"><div className="tls-inspector-heading"><span>TLS 1.3 HANDSHAKE</span><strong>{String(activeIndex + 1).padStart(2, '0')} / {String(tlsEvents.length).padStart(2, '0')}</strong></div><div className="tls-event-list">{tlsEvents.map((event, index) => { const complete = event.atMs <= timeMs; const current = event.id === activeEvent.id; return <button key={event.id} type="button" className={`${complete ? 'complete' : ''}${current ? ' current' : ''}`} onClick={() => seek(event.atMs)}><span className="tls-event-index">{String(index + 1).padStart(2, '0')}</span><span className="tls-event-copy"><strong>{event.title}</strong><small>{formatTime(event.atMs)} · {event.message} · {event.protection}</small></span></button>; })}</div><div className="tls-event-detail"><span>WHY THIS MATTERS</span><p>{activeEvent.detail}</p></div></section>;
 
+  const modelContent = <div className="protocol-model-drawer tls-model-drawer">
+    <section><span>MODEL BOUNDARY</span><strong>SYMBOLIC SECRETS · NO KEY BYTES</strong><p>The key schedule names real TLS 1.3 stages but never invents or exposes secret material. The certificate chain and signatures are explicitly simulated.</p></section>
+    <section><span>CONNECTED LABS</span><div className="protocol-link-grid"><button type="button" onClick={onOpenDns}>DNS THEATER ↗</button><button type="button" onClick={onOpenTcp}>TCP THEATER ↗</button><button type="button" onClick={onOpenPacket}>PACKET MICROSCOPE ↗</button></div></section>
+  </div>;
+
+  const drawers: VisualDrawerDefinition[] = [
+    { id: 'inspect', label: 'Inspect', title: 'Current TLS state', eyebrow: `${state.phase.toUpperCase()} · ${formatTime(timeMs)}`, content: inspectContent },
+    { id: 'events', label: 'Events', title: 'Handshake event chain', eyebrow: `${tlsEvents.length} DETERMINISTIC EVENTS`, content: eventsContent },
+    { id: 'tools', label: 'Model', title: 'Truth boundary and related labs', eyebrow: 'CURATED TLS 1.3', content: modelContent },
+  ];
+
+  return <VisualWorkspaceShell
+    className="protocol-visual-workspace tls-visual-workspace"
+    entrance={{ eyebrow: 'LAB 03C · TLS 1.3 THEATER', title: 'WATCH TLS', accentTitle: 'BECOME CIPHERTEXT.', subtitle: 'Negotiation, identity, transcript, and key stages cross the encryption boundary in one scene.' }}
+    stageLabel="TLS 1.3 handshake and encryption theater"
+    activeDrawer={activeDrawer}
+    drawers={drawers}
+    onCloseDrawer={() => setActiveDrawer(null)}
+    toolbar={<><div className="visual-identity"><i/><span>TLS 1.3 THEATER</span><strong>{TLS_HOST} · {protectionLabel}</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'INSPECT' }, { id: 'events', label: 'EVENTS', badge: String(tlsEvents.length) }, { id: 'tools', label: 'MODEL' }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button" onClick={onExit}>EXIT</button></div></>}
+    hud={<><div><span>PHASE</span><strong>{state.phaseLabel}</strong></div><div><span>WIRE</span><strong>{protectionLabel}</strong></div><div><span>ALPN</span><strong>{state.negotiatedAlpn ?? 'OFFERING h2'}</strong></div><div><span>PROVENANCE</span><strong>SIMULATED</strong></div></>}
+    timeline={<VisualTimeRail timeMs={timeMs} durationMs={tlsDurationMs} playing={playing} label="TLS TIME MACHINE" context={`${state.transcript.length} transcript messages · ${state.activeKeys.length} key stages`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
+  >
+    <div ref={rootRef} className={`protocol-cinematic-stage tls-cinematic-stage protection-${wireProtection}`}>
+      <div className="protocol-scene-kicker"><span>TLS 1.3 / RECORD LAYER</span><strong>{activeEvent.direction === 'local' ? 'LOCAL DERIVATION' : activeEvent.direction.replaceAll('-', ' ').toUpperCase()}</strong></div>
+      <div className="tls-stage tls-workspace-stage">
         <div className={`tls-wire-stage${wireEncrypted ? ' is-encrypted' : ''}`}>
-          <div className="tls-endpoint endpoint-client">
-            <span>CLIENT</span>
-            <strong>{TLS_HOST}</strong>
-            <small>{state.applicationReady ? 'APPLICATION KEYS ACTIVE' : 'HANDSHAKE IN PROGRESS'}</small>
-          </div>
-          <div className="tls-wire"><i /><b /><i /></div>
-          <div className="tls-encryption-boundary">
-            <span>WIRE VISIBILITY</span>
-            <strong>{boundaryTitle}</strong>
-            <small>{boundaryNote}</small>
-          </div>
-          <div className="tls-endpoint endpoint-server">
-            <span>SERVER</span>
-            <strong>203.0.113.42:443</strong>
-            <small>{state.certificateState === 'valid' ? 'IDENTITY VALIDATED' : 'SIMULATED CERTIFICATE'}</small>
-          </div>
-
-          <div className={`tls-message-token protection-${activeEvent.protection}${activeEvent.direction === 'local' ? ' is-local' : ''}`}>
-            <span>{activeEvent.protection.toUpperCase()}</span>
-            <strong>{activeEvent.message}</strong>
-            {wireEncrypted && activeEvent.direction !== 'local' && <i aria-hidden="true">◆</i>}
-          </div>
-          <div className="tls-local-pulse" aria-hidden="true" />
+          <div className="tls-cipher-field" aria-hidden="true"><span>6F A1 09 7C</span><span>AE 32 F8 D0</span><span>19 C4 77 2B</span><span>D3 80 5E 14</span></div>
+          <div className="tls-endpoint endpoint-client"><span>CLIENT</span><strong>{TLS_HOST}</strong><small>{state.applicationReady ? 'APPLICATION KEYS ACTIVE' : 'HANDSHAKE IN PROGRESS'}</small></div>
+          <div className="tls-wire"><i/><b/><i/></div>
+          <div className="tls-encryption-boundary"><span>WIRE VISIBILITY</span><strong>{boundaryTitle}</strong><small>{boundaryNote}</small></div>
+          <div className="tls-endpoint endpoint-server"><span>SERVER</span><strong>203.0.113.42:443</strong><small>{state.certificateState === 'valid' ? 'IDENTITY VALIDATED' : 'SIMULATED CERTIFICATE'}</small></div>
+          <div className={`tls-message-token protection-${activeEvent.protection}${activeEvent.direction === 'local' ? ' is-local' : ''}`}><span>{activeEvent.protection.toUpperCase()}</span><strong>{activeEvent.message}</strong>{wireEncrypted && activeEvent.direction !== 'local' && <i aria-hidden="true">◆</i>}</div><div className="tls-local-pulse" aria-hidden="true"/>
+          <AnimatePresence mode="wait" initial={false}><motion.article key={activeEvent.id} className={`protocol-scene-annotation tls-scene-annotation protection-${activeEvent.protection}`} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 9 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: reduceMotion ? 0 : 0.24 }}><i aria-hidden="true"/><div><span>{formatTime(activeEvent.atMs)} · {activeEvent.protection}</span><strong>{activeEvent.title}</strong><p>{activeEvent.summary}</p></div></motion.article></AnimatePresence>
         </div>
-
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={activeEvent.id}
-            className={`tls-event-callout protection-${activeEvent.protection}`}
-            initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -7 }}
-            transition={{ duration: 0.24 }}
-          >
-            <span>{formatTime(activeEvent.atMs)} · {activeEvent.protection}</span>
-            <strong>{activeEvent.title}</strong>
-            <p>{activeEvent.summary}</p>
-            {activeEvent.fields && (
-              <div className="tls-field-chips">
-                {activeEvent.fields.map((field) => <span key={field.label}><b>{field.label}</b>{field.value}</span>)}
-              </div>
-            )}
-          </motion.div>
-        </AnimatePresence>
-
-        <div className="tls-key-schedule">
-          <div className="tls-subhead">
-            <div><span>SYMBOLIC KEY SCHEDULE</span><strong>STAGE NAMES, NOT SECRET BYTES</strong></div>
-            <small>HKDF structure</small>
-          </div>
-          <div className="tls-key-chain">
-            {keyStages.map((stage, index) => {
-              const active = state.activeKeys.includes(stage.id);
-              return (
-                <div key={stage.id} className={`tls-key-stage${active ? ' active' : ''}`}>
-                  <span>{String(index + 1).padStart(2, '0')}</span>
-                  <strong>{stage.label}</strong>
-                  <small>{stage.note}</small>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="tls-transcript-panel">
-          <div className="tls-subhead">
-            <div><span>HANDSHAKE TRANSCRIPT</span><strong>{state.transcript.length} MESSAGES HASHED</strong></div>
-            <small>ordered handshake context</small>
-          </div>
-          <div className="tls-transcript-list">
-            {tlsEvents.filter((event) => event.transcriptLabel).map((event) => {
-              const included = state.transcript.includes(event.transcriptLabel!);
-              const current = event.id === activeEvent.id;
-              return (
-                <span key={event.id} className={`tls-transcript-item${included ? ' included' : ''}${current ? ' current' : ''}`}>
-                  <i />{event.transcriptLabel}
-                </span>
-              );
-            })}
-          </div>
-        </div>
+        <div className="tls-key-schedule"><div className="tls-subhead"><div><span>SYMBOLIC KEY SCHEDULE</span><strong>STAGE NAMES, NOT SECRET BYTES</strong></div><small>HKDF structure</small></div><div className="tls-key-chain">{keyStages.map((stage, index) => <div key={stage.id} className={`tls-key-stage${state.activeKeys.includes(stage.id) ? ' active' : ''}`}><span>{String(index + 1).padStart(2, '0')}</span><strong>{stage.label}</strong><small>{stage.note}</small></div>)}</div></div>
+        <div className="tls-transcript-panel"><div className="tls-subhead"><div><span>TRANSCRIPT</span><strong>{state.transcript.length} MESSAGES HASHED</strong></div><small>ordered context</small></div><div className="tls-transcript-list">{tlsEvents.filter((event) => event.transcriptLabel).map((event) => { const included = state.transcript.includes(event.transcriptLabel!); const current = event.id === activeEvent.id; return <span key={event.id} className={`tls-transcript-item${included ? ' included' : ''}${current ? ' current' : ''}`}><i/>{event.transcriptLabel}</span>; })}</div></div>
       </div>
-
-      <aside className="tls-inspector" aria-label="TLS causal chain">
-        <div className="tls-inspector-heading">
-          <span>TLS 1.3 HANDSHAKE</span>
-          <strong>{String(activeIndex + 1).padStart(2, '0')} / {String(tlsEvents.length).padStart(2, '0')}</strong>
-        </div>
-        <div className="tls-event-list">
-          {tlsEvents.map((event, index) => {
-            const complete = event.atMs <= timeMs;
-            const current = event.id === activeEvent.id;
-            return (
-              <button key={event.id} type="button" className={`${complete ? 'complete' : ''}${current ? ' current' : ''}`} onClick={() => seek(event.atMs)}>
-                <span className="tls-event-index">{String(index + 1).padStart(2, '0')}</span>
-                <span className="tls-event-copy">
-                  <strong>{event.title}</strong>
-                  <small>{formatTime(event.atMs)} · {event.message} · {event.protection}</small>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="tls-negotiated-state">
-          <span>NEGOTIATED STATE</span>
-          <div><b>VERSION</b><strong>{state.negotiatedVersion ?? 'pending'}</strong></div>
-          <div><b>CIPHER</b><strong>{state.negotiatedCipher ?? 'pending'}</strong></div>
-          <div><b>GROUP</b><strong>{state.negotiatedGroup ?? 'pending'}</strong></div>
-          <div><b>CERT</b><strong>{state.certificateState}</strong></div>
-        </div>
-        <div className="tls-event-detail"><span>WHY THIS MATTERS</span><p>{activeEvent.detail}</p></div>
-      </aside>
-
-      <footer className="time-machine tls-time-machine">
-        <div className="time-controls">
-          <button type="button" onClick={togglePlayback} aria-label={playing ? 'Pause TLS scenario' : 'Play TLS scenario'}>{playing ? 'Ⅱ' : '▶'}</button>
-          <button type="button" onClick={() => seek(0)} aria-label="Reset TLS scenario">↺</button>
-        </div>
-        <div className="time-readout"><span>TLS TIME MACHINE</span><strong>{formatTime(timeMs)}</strong></div>
-        <div className="scrubber-wrap">
-          <div className="timeline-markers" aria-hidden="true">
-            {tlsEvents.map((event) => <i key={event.id} className={event.atMs <= timeMs ? 'passed' : ''} style={{ left: `${(event.atMs / tlsDurationMs) * 100}%` }} />)}
-          </div>
-          <input type="range" min="0" max={tlsDurationMs} step="10" value={Math.round(timeMs)} onChange={(event) => seek(Number(event.currentTarget.value))} aria-label="TLS scenario time" />
-        </div>
-        <span className="time-duration">{formatTime(tlsDurationMs)}</span>
-      </footer>
-    </motion.section>
-  );
+    </div>
+  </VisualWorkspaceShell>;
 }
