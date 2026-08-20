@@ -339,6 +339,7 @@ export default function App() {
 
   const activeWorkspace = activeLab ? workspaceDefinition(activeLab) : null;
   const buildLabel = activeWorkspace?.lab ?? 'LAB 00';
+  const buildName = activeWorkspace?.name ?? 'FOUNDATION ONLINE';
   const buildStatus = failureLabActive ? labState.statusLabel : activeWorkspace?.status ?? 'FOUNDATION ONLINE';
 
   return (
@@ -354,7 +355,11 @@ export default function App() {
         </button>
         <div className="topbar-meta">
           <button className="explore-trigger" type="button" aria-expanded={exploreOpen} aria-controls="explore-dialog" onClick={() => setExploreOpen(true)}>EXPLORE <span>{WORKSPACE_COUNT} WORKSPACES</span></button>
-          <div className="build-state"><span>{buildLabel}</span><span className={`status-dot${failureLabActive ? ` phase-${labState.phase}` : ''}`}>{buildStatus}</span></div>
+          <div className="build-state" aria-label={`${buildLabel} · ${buildStatus}`}>
+            <span>{buildLabel}</span>
+            <span className={`status-dot${failureLabActive ? ` phase-${labState.phase}` : ''}`}>{buildName}</span>
+            {failureLabActive && <span className="build-phase">{buildStatus}</span>}
+          </div>
           {activeLab === 'journey' && <JourneyScenarioMenu hostname={journeyHostname} timeMs={journeyTimeMs} name={journeyScenarioName} onNameChange={setJourneyScenarioName} onImportScenario={importJourneyScenario} />}
         </div>
       </motion.header>

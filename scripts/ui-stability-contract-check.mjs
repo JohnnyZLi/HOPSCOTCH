@@ -74,6 +74,15 @@ assert.ok(
 );
 
 assert.ok(
+  app.includes("const buildName = activeWorkspace?.name ?? 'FOUNDATION ONLINE'") && app.includes('className="build-phase"'),
+  'topbar must prioritize canonical workspace identity while preserving live failure phase state',
+);
+assert.ok(
+  styles.includes('.build-state .status-dot {') && styles.includes('text-overflow: ellipsis;'),
+  'workspace identity must remain readable without allowing long names to destabilize topbar geometry',
+);
+
+assert.ok(
   journey.includes('.journey-stage-meta>div{display:grid;flex:1 1 0;min-width:0;gap:3px}'),
   'Journey metadata cells must use stable equal flex bases',
 );

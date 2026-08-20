@@ -23,6 +23,8 @@ for (const forbidden of ["./journey/", "./simulation/", "./measurement/", 'fetch
 
 assert.match(component, /FEATURED_WORKSPACE_IDS\.map/);
 assert.match(component, /workspaceDefinition\(workspaceId\)/);
+assert.match(component, /<nav className="home-action-grid" aria-label="Start a HOPSCOTCH experience">/, 'featured home actions must expose navigation semantics');
+assert.match(component, /aria-pressed=\{xrayActive\}/, 'X-ray preview must expose its toggle state');
 assert.ok(!component.includes("lab: 'LAB"), 'home actions must not duplicate lab labels outside the catalog');
 assert.ok(!component.includes('Explore all 13 workspaces'), 'workspace count must not be hardcoded');
 

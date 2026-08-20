@@ -39,7 +39,7 @@ export function HomeActionDeck({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.38, duration: 0.65 }}
     >
-      <div className="home-action-grid" aria-label="Start a HOPSCOTCH experience">
+      <nav className="home-action-grid" aria-label="Start a HOPSCOTCH experience">
         {FEATURED_WORKSPACE_IDS.map((workspaceId) => {
           const workspace = workspaceDefinition(workspaceId);
           const featured = workspace.featured;
@@ -66,12 +66,12 @@ export function HomeActionDeck({
             </motion.button>
           );
         })}
-      </div>
+      </nav>
 
       <nav className="home-action-utilities" aria-label="HOPSCOTCH utilities">
         <button type="button" onClick={onExplore}>Explore all {WORKSPACE_COUNT} workspaces</button>
         <button type="button" onClick={onMeasured}>Inspect measured report</button>
-        <button type="button" onClick={onToggleXray}>{xrayActive ? 'Hide X-ray' : 'Preview X-ray'}</button>
+        <button type="button" aria-pressed={xrayActive} onClick={onToggleXray}>{xrayActive ? 'Hide X-ray' : 'Preview X-ray'}</button>
         <a href="https://github.com/JohnnyZLi/HOPSCOTCH">Source</a>
       </nav>
     </motion.div>
