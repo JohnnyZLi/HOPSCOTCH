@@ -67,6 +67,7 @@ function formatTime(timeMs: number): string {
 export default function App() {
   const initialSharedJourney = initialJourneyBootstrap.scenario;
   const [layer, setLayer] = useState<NetworkLayer>(initialAppRoute.destination ? workspaceDefinition(initialAppRoute.destination).layer : 'internet');
+  const [scaleDirection, setScaleDirection] = useState<'inward' | 'outward'>('inward');
   const [mode, setMode] = useState<DisplayMode>('overview');
   const [exploreOpen, setExploreOpen] = useState(false);
   const [activeLab, setActiveLab] = useState<ActiveLab>(initialAppRoute.destination);
@@ -327,13 +328,20 @@ export default function App() {
     setPlaying(true);
   };
   const seek = (nextTime: number) => { setPlaying(false); setTimeMs(nextTime); };
+  const selectOverviewLayer = (nextLayer: NetworkLayer) => {
+    if (nextLayer === layer) return;
+    const currentIndex = layers.findIndex((item) => item.id === layer);
+    const nextIndex = layers.findIndex((item) => item.id === nextLayer);
+    setScaleDirection(nextIndex > currentIndex ? 'inward' : 'outward');
+    setLayer(nextLayer);
+  };
 
   const activeWorkspace = activeLab ? workspaceDefinition(activeLab) : null;
   const buildLabel = activeWorkspace?.lab ?? 'LAB 00';
   const buildStatus = failureLabActive ? labState.statusLabel : activeWorkspace?.status ?? 'FOUNDATION ONLINE';
 
   return (
-    <main className="app-shell" data-layer={layer} data-mode={mode} data-lab={activeLab ? 'active' : 'idle'}>
+    <main className="app-shell" data-layer={layer} data-scale-direction={scaleDirection} data-mode={mode} data-lab={activeLab ? 'active' : 'idle'}>
       {!activeLab && <NetworkField mode={mode} layer={layer} />}
       <div className="grid-field" aria-hidden="true" />
       <div className="scene-vignette" aria-hidden="true" />
@@ -371,13 +379,20 @@ export default function App() {
                 />
               </section>
 
-              <div className="scale-inspector" data-active-scale={layer}>
-                <motion.aside key={active.id} className="layer-card" aria-label={`${active.label} scale details`} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, x: -10, filter: 'blur(6px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} transition={{ duration: 0.28 }}>
-                  <p>{active.description}</p><div className="card-rule" />
-                  <small>{layer === 'packet' ? 'PACKET MICROSCOPE READY' : layer === 'transport' ? 'TCP PROTOCOL THEATER READY' : layer === 'application' ? 'HTTP + TLS + DNS THEATER READY' : layer === 'routing' ? 'DYNAMIC NETWORK BUILDER READY' : 'PHYSICAL + SIMULATED + OBSERVED INTERNET MODES READY'}</small>
+              <div className="scale-inspector" data-active-scale={layer} data-direction={scaleDirection}>
+                {!reduceMotion && <motion.i key={`wave-${layer}`} className="scale-depth-wave" aria-hidden="true" initial={{ opacity: 0, scaleX: 0.03 }} animate={{ opacity: [0, 0.42, 0], scaleX: [0.03, 1, 1] }} transition={{ duration: 0.78, times: [0, 0.28, 1], ease: [0.16, 1, 0.3, 1] }} />}
+                {!reduceMotion && <motion.i key={`ripple-${layer}`} className="scale-depth-ripple" aria-hidden="true" initial={{ opacity: 0.52, scale: 0.3 }} animate={{ opacity: 0, scale: 1.75 }} transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1] }} />}
+                <motion.aside key={active.id} className="layer-card" aria-label={`${active.label} scale details`} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, x: 18, y: scaleDirection === 'inward' ? -10 : 10, scale: 0.985, filter: 'blur(10px)' }} animate={{ opacity: 1, x: 0, y: 0, scale: 1, filter: 'blur(0px)' }} transition={{ duration: 0.52, ease: [0.16, 1, 0.3, 1] }}>
+                  <motion.i className="scale-connector" aria-hidden="true" initial={reduceMotion ? false : { opacity: 0, scaleX: 0 }} animate={{ opacity: 1, scaleX: 1 }} transition={{ delay: 0.04, duration: 0.34, ease: [0.16, 1, 0.3, 1] }} />
+                  <motion.p initial={reduceMotion ? false : { opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1, duration: 0.34 }}>{active.description}</motion.p>
+                  <motion.div className="card-rule" initial={reduceMotion ? false : { scaleX: 0, opacity: 0 }} animate={{ scaleX: 1, opacity: 1 }} transition={{ delay: 0.16, duration: 0.38, ease: [0.16, 1, 0.3, 1] }} />
+                  <motion.small initial={reduceMotion ? false : { opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.24, duration: 0.3 }}>{layer === 'packet' ? 'PACKET MICROSCOPE READY' : layer === 'transport' ? 'TCP PROTOCOL THEATER READY' : layer === 'application' ? 'HTTP + TLS + DNS THEATER READY' : layer === 'routing' ? 'DYNAMIC NETWORK BUILDER READY' : 'PHYSICAL + SIMULATED + OBSERVED INTERNET MODES READY'}</motion.small>
                 </motion.aside>
                 <nav className="scale-rail" aria-label="Network scale">
-                  {layers.map((item) => <motion.button key={item.id} type="button" className={layer === item.id ? 'active' : ''} onClick={() => setLayer(item.id)} whileHover={reduceMotion ? undefined : { x: 5 }} transition={{ type: 'spring', stiffness: 420, damping: 32 }}><span>{item.kicker}</span><strong>{item.label}</strong></motion.button>)}
+                  {layers.map((item) => {
+                    const selected = layer === item.id;
+                    return <motion.button key={item.id} type="button" className={selected ? 'active' : ''} onClick={() => selectOverviewLayer(item.id)} animate={reduceMotion ? { opacity: selected ? 1 : 0.72 } : { x: selected ? -4 : 0, opacity: selected ? 1 : 0.68 }} whileHover={reduceMotion ? undefined : { x: selected ? -7 : 5, opacity: 1 }} transition={{ type: 'spring', stiffness: 360, damping: 28, mass: 0.65 }}>{selected && <motion.i className="scale-active-marker" layoutId="overview-scale-marker" aria-hidden="true" transition={{ type: 'spring', stiffness: 260, damping: 24, mass: 0.7 }} />}<span>{item.kicker}</span><strong>{item.label}</strong></motion.button>;
+                  })}
                 </nav>
               </div>
 

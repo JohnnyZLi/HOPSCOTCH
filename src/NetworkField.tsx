@@ -58,6 +58,30 @@ const layerBias: Record<NetworkLayer, string> = {
   packet: '0.82',
 };
 
+const layerEnergy: Record<NetworkLayer, number> = {
+  internet: 0.92,
+  routing: 1,
+  transport: 1.06,
+  application: 1.12,
+  packet: 1.2,
+};
+
+const layerDashTravel: Record<NetworkLayer, number> = {
+  internet: -10,
+  routing: -24,
+  transport: -40,
+  application: -58,
+  packet: -76,
+};
+
+const layerPulseDuration: Record<NetworkLayer, number> = {
+  internet: 1900,
+  routing: 1650,
+  transport: 1420,
+  application: 1180,
+  packet: 920,
+};
+
 export function NetworkField({
   mode,
   layer,
@@ -83,7 +107,7 @@ export function NetworkField({
 
     const nodeAnimation = animate(root.querySelectorAll('.network-node'), {
       opacity: [0.2, mode === 'xray' ? 1 : 0.72],
-      scale: [0.78, mode === 'xray' ? 1.18 : 1],
+      scale: [0.78, (mode === 'xray' ? 1.18 : 1) * layerEnergy[layer]],
       delay: stagger(48, { from: 'center' }),
       duration: 850,
       ease: 'outExpo',
@@ -91,7 +115,7 @@ export function NetworkField({
 
     const edgeAnimation = animate(root.querySelectorAll('.network-edge'), {
       opacity: [0.06, Number(layerBias[layer])],
-      strokeDashoffset: mode === 'xray' ? -56 : 0,
+      strokeDashoffset: [0, mode === 'xray' ? -84 : layerDashTravel[layer]],
       delay: stagger(28),
       duration: 1300,
       ease: 'inOutSine',
@@ -99,18 +123,27 @@ export function NetworkField({
 
     const pulseAnimation = animate(root.querySelectorAll('.network-pulse'), {
       opacity: [0.12, 0.88],
-      scale: [0.72, 1.35],
+      scale: [0.72, 1.35 * layerEnergy[layer]],
       delay: stagger(130, { from: 'center' }),
-      duration: 1800,
+      duration: layerPulseDuration[layer],
       ease: 'inOutSine',
       alternate: true,
       loop: true,
+    });
+
+    const coreAnimation = animate(root.querySelectorAll('.network-core'), {
+      opacity: [0.28, 1],
+      scale: [0.58, 1.42 * layerEnergy[layer], 1],
+      delay: stagger(34, { from: 'center' }),
+      duration: 720,
+      ease: 'outExpo',
     });
 
     return () => {
       nodeAnimation.cancel();
       edgeAnimation.cancel();
       pulseAnimation.cancel();
+      coreAnimation.cancel();
     };
   }, [layer, mode, reduceMotion]);
 
