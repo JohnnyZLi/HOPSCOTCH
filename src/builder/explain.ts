@@ -277,30 +277,61 @@ function routeFacts(input: BuilderDeviceWorkbenchInput, request: BuilderExplainR
   builder.add('route.objective', 'CONFIG', nodeLabel(input.graph, routerId), 'must forward to', `${nodeLabel(input.graph, input.destinationId)} · ${destinationAddress ?? 'NO IPV4'}`, destinationAddress ? 'neutral' : 'bad', [], [routerCitation, destinationCitation]);
   if (!destinationAddress) return { topic: 'route', focusLabel: nodeLabel(input.graph, routerId), verdictCode: 'NO_DESTINATION_ADDRESS', facts: builder.facts, citations: builder.citations };
 
-  const table = routeTableForBuilderRouter(fibGraph(input), input.addressing, input.routing, routerId, controlGraph(input));
-  const tableCitation = builder.cite(`state:fib:${routerId}`, 'STATE', 'FIB ROUTE TABLE', `${table.filter((entry) => entry.active).length} active routes in the selected historical/live FIB graph`, table.map((entry) => entry.id));
-  const matching = table.filter((entry) => entry.active && prefixContains(entry.prefix, destinationAddress));
-  builder.add('route.matches', 'RIB_FIB', nodeLabel(input.graph, routerId), 'has matching routes', `${matching.length} candidate${matching.length === 1 ? '' : 's'} for ${destinationAddress}`, matching.length ? 'good' : 'bad', ['route.objective'], [tableCitation]);
-  const selection = selectBuilderRouteWithDecision(table, destinationAddress, null);
-  const selected = selection.route;
+  const ribTable = routeTableForBuilderRouter(ribGraph(input), input.addressing, input.routing, routerId, controlGraph(input));
+  const ribCitation = builder.cite(`state:rib:${routerId}`, 'STATE', 'RIB ROUTE TABLE', `${ribTable.filter((entry) => entry.active).length} active routes in the selected live/historical RIB graph`, ribTable.map((entry) => entry.id));
+  const ribMatching = ribTable.filter((entry) => entry.active && prefixContains(entry.prefix, destinationAddress));
+  builder.add('route.matches', 'RIB_FIB', nodeLabel(input.graph, routerId), 'RIB matching routes', `${ribMatching.length} candidate${ribMatching.length === 1 ? '' : 's'} for ${destinationAddress}`, ribMatching.length ? 'good' : 'bad', ['route.objective'], [ribCitation]);
+  const ribSelection = selectBuilderRouteWithDecision(ribTable, destinationAddress, null);
+  const selected = ribSelection.route;
   if (!selected) {
-    builder.add('route.selected', 'RIB_FIB', nodeLabel(input.graph, routerId), 'selects', 'NO MATCHING ROUTE', 'bad', ['route.matches'], [tableCitation]);
-    appendEventFacts(builder, input, latestMatchingEvent(input, [routerId, input.destinationId], ['routing', 'topology']), 'route.selected');
-    return { topic: 'route', focusLabel: `${nodeLabel(input.graph, routerId)} → ${destinationAddress}`, verdictCode: 'NO_ROUTE', facts: builder.facts, citations: builder.citations };
+    builder.add('route.selected', 'RIB_FIB', nodeLabel(input.graph, routerId), 'RIB selects', 'NO MATCHING ROUTE', 'bad', ['route.matches'], [ribCitation]);
+    const fibTable = routeTableForBuilderRouter(fibGraph(input), input.addressing, input.routing, routerId, controlGraph(input));
+    const fibCitation = builder.cite(`state:fib:${routerId}`, 'STATE', 'FIB ROUTE TABLE', `${fibTable.filter((entry) => entry.active).length} active routes in the selected live/historical FIB graph`, fibTable.map((entry) => entry.id));
+    const fibSelected = selectBuilderRouteWithDecision(fibTable, destinationAddress, null).route;
+    builder.add('route.fib-selected', 'RIB_FIB', nodeLabel(input.graph, routerId), 'FIB currently forwards with', fibSelected ? `${fibSelected.prefix} · ${fibSelected.source.toUpperCase()} · via ${fibSelected.nextHop ?? 'CONNECTED'}` : 'NO MATCHING ROUTE', fibSelected ? 'warn' : 'bad', ['route.selected'], [fibCitation, ...(fibSelected ? [routeSourceCitation(builder, input, fibSelected)] : [])]);
+    appendEventFacts(builder, input, latestMatchingEvent(input, [routerId, input.destinationId], ['routing', 'topology']), 'route.fib-selected');
+    return { topic: 'route', focusLabel: `${nodeLabel(input.graph, routerId)} → ${destinationAddress}`, verdictCode: fibSelected ? 'RIB_FIB_DIVERGED' : 'NO_ROUTE', facts: builder.facts, citations: builder.citations };
   }
 
   const selectedCitation = routeSourceCitation(builder, input, selected);
-  builder.add('route.selected', 'RIB_FIB', nodeLabel(input.graph, routerId), 'selects', `${selected.prefix} · ${selected.source.toUpperCase()} · AD ${selected.administrativeDistance} · metric ${selected.metric} · via ${selected.nextHop ?? 'CONNECTED'}`, 'good', ['route.matches'], [tableCitation, selectedCitation]);
-  const contenders = matching.filter((entry) => entry.id !== selected.id).slice(0, 4);
+  builder.add('route.selected', 'RIB_FIB', nodeLabel(input.graph, routerId), 'RIB selects', `${selected.prefix} · ${selected.source.toUpperCase()} · AD ${selected.administrativeDistance} · metric ${selected.metric} · via ${selected.nextHop ?? 'CONNECTED'}`, 'good', ['route.matches'], [ribCitation, selectedCitation]);
+  const contenders = ribMatching.filter((entry) => entry.id !== selected.id).slice(0, 4);
   contenders.forEach((entry, index) => {
     const citation = routeSourceCitation(builder, input, entry);
-    builder.add(`route.contender.${index + 1}`, 'RIB_FIB', `${entry.prefix} ${entry.source.toUpperCase()}`, 'loses to selected route because', rejectionReason(selected, entry), 'neutral', ['route.selected'], [citation]);
+    builder.add(`route.contender.${index + 1}`, 'RIB_FIB', `${entry.prefix} ${entry.source.toUpperCase()}`, 'loses to RIB winner because', rejectionReason(selected, entry), 'neutral', ['route.selected'], [citation]);
   });
-  const link = fibGraph(input).links.find((entry) => entry.id === selected.linkId);
-  const linkCitation = builder.cite(`graph:link:${selected.linkId}`, 'STATE', 'OUTGOING LINK', `${selected.linkId} · ${link?.failed ? 'DOWN' : 'UP'} · cost ${link?.cost ?? '—'}`, [selected.linkId]);
-  builder.add('route.forward', 'FORWARDING', nodeLabel(input.graph, routerId), 'forwards via', `${selected.outgoingInterface} → ${selected.nextHop ?? destinationAddress} · ${selected.linkId}`, link?.failed ? 'bad' : 'good', ['route.selected'], [linkCitation]);
-  appendEventFacts(builder, input, latestMatchingEvent(input, [selected.id, selected.linkId, routerId], ['routing', 'topology']), 'route.selected');
-  return { topic: 'route', focusLabel: `${nodeLabel(input.graph, routerId)} → ${destinationAddress}`, verdictCode: link?.failed ? 'SELECTED_LINK_DOWN' : 'ROUTE_SELECTED', facts: builder.facts, citations: builder.citations };
+
+  const fibTable = routeTableForBuilderRouter(fibGraph(input), input.addressing, input.routing, routerId, controlGraph(input));
+  const fibCitation = builder.cite(`state:fib:${routerId}`, 'STATE', 'FIB ROUTE TABLE', `${fibTable.filter((entry) => entry.active).length} active routes in the selected live/historical FIB graph`, fibTable.map((entry) => entry.id));
+  const fibSelected = selectBuilderRouteWithDecision(fibTable, destinationAddress, null).route;
+  const sameSelection = Boolean(fibSelected && fibSelected.prefix === selected.prefix && fibSelected.source === selected.source && fibSelected.nextHop === selected.nextHop && fibSelected.linkId === selected.linkId);
+  const fibSelectedCitation = fibSelected ? routeSourceCitation(builder, input, fibSelected) : null;
+  builder.add(
+    'route.fib-selected',
+    'RIB_FIB',
+    nodeLabel(input.graph, routerId),
+    'FIB currently forwards with',
+    fibSelected ? `${fibSelected.prefix} · ${fibSelected.source.toUpperCase()} · via ${fibSelected.nextHop ?? 'CONNECTED'} · ${fibSelected.linkId}` : 'NO MATCHING ROUTE',
+    fibSelected ? (sameSelection ? 'good' : 'warn') : 'bad',
+    ['route.selected'],
+    [fibCitation, ...(fibSelectedCitation ? [fibSelectedCitation] : [])],
+  );
+  if (!sameSelection) {
+    builder.add('route.convergence', 'RIB_FIB', 'Control-to-data-plane convergence', 'has state', `RIB/FIB DIVERGENCE · RIB ${selected.prefix} ${selected.source.toUpperCase()} via ${selected.nextHop ?? 'CONNECTED'} · FIB ${fibSelected ? `${fibSelected.prefix} ${fibSelected.source.toUpperCase()} via ${fibSelected.nextHop ?? 'CONNECTED'}` : 'NO ROUTE'}`, 'warn', ['route.selected', 'route.fib-selected'], [ribCitation, fibCitation]);
+  }
+
+  const forwardingRoute = fibSelected;
+  if (!forwardingRoute) {
+    builder.add('route.forward', 'FORWARDING', nodeLabel(input.graph, routerId), 'forwards via', 'NO FIB ROUTE', 'bad', ['route.fib-selected'], [fibCitation]);
+    appendEventFacts(builder, input, latestMatchingEvent(input, [selected.id, routerId], ['routing', 'topology']), 'route.forward');
+    return { topic: 'route', focusLabel: `${nodeLabel(input.graph, routerId)} → ${destinationAddress}`, verdictCode: 'RIB_FIB_DIVERGED', facts: builder.facts, citations: builder.citations };
+  }
+  const link = fibGraph(input).links.find((entry) => entry.id === forwardingRoute.linkId);
+  const linkCitation = builder.cite(`graph:fib-link:${forwardingRoute.linkId}`, 'STATE', 'FIB OUTGOING LINK', `${forwardingRoute.linkId} · ${link?.failed ? 'DOWN' : 'UP'} · cost ${link?.cost ?? '—'}`, [forwardingRoute.linkId]);
+  builder.add('route.forward', 'FORWARDING', nodeLabel(input.graph, routerId), 'forwards via', `${forwardingRoute.outgoingInterface} → ${forwardingRoute.nextHop ?? destinationAddress} · ${forwardingRoute.linkId}`, link?.failed ? 'bad' : sameSelection ? 'good' : 'warn', ['route.fib-selected'], [linkCitation]);
+  appendEventFacts(builder, input, latestMatchingEvent(input, [selected.id, forwardingRoute.id, forwardingRoute.linkId, routerId], ['routing', 'topology']), 'route.forward');
+  const verdictCode = !sameSelection ? 'RIB_FIB_DIVERGED' : link?.failed ? 'SELECTED_LINK_DOWN' : 'ROUTE_SELECTED';
+  return { topic: 'route', focusLabel: `${nodeLabel(input.graph, routerId)} → ${destinationAddress}`, verdictCode, facts: builder.facts, citations: builder.citations };
 }
 
 function adjacencyFacts(input: BuilderDeviceWorkbenchInput, request: BuilderExplainRequest): FactGraph {

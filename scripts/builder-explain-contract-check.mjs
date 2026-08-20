@@ -130,7 +130,9 @@ assert.notEqual(novice.summary, protocol.summary, 'wording levels should materia
 
 const route = explainBuilderNetwork(input, { topic: 'route', level: 'protocol', routerId });
 assert.ok(route.facts.some((fact) => fact.id === 'route.selected'), 'route explanation must contain the canonical route selection outcome');
-assert.ok(route.citations.some((citation) => citation.ref === `state:fib:${routerId}`), 'route explanation must cite the selected router FIB');
+assert.ok(route.citations.some((citation) => citation.ref === `state:rib:${routerId}`), 'route explanation must cite the selected router RIB');
+assert.ok(route.citations.some((citation) => citation.ref === `state:fib:${routerId}`), 'route explanation must independently cite the selected router FIB');
+assert.ok(route.facts.some((fact) => fact.id === 'route.fib-selected'), 'route explanation must explicitly project the forwarding-table selection after the RIB decision');
 
 const adjacency = explainBuilderNetwork(input, { topic: 'adjacency', level: 'operational', routerId });
 assert.ok(adjacency.facts.some((fact) => fact.id === 'adjacency.state') || adjacency.verdictCode === 'NO_ADJACENCY', 'OSPF explanation must expose exact adjacency state when available');
