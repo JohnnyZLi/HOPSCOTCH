@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { defaultBuilderScenario } from '../src/builder/scenario.ts';
 import { setBuilderOspfEverywhere } from '../src/builder/routing.ts';
 import { createBuilderIpv6ControlState } from '../src/builder/ipv6-control-plane.ts';
@@ -16,6 +17,19 @@ function deepFreeze(value) {
   Object.freeze(value);
   for (const child of Object.values(value)) deepFreeze(child);
   return value;
+}
+
+
+function assertGrounded(explanation) {
+  const factIds = new Set(explanation.facts.map((fact) => fact.id));
+  const citationIds = new Set(explanation.citations.map((citation) => citation.id));
+  assert.equal(factIds.size, explanation.facts.length, `${explanation.topic}: fact ids must be unique`);
+  assert.equal(citationIds.size, explanation.citations.length, `${explanation.topic}: citation ids must be unique`);
+  for (const fact of explanation.facts) {
+    assert.ok(fact.citationIds.length > 0, `${explanation.topic}:${fact.id} must cite canonical evidence`);
+    for (const id of fact.citationIds) assert.ok(citationIds.has(id), `${explanation.topic}:${fact.id} references missing citation ${id}`);
+    for (const id of fact.causeFactIds) assert.ok(factIds.has(id), `${explanation.topic}:${fact.id} references missing cause fact ${id}`);
+  }
 }
 
 function primaryAddress(addressing, nodeId) {
@@ -162,6 +176,10 @@ assert.equal(catalog.probes[0]?.id, probe.id);
 assert.equal(catalog.applications[0]?.id, application.id);
 assert.equal(catalog.events[0]?.id, event2.id);
 
+for (const explanation of [novice, operational, protocol, route, adjacency, policy, packet, applicationExplanation, eventExplanation]) assertGrounded(explanation);
+assert.match(packet.summary, /TTL 64/, 'operational packet prose must surface the concrete failed attempt rather than stopping at aggregate FAIL');
+assert.match(applicationExplanation.summary, /ROUTING/, 'operational application prose must surface the first broken causal dimension');
+
 const queryPack = createBuilderExplanationQueryPack(packet);
 assert.equal(queryPack.advisoryOnly, true);
 assert.equal(queryPack.truthAuthority, 'CANONICAL_BUILDER');
@@ -169,6 +187,14 @@ assert.ok(queryPack.allowedUses.includes('ANSWER_FROM_CITED_FACTS'));
 assert.ok(queryPack.forbiddenUses.includes('DECIDE_ROUTING'));
 assert.ok(queryPack.forbiddenUses.includes('MUTATE_CANONICAL_STATE'));
 assert.deepEqual(queryPack.facts, packet.facts, 'AI/query pack must expose facts rather than another decision model');
+
+const networkBuilderSource = readFileSync('src/NetworkBuilder.tsx', 'utf8');
+const explainPanelSource = readFileSync('src/BuilderExplainPanel.tsx', 'utf8');
+assert.match(networkBuilderSource, /lazy\(\(\) => import\('\.\/BuilderExplainPanel\.tsx'\)\)/, 'Track L workspace must remain a lazy Builder chunk');
+assert.match(networkBuilderSource, /!stressLabel&&explainOpen&&<Suspense/, 'Track L workspace must stay absent from stress Builder DOM');
+assert.match(networkBuilderSource, /setExplainOpen\(false\);setCliOpen/, 'opening Terminal must close Explain so Builder heading workspaces do not stack');
+for (const topic of ['network', 'route', 'adjacency', 'policy', 'packet', 'application', 'event']) assert.match(explainPanelSource, new RegExp(`id: '${topic}'`), `Explain panel must expose ${topic} topic`);
+assert.match(explainPanelSource, /COPY FACT PACK/, 'Explain panel must expose the advisory machine-readable fact pack');
 
 assert.deepEqual(input, before, 'Track L explanations must never mutate supplied canonical Builder truth');
 console.log('Builder Track L explanation contract passed: structured facts precede prose, exact citations ground route/OSPF/policy/probe/application/event explanations, wording levels preserve truth, AI fact packs are advisory-only, and canonical inputs remain immutable.');

@@ -177,10 +177,10 @@ function latestMatchingEvent(input: BuilderDeviceWorkbenchInput, objectIds: read
     return false;
   }) ?? null;
 }
-function appendEventFacts(builder: FactBuilder, input: BuilderDeviceWorkbenchInput, event: BuilderWorkbenchEvent | null, causeId: string | null = null): void {
+function appendEventFacts(builder: FactBuilder, input: BuilderDeviceWorkbenchInput, event: BuilderWorkbenchEvent | null, _relatedFactId: string | null = null): void {
   if (!event) return;
   const chain = eventChain(input.events, event.id);
-  let previous = causeId;
+  let previous: string | null = null;
   for (const item of chain) {
     const citation = builder.cite(`event:${item.id}`, 'EVENT', `${item.summary} · #${item.sequence}`, item.detail, [item.id, ...item.objectIds]);
     const factId = `event:${item.id}`;
@@ -391,7 +391,7 @@ function packetFacts(input: BuilderDeviceWorkbenchInput, request: BuilderExplain
   const requestedIndex = request.probeAttemptIndex == null ? probe.attempts.length - 1 : Math.max(0, Math.min(probe.attempts.length - 1, request.probeAttemptIndex));
   const attempt = probe.attempts[requestedIndex] ?? null;
   const probeCitation = builder.cite(`outcome:probe:${probe.id}`, 'OUTCOME', `${probe.kind.toUpperCase()} #${probe.sequence}`, `${probe.summary} · ${probe.snapshotNote}`, [probe.id, probe.sourceNodeId, probe.destinationNodeId]);
-  builder.add('packet.probe', 'OUTCOME', `${probe.kind.toUpperCase()} #${probe.sequence}`, 'overall result', `${probe.success ? 'PASS' : 'FAIL'} · ${probe.plane}`, probe.success ? 'good' : 'bad', [], [probeCitation]);
+  builder.add('packet.probe', 'OUTCOME', `${probe.kind.toUpperCase()} #${probe.sequence}`, 'overall result', `${probe.success ? 'PASS' : 'FAIL'} · ${probe.plane}`, probe.success ? 'good' : 'warn', [], [probeCitation]);
   if (!attempt) return { topic: 'packet', focusLabel: `${probe.kind.toUpperCase()} #${probe.sequence}`, verdictCode: probe.success ? 'PASS' : 'FAIL', facts: builder.facts, citations: builder.citations };
   const attemptCitation = builder.cite(`outcome:probe:${probe.id}:attempt:${attempt.index}`, 'OUTCOME', `ATTEMPT TTL ${attempt.ttl}`, `${attempt.status.toUpperCase()} · ${attempt.detail}`, [probe.id, String(attempt.index), attempt.dropLinkId ?? '']);
   builder.add('packet.path', 'FORWARDING', 'Request path', 'traverses', attempt.requestNodeIds.length ? attempt.requestNodeIds.map((id) => nodeLabel(input.graph, id)).join(' → ') : 'NO FORWARD PATH', attempt.requestNodeIds.length ? 'neutral' : 'warn', ['packet.probe'], [attemptCitation]);
@@ -422,7 +422,7 @@ function applicationFacts(input: BuilderDeviceWorkbenchInput, request: BuilderEx
     return { topic: 'application', focusLabel: 'NO APPLICATION TRANSACTION', verdictCode: 'NO_TRANSACTION', facts: builder.facts, citations: builder.citations };
   }
   const transactionCitation = builder.cite(`outcome:application:${transaction.id}`, 'OUTCOME', `${transaction.service.label} #${transaction.sequence}`, `${transaction.summary} · first broken boundary ${transaction.firstBrokenBoundary ?? 'NONE'}`, [transaction.id, transaction.service.id, transaction.sourceNodeId, transaction.destinationNodeId]);
-  builder.add('application.transaction', 'OUTCOME', `${transaction.service.label} #${transaction.sequence}`, 'overall result', transaction.success ? 'SUCCESS' : `FAIL · ${transaction.firstBrokenBoundary ?? 'UNKNOWN'}`, transaction.success ? 'good' : 'bad', [], [transactionCitation]);
+  builder.add('application.transaction', 'OUTCOME', `${transaction.service.label} #${transaction.sequence}`, 'overall result', transaction.success ? 'SUCCESS' : `FAIL · ${transaction.firstBrokenBoundary ?? 'UNKNOWN'}`, transaction.success ? 'good' : 'warn', [], [transactionCitation]);
   const diagnosis = diagnoseBuilderApplicationTransaction(transaction, input.graph, input.applicationStageOrder);
   let previous = 'application.transaction';
   for (const dimension of diagnosis.dimensions.filter((entry) => entry.status !== 'NOT_REACHED')) {
