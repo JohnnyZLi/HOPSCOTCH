@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import {
-  BUILDER_CLI_SHOW_TARGETS,
-  BuilderCliCommandError,
-  executeBuilderCliCommand,
-  projectBuilderCliState,
-  type BuilderCliProbeCommand,
-  type BuilderCliProjectionInput,
-  type BuilderCliShowTarget,
-} from './builder/cli.ts';
+  builderCliContextLabel,
+  builderCliInterfaceCountForContext,
+  executeBuilderCliSessionCommand,
+  projectBuilderCliOperationalState,
+  type BuilderCliMutationRequest,
+  type BuilderCliOperationalProjectionInput,
+  type BuilderCliProbeRequest,
+} from './builder/cli-operations.ts';
 import type { BuilderProbeResult } from './builder/probes.ts';
 import './BuilderCliTerminal.css';
 
@@ -19,39 +19,51 @@ interface BuilderCliTranscriptEntry {
   error: boolean;
 }
 
-const TRANSCRIPT_LIMIT = 12;
-
-function commandFor(target: BuilderCliShowTarget): string {
-  return `show ${target}`;
-}
+const TRANSCRIPT_LIMIT = 16;
+const SHOW_SHORTCUTS = ['show interfaces', 'show route', 'show ospf neighbors', 'show bgp', 'show acl', 'show nat'] as const;
 
 export default function BuilderCliTerminal({
   input,
   contextLabel,
   defaultProbeTarget,
+  defaultSourceId,
   onProbe,
-  probeUnavailableReason,
+  onMutation,
+  activeUnavailableReason,
   onClose,
 }: {
-  input: BuilderCliProjectionInput;
+  input: BuilderCliOperationalProjectionInput;
   contextLabel: string;
   defaultProbeTarget: string;
-  onProbe?: (command: BuilderCliProbeCommand) => BuilderProbeResult;
-  probeUnavailableReason?: string;
+  defaultSourceId: string;
+  onProbe?: (request: BuilderCliProbeRequest) => BuilderProbeResult;
+  onMutation?: (request: BuilderCliMutationRequest) => string;
+  activeUnavailableReason?: string;
   onClose: () => void;
 }) {
-  const state = useMemo(() => projectBuilderCliState(input), [input]);
-  const [command, setCommand] = useState('show interfaces');
+  const state = useMemo(() => projectBuilderCliOperationalState(input), [input]);
+  const [command, setCommand] = useState('show route');
   const [transcript, setTranscript] = useState<BuilderCliTranscriptEntry[]>([]);
   const [historyCursor, setHistoryCursor] = useState<number | null>(null);
+  const [deviceId, setDeviceId] = useState<string | null>(null);
   const nextEntryId = useRef(1);
   const inputRef = useRef<HTMLInputElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
-  const probeEnabled = Boolean(onProbe);
+  const activeEnabled = Boolean(onProbe || onMutation);
+  const scopedCore = deviceId ? {
+    interfaces: state.core.interfaces.filter((entry) => entry.deviceId === deviceId),
+    routes: state.core.routes.filter((entry) => entry.routerId === deviceId),
+    arpEntries: state.core.arpEntries.filter((entry) => entry.ownerDeviceId === deviceId),
+    macEntries: state.core.macEntries.filter((entry) => entry.switchId === deviceId),
+  } : state.core;
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (deviceId && !state.graph.nodes.some((node) => node.id === deviceId)) setDeviceId(null);
+  }, [deviceId, state.graph]);
 
   useEffect(() => {
     const element = transcriptRef.current;
@@ -61,25 +73,28 @@ export default function BuilderCliTerminal({
   const execute = (rawCommand = command) => {
     let output: string;
     let error = false;
+    let entryDeviceId = deviceId;
     try {
-      output = executeBuilderCliCommand(rawCommand, {
+      const result = executeBuilderCliSessionCommand(rawCommand, {
         state,
+        currentDeviceId: deviceId,
+        defaultSourceId,
         runProbe: onProbe,
-        probeUnavailableReason,
-      }).output;
+        mutate: onMutation,
+        activeUnavailableReason,
+      });
+      output = result.output;
+      entryDeviceId = result.nextDeviceId;
+      setDeviceId(result.nextDeviceId);
     } catch (caught) {
       error = true;
-      output = caught instanceof BuilderCliCommandError
-        ? `${caught.code} · ${caught.message}`
-        : caught instanceof Error
-          ? caught.message
-          : 'CLI command failed.';
+      output = caught instanceof Error ? caught.message : 'CLI command failed.';
     }
     const entry: BuilderCliTranscriptEntry = {
       id: nextEntryId.current++,
       command: rawCommand,
       output,
-      contextLabel,
+      contextLabel: `${contextLabel} · ${builderCliContextLabel(state, entryDeviceId)}`,
       error,
     };
     setTranscript((current) => [...current, entry].slice(-TRANSCRIPT_LIMIT));
@@ -125,17 +140,19 @@ export default function BuilderCliTerminal({
     }
   };
 
+  const context = builderCliContextLabel(state, deviceId);
+
   return <section id="builder-cli-terminal" className="builder-cli-terminal" aria-label="HOPSCOTCH Builder terminal">
     <header className="builder-cli-header">
       <div>
-        <span>HOPSCOTCH CLI · {probeEnabled ? 'LIVE CONTROL' : 'READ ONLY'}</span>
-        <strong>{contextLabel} CANONICAL STATE</strong>
+        <span>HOPSCOTCH CLI · {activeEnabled ? 'CANONICAL CONTROL' : 'READ ONLY'}</span>
+        <strong>{contextLabel} · {context}</strong>
       </div>
       <div className="builder-cli-header-meta" aria-label="Projected CLI fact counts">
-        <span>{state.interfaces.length} IF</span>
-        <span>{state.routes.length} ROUTES</span>
-        <span>{state.arpEntries.length} ARP</span>
-        <span>{state.macEntries.length} MAC</span>
+        <span>{builderCliInterfaceCountForContext(state, deviceId)} IF</span>
+        <span>{scopedCore.routes.length} ROUTES</span>
+        <span>{scopedCore.arpEntries.length} ARP</span>
+        <span>{scopedCore.macEntries.length} MAC</span>
       </div>
       <div className="builder-cli-header-actions">
         <button type="button" onClick={() => { setTranscript([]); setHistoryCursor(null); }}>CLEAR</button>
@@ -145,10 +162,10 @@ export default function BuilderCliTerminal({
 
     <div ref={transcriptRef} className="builder-cli-transcript" aria-live="polite">
       {transcript.length === 0 && <div className="builder-cli-empty">
-        <strong>QUERY CANONICAL TRUTH. INVOKE THE EXISTING PROBE ENGINE.</strong>
-        <span>{probeEnabled
-          ? 'Show commands are read-only projections. Ping and traceroute use the current Builder routed source and execute the ordinary IPv4 probe engine; configuration syntax remains unsupported.'
-          : 'Show commands inspect this Time Machine snapshot. Active ping and traceroute commands fail closed here so historical inspection never creates counterfactual network state.'}</span>
+        <strong>ONE TERMINAL. ONE CANONICAL NETWORK MODEL.</strong>
+        <span>{activeEnabled
+          ? 'Use a device context for scoped inspection and bounded configuration. Show commands project existing OSPF, BGP, ACL, NAT, RIB, ARP, and FDB truth. Ping/traceroute delegate to the existing IPv4 or IPv6 probe engines.'
+          : 'Time Machine remains inspection-only. USE and SHOW can inspect the selected historical snapshot; probes and configuration fail closed instead of creating counterfactual state.'}</span>
       </div>}
       {transcript.map((entry) => <article key={entry.id} className={entry.error ? 'is-error' : ''}>
         <div className="builder-cli-command-line"><span>{entry.contextLabel.toLowerCase()}$</span><strong>{entry.command || '∅'}</strong></div>
@@ -158,7 +175,7 @@ export default function BuilderCliTerminal({
 
     <form className="builder-cli-prompt" onSubmit={submit}>
       <label>
-        <span>hopscotch&gt;</span>
+        <span>{deviceId ?? 'global'}&gt;</span>
         <input
           ref={inputRef}
           value={command}
@@ -174,10 +191,13 @@ export default function BuilderCliTerminal({
     </form>
 
     <div className="builder-cli-shortcuts" aria-label="Supported CLI commands">
-      {BUILDER_CLI_SHOW_TARGETS.map((target) => <button key={target} type="button" onClick={() => execute(commandFor(target))}>{commandFor(target).toUpperCase()}</button>)}
-      {probeEnabled && <>
+      {SHOW_SHORTCUTS.map((shortcut) => <button key={shortcut} type="button" onClick={() => execute(shortcut)}>{shortcut.toUpperCase()}</button>)}
+      <button type="button" onClick={() => execute(`use ${defaultSourceId}`)}>USE {defaultSourceId.toUpperCase()}</button>
+      <button type="button" onClick={() => execute('use global')}>USE GLOBAL</button>
+      {activeEnabled && <>
         <button type="button" onClick={() => execute(`ping ${defaultProbeTarget}`)}>PING {defaultProbeTarget.toUpperCase()}</button>
-        <button type="button" onClick={() => execute(`traceroute ${defaultProbeTarget}`)}>TRACEROUTE {defaultProbeTarget.toUpperCase()}</button>
+        <button type="button" onClick={() => execute(`traceroute ${defaultProbeTarget}`)}>TRACE {defaultProbeTarget.toUpperCase()}</button>
+        <button type="button" onClick={() => execute(`ping ipv6 ${defaultProbeTarget}`)}>PING6 {defaultProbeTarget.toUpperCase()}</button>
       </>}
       <small>↑/↓ HISTORY · CTRL/CMD+L CLEAR · ESC CLOSE</small>
     </div>
