@@ -309,7 +309,6 @@
 @media (max-width: 540px) {
   .capture-heading .visual-identity { display: none; }
   .capture-heading-actions { width: 100%; justify-content: flex-start; }
-  .capture-heading-actions > .capture-action:nth-of-type(n + 3) { display: none; }
   .capture-mode-switch button { padding: 0 7px; }
   .capture-summary > div:nth-child(2),
   .capture-summary > div:nth-child(3) { display: none; }
