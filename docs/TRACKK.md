@@ -1,81 +1,119 @@
 # Track K — vendor-neutral HOPSCOTCH CLI
 
-Track K gives the Builder a terminal interface without introducing a second network model or pretending to run Cisco, Juniper, Linux, or other vendor device images.
+Track K is complete.
+
+The Builder terminal is a vendor-neutral operational surface over canonical HOPSCOTCH truth. It does not emulate IOS, Junos, FRR, Linux, or any other device image, and it never owns routing, switching, neighbor, policy, forwarding, NAT, or protocol truth.
 
 ## Product invariant
 
-> The CLI is a projection and control surface over canonical HOPSCOTCH truth. It never creates routing, switching, neighbor, policy, or forwarding truth of its own.
+> The CLI may parse, scope, delegate, format, and invoke canonical mutations. It never becomes a second network model.
 
-The command parser may decide whether syntax is supported. The formatter may decide how canonical facts are displayed. Neither may decide what the network did.
+That invariant now holds across inspection, probes, device context, and bounded configuration.
 
-## First interactive slice — Builder terminal surface
+## Completed command surface
 
-The original read-only command model gained a real Builder UI surface with:
+### Canonical inspection
+
+The terminal projects existing Builder/runtime state through:
 
 - `show interfaces`
 - `show route`
 - `show arp`
 - `show mac`
+- `show ospf neighbors`
+- `show bgp`
+- `show acl`
+- `show nat`
 
-`projectBuilderCliState(...)` projects the same routed interfaces, RIB state, session ARP cache, and learned FDB facts used elsewhere in Builder. Time Machine can supply a historical RIB truth graph independently from historical physical-link state.
+The original interface/RIB/ARP/FDB views still use `projectBuilderCliState(...)`. Operational protocol/policy views consume the same canonical OSPF, BGP, ACL, NAT, and NAT-session structures used by Builder panels and Device Workbench.
 
-The terminal is a lazy-loaded, full-width dock above the normal Builder stage/control row. It is closed by default and absent from stress Builder. Its capped transcript, command history, clear action, quick commands, and open/closed state are session-only UI state.
+Historical Time Machine snapshots keep staged truth boundaries: route views honor the historical RIB graph and OSPF/BGP inspection uses the historical control-plane graph rather than present-day physical truth.
 
-## Second interactive slice — active Ping + Traceroute
+### Device context
 
-`ping <destination>` and `traceroute <destination>` are now first-class CLI commands, but the CLI still does not simulate them.
+`use <device>` creates terminal-local operational context. A device can be selected by canonical node id or unique label. `use global` returns to the unscoped view.
 
-### Command boundary
+Context changes presentation and command perspective only:
 
-The parser recognizes exactly one destination token. The destination can identify a routed Builder node by:
+- core and protocol inspection can be scoped to one device,
+- active probes originate from the selected routed device,
+- device-bound configuration requires explicit context,
+- no canonical network state changes merely because terminal context changed.
 
-- canonical node id,
-- unique node label,
-- configured IPv4 interface address.
+The Builder's existing selected node, topology, routes, sessions, and event truth remain separate from this local terminal perspective.
 
-Resolution is deterministic and fails closed for unknown or ambiguous destinations. Broad hostname resolution, vendor aliases, source-interface switches, packet-size flags, and other CLI grammar are intentionally deferred.
+### Active probes
 
-### Existing probe engine only
+Supported forms are:
 
-In LIVE Builder, an active CLI command resolves the target node and delegates to the same IPv4 `runBuilderProbe(...)` path used by ordinary Builder Ping/Traceroute controls.
+- `ping <destination>`
+- `traceroute <destination>`
+- `ping ipv4 <destination>`
+- `traceroute ipv4 <destination>`
+- `ping ipv6 <destination>`
+- `traceroute ipv6 <destination>`
 
-That means CLI probes inherit existing truth rather than duplicating it:
+The two-token forms remain backwards-compatible IPv4 commands. Explicit address-family syntax is required for IPv6.
 
-- current routed source selection,
-- canonical addressing and RIB/FIB behavior,
-- ACL policy,
+IPv4 destinations resolve by node id, unique label, or configured IPv4 interface address. IPv6 destinations resolve by node id, unique label, or configured global IPv6 address.
+
+The CLI does not implement packets. It delegates to the existing `runBuilderProbe(...)` or `runBuilderIpv6Probe(...)` path through the shared Builder probe executor. Therefore CLI probes inherit the same:
+
+- RIB/FIB and default-gateway truth,
+- OSPF/BGP-derived reachability,
+- ACL behavior,
 - NAT/PAT translation and session state,
 - link latency/jitter/loss/MTU behavior,
-- probe history,
-- Device Workbench / timeline probe events,
-- Track J challenge evidence and verification when the command matches the objective.
+- IPv6 ND/PMTU/control-plane lifecycle,
+- probe history and selected attempt,
+- Workbench/timeline events,
+- Track J challenge evidence and objective verification.
 
-The CLI receives the returned `BuilderProbeResult` and only formats it. Ping output exposes status, RTT, path MTU, loss, path, detail, and NAT state when present. Traceroute output formats the engine's actual TTL attempts and responders.
+The returned `BuilderProbeResult` is formatted; it is never reinterpreted by the CLI.
 
-### Time Machine remains inspection-only
+### Bounded canonical configuration
 
-Time Machine continues to support the four `show` commands against the selected historical snapshot. Active `ping` and `traceroute` commands fail with `READ_ONLY_CONTEXT` instead of running a hypothetical probe against historical truth.
+Track K intentionally closes with a small command set rather than a vendor grammar:
 
-This is deliberate: historical replay is an observation of recorded state, not a counterfactual execution environment.
+- `set ospf on|off`
+- `set bgp on|off`
+- `set gateway <ipv4|none>`
+- `set link <link-id> up|down`
+- `set static-route <prefix> via <next-hop> [metric <1-999>]`
+- `delete static-route <prefix>`
 
-### Terminal state semantics
+OSPF/BGP, gateway, and static-route commands require `use <device>` first. Link state is explicitly keyed by canonical Builder link id.
 
-The distinction is now explicit:
+Every command delegates to the same existing mutation functions or canonical graph commit path used by Builder controls:
 
-- `show ...` changes no network/session state and creates no Builder event,
-- terminal transcript/history remains local UI state,
-- LIVE `ping` / `traceroute` are genuine Builder probe actions and therefore update the same probe/NAT/challenge/session state and event journal as the ordinary GUI controls,
-- Time Machine never executes active probe commands.
+- OSPF → `setBuilderOspfRouterEnabled(...)`
+- BGP → `setBuilderBgpRouterEnabled(...)`
+- endpoint default gateway → `replaceBuilderDefaultGateway(...)` plus normal addressing reconciliation
+- routed link state → the normal canonical graph commit/reconcile path
+- static routes → `upsertBuilderStaticRoute(...)` / `deleteBuilderStaticRoute(...)`
+
+The CLI therefore cannot create an alternate configuration schema or repair path. Track J challenges can be diagnosed and repaired through the terminal only when these ordinary canonical mutations genuinely fix the challenged field.
+
+## Time Machine boundary
+
+Time Machine remains observation, not counterfactual execution.
+
+Historical terminal sessions allow `use ...` and all `show ...` commands. Historical sessions reject Ping/Traceroute and all configuration commands with explicit `READ_ONLY_CONTEXT` behavior. No hidden present-day probe or configuration mutation is performed while viewing a historical snapshot.
+
+## UX + performance boundary
+
+The terminal remains a lazy full-width Builder dock. It is closed by default and absent from stress Builder, preserving the existing startup and DOM ceilings.
+
+Session-only UX includes a bounded transcript, Up/Down command history, Ctrl/Cmd+L clear, Escape close, quick inspection/probe actions, and GLOBAL vs device-context prompt/header state. Terminal transcript and context are not scenario schema and are not saved as network truth.
 
 ## Deliberate non-goals
 
-Track K does not aim to emulate a vendor CLI grammar, boot a NOS image, or reproduce every operational command. Syntax should remain small and coherent enough that the same command means the same HOPSCOTCH concept everywhere.
+Track K does **not** attempt broad Cisco/Juniper/Arista/FRR/Linux syntax compatibility, vendor configuration modes, running/config storage emulation, device boot processes, NOS images or virtual appliances, terminal-specific routing/protocol algorithms, or unrestricted text-to-config mutation.
 
-Configuration commands, when they arrive, must mutate the exact same canonical configuration objects as the GUI. Protocol inspection commands must project existing protocol state rather than deriving independent control-plane truth.
+Those would either duplicate canonical state or turn HOPSCOTCH into a shallow CLI emulator. The shipped surface is intentionally small, deterministic, and composable with the rest of the product.
 
-## Next slices
+## Closeout
 
-1. Add read-only protocol/policy inspection: `show ospf neighbors`, `show bgp`, `show acl`, and `show nat`.
-2. Add device-scoped terminal context only where it improves operational clarity without fragmenting canonical truth.
-3. Add bounded configuration commands against the same canonical configuration mutations used by Builder controls.
-4. Extend active probes to IPv6 only through the existing IPv6 probe/control-plane engine, with syntax that makes address-family intent unambiguous.
+Track K now provides enough operational depth to diagnose, probe, scope, and perform bounded repairs from one terminal while preserving HOPSCOTCH's central architectural rule: **network truth exists once**.
+
+The next regular product track is Track L — Explain This Network.

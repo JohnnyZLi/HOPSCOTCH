@@ -1,5 +1,17 @@
 import assert from 'node:assert/strict';
 import { createDefaultBuilderAddressing, interfacesForBuilderNode } from '../src/builder/addressing.ts';
+import { createDefaultBuilderAclConfig } from '../src/builder/acl.ts';
+import { createDefaultBuilderNatConfig } from '../src/builder/nat.ts';
+import { createDefaultBuilderIpv6Config } from '../src/builder/ipv6.ts';
+import { setBuilderOspfEverywhere } from '../src/builder/routing.ts';
+import {
+  executeBuilderCliSessionCommand,
+  formatBuilderCliSessionShow,
+  parseBuilderCliSessionCommand,
+  projectBuilderCliOperationalState,
+  resolveBuilderCliOperationalProbeDestination,
+  resolveBuilderCliSessionDevice,
+} from '../src/builder/cli-operations.ts';
 import {
   BuilderCliCommandError,
   executeBuilderCliCommand,
@@ -221,4 +233,77 @@ assert.equal(executedPing.probeResult, fakePing, 'CLI execution must return the 
 assert.equal(executedPing.output, formatBuilderCliProbeResult(fakePing), 'CLI output must be a formatter over the supplied Builder probe result');
 assert.deepEqual(liveProjectionInput, liveProjectionBefore, 'active-command parsing/formatting must not mutate canonical projection input');
 
-console.log('Builder CLI contract passed: deterministic show projections, canonical live/historical state adapter, vendor-neutral ping/traceroute parsing + destination resolution, delegated probe execution/formatting, read-only Time Machine failure, fail-closed unsupported syntax, and immutable supplied truth.');
+// Track K closeout: operational inspection, context, bounded mutations, and explicit IPv6 probes.
+assert.deepEqual(parseBuilderCliSessionCommand('show ospf neighbors'), { verb: 'show', target: 'ospf-neighbors' });
+assert.deepEqual(parseBuilderCliSessionCommand('SHOW BGP'), { verb: 'show', target: 'bgp' });
+assert.deepEqual(parseBuilderCliSessionCommand('show acl'), { verb: 'show', target: 'acl' });
+assert.deepEqual(parseBuilderCliSessionCommand('show nat'), { verb: 'show', target: 'nat' });
+assert.deepEqual(parseBuilderCliSessionCommand('ping ipv6 APP'), { verb: 'ping', family: 'ipv6', destination: 'APP' });
+assert.deepEqual(parseBuilderCliSessionCommand('traceroute ipv4 app'), { verb: 'traceroute', family: 'ipv4', destination: 'app' });
+assert.deepEqual(parseBuilderCliSessionCommand('set ospf on'), { verb: 'set', target: 'ospf', enabled: true });
+assert.deepEqual(parseBuilderCliSessionCommand('set bgp off'), { verb: 'set', target: 'bgp', enabled: false });
+assert.deepEqual(parseBuilderCliSessionCommand('set gateway none'), { verb: 'set', target: 'gateway', address: null });
+assert.deepEqual(parseBuilderCliSessionCommand('set link edge-core down'), { verb: 'set', target: 'link', linkId: 'edge-core', failed: true });
+assert.deepEqual(parseBuilderCliSessionCommand('set static-route 203.0.113.0/24 via 10.0.0.6 metric 7'), { verb: 'set', target: 'static-route', prefix: '203.0.113.0/24', nextHop: '10.0.0.6', metric: 7 });
+assert.deepEqual(parseBuilderCliSessionCommand('delete static-route 203.0.113.0/24'), { verb: 'delete', target: 'static-route', prefix: '203.0.113.0/24' });
+assert.throws(() => parseBuilderCliSessionCommand('set static-route 203.0.113.0/24 via 10.0.0.6 metric 0'), (error) => error instanceof BuilderCliCommandError && error.code === 'UNSUPPORTED_SYNTAX');
+
+const operationalRouting = setBuilderOspfEverywhere(graph, addressing, routing, true);
+const operationalIpv6 = createDefaultBuilderIpv6Config(graph, addressing, true);
+const operationalInput = deepFreeze({
+  graph, addressing, routing: operationalRouting, ipv6: operationalIpv6,
+  acl: createDefaultBuilderAclConfig(), nat: createDefaultBuilderNatConfig(graph), natSessions: [],
+  arpCache: suppliedState.arpEntries, ethernetFlow: { fdb: suppliedState.macEntries },
+});
+const operationalBefore = structuredClone(operationalInput);
+const operationalState = projectBuilderCliOperationalState(operationalInput);
+assert.match(formatBuilderCliSessionShow({ verb: 'show', target: 'ospf-neighbors' }, operationalState, null), /FULL/, 'OSPF CLI view must project canonical adjacency state');
+assert.match(formatBuilderCliSessionShow({ verb: 'show', target: 'bgp' }, operationalState, null), /SESSION VIEWS/, 'BGP CLI view must project canonical BGP state even when empty');
+assert.match(formatBuilderCliSessionShow({ verb: 'show', target: 'acl' }, operationalState, null), /DEFAULT PERMIT/, 'ACL CLI view must expose canonical default policy');
+assert.match(formatBuilderCliSessionShow({ verb: 'show', target: 'nat' }, operationalState, null), /BOUNDARIES/, 'NAT CLI view must expose canonical boundary/session state');
+const scopedRouteOutput = formatBuilderCliSessionShow({ verb: 'show', target: 'route' }, operationalState, 'edge');
+assert.match(scopedRouteOutput, /edge/, 'device context must retain local route rows');
+assert.doesNotMatch(scopedRouteOutput, /^core\s/m, 'device context must not leak other routers into scoped route output');
+assert.equal(resolveBuilderCliSessionDevice(graph, 'EDGE'), 'edge');
+assert.equal(resolveBuilderCliSessionDevice(graph, 'global'), null);
+assert.equal(resolveBuilderCliOperationalProbeDestination(operationalState, 'ipv6', destinationNode.id).nodeId, destinationNode.id);
+const destinationIpv6 = Object.values(operationalIpv6.addressing.segments).flatMap((segment) => segment.interfaces).find((entry) => entry.nodeId === destinationNode.id)?.globalAddress;
+assert.ok(destinationIpv6, 'default Builder IPv6 plan must expose destination global address');
+assert.equal(resolveBuilderCliOperationalProbeDestination(operationalState, 'ipv6', destinationIpv6).nodeId, destinationNode.id);
+
+const fakeIpv6Ping = deepFreeze({ ...fakePing, id: 'probe-9-ping6', sequence: 9, plane: 'ROUTED IPV6', sourceNodeId: 'edge', sourceAddress: '2001:db8:2::1', destinationAddress: destinationIpv6 });
+let operationalProbeRequest = null;
+const ipv6Execution = executeBuilderCliSessionCommand(`ping ipv6 ${destinationNode.id}`, {
+  state: operationalState, currentDeviceId: 'edge', defaultSourceId: 'client',
+  runProbe: (request) => { operationalProbeRequest = request; return fakeIpv6Ping; },
+});
+assert.deepEqual(operationalProbeRequest, { kind: 'ping', family: 'ipv6', sourceId: 'edge', destinationId: destinationNode.id }, 'device-scoped IPv6 CLI probe must delegate exact family/source/destination to existing engine callback');
+assert.equal(ipv6Execution.probeResult, fakeIpv6Ping);
+assert.match(ipv6Execution.output, /^PING ROUTED IPV6/);
+
+const useExecution = executeBuilderCliSessionCommand('use edge', { state: operationalState, currentDeviceId: null, defaultSourceId: 'client' });
+assert.equal(useExecution.nextDeviceId, 'edge');
+assert.match(useExecution.output, /CONTEXT EDGE/);
+const globalExecution = executeBuilderCliSessionCommand('use global', { state: operationalState, currentDeviceId: 'edge', defaultSourceId: 'client' });
+assert.equal(globalExecution.nextDeviceId, null);
+
+let mutationRequest = null;
+const mutationExecution = executeBuilderCliSessionCommand('set ospf off', {
+  state: operationalState, currentDeviceId: 'edge', defaultSourceId: 'client',
+  mutate: (request) => { mutationRequest = request; return 'CLI OSPF · EDGE DISABLED'; },
+});
+assert.deepEqual(mutationRequest, { command: { verb: 'set', target: 'ospf', enabled: false }, deviceId: 'edge' }, 'configuration parser must delegate a bounded canonical mutation instead of mutating truth itself');
+assert.match(mutationExecution.output, /DISABLED/);
+assert.throws(
+  () => executeBuilderCliSessionCommand('set ospf off', { state: operationalState, currentDeviceId: 'edge', defaultSourceId: 'client', activeUnavailableReason: 'Time Machine is inspection-only.' }),
+  (error) => error instanceof BuilderCliCommandError && error.code === 'READ_ONLY_CONTEXT' && /Time Machine/.test(error.message),
+  'historical CLI configuration must fail closed',
+);
+assert.throws(
+  () => executeBuilderCliSessionCommand('set ospf on', { state: operationalState, currentDeviceId: null, defaultSourceId: 'client', mutate: () => 'unexpected' }),
+  (error) => error instanceof BuilderCliCommandError && error.code === 'UNSUPPORTED_SYNTAX' && /use <device>/.test(error.message),
+  'device-bound configuration must require explicit terminal context',
+);
+assert.deepEqual(operationalInput, operationalBefore, 'operational CLI projection/parsing must not mutate supplied canonical/runtime truth');
+
+console.log('Builder CLI contract passed: deterministic core + OSPF/BGP/ACL/NAT projections, global/device context, IPv4/IPv6 probe delegation, bounded canonical mutation delegation, read-only Time Machine failure, fail-closed grammar, and immutable supplied truth.');
