@@ -223,7 +223,7 @@ function networkFacts(input: BuilderDeviceWorkbenchInput): FactGraph {
   builder.add('network.objective', 'CONFIG', 'Current objective', 'connects', `${nodeLabel(graph, input.sourceId)} → ${nodeLabel(graph, input.destinationId)}`, 'neutral', ['network.topology'], [sourceCitation, destinationCitation]);
 
   const forwarding = traceBuilderForwarding(graph, input.addressing, input.routing, input.sourceId, input.destinationId, fibGraph(input));
-  const forwardingCitation = builder.cite('state:fib:current-objective', 'STATE', 'CURRENT FIB FORWARDING', forwarding.explanation, [input.sourceId, input.destinationId, ...forwarding.hops.map((hop) => hop.id ?? hop.linkId ?? '').filter(Boolean)]);
+  const forwardingCitation = builder.cite('state:fib:current-objective', 'STATE', 'CURRENT FIB FORWARDING', forwarding.explanation, [input.sourceId, input.destinationId, ...forwarding.hops.map((hop) => hop.linkId ?? '').filter(Boolean)]);
   builder.add('network.forwarding', 'FORWARDING', 'Current IPv4 forwarding', 'results in', forwarding.reachable ? `REACHABLE · ${forwarding.hops.length} hop${forwarding.hops.length === 1 ? '' : 's'}` : `UNREACHABLE · ${forwarding.failureReason ?? 'NO ROUTE'}`, forwarding.reachable ? 'good' : 'bad', ['network.objective'], [forwardingCitation]);
 
   const ospf = builderOspfState(controlGraph(input), input.addressing, input.routing);
