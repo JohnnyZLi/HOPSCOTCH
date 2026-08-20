@@ -220,14 +220,15 @@
   .as-winner-readout { width: min(440px, 53vw); }
   .as-selection-card { width: min(260px, 34vw); }
   .as-visual-workspace .interactive-world-hud > div:nth-child(4) { display: none; }
+  .as-visual-workspace .interactive-world-hud > .interactive-world-hud__truth { display: grid; }
 }
 
 @media (max-width: 680px) {
   .as-visual-workspace { width: 100%; height: calc(100dvh - 89px); min-height: 510px; }
   .as-visual-workspace .visual-workspace__hud { top: 55px; }
   .as-visual-workspace .interactive-world-hud > div:nth-child(3),
-  .as-visual-workspace .interactive-world-hud > div:nth-child(4),
-  .as-visual-workspace .interactive-world-hud__truth { display: none; }
+  .as-visual-workspace .interactive-world-hud > div:nth-child(4) { display: none; }
+  .as-visual-workspace .interactive-world-hud > .interactive-world-hud__truth { display: grid; }
   .as-winner-readout { right: 8px; bottom: 42px; left: 8px; width: auto; }
   .as-winner-readout > p { display: none; }
   .as-selection-card { display: none; }

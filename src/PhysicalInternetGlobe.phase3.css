@@ -190,14 +190,15 @@
   .physical-selection-card { width: min(320px, 37vw); }
   .physical-corridor-card { width: min(330px, 38vw); }
   .physical-visual-workspace .interactive-world-hud > div:nth-child(4) { display: none; }
+  .physical-visual-workspace .interactive-world-hud > .interactive-world-hud__truth { display: grid; }
 }
 
 @media (max-width: 680px) {
   .physical-visual-workspace { width: 100%; height: calc(100dvh - 89px); min-height: 510px; }
   .physical-visual-workspace .visual-workspace__hud { top: 55px; }
   .physical-visual-workspace .interactive-world-hud > div:nth-child(3),
-  .physical-visual-workspace .interactive-world-hud > div:nth-child(4),
-  .physical-visual-workspace .interactive-world-hud__truth { display: none; }
+  .physical-visual-workspace .interactive-world-hud > div:nth-child(4) { display: none; }
+  .physical-visual-workspace .interactive-world-hud > .interactive-world-hud__truth { display: grid; }
   .physical-selection-card { right: 8px; bottom: 43px; left: 8px; width: auto; }
   .physical-selection-card > p { display: none; }
   .physical-corridor-card { display: none; }

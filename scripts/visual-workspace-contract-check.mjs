@@ -132,6 +132,7 @@ assert.match(asCss, /\.as-cinematic-stage \{[\s\S]*position: absolute;/);
 assert.match(asCss, /\.as-cinematic-stage > \.internet-canvas-wrap \{[\s\S]*position: absolute;/);
 assert.match(asCss, /\.as-visual-workspace \{[\s\S]*width: calc\(100% - 20px\);[\s\S]*max-width: none;/);
 assert.match(asCss, /\.as-visual-workspace \{[\s\S]*height: calc\(100dvh - 89px\);/);
+assert.match(asCss, /@media \(max-width: 680px\)[\s\S]*\.as-visual-workspace \.interactive-world-hud > \.interactive-world-hud__truth \{ display: grid; \}/);
 
 assert.match(physical, /className="physical-visual-workspace interactive-world-workspace"/);
 assert.match(physical, /activeDrawer=\{activeDrawer\}/);
@@ -145,6 +146,7 @@ assert.ok(!physical.includes('SELECT TWO FACILITIES'), 'Physical Atlas must not 
 assert.match(physical, /\{\(corridorA \|\| corridorB\) && <article className=\{`physical-corridor-card/);
 assert.match(physicalCss, /\.physical-visual-workspace \{[\s\S]*width: calc\(100% - 20px\);[\s\S]*max-width: none;/);
 assert.match(physicalCss, /\.physical-visual-workspace \{[\s\S]*height: calc\(100dvh - 89px\);/);
+assert.match(physicalCss, /@media \(max-width: 680px\)[\s\S]*\.physical-visual-workspace \.interactive-world-hud > \.interactive-world-hud__truth \{ display: grid; \}/);
 
 assert.match(packet, /className="packet-visual-workspace interactive-world-workspace"/);
 assert.match(packet, /packet-field-lens/);
