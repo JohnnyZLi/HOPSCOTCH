@@ -237,7 +237,16 @@
   .http-workspace-stage .http-stream-label > small { font-size: .37rem; }
   .http-workspace-stage .http-progress-value { font-size: .46rem; }
   .http-workspace-stage .http-lane > footer { padding-top: 4px; }
-  .http-divergence-axis { display: none; }
+  .http-divergence-axis {
+    top: 50%;
+    right: 18px;
+    bottom: auto;
+    left: 18px;
+    width: auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .15) 18%, rgba(255, 94, 112, .4) 50%, rgba(255, 255, 255, .15) 82%, transparent);
+  }
+  .http-divergence-axis span { transform: translate(-50%, -50%); }
   .http-scene-annotation,
   .http-scene-annotation.focus-h3 { top: 7px; right: 7px; bottom: auto; left: auto; width: min(224px, 62vw); }
   .http-scene-annotation p,
