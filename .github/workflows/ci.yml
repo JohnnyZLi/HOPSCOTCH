@@ -27,6 +27,7 @@ jobs:
           else
             python scripts/apply-track-k-closeout.py
           fi
+          python scripts/fix-track-k-closeout.py
       - run: npm ci
       - run: npm run check
       - name: Commit generated Track K closeout
@@ -37,6 +38,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- src/NetworkBuilder.tsx scripts/builder-cli-contract-check.mjs docs/ROADMAP.md
+          git add -- src/NetworkBuilder.tsx src/builder/cli-operations.ts scripts/builder-cli-contract-check.mjs docs/ROADMAP.md
           git commit -m "Integrate Track K closeout"
           git push origin HEAD:${{ github.head_ref }}
