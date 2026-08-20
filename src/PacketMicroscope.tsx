@@ -79,6 +79,10 @@ function SimulatedPacketMicroscope({
   const snapshot = useMemo(() => buildPacket(config), [config]);
   const selectedSegment = snapshot.segments.find((segment) => segment.id === selectedLayer) ?? snapshot.segments[0];
   const selectedField = selectedSegment.fields.find((field) => field.id === selectedFieldId) ?? null;
+  const networkSegment = snapshot.segments.find((segment) => segment.id === 'network') ?? snapshot.segments[0];
+  const transportSegment = snapshot.segments.find((segment) => segment.id === 'transport') ?? snapshot.segments[0];
+  const sourceAddress = networkSegment.fields.find((field) => field.id === 'ip-src' || field.id === 'ip6-src')?.value ?? 'SOURCE UNKNOWN';
+  const destinationAddress = networkSegment.fields.find((field) => field.id === 'ip-dst' || field.id === 'ip6-dst')?.value ?? 'DESTINATION UNKNOWN';
 
   useEffect(() => {
     if (selectedFieldId && selectedSegment.fields.some((field) => field.id === selectedFieldId)) return;
@@ -232,6 +236,7 @@ function SimulatedPacketMicroscope({
           <div>
             <span>SCENARIO SOURCE</span>
             <strong>{origin?.label ?? 'LAB 01 · TRAFFIC RECOVERS'}</strong>
+            <small className="packet-origin-route">{networkSegment.label} · {transportSegment.label} · {sourceAddress} → {destinationAddress}</small>
           </div>
           <div>
             <span>TIMESTAMP</span>

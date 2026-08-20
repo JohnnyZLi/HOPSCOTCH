@@ -78,6 +78,15 @@
   white-space: nowrap;
 }
 
+.packet-visual-workspace .packet-origin-route {
+  overflow: hidden;
+  color: #6d7a82;
+  font: 650 0.45rem/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.03em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .packet-visual-workspace .packet-origin-strip button {
   min-height: 30px;
   padding: 0 9px;
@@ -344,12 +353,16 @@
   .packet-field-lens { width: min(300px, 35vw); }
 }
 
+@media (max-width: 900px) {
+  .packet-visual-workspace .interactive-world-hud > .interactive-world-hud__truth { display: grid; }
+}
+
 @media (max-width: 680px) {
   .packet-visual-workspace { width: 100%; height: calc(100dvh - 89px); min-height: 520px; }
   .packet-visual-workspace .visual-workspace__hud { top: 55px; }
   .packet-visual-workspace .interactive-world-hud > div:nth-child(3),
-  .packet-visual-workspace .interactive-world-hud > div:nth-child(4),
-  .packet-visual-workspace .interactive-world-hud__truth { display: none; }
+  .packet-visual-workspace .interactive-world-hud > div:nth-child(4) { display: none; }
+  .packet-visual-workspace .interactive-world-hud > .interactive-world-hud__truth { display: grid; }
   .packet-visual-workspace .packet-stage { grid-template-rows: auto minmax(108px, 0.8fr) minmax(170px, 1.2fr); gap: 6px; padding: 98px 8px 8px; }
   .packet-visual-workspace .packet-origin-strip { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 7px 8px; }
   .packet-visual-workspace .packet-origin-strip > div:nth-child(2) { display: none; }
