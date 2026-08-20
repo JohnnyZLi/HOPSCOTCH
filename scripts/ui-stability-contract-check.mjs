@@ -12,6 +12,18 @@ assert.ok(
   styles.includes('right: max(32px, calc((100vw - min(1500px, calc(100vw - 64px))) / 2));'),
   'scale rail must retain the canonical viewport/content gutter anchor',
 );
+assert.ok(
+  styles.includes('top: 50%;\n  bottom: auto;'),
+  'overview layer card must live in the scale-inspector vertical lane instead of the launch-card row',
+);
+assert.ok(
+  styles.includes('translate: 0 -50%;'),
+  'overview layer card must center against the scale rail without competing with Motion transforms',
+);
+assert.ok(
+  styles.includes('.layer-card {\n    top: 122px;\n    bottom: auto;\n    translate: 0;'),
+  'short desktop layouts must pin the layer card above the compact launch deck',
+);
 
 assert.ok(
   journey.includes('.journey-stage-meta>div{display:grid;flex:1 1 0;min-width:0;gap:3px}'),
@@ -34,4 +46,4 @@ assert.ok(
   'mobile Journey metadata must keep its two-column responsive override',
 );
 
-console.log('UI stability contract passed: overview scale/card lanes are separated and Journey timer metadata cannot reflow adjacent cells.');
+console.log('UI stability contract passed: overview scale/card lanes are separated vertically and horizontally, and Journey timer metadata cannot reflow adjacent cells.');
