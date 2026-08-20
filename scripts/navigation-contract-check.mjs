@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { WORKSPACE_COUNT, WORKSPACE_IDS, WORKSPACE_PATHS } from '../src/workspace-catalog.ts';
 import {
   DESTINATION_PATHS,
   canonicalUrlForRoute,
@@ -10,25 +11,11 @@ import {
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 const wrangler = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-const expected = {
-  journey: '/journey',
-  failure: '/labs/failure',
-  builder: '/labs/builder',
-  packet: '/labs/packet',
-  tcp: '/labs/tcp',
-  dns: '/labs/dns',
-  tls: '/labs/tls',
-  http: '/labs/http2-vs-http3',
-  internet: '/internet/as-routing',
-  physical: '/internet/physical',
-  observed: '/internet/observed',
-  measured: '/measured',
-  capture: '/capture',
-};
+assert.equal(WORKSPACE_COUNT, 13);
+assert.deepEqual(DESTINATION_PATHS, WORKSPACE_PATHS, 'navigation must consume canonical workspace paths');
 
-assert.deepEqual(DESTINATION_PATHS, expected);
-
-for (const [destination, path] of Object.entries(expected)) {
+for (const destination of WORKSPACE_IDS) {
+  const path = WORKSPACE_PATHS[destination];
   assert.equal(pathForDestination(destination), path);
   const route = resolveAppRoute(path, '');
   assert.equal(route.kind, 'lab');
@@ -73,4 +60,4 @@ assert.match(app, /addEventListener\('popstate'/);
 assert.match(app, /resolveAppRoute\(window\.location\.pathname, window\.location\.search\)/);
 assert.match(app, /pathForDestination\(/);
 
-console.log('Lab 10B navigation contract OK: 13 canonical deep links, legacy Journey migration, SPA fallback, and browser history wiring.');
+console.log(`Navigation contract OK: ${WORKSPACE_COUNT} catalog-backed canonical deep links, legacy Journey migration, SPA fallback, and browser history wiring.`);
