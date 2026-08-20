@@ -5,24 +5,32 @@ const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8
 const journey = readFileSync(new URL('../src/JourneyTheater.css', import.meta.url), 'utf8');
 
 assert.ok(
-  styles.includes('right: max(206px, calc((100vw - min(1500px, calc(100vw - 64px))) / 2 + 174px));'),
-  'overview layer card must reserve the scale-rail lane instead of sharing its right gutter',
+  styles.includes('.scale-inspector {'),
+  'overview scale selector and explanation must share one scale-inspector positioning context',
+);
+assert.ok(
+  styles.includes('top: clamp(240px, 31vh, 320px);'),
+  'desktop scale inspector must occupy the open scene band rather than the launch-card row',
 );
 assert.ok(
   styles.includes('right: max(32px, calc((100vw - min(1500px, calc(100vw - 64px))) / 2));'),
-  'scale rail must retain the canonical viewport/content gutter anchor',
+  'scale inspector must retain the canonical viewport/content gutter anchor',
 );
 assert.ok(
-  styles.includes('top: 50%;\n  bottom: auto;'),
-  'overview layer card must live in the scale-inspector vertical lane instead of the launch-card row',
+  styles.includes('.scale-inspector[data-active-scale="packet"] { --scale-detail-y: 232.5px; }'),
+  'scale explanation must track the selected rail row instead of floating at one fixed vertical position',
 );
 assert.ok(
-  styles.includes('translate: 0 -50%;'),
-  'overview layer card must center against the scale rail without competing with Motion transforms',
+  styles.includes('right: 174px;') && styles.includes('width: 32px;'),
+  'scale explanation and active rail row must preserve the dedicated connector lane',
 );
 assert.ok(
-  styles.includes('.layer-card {\n    top: 122px;\n    bottom: auto;\n    translate: 0;'),
-  'short desktop layouts must pin the layer card above the compact launch deck',
+  styles.includes('background: linear-gradient(90deg, rgba(5, 8, 12, 0.82), rgba(5, 8, 12, 0.46) 72%, rgba(5, 8, 12, 0));'),
+  'scale explanation must use a lightweight scene flyout rather than a bordered dashboard card',
+);
+assert.ok(
+  styles.includes('@media (max-width: 1380px) and (min-width: 1181px)') && styles.includes('display: none;'),
+  'scale explanation must disappear before it can collide horizontally with the hero/action deck',
 );
 
 assert.ok(
@@ -46,4 +54,4 @@ assert.ok(
   'mobile Journey metadata must keep its two-column responsive override',
 );
 
-console.log('UI stability contract passed: overview scale/card lanes are separated vertically and horizontally, and Journey timer metadata cannot reflow adjacent cells.');
+console.log('UI stability contract passed: the attached scale inspector stays out of primary action space, and Journey timer metadata cannot reflow adjacent cells.');

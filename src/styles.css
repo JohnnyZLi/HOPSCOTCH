@@ -240,20 +240,34 @@ button {
   color: var(--ink);
 }
 
-.scale-rail {
+.scale-inspector {
+  --scale-detail-y: 24.5px;
   position: absolute;
   z-index: 4;
-  top: 50%;
+  top: clamp(240px, 31vh, 320px);
   right: max(32px, calc((100vw - min(1500px, calc(100vw - 64px))) / 2));
+  width: min(500px, calc(100vw - 64px));
+}
+
+.scale-inspector[data-active-scale="routing"] { --scale-detail-y: 76.5px; }
+.scale-inspector[data-active-scale="transport"] { --scale-detail-y: 128.5px; }
+.scale-inspector[data-active-scale="application"] { --scale-detail-y: 180.5px; }
+.scale-inspector[data-active-scale="packet"] { --scale-detail-y: 232.5px; }
+
+.scale-rail {
+  position: relative;
+  z-index: 2;
   display: grid;
+  width: 142px;
+  margin-left: auto;
   gap: 3px;
-  transform: translateY(-50%);
 }
 
 .scale-rail button {
   position: relative;
   display: grid;
   min-width: 142px;
+  min-height: 49px;
   padding: 10px 0 10px 18px;
   border: 0;
   border-left: 1px solid rgba(255, 255, 255, 0.13);
@@ -274,8 +288,27 @@ button {
   transition: height 240ms ease;
 }
 
+.scale-rail button::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -33px;
+  width: 32px;
+  height: 1px;
+  opacity: 0;
+  background: linear-gradient(90deg, rgba(121, 242, 218, 0.22), rgba(121, 242, 218, 0.82));
+  transform: translateY(-50%) scaleX(0.25);
+  transform-origin: right center;
+  transition: opacity 180ms ease, transform 220ms ease;
+}
+
 .scale-rail button.active::before {
   height: 28px;
+}
+
+.scale-rail button.active::after {
+  opacity: 1;
+  transform: translateY(-50%) scaleX(1);
 }
 
 .scale-rail strong {
@@ -295,41 +328,49 @@ button {
 
 .layer-card {
   position: absolute;
-  z-index: 3;
-  right: max(206px, calc((100vw - min(1500px, calc(100vw - 64px))) / 2 + 174px));
-  top: 50%;
-  bottom: auto;
-  width: min(330px, calc(100% - 64px));
-  padding: 20px;
+  z-index: 1;
+  top: var(--scale-detail-y);
+  right: 174px;
+  width: min(300px, calc(100% - 206px));
+  padding: 13px 16px 13px 0;
   translate: 0 -50%;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  background: var(--panel);
-  backdrop-filter: blur(18px);
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(90deg, rgba(5, 8, 12, 0.82), rgba(5, 8, 12, 0.46) 72%, rgba(5, 8, 12, 0));
+  backdrop-filter: blur(8px);
 }
 
-.layer-card h2 {
-  margin: 8px 0 7px;
-  font-size: 1.28rem;
-  letter-spacing: -0.025em;
+.layer-card::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(121, 242, 218, 0.86);
+  box-shadow: 0 0 10px rgba(121, 242, 218, 0.28);
+  transform: translate(50%, -50%);
 }
 
 .layer-card p {
+  max-width: 280px;
   margin: 0;
-  color: #909aa3;
-  font-size: 0.84rem;
-  line-height: 1.55;
+  color: #9aa4ac;
+  font-size: 0.78rem;
+  line-height: 1.5;
 }
 
 .card-rule {
+  width: min(220px, 86%);
   height: 1px;
-  margin: 17px 0 12px;
-  background: linear-gradient(90deg, rgba(121, 242, 218, 0.52), transparent);
+  margin: 12px 0 9px;
+  background: linear-gradient(90deg, rgba(121, 242, 218, 0.46), transparent);
 }
 
 .layer-card small {
   color: var(--cyan);
-  font-size: 0.59rem;
+  font-size: 0.54rem;
   font-weight: 800;
   letter-spacing: 0.13em;
 }
@@ -384,13 +425,21 @@ button {
   font-size: 0.55rem;
 }
 
+@media (max-width: 1380px) and (min-width: 1181px) {
+  .layer-card {
+    display: none;
+  }
+}
+
 @media (max-width: 1180px) {
-  .scale-rail {
+  .scale-inspector {
     top: 104px;
     right: 32px;
-    bottom: auto;
+    width: auto;
+  }
+
+  .scale-rail {
     grid-template-columns: repeat(5, auto);
-    transform: none;
   }
 
   .scale-rail button {
@@ -408,6 +457,10 @@ button {
     height: 3px;
     transform: translateX(-50%);
     transition: width 240ms ease;
+  }
+
+  .scale-rail button::after {
+    display: none;
   }
 
   .scale-rail button.active::before {
@@ -448,22 +501,14 @@ button {
     line-height: 1.48;
   }
 
-  .scale-rail {
+  .scale-inspector {
     top: 110px;
-    transform: none;
-  }
-
-  .layer-card {
-    top: 122px;
-    bottom: auto;
-    translate: 0;
   }
 }
 
 @media (max-width: 760px) {
-  .scale-rail {
+  .scale-inspector {
     top: 94px;
-    bottom: auto;
   }
 }
 
