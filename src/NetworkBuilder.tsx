@@ -63,7 +63,7 @@ import { builderStpState } from './builder/stp.ts';
 import { clearBuilderNatSessions, cloneBuilderNatConfig, createDefaultBuilderNatConfig, createEmptyBuilderNatConfig, reconcileBuilderNatConfig, type BuilderNatConfig, type BuilderNatSessionTable } from './builder/nat.ts';
 import { BuilderNatPanel } from './BuilderNatPanel.tsx';
 import { BuilderIpv6Panel } from './BuilderIpv6Panel.tsx';
-import type { BuilderBgpAsProjection } from './builder/bgp.ts';
+import { setBuilderBgpRouterEnabled, type BuilderBgpAsProjection } from './builder/bgp.ts';
 import { applyBuilderDhcpState, clearBuilderDhcpLeases, cloneBuilderDhcpConfig, createDefaultBuilderDhcpConfig, type BuilderDhcpConfig, type BuilderDhcpLeaseTable } from './builder/dhcp.ts';
 import { BuilderDhcpPanel } from './BuilderDhcpPanel.tsx';
 import { BuilderDeviceWorkbench } from './BuilderDeviceWorkbench.tsx';
@@ -75,7 +75,7 @@ import { appendBuilderWorkbenchEventBatch, appendBuilderWorkbenchMessageEvent, b
 import { deriveBuilderCanonicalEventSpecs } from './builder/canonical-events.ts';
 import { builderTimelineJournalThroughSequence, builderTimelineSnapshotAtSequence, captureBuilderTimelineSnapshot, createBuilderTimeline, diffBuilderTimelineDevice, type BuilderTimeline } from './builder/timeline.ts';
 import { appendBuilderChallengeEvidence, builderChallengeIsRepaired, builderChallengeRepairStage, createBuilderChallenge, scoreBuilderChallenge, seedFromBuilderChallengeToken, type BuilderChallenge, type BuilderChallengeEvidence, type BuilderChallengeHypothesis } from './builder/challenges.ts';
-import { resolveBuilderCliProbeDestination, type BuilderCliProbeCommand } from './builder/cli.ts';
+import type { BuilderCliMutationRequest, BuilderCliProbeRequest } from './builder/cli-operations.ts';
 import './NetworkBuilder.css';
 
 const BuilderAuthoringPanel = lazy(() => import('./BuilderAuthoringPanel.tsx'));
@@ -331,9 +331,18 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
     return result;
   };
   const runProbe = (kind: 'ping' | 'traceroute') => { executeProbe(kind); };
-  const runCliProbe = (command: BuilderCliProbeCommand): BuilderProbeResult => {
-    const resolved = resolveBuilderCliProbeDestination({ graph, addressing }, command.destination);
-    return executeProbe(command.verb, 'ipv4', sourceId, resolved.nodeId);
+  const runCliProbe = (request: BuilderCliProbeRequest): BuilderProbeResult => executeProbe(request.kind, request.family, request.sourceId, request.destinationId);
+  const applyCliMutation = (request: BuilderCliMutationRequest): string => {
+    const command=request.command;
+    const node=request.deviceId?graph.nodes.find((entry)=>entry.id===request.deviceId)??null:null;
+    const requireRouter=()=>{if(!node||node.kind!=='router')throw new Error(`${command.target.toUpperCase()} requires router context. Run USE <router> first.`);return node;};
+    if(command.target==='ospf'){const router=requireRouter();const next=setBuilderOspfRouterEnabled(graph,addressing,routing,router.id,command.enabled);setRouting(next);const detail=`CLI OSPF · ${router.label} ${command.enabled?'ENABLED':'DISABLED'}. Canonical OSPF state and routes recomputed.`;setMessage(detail);return detail;}
+    if(command.target==='bgp'){const router=requireRouter();const nextBgp=setBuilderBgpRouterEnabled(graph,routing.bgp,router.id,command.enabled);setRouting({...routing,bgp:nextBgp});const detail=`CLI BGP · ${router.label} ${command.enabled?'ENABLED':'DISABLED'}. Existing canonical BGP sessions/policy decide resulting state.`;setMessage(detail);return detail;}
+    if(command.target==='gateway'){if(!node||node.kind!=='endpoint')throw new Error('GATEWAY requires endpoint context. Run USE <endpoint> first.');const next=replaceBuilderDefaultGateway(graph,addressing,node.id,command.address);commitAddressing(next);const detail=`CLI GATEWAY · ${node.label} → ${next.defaultGateways[node.id]??'NONE'}.`;setMessage(detail);return detail;}
+    if(command.target==='link'){const link=graph.links.find((entry)=>entry.id===command.linkId);if(!link)throw new Error(`Unknown routed link ${command.linkId}.`);commitGraph({...graph,links:graph.links.map((entry)=>entry.id===link.id?{...entry,failed:command.failed}:entry)});const detail=`CLI LINK · ${link.id.toUpperCase()} ${command.failed?'DOWN':'UP'}. Canonical topology/control-plane truth recomputed.`;setMessage(detail);return detail;}
+    if(command.target==='static-route'&&command.verb==='set'){const router=requireRouter();const next=upsertBuilderStaticRoute(graph,addressing,routing,{routerId:router.id,prefix:command.prefix,nextHop:command.nextHop,metric:command.metric});setRouting(next);const installed=next.staticRoutes.find((entry)=>entry.routerId===router.id&&entry.nextHop===command.nextHop&&entry.metric===command.metric&&entry.prefix===command.prefix)??next.staticRoutes.find((entry)=>entry.routerId===router.id&&entry.nextHop===command.nextHop);const detail=`CLI STATIC ROUTE · ${router.label} ${installed?.prefix??command.prefix} via ${command.nextHop} metric ${command.metric}.`;setMessage(detail);return detail;}
+    if(command.target==='static-route'&&command.verb==='delete'){const router=requireRouter();const route=routing.staticRoutes.find((entry)=>entry.routerId===router.id&&entry.prefix===command.prefix);if(!route)throw new Error(`${router.id} has no canonical static route exactly matching ${command.prefix}. Run SHOW ROUTE in this context first.`);setRouting(deleteBuilderStaticRoute(graph,addressing,routing,route.id));const detail=`CLI STATIC ROUTE · ${router.label} ${route.prefix} removed.`;setMessage(detail);return detail;}
+    throw new Error('Unsupported CLI mutation.');
   };
 
   const commitGraph = (next: BuilderGraph) => {
@@ -610,7 +619,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
       </header>
 
       <div className="builder-main">
-        {!stressLabel&&cliOpen&&<Suspense fallback={null}><BuilderCliTerminal input={displayedWorkbenchInput} contextLabel={isHistorical?`HISTORY #${String(historicalTimelineSnapshot?.sequence??0).padStart(3,'0')}`:'LIVE'} defaultProbeTarget={destinationId} onProbe={isHistorical?undefined:runCliProbe} probeUnavailableReason={isHistorical?'Active ping and traceroute commands are disabled in Time Machine. Return to LIVE before generating new probe state.':undefined} onClose={()=>setCliOpen(false)}/></Suspense>}
+        {!stressLabel&&cliOpen&&<Suspense fallback={null}><BuilderCliTerminal input={displayedWorkbenchInput} contextLabel={isHistorical?`HISTORY #${String(historicalTimelineSnapshot?.sequence??0).padStart(3,'0')}`:'LIVE'} defaultProbeTarget={destinationId} defaultSourceId={sourceId} onProbe={isHistorical?undefined:runCliProbe} onMutation={isHistorical?undefined:applyCliMutation} activeUnavailableReason={isHistorical?'Time Machine is inspection-only. Return to LIVE before running probes or changing canonical configuration.':undefined} onClose={()=>setCliOpen(false)}/></Suspense>}
         <section className="builder-stage">
           <div className="builder-stage-meta">{isHistorical&&<div className="builder-history-meta"><span>TIME MACHINE</span><strong>HISTORY #{String(historicalTimelineSnapshot?.sequence??0).padStart(3,'0')} · READ ONLY</strong></div>}<div><span>GRAPH PATH</span><strong>{route.reachable ? `YES · COST ${route.totalCost}` : 'NO PATH'}</strong></div><div><span>L3 FORWARDING</span><strong>{forwardingTrace.reachable ? 'REACHABLE' : 'NO ROUTE'}</strong></div>{!stressLabel&&<div><span>ACTIVE PROBE</span><strong>{selectedProbe ? `${selectedProbe.kind.toUpperCase()} · ${selectedProbe.success ? 'PASS' : 'FAIL'}${selectedProbe.natApplied ? ' · NAT' : ''}` : 'IDLE'}</strong></div>}<div><span>OSPF AREA 0</span><strong>{ospfState.enabledRouterIds.length === 0 ? 'OFF' : `${ospfState.enabledRouterIds.length} RTR · ${ospfState.fullAdjacencyCount} FULL`}</strong></div>{!stressLabel&&<div><span>STATIC</span><strong>{routing.staticRoutes.length} ROUTES</strong></div>}{!stressLabel&&<div><span>NAT/PAT</span><strong>{nat.boundaries.length === 0 ? 'OFF' : `${nat.boundaries.length} BOUNDARY · ${natSessions.length} STATE`}</strong></div>}<div><span>GRAPH</span><strong>{graph.nodes.length} NODES · {graph.links.length} LINKS</strong></div></div>
           <div ref={canvasRef} className={`builder-canvas ${authoringView.camera.scale!==1?'is-authoring-zoomed':''}`} onPointerDown={(event)=>{if(isHistorical||stressLabel)return;const target=event.target;if(target instanceof Element&&target.closest('.builder-node,.builder-link'))return;const point=authoringCanvasPoint(event.clientX,event.clientY);if(!point)return;setAuthoringMarquee({startX:point.x,startY:point.y,endX:point.x,endY:point.y,additive:event.shiftKey||event.metaKey||event.ctrlKey});event.currentTarget.setPointerCapture(event.pointerId);}} onPointerMove={(event)=>{if(!authoringMarquee)return;const point=authoringCanvasPoint(event.clientX,event.clientY);if(point)setAuthoringMarquee((current)=>current?{...current,endX:point.x,endY:point.y}:current);}} onPointerUp={()=>{if(!authoringMarquee)return;const minX=Math.min(authoringMarquee.startX,authoringMarquee.endX),maxX=Math.max(authoringMarquee.startX,authoringMarquee.endX),minY=Math.min(authoringMarquee.startY,authoringMarquee.endY),maxY=Math.max(authoringMarquee.startY,authoringMarquee.endY);const picked=graph.nodes.filter((node)=>{const point=layout[node.id];return Boolean(point&&point.x>=minX&&point.x<=maxX&&point.y>=minY&&point.y<=maxY);}).map((node)=>node.id);setAuthoringView((current)=>({...current,selection:authoringMarquee.additive?[...new Set([...current.selection,...picked])]:picked}));setAuthoringMarquee(null);}} onPointerCancel={()=>setAuthoringMarquee(null)}>

@@ -298,7 +298,7 @@ function formatBgp(state: BuilderCliOperationalState, deviceId: string | null): 
       route.policyAnomaly ? 'ANOMALY' : 'BEST',
     ]);
   const sections = [
-    `SESSIONS · ${sessionRows.length / 2 === 0 && !deviceId ? bgp.sessions.length : sessionRows.length} VIEW${sessionRows.length === 1 ? '' : 'S'}`,
+    `SESSION VIEWS · ${sessionRows.length}`,
     sessionRows.length ? formatTable(['LOCAL', 'ASN', 'PEER', 'PEER ASN', 'MODE', 'STATE', 'REL', 'DETAIL'], sessionRows) : 'No BGP session facts in this context.',
     `BEST ROUTES · ${routeRows.length}`,
     routeRows.length ? formatTable(['DEVICE', 'PREFIX', 'VIA', 'FROM', 'AS PATH', 'LOCAL PREF', 'MED', 'NEXT HOP', 'STATE'], routeRows) : 'No BGP best-route facts in this context.',
@@ -400,6 +400,10 @@ export function resolveBuilderCliOperationalProbeDestination(state: BuilderCliOp
   return [...matches.values()][0];
 }
 
+function isMutationCommand(command: BuilderCliSessionCommand): command is BuilderCliMutationCommand {
+  return command.verb === 'set' || command.verb === 'delete';
+}
+
 function mutationRequiresDevice(command: BuilderCliMutationCommand): boolean {
   return command.target !== 'link';
 }
@@ -427,6 +431,7 @@ export function executeBuilderCliSessionCommand(input: string, context: BuilderC
     const probeResult = context.runProbe({ kind: command.verb, family: command.family, sourceId, destinationId: destination.nodeId });
     return { command, output: formatProbeResult(probeResult), nextDeviceId: context.currentDeviceId, probeResult };
   }
+  if (!isMutationCommand(command)) throw new BuilderCliCommandError('UNSUPPORTED_COMMAND', 'Unsupported CLI execution path.');
   if (!context.mutate) throw new BuilderCliCommandError('READ_ONLY_CONTEXT', context.activeUnavailableReason ?? 'Configuration commands are unavailable in this terminal context.');
   if (mutationRequiresDevice(command) && !context.currentDeviceId) {
     throw new BuilderCliCommandError('UNSUPPORTED_SYNTAX', `Command ${command.verb.toUpperCase()} ${command.target.toUpperCase()} requires device context. Run "use <device>" first.`);

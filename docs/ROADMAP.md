@@ -198,9 +198,9 @@ Captured evidence, application truth, causal replay, authoring, enterprise depth
 
 ## Current priority order
 
-### 1. Track K — vendor-neutral HOPSCOTCH CLI
+### 1. Track L — Explain This Network
 
-Track K is now the highest-value regular product track. The Builder terminal and active Ping/Traceroute delegation are shipped; the next slice should deepen protocol/policy inspection without creating CLI-specific control-plane truth.
+Track K is complete. The next regular product priority is Track L: deterministic explanation of topology, protocol state, forwarding, policy, and failure causality from the canonical Builder model.
 
 ---
 
@@ -220,11 +220,16 @@ These remain real product work. They should follow Track K unless a bounded depe
 
 `docs/TRACKK.md` records the Track K architecture and interactive slices.
 
-**Remaining**
+**Completed Track K closeout**
 
-- [ ] `show ospf neighbors`, `show bgp`, `show acl`, and `show nat`
-- [ ] later bounded configuration commands mutate the same canonical configuration as the GUI
-- [ ] deliberately avoid broad Cisco/Juniper syntax emulation or device-image behavior
+- [x] `show ospf neighbors`, `show bgp`, `show acl`, and `show nat` project existing canonical/runtime state
+- [x] `use <device>` / `use global` adds terminal-local operational context without creating network truth
+- [x] `ping|traceroute ipv4|ipv6 <destination>` delegates to the existing address-family probe/control-plane engines; IPv4 remains the backwards-compatible default
+- [x] bounded `set ospf`, `set bgp`, `set gateway`, `set link`, `set static-route`, and `delete static-route` commands call the same canonical mutations used by Builder controls
+- [x] Time Machine allows context + inspection but fails closed for probes/configuration
+- [x] broad Cisco/Juniper syntax emulation and device-image behavior remain deliberate non-goals
+
+`docs/TRACKK.md` is the Track K closeout architecture and validation record.
 
 ### Track L — explain-this-network layer
 
