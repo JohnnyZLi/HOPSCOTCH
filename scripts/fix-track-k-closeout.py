@@ -31,6 +31,13 @@ if old in text:
 
 test_path = Path('scripts/builder-cli-contract-check.mjs')
 test_text = test_path.read_text()
-old_assert = "assert.match(formatBuilderCliSessionShow({ verb: 'show', target: 'bgp' }, operationalState, null), /SESSIONS/, 'BGP CLI view must project canonical BGP state even when empty');"
-if old_assert in test_text:
-    test_path.write_text(test_text.replace(old_assert, "assert.match(formatBuilderCliSessionShow({ verb: 'show', target: 'bgp' }, operationalState, null), /SESSION VIEWS/, 'BGP CLI view must project canonical BGP state even when empty');", 1))
+replacements = {
+    "assert.match(formatBuilderCliSessionShow({ verb: 'show', target: 'bgp' }, operationalState, null), /SESSIONS/, 'BGP CLI view must project canonical BGP state even when empty');":
+        "assert.match(formatBuilderCliSessionShow({ verb: 'show', target: 'bgp' }, operationalState, null), /SESSION VIEWS/, 'BGP CLI view must project canonical BGP state even when empty');",
+    "error.code === 'UNSUPPORTED_SYNTAX' && /USE <device>/.test(error.message)":
+        "error.code === 'UNSUPPORTED_SYNTAX' && /use <device>/.test(error.message)",
+}
+for old_text, new_text in replacements.items():
+    if old_text in test_text:
+        test_text = test_text.replace(old_text, new_text, 1)
+test_path.write_text(test_text)
