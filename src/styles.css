@@ -532,3 +532,9 @@ button {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Integrated keyboard focus contract */
+:where(button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid rgba(121, 242, 218, 0.92);
+  outline-offset: 3px;
+}

@@ -406,3 +406,11 @@
     font-size: 1.9rem;
   }
 }
+
+/* Explore focus containment ring */
+.explore-trigger:focus-visible,
+.explore-close:focus-visible,
+.explore-featured-card:focus-visible,
+.explore-card:focus-visible {
+  box-shadow: 0 0 0 2px #05070a, 0 0 0 4px rgba(121, 242, 218, 0.72);
+}

@@ -342,3 +342,9 @@
   .dns-namespace-ladder { left:3%; bottom:3%; width:145px; }
   .dns-link { opacity:.32; }
 }
+
+/* Integrated DNS hardening formerly isolated in dns-audit.css */
+.dns-subhead > div {
+  display: grid;
+  gap: 4px;
+}
