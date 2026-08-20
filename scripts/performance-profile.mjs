@@ -291,9 +291,9 @@ if (compatibility) profiles.push(
 { id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', 'NOT PROMOTED TO LOCAL MEASURED'] },
   { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
   { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
-  { id: 'measured-sidecars-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['ONE REQUEST.', 'BREAK THE PATH.'] },
-  { id: 'measured-sidecars-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['ONE REQUEST.', 'BREAK THE PATH.'] },
-  { id: 'measured-sidecars-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['ONE REQUEST.', 'BREAK THE PATH.'] },
+  { id: 'measured-sidecars-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
+  { id: 'measured-sidecars-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
+  { id: 'measured-sidecars-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
 );
 
 async function waitForExpression(cdp, expression, timeoutMs = 5000) {
@@ -808,7 +808,12 @@ async function measuredClickButton(cdp, selector, text) {
 async function openJourneyDrawer(cdp, label) {
   await measuredClickButton(cdp, '.visual-drawer-tabs button', label);
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace .visual-drawer'))`, 8000);
-  await sleep(280);
+  await waitForExpression(cdp, `(()=>{
+    const drawer=document.querySelector('.journey-visual-workspace .visual-drawer')?.getBoundingClientRect();
+    const stage=document.querySelector('.journey-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
+    return Boolean(drawer&&stage&&drawer.left>=stage.left-1&&drawer.right<=stage.right+1);
+  })()`, 8000);
+  await sleep(80);
 }
 
 async function closeJourneyDrawer(cdp) {
