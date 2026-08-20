@@ -843,11 +843,13 @@ async function inspectJourneyDrawerArchitecture(cdp, profile) {
   const opened = await cdp.evaluate(`(()=>{
     const stage=document.querySelector('.journey-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
     const drawer=document.querySelector('.journey-visual-workspace .visual-drawer')?.getBoundingClientRect();
+    const modifierProfile=document.querySelector('.journey-modifier-profile');
     const controls=[...document.querySelectorAll('.journey-modifier-profile button')].map((button,index)=>{const rect=button.getBoundingClientRect();return {index:index+1,text:button.innerText,x:Math.round(rect.x),y:Math.round(rect.y),width:Math.round(rect.width),height:Math.round(rect.height)}});
     return {
       stage:stage?{x:stage.x,y:stage.y,width:stage.width,height:stage.height}:null,
       drawer:drawer?{x:drawer.x,y:drawer.y,width:drawer.width,height:drawer.height}:null,
       controls,
+      modifierColumns:modifierProfile?getComputedStyle(modifierProfile).gridTemplateColumns.split(' ').filter(Boolean).length:0,
       modal:document.querySelector('.journey-visual-workspace .visual-drawer')?.getAttribute('aria-modal'),
     };
   })()`);
@@ -870,7 +872,7 @@ async function inspectJourneyDrawerArchitecture(cdp, profile) {
   for (const key of ['x', 'y', 'width', 'height']) {
     if (Math.abs(after[key] - before.stage[key]) > 1) throw new Error(`${profile.id} stage did not recover after closing Config (${key}).`);
   }
-  return { modifierControls: opened.controls, modal: true, stagePreserved: true, mobileFullStage: profile.width <= 680 };
+  return { modifierControls: opened.controls, modifierColumns: opened.modifierColumns, modal: true, stagePreserved: true, mobileFullStage: profile.width <= 680 };
 }
 
 async function measuredViewportState(cdp) {
@@ -1052,20 +1054,12 @@ async function loadProfile(cdp, origin, profile) {
 
   if (profile.assertMobileGrid) {
     if (structural.modifierControls.length !== 10) throw new Error(`Expected 10 GOD MODE controls, found ${structural.modifierControls.length}.`);
-    const rows = [];
-    for (const button of [...structural.modifierControls].sort((a, b) => a.y - b.y || a.x - b.x)) {
-      const row = rows.find((candidate) => Math.abs(candidate.y - button.y) <= 2);
-      if (row) {
-        row.buttons.push(button);
-        row.y = row.buttons.reduce((sum, item) => sum + item.y, 0) / row.buttons.length;
-      } else {
-        rows.push({ y: button.y, buttons: [button] });
-      }
+    if (structural.drawerArchitecture?.modifierColumns !== 3) throw new Error(`Expected a three-column mobile GOD MODE grid, found ${structural.drawerArchitecture?.modifierColumns ?? 0} columns.`);
+    for (const button of structural.modifierControls) {
+      if (button.width < 40 || button.height < 32) throw new Error(`Mobile GOD MODE control ${button.text} is too small: ${button.width}×${button.height}.`);
     }
-    const rowSizes = rows.map((row) => row.buttons.length).sort((a, b) => a - b);
-    if (JSON.stringify(rowSizes) !== JSON.stringify([1, 3, 3, 3])) throw new Error(`Unexpected mobile GOD MODE rows: ${JSON.stringify(rowSizes)}`);
-    const finalRow = rows.sort((a, b) => a.y - b.y).at(-1).buttons.sort((a, b) => a.x - b.x);
-    if (finalRow.map((button) => button.text).join('|') !== 'LEAK') throw new Error(`Unexpected final mobile row: ${finalRow.map((button) => button.text).join('|')}`);
+    const finalControl = structural.modifierControls.at(-1);
+    if (finalControl?.text !== 'LEAK') throw new Error(`Unexpected final mobile control: ${finalControl?.text ?? 'missing'}`);
   }
 
   const pageErrors = cdp.events.filter((event) =>
