@@ -75,6 +75,7 @@ import { appendBuilderWorkbenchEventBatch, appendBuilderWorkbenchMessageEvent, b
 import { deriveBuilderCanonicalEventSpecs } from './builder/canonical-events.ts';
 import { builderTimelineJournalThroughSequence, builderTimelineSnapshotAtSequence, captureBuilderTimelineSnapshot, createBuilderTimeline, diffBuilderTimelineDevice, type BuilderTimeline } from './builder/timeline.ts';
 import { appendBuilderChallengeEvidence, builderChallengeIsRepaired, builderChallengeRepairStage, createBuilderChallenge, scoreBuilderChallenge, seedFromBuilderChallengeToken, type BuilderChallenge, type BuilderChallengeEvidence, type BuilderChallengeHypothesis } from './builder/challenges.ts';
+import { resolveBuilderCliProbeDestination, type BuilderCliProbeCommand } from './builder/cli.ts';
 import './NetworkBuilder.css';
 
 const BuilderAuthoringPanel = lazy(() => import('./BuilderAuthoringPanel.tsx'));
@@ -301,32 +302,38 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   };
   const patchEthernetLink = (patch: Parameters<typeof updateBuilderEthernetLink>[2]) => { if(!selectedEthernetLink)return; try{const next=updateBuilderEthernetLink(ethernet,selectedEthernetLink.id,patch);setEthernet(next);setEthernetFlow(null);setArpResolutions([]);setMessage(`LAN PORT · ${selectedEthernetLink.id.toUpperCase()} updated. Rerun the frame to observe new switching/VLAN truth.`);}catch(error){setMessage(`LAN CONFIG REJECTED · ${error instanceof Error?error.message:'Invalid Ethernet port configuration.'}`);} };
 
-  const runProbe = (kind: 'ping' | 'traceroute') => {
-    const result = probeFamily === 'ipv6'
-      ? runBuilderIpv6Probe(graph, materializeBuilderIpv6RuntimeConfig(ipv6, ipv6LifecycleState), kind, sourceId, destinationId, probeHistory.length + 1, linkProfiles, natSessions, ipv6ControlState, ipv6ProbePacketBytes, reconcileBuilderIpv6RoutingDepthState(graph, ipv6RoutingDepth))
-      : runBuilderProbe(graph, addressing, routing, kind, sourceId, destinationId, probeHistory.length + 1, linkProfiles, acl, nat, natSessions);
-    if (probeFamily === 'ipv6') { const ipv6Result = result as ReturnType<typeof runBuilderIpv6Probe>; setIpv6ControlState(ipv6Result.ipv6ControlState); setIpv6LifecycleState((current) => reconcileBuilderIpv6LifecycleWithControl(ipv6Result.ipv6ControlState, current)); }
+  const executeProbe = (kind: 'ping' | 'traceroute', family: 'ipv4'|'ipv6' = probeFamily, probeSourceId = sourceId, probeDestinationId = destinationId): BuilderProbeResult => {
+    const result: BuilderProbeResult = family === 'ipv6'
+      ? runBuilderIpv6Probe(graph, materializeBuilderIpv6RuntimeConfig(ipv6, ipv6LifecycleState), kind, probeSourceId, probeDestinationId, probeHistory.length + 1, linkProfiles, natSessions, ipv6ControlState, ipv6ProbePacketBytes, reconcileBuilderIpv6RoutingDepthState(graph, ipv6RoutingDepth))
+      : runBuilderProbe(graph, addressing, routing, kind, probeSourceId, probeDestinationId, probeHistory.length + 1, linkProfiles, acl, nat, natSessions);
+    if (family === 'ipv6') { const ipv6Result = result as ReturnType<typeof runBuilderIpv6Probe>; setIpv6ControlState(ipv6Result.ipv6ControlState); setIpv6LifecycleState((current) => reconcileBuilderIpv6LifecycleWithControl(ipv6Result.ipv6ControlState, current)); }
     setNatSessions(result.natSessions);
     setProbeHistory((current) => [result, ...current].slice(0, 10));
     setSelectedProbeId(result.id);
     setSelectedProbeAttempt(result.attempts.length > 0 ? result.attempts.length - 1 : 0);
-    if (challenge && probeFamily === 'ipv4' && !isHistorical) {
+    if (challenge && family === 'ipv4' && !isHistorical) {
       const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet, routing, acl, nat, dhcp, linkProfiles, services);
       const repairStage=builderChallengeRepairStage(challenge,addressing,ethernet,routing,acl,nat,dhcp,linkProfiles,services);
-      setChallengeEvidence((current) => appendBuilderChallengeEvidence(current, { kind, sourceId, destinationId, success: result.success, repaired, repairStage, detail: result.summary }));
-    } else if (challenge && probeFamily === 'ipv6' && challenge.verification.kind === 'ipv6-pmtu' && !isHistorical) {
+      setChallengeEvidence((current) => appendBuilderChallengeEvidence(current, { kind, sourceId:probeSourceId, destinationId:probeDestinationId, success: result.success, repaired, repairStage, detail: result.summary }));
+    } else if (challenge && family === 'ipv6' && challenge.verification.kind === 'ipv6-pmtu' && !isHistorical) {
       const ipv6Result = result as ReturnType<typeof runBuilderIpv6Probe>;
       const repaired = builderChallengeIsRepaired(challenge, addressing, ethernet, routing, acl, nat, dhcp, linkProfiles, services);
       const ndAdded = Math.max(0, ipv6Result.ipv6ControlState.ndHistory.length - ipv6ControlState.ndHistory.length);
       const pmtuAdded = ipv6Result.ipv6ControlState.pmtuHistory.length > ipv6ControlState.pmtuHistory.length ? ipv6Result.ipv6ControlState.pmtuHistory.at(-1) ?? null : null;
       const pathMtuBytes = pmtuAdded?.delivered === true ? pmtuAdded.mtuBytes : null;
       setChallengeEvidence((current) => {
-        let next = appendBuilderChallengeEvidence(current, { kind, sourceId, destinationId, success: ipv6Result.success, requestedBytes: ipv6Result.requestedPacketBytes, effectiveBytes: ipv6Result.effectivePacketBytes, pathMtuBytes, repaired, detail: ipv6Result.summary });
-        if (ndAdded > 0) next = appendBuilderChallengeEvidence(next, { kind:'ipv6-nd', sourceId, destinationId, success:true, ndResolutionCount:ndAdded, repaired, detail:'Neighbor Discovery completed ' + ndAdded + ' next-hop NS/NA observation' + (ndAdded===1?'':'s') + '; L2 neighbor resolution is not the failing boundary.' });
+        let next = appendBuilderChallengeEvidence(current, { kind, sourceId:probeSourceId, destinationId:probeDestinationId, success: ipv6Result.success, requestedBytes: ipv6Result.requestedPacketBytes, effectiveBytes: ipv6Result.effectivePacketBytes, pathMtuBytes, repaired, detail: ipv6Result.summary });
+        if (ndAdded > 0) next = appendBuilderChallengeEvidence(next, { kind:'ipv6-nd', sourceId:probeSourceId, destinationId:probeDestinationId, success:true, ndResolutionCount:ndAdded, repaired, detail:'Neighbor Discovery completed ' + ndAdded + ' next-hop NS/NA observation' + (ndAdded===1?'':'s') + '; L2 neighbor resolution is not the failing boundary.' });
         return next;
       });
     }
     setMessage(`${kind.toUpperCase()} · ${result.summary}`);
+    return result;
+  };
+  const runProbe = (kind: 'ping' | 'traceroute') => { executeProbe(kind); };
+  const runCliProbe = (command: BuilderCliProbeCommand): BuilderProbeResult => {
+    const resolved = resolveBuilderCliProbeDestination({ graph, addressing }, command.destination);
+    return executeProbe(command.verb, 'ipv4', sourceId, resolved.nodeId);
   };
 
   const commitGraph = (next: BuilderGraph) => {
@@ -603,7 +610,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
       </header>
 
       <div className="builder-main">
-        {!stressLabel&&cliOpen&&<Suspense fallback={null}><BuilderCliTerminal input={displayedWorkbenchInput} contextLabel={isHistorical?`HISTORY #${String(historicalTimelineSnapshot?.sequence??0).padStart(3,'0')}`:'LIVE'} onClose={()=>setCliOpen(false)}/></Suspense>}
+        {!stressLabel&&cliOpen&&<Suspense fallback={null}><BuilderCliTerminal input={displayedWorkbenchInput} contextLabel={isHistorical?`HISTORY #${String(historicalTimelineSnapshot?.sequence??0).padStart(3,'0')}`:'LIVE'} defaultProbeTarget={destinationId} onProbe={isHistorical?undefined:runCliProbe} probeUnavailableReason={isHistorical?'Active ping and traceroute commands are disabled in Time Machine. Return to LIVE before generating new probe state.':undefined} onClose={()=>setCliOpen(false)}/></Suspense>}
         <section className="builder-stage">
           <div className="builder-stage-meta">{isHistorical&&<div className="builder-history-meta"><span>TIME MACHINE</span><strong>HISTORY #{String(historicalTimelineSnapshot?.sequence??0).padStart(3,'0')} · READ ONLY</strong></div>}<div><span>GRAPH PATH</span><strong>{route.reachable ? `YES · COST ${route.totalCost}` : 'NO PATH'}</strong></div><div><span>L3 FORWARDING</span><strong>{forwardingTrace.reachable ? 'REACHABLE' : 'NO ROUTE'}</strong></div>{!stressLabel&&<div><span>ACTIVE PROBE</span><strong>{selectedProbe ? `${selectedProbe.kind.toUpperCase()} · ${selectedProbe.success ? 'PASS' : 'FAIL'}${selectedProbe.natApplied ? ' · NAT' : ''}` : 'IDLE'}</strong></div>}<div><span>OSPF AREA 0</span><strong>{ospfState.enabledRouterIds.length === 0 ? 'OFF' : `${ospfState.enabledRouterIds.length} RTR · ${ospfState.fullAdjacencyCount} FULL`}</strong></div>{!stressLabel&&<div><span>STATIC</span><strong>{routing.staticRoutes.length} ROUTES</strong></div>}{!stressLabel&&<div><span>NAT/PAT</span><strong>{nat.boundaries.length === 0 ? 'OFF' : `${nat.boundaries.length} BOUNDARY · ${natSessions.length} STATE`}</strong></div>}<div><span>GRAPH</span><strong>{graph.nodes.length} NODES · {graph.links.length} LINKS</strong></div></div>
           <div ref={canvasRef} className={`builder-canvas ${authoringView.camera.scale!==1?'is-authoring-zoomed':''}`} onPointerDown={(event)=>{if(isHistorical||stressLabel)return;const target=event.target;if(target instanceof Element&&target.closest('.builder-node,.builder-link'))return;const point=authoringCanvasPoint(event.clientX,event.clientY);if(!point)return;setAuthoringMarquee({startX:point.x,startY:point.y,endX:point.x,endY:point.y,additive:event.shiftKey||event.metaKey||event.ctrlKey});event.currentTarget.setPointerCapture(event.pointerId);}} onPointerMove={(event)=>{if(!authoringMarquee)return;const point=authoringCanvasPoint(event.clientX,event.clientY);if(point)setAuthoringMarquee((current)=>current?{...current,endX:point.x,endY:point.y}:current);}} onPointerUp={()=>{if(!authoringMarquee)return;const minX=Math.min(authoringMarquee.startX,authoringMarquee.endX),maxX=Math.max(authoringMarquee.startX,authoringMarquee.endX),minY=Math.min(authoringMarquee.startY,authoringMarquee.endY),maxY=Math.max(authoringMarquee.startY,authoringMarquee.endY);const picked=graph.nodes.filter((node)=>{const point=layout[node.id];return Boolean(point&&point.x>=minX&&point.x<=maxX&&point.y>=minY&&point.y<=maxY);}).map((node)=>node.id);setAuthoringView((current)=>({...current,selection:authoringMarquee.additive?[...new Set([...current.selection,...picked])]:picked}));setAuthoringMarquee(null);}} onPointerCancel={()=>setAuthoringMarquee(null)}>

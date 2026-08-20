@@ -200,7 +200,7 @@ Captured evidence, application truth, causal replay, authoring, enterprise depth
 
 ### 1. Track K — vendor-neutral HOPSCOTCH CLI
 
-Track K is now the highest-value regular product track. Its read-only command model already exists; the next slice should expose the actual Builder terminal surface before expanding protocol commands.
+Track K is now the highest-value regular product track. The Builder terminal and active Ping/Traceroute delegation are shipped; the next slice should deepen protocol/policy inspection without creating CLI-specific control-plane truth.
 
 ---
 
@@ -216,12 +216,13 @@ These remain real product work. They should follow Track K unless a bounded depe
 - [x] CLI foundation consumes supplied canonical facts and rejects unsupported/configuration syntax rather than inventing behavior
 - [x] lazy full-width Builder terminal surface with command transcript/history and explicit LIVE vs Time Machine context
 - [x] canonical live/historical state adapter for routed interfaces, RIB routes, session ARP, and learned FDB facts
+- [x] vendor-neutral `ping <destination>` and `traceroute <destination>` delegate to the existing LIVE IPv4 Builder probe engine, including NAT/session/challenge/event behavior; Time Machine fails closed for active probes
 
-`docs/TRACKK.md` records the Track K architecture and first interactive slice.
+`docs/TRACKK.md` records the Track K architecture and interactive slices.
 
 **Remaining**
 
-- [ ] `show ospf neighbors`, `show bgp`, `show acl`, `show nat`, `ping`, and `traceroute`
+- [ ] `show ospf neighbors`, `show bgp`, `show acl`, and `show nat`
 - [ ] later bounded configuration commands mutate the same canonical configuration as the GUI
 - [ ] deliberately avoid broad Cisco/Juniper syntax emulation or device-image behavior
 
