@@ -50,7 +50,7 @@ function focusableElements(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(selector)).filter((element) => !element.hidden);
 }
 
-function VisualWorkspaceDrawer({ drawer, onClose }: { drawer: VisualDrawerDefinition; onClose: () => void }) {
+export function VisualWorkspaceDrawer({ drawer, onClose, className = '' }: { drawer: VisualDrawerDefinition; onClose: () => void; className?: string }) {
   const drawerRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
@@ -104,7 +104,7 @@ function VisualWorkspaceDrawer({ drawer, onClose }: { drawer: VisualDrawerDefini
       />
       <motion.aside
         ref={drawerRef}
-        className="visual-drawer"
+        className={`visual-drawer ${className}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={`visual-drawer-${drawer.id}-title`}
@@ -124,6 +124,52 @@ function VisualWorkspaceDrawer({ drawer, onClose }: { drawer: VisualDrawerDefini
       </motion.aside>
     </>
   );
+}
+
+export function VisualOverlayDrawer({
+  active,
+  drawers,
+  onClose,
+  className = '',
+}: {
+  active: VisualDrawerId | null;
+  drawers: readonly VisualDrawerDefinition[];
+  onClose: () => void;
+  className?: string;
+}) {
+  const drawer = drawers.find((candidate) => candidate.id === active) ?? null;
+  return <AnimatePresence>{drawer && <VisualWorkspaceDrawer key={drawer.id} drawer={drawer} onClose={onClose} className={className} />}</AnimatePresence>;
+}
+
+export function VisualEntranceTransition({ entrance }: {
+  entrance: { eyebrow: string; title: string; accentTitle: string; subtitle?: string };
+}) {
+  const reduceMotion = useReducedMotion();
+  const [visible, setVisible] = useState(!reduceMotion);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      setVisible(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setVisible(false), 1280);
+    return () => window.clearTimeout(timeout);
+  }, [reduceMotion]);
+
+  return <AnimatePresence>{visible && (
+    <motion.div
+      className="visual-entrance"
+      aria-hidden="true"
+      initial={{ opacity: 0, scale: 1.035, filter: 'blur(16px)' }}
+      animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+      exit={{ opacity: 0, scale: 0.82, y: -84, filter: 'blur(12px)' }}
+      transition={{ duration: 0.62, ease: [0.16, 1, 0.3, 1] }}
+    >
+      <span>{entrance.eyebrow}</span>
+      <strong>{entrance.title}<em>{entrance.accentTitle}</em></strong>
+      {entrance.subtitle && <small>{entrance.subtitle}</small>}
+    </motion.div>
+  )}</AnimatePresence>;
 }
 
 export function VisualWorkspaceShell({
@@ -150,17 +196,7 @@ export function VisualWorkspaceShell({
   timeline: ReactNode;
 }) {
   const reduceMotion = useReducedMotion();
-  const [entranceVisible, setEntranceVisible] = useState(!reduceMotion);
   const drawer = drawers.find((candidate) => candidate.id === activeDrawer) ?? null;
-
-  useEffect(() => {
-    if (reduceMotion) {
-      setEntranceVisible(false);
-      return;
-    }
-    const timeout = window.setTimeout(() => setEntranceVisible(false), 1280);
-    return () => window.clearTimeout(timeout);
-  }, [reduceMotion]);
 
   return (
     <motion.section
@@ -176,23 +212,8 @@ export function VisualWorkspaceShell({
         {children}
         {hud && <div className="visual-workspace__hud">{hud}</div>}
         {toolbar && <div className="visual-workspace__toolbar">{toolbar}</div>}
-        <AnimatePresence>{drawer && <VisualWorkspaceDrawer key={drawer.id} drawer={drawer} onClose={onCloseDrawer} />}</AnimatePresence>
-        <AnimatePresence>
-          {entranceVisible && (
-            <motion.div
-              className="visual-entrance"
-              aria-hidden="true"
-              initial={{ opacity: 0, scale: 1.035, filter: 'blur(16px)' }}
-              animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, scale: 0.82, y: -84, filter: 'blur(12px)' }}
-              transition={{ duration: 0.62, ease: [0.16, 1, 0.3, 1] }}
-            >
-              <span>{entrance.eyebrow}</span>
-              <strong>{entrance.title}<em>{entrance.accentTitle}</em></strong>
-              {entrance.subtitle && <small>{entrance.subtitle}</small>}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <VisualOverlayDrawer active={activeDrawer} drawers={drawers} onClose={onCloseDrawer} />
+        <VisualEntranceTransition entrance={entrance} />
       </div>
       {timeline}
     </motion.section>

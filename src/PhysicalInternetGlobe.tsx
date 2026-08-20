@@ -1,12 +1,19 @@
-import { motion, useReducedMotion } from 'motion/react';
+import { useReducedMotion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
+import {
+  VisualDrawerTabs,
+  VisualWorkspaceShell,
+  type VisualDrawerDefinition,
+  type VisualDrawerId,
+} from './VisualWorkspace';
 import type {
   PublicInfrastructureError,
   PublicInfrastructureFacility,
   PublicInfrastructureSnapshot,
 } from './internet/infrastructure';
 import './PhysicalInternetGlobe.css';
+import './PhysicalInternetGlobe.phase3.css';
 
 export interface PhysicalStressFacility {
   id: number; name: string; city: string | null; country: string | null; latitude: number; longitude: number; networkCount: number | null; exchangeCount: number | null;
@@ -135,6 +142,7 @@ export function PhysicalInternetGlobe({
   const [corridorBId, setCorridorBId] = useState<number | null>(null);
   const [density, setDensity] = useState<DensityLevel>(150);
   const [zoom, setZoom] = useState(3.15);
+  const [activeDrawer, setActiveDrawer] = useState<VisualDrawerId | null>(null);
 
   const stressMode = stressFacilities !== undefined;
   const allFacilities = useMemo(() => stressFacilities ?? snapshot?.facilities ?? [], [snapshot, stressFacilities]);
@@ -433,16 +441,90 @@ export function PhysicalInternetGlobe({
     setZoom(nextZoom);
   };
 
-  return (
-    <motion.section className="physical-globe" data-stress-mode={stressMode ? "true" : "false"} data-point-count={visibleFacilities.length} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.985 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
-      <header className="physical-heading">
-        <div><p className="eyebrow">Lab 05C · Physical Internet atlas</p><h1>THE INTERNET<br/><span>HAS A BODY.</span></h1></div>
-        <div className="physical-heading-actions"><span>{stressMode ? "SIMULATED · STRESS FIXTURE" : "PUBLIC DATA · PEERINGDB"}</span><button className="lab-mode" type="button" onClick={onOpenSimulated}>AS POLICY ↗</button><button className="lab-mode" type="button" onClick={onOpenObserved}>EVIDENCE ↗</button><button className="lab-mode" type="button" onClick={onExit}>EXIT LAB</button></div>
-      </header>
+  const toggleDrawer = (id: VisualDrawerId) => setActiveDrawer((current) => current === id ? null : id);
+  const drawers: VisualDrawerDefinition[] = [
+    {
+      id: 'inspect',
+      label: 'Inspect',
+      eyebrow: stressMode ? 'Simulated stress point' : 'Public facility record',
+      title: selectedFacility?.name ?? 'No facility selected',
+      content: <div className="physical-panel physical-drawer-panel">
+        <section className="facility-inspector">
+          <div className="physical-panel-title"><span>{stressMode ? 'SIMULATED STRESS' : 'PUBLIC DATA'}</span><strong>FACILITY INSPECTOR</strong></div>
+          {selectedFacility ? <>
+            <h2>{selectedFacility.name}</h2>
+            <p>{facilityLocation(selectedFacility)}</p>
+            <dl><div><dt>PEERINGDB ID</dt><dd>{selectedFacility.id}</dd></div><div><dt>COORDINATES</dt><dd>{selectedFacility.latitude.toFixed(4)}, {selectedFacility.longitude.toFixed(4)}</dd></div><div><dt>NETWORKS</dt><dd>{selectedFacility.networkCount ?? '—'}</dd></div><div><dt>EXCHANGES</dt><dd>{selectedFacility.exchangeCount ?? '—'}</dd></div></dl>
+            <div className="physical-buttons"><button type="button" className={corridorAId === selectedFacility.id ? 'active' : ''} onClick={() => setCorridorAId(selectedFacility.id)}>SET CORRIDOR A</button><button type="button" className={corridorBId === selectedFacility.id ? 'active' : ''} onClick={() => setCorridorBId(selectedFacility.id)}>SET CORRIDOR B</button></div>
+          </> : <p className="physical-empty-copy">Click one of the facility points on the globe.</p>}
+        </section>
+      </div>,
+    },
+    {
+      id: 'tools',
+      label: 'Facilities',
+      eyebrow: stressMode ? 'Renderer fixture' : 'Public infrastructure',
+      title: `${visibleFacilities.length} visible points`,
+      content: <div className="physical-panel physical-drawer-panel">
+        <section>
+          <div className="physical-panel-title"><span>VIEW</span><strong>SCENE DENSITY</strong></div>
+          {!stressMode && <button className="density-button" type="button" onClick={cycleDensity}><span>VISIBLE PUBLIC POINTS</span><strong>{density}</strong><i>{density === 80 ? 'FOCUS' : density === 150 ? 'BALANCED' : 'DENSE'}</i></button>}
+          <label>CAMERA DISTANCE<input type="range" min="2.15" max="4.6" step="0.05" value={zoom} onChange={(event) => updateZoom(Number(event.currentTarget.value))} /></label>
+        </section>
+        <section>
+          <div className="physical-panel-title"><span>{stressMode ? 'STRESS POINTS' : 'FACILITIES'}</span><strong>{visibleFacilities.length} / {allFacilities.length}</strong></div>
+          <div className="facility-list">{visibleFacilities.slice(0, 40).map((facility) => <button type="button" key={facility.id} className={facility.id === selectedId ? 'active' : ''} onClick={() => setSelectedId(facility.id)}><span>{facility.name}</span><small>{facilityLocation(facility)}</small></button>)}</div>
+        </section>
+      </div>,
+    },
+    {
+      id: 'evidence',
+      label: 'Evidence',
+      eyebrow: 'Data provenance',
+      title: 'Truth boundary',
+      content: <div className="physical-panel physical-drawer-panel">
+        <section className="physical-provenance">
+          <div className="physical-panel-title"><span>PROVENANCE</span><strong>TRUTH BOUNDARY</strong></div>
+          <p>{stressMode ? <><b>SIMULATED</b> points exist only to load-test the real WebGL renderer. They are not PeeringDB records, facilities, routes, or measured infrastructure.</> : <><b>PUBLIC DATA</b> points are PeeringDB facility locations. The yellow corridor is <b>INFERRED</b> geometry only. No submarine cable, IX relationship, or packet path is claimed by this scene.</>}</p>
+          <small>{stressMode ? 'LAB 08B · deterministic renderer fixture' : snapshot?.note ?? 'Waiting for public infrastructure data.'}</small>
+        </section>
+        <section className="physical-truth-ledger">
+          <div><span>PUBLIC DATA</span><strong>Facility identity, coordinates, counts</strong></div>
+          <div><span>INFERRED</span><strong>Great-circle corridor geometry</strong></div>
+          <div><span>NOT CLAIMED</span><strong>Traffic path, cable, or peering</strong></div>
+        </section>
+      </div>,
+    },
+  ];
 
-      <div className="physical-main">
-        <section className="physical-stage">
-          <div className="physical-stage-meta"><div><span>RENDERER</span><strong>{webglError ? 'FALLBACK' : 'WEBGL 2'}</strong></div><div><span>{stressMode ? 'STRESS POINTS' : 'PUBLIC FACILITIES'}</span><strong>{loading ? 'LOADING' : allFacilities.length || 'UNAVAILABLE'}</strong></div><div><span>VISIBLE POINTS</span><strong>{visibleFacilities.length}</strong></div><div><span>CORRIDOR</span><strong>{corridorA && corridorB ? 'INFERRED' : 'OFF'}</strong></div></div>
+  return (
+    <div className="physical-globe physical-world-root" data-stress-mode={stressMode ? 'true' : 'false'} data-point-count={visibleFacilities.length}>
+      <VisualWorkspaceShell
+        className="physical-visual-workspace interactive-world-workspace"
+        entrance={{ eyebrow: 'Lab 05C · Physical Internet atlas', title: 'THE INTERNET', accentTitle: 'HAS A BODY.', subtitle: 'Public coordinates become a navigable physical atlas—without inventing a forwarding path.' }}
+        stageLabel="Interactive globe of Internet interconnection facilities"
+        activeDrawer={activeDrawer}
+        drawers={drawers}
+        onCloseDrawer={() => setActiveDrawer(null)}
+        timeline={null}
+        toolbar={<>
+          <div className="interactive-world-toolbar__identity"><span>LAB 05C · PHYSICAL ATLAS</span><strong>THE INTERNET HAS A BODY</strong></div>
+          <VisualDrawerTabs active={activeDrawer} items={[
+            { id: 'inspect', label: 'INSPECT', badge: selectedFacility ? '1' : '0' },
+            { id: 'tools', label: 'FACILITIES', badge: String(visibleFacilities.length) },
+            { id: 'evidence', label: 'EVIDENCE' },
+          ]} onSelect={toggleDrawer} />
+          <div className="interactive-world-toolbar__actions"><button type="button" onClick={onOpenSimulated}>AS POLICY ↗</button><button type="button" onClick={onOpenObserved}>EVIDENCE ↗</button><button type="button" onClick={onExit}>EXIT LAB</button></div>
+        </>}
+        hud={<div className="interactive-world-hud physical-stage-meta">
+          <div><span>RENDERER</span><strong>{webglError ? 'FALLBACK' : 'WEBGL 2'}</strong></div>
+          <div><span>{stressMode ? 'STRESS POINTS' : 'PUBLIC FACILITIES'}</span><strong>{loading ? 'LOADING' : allFacilities.length || 'UNAVAILABLE'}</strong></div>
+          <div><span>VISIBLE</span><strong>{visibleFacilities.length}</strong></div>
+          <div><span>CORRIDOR</span><strong>{corridorA && corridorB ? 'INFERRED' : 'OFF'}</strong></div>
+          <div className="interactive-world-hud__truth"><span>PROVENANCE</span><strong>{stressMode ? 'SIMULATED · STRESS FIXTURE' : 'PUBLIC DATA · PEERINGDB'}</strong></div>
+        </div>}
+      >
+        <section className="physical-cinematic-stage">
           <div className="globe-viewport">
             <div ref={hostRef} className="globe-render-host" aria-label="Interactive WebGL globe of public Internet interconnection facilities" />
             <div className="globe-reticle" aria-hidden="true"><i/><i/></div>
@@ -451,16 +533,19 @@ export function PhysicalInternetGlobe({
             {webglError && <div className="globe-fallback"><strong>WEBGL 2 UNAVAILABLE</strong><span>{webglError}</span><p>Public facility records remain inspectable in the list; HOPSCOTCH will not substitute a fake 3D renderer.</p></div>}
             {dataError && <div className="globe-data-error"><strong>PUBLIC DATA UNAVAILABLE</strong><span>{dataError}</span></div>}
           </div>
-          <div className={`corridor-strip ${corridorA && corridorB ? 'active' : ''}`}><span>INFERRED GEOMETRIC CORRIDOR</span><strong>{corridorA && corridorB ? `${corridorA.name} → ${corridorB.name}` : 'SELECT TWO FACILITIES'}</strong><p>{corridorA && corridorB ? 'A great-circle visualization between two public coordinates. This is not a measured route, cable, peering relationship, or proof of traffic traversal.' : 'Select a public facility, assign corridor A/B, then HOPSCOTCH can draw geometry without claiming connectivity.'}</p></div>
+          {selectedFacility && <article className="physical-selection-card">
+            <span>{stressMode ? 'SIMULATED POINT' : 'PUBLIC FACILITY'} · {selectedFacility.id}</span>
+            <strong>{selectedFacility.name}</strong>
+            <p>{facilityLocation(selectedFacility)} · {selectedFacility.latitude.toFixed(2)}, {selectedFacility.longitude.toFixed(2)}</p>
+            <div><button type="button" onClick={() => setActiveDrawer('inspect')}>INSPECT FACILITY ↗</button><button type="button" onClick={() => setCorridorAId(selectedFacility.id)}>SET A</button><button type="button" onClick={() => setCorridorBId(selectedFacility.id)}>SET B</button></div>
+          </article>}
+          <article className={`physical-corridor-card ${corridorA && corridorB ? 'active' : ''}`}>
+            <span>INFERRED GEOMETRIC CORRIDOR</span>
+            <strong>{corridorA && corridorB ? `${corridorA.name} → ${corridorB.name}` : 'SELECT TWO FACILITIES'}</strong>
+            <p>{corridorA && corridorB ? 'Great-circle geometry · not a measured route, cable, or proof of traversal.' : 'Assign corridor A and B from a selected public facility.'}</p>
+          </article>
         </section>
-
-        <aside className="physical-panel">
-          <section className="facility-inspector"><div className="physical-panel-title"><span>{stressMode ? 'SIMULATED STRESS' : 'PUBLIC DATA'}</span><strong>FACILITY INSPECTOR</strong></div>{selectedFacility ? <><h2>{selectedFacility.name}</h2><p>{facilityLocation(selectedFacility)}</p><dl><div><dt>PEERINGDB ID</dt><dd>{selectedFacility.id}</dd></div><div><dt>COORDINATES</dt><dd>{selectedFacility.latitude.toFixed(4)}, {selectedFacility.longitude.toFixed(4)}</dd></div><div><dt>NETWORKS</dt><dd>{selectedFacility.networkCount ?? '—'}</dd></div><div><dt>EXCHANGES</dt><dd>{selectedFacility.exchangeCount ?? '—'}</dd></div></dl><div className="physical-buttons"><button type="button" className={corridorAId === selectedFacility.id ? 'active' : ''} onClick={() => setCorridorAId(selectedFacility.id)}>SET CORRIDOR A</button><button type="button" className={corridorBId === selectedFacility.id ? 'active' : ''} onClick={() => setCorridorBId(selectedFacility.id)}>SET CORRIDOR B</button></div></> : <p className="physical-empty-copy">Click one of the facility points on the globe.</p>}</section>
-          <section><div className="physical-panel-title"><span>VIEW</span><strong>SCENE DENSITY</strong></div><button className="density-button" type="button" onClick={cycleDensity}><span>VISIBLE PUBLIC POINTS</span><strong>{density}</strong><i>{density === 80 ? 'FOCUS' : density === 150 ? 'BALANCED' : 'DENSE'}</i></button><label>CAMERA DISTANCE<input type="range" min="2.15" max="4.6" step="0.05" value={zoom} onChange={(event) => updateZoom(Number(event.currentTarget.value))}/></label></section>
-          <section><div className="physical-panel-title"><span>{stressMode ? 'STRESS POINTS' : 'FACILITIES'}</span><strong>{visibleFacilities.length} / {allFacilities.length}</strong></div><div className="facility-list">{visibleFacilities.slice(0, 30).map((facility) => <button type="button" key={facility.id} className={facility.id === selectedId ? 'active' : ''} onClick={() => setSelectedId(facility.id)}><span>{facility.name}</span><small>{facilityLocation(facility)}</small></button>)}</div></section>
-          <section className="physical-provenance"><div className="physical-panel-title"><span>PROVENANCE</span><strong>TRUTH BOUNDARY</strong></div><p>{stressMode ? <><b>SIMULATED</b> points exist only to load-test the real WebGL renderer. They are not PeeringDB records, facilities, routes, or measured infrastructure.</> : <><b>PUBLIC DATA</b> points are PeeringDB facility locations. The yellow corridor is <b>INFERRED</b> geometry only. No submarine cable, IX relationship, or packet path is claimed by this scene.</>}</p><small>{stressMode ? 'LAB 08B · deterministic renderer fixture' : snapshot?.note ?? 'Waiting for public infrastructure data.'}</small></section>
-        </aside>
-      </div>
-    </motion.section>
+      </VisualWorkspaceShell>
+    </div>
   );
 }
