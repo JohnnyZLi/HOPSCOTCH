@@ -25,6 +25,7 @@ jobs:
           if grep -q "Integrated product hardening after Tracks A–L" docs/ROADMAP.md; then
             echo "Integrated product hardening already applied."
           else
+            python scripts/prepare-integrated-product-hardening.py
             python scripts/apply-integrated-product-hardening.py
           fi
       - run: npm ci
