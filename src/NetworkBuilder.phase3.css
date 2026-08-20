@@ -408,6 +408,7 @@
   .builder-visual-workspace .builder-stage-meta { top: 54px; right: 8px; left: 8px; max-width: none; }
   .builder-visual-workspace .builder-stage-meta > div { min-width: 0; flex: 1 1 0; padding-inline: 6px; }
   .builder-visual-workspace .builder-stage-meta > div:nth-child(n + 4) { display: none; }
+  .builder-visual-workspace .builder-stage-meta > div.builder-meta-ospf { display: grid; }
   .builder-scene-switcher { top: 96px; right: 8px; max-width: calc(100% - 16px); overflow-x: auto; }
   .builder-scene-switcher button { flex: 0 0 auto; }
   .builder-selection-card { right: 8px; bottom: 40px; left: 8px; width: auto; }
