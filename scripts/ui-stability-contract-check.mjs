@@ -45,6 +45,18 @@ assert.ok(
   'scale explanation and connector must physically travel between rows while their contents resolve independently',
 );
 assert.ok(
+  styles.includes('margin-top: -14.5px;') && !styles.includes('transform: translateY(-50%);\n  pointer-events: none;'),
+  'shared-layout scale marker must not let CSS transforms fight Motion layout transforms',
+);
+assert.ok(
+  styles.includes('.layer-card-copy {') && styles.includes('background: transparent;'),
+  'travelling scale instrument must not leave an opaque empty flyout while copy crossfades',
+);
+assert.ok(
+  styles.includes('@keyframes scale-depth-wave-in') && styles.includes('@keyframes scale-depth-wave-out'),
+  'scale direction must emit a deterministic keyed scan wave in both abstraction directions',
+);
+assert.ok(
   app.includes("setScaleDirection(nextIndex > currentIndex ? 'inward' : 'outward')"),
   'overview scale motion must preserve whether the user is diving inward or pulling outward',
 );

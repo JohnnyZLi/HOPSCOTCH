@@ -381,7 +381,7 @@ export default function App() {
               </section>
 
               <div className="scale-inspector" data-active-scale={layer} data-direction={scaleDirection}>
-                {!reduceMotion && <motion.i key={`wave-${layer}`} className="scale-depth-wave" aria-hidden="true" initial={{ opacity: 0, scaleX: 0.03 }} animate={{ opacity: [0, 0.42, 0], scaleX: [0.03, 1, 1] }} transition={{ duration: 0.78, times: [0, 0.28, 1], ease: [0.16, 1, 0.3, 1] }} />}
+                {!reduceMotion && <i key={`wave-${layer}`} className="scale-depth-wave" aria-hidden="true" />}
                 {!reduceMotion && <motion.i key={`ripple-${layer}`} className="scale-depth-ripple" aria-hidden="true" initial={{ opacity: 0.52, scale: 0.3 }} animate={{ opacity: 0, scale: 1.75 }} transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1] }} />}
                 <motion.aside className="layer-card" aria-label={`${active.label} scale details`} initial={false} animate={{ top: activeLayerTop }} transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 220, damping: 27, mass: 0.75 }}>
                   <motion.i className="scale-connector" aria-hidden="true" initial={false} animate={{ opacity: 1, scaleX: 1 }} transition={{ duration: reduceMotion ? 0 : 0.24 }} />

@@ -295,8 +295,8 @@ button {
   height: 29px;
   border-radius: 999px;
   background: var(--cyan);
+  margin-top: -14.5px;
   box-shadow: 0 0 10px rgba(121, 242, 218, 0.58), 0 0 28px rgba(121, 242, 218, 0.22);
-  transform: translateY(-50%);
   pointer-events: none;
 }
 
@@ -319,10 +319,31 @@ button {
   right: 141px;
   width: min(48vw, 740px);
   height: 1px;
+  opacity: 0;
   background: linear-gradient(90deg, transparent 0%, rgba(122, 156, 255, 0.08) 48%, rgba(121, 242, 218, 0.62) 100%);
   box-shadow: 0 0 18px rgba(121, 242, 218, 0.16);
+  transform: scaleX(0.03);
   transform-origin: right center;
+  animation: scale-depth-wave-in 780ms cubic-bezier(0.16, 1, 0.3, 1) both;
   pointer-events: none;
+}
+
+.scale-inspector[data-direction="outward"] .scale-depth-wave {
+  animation-name: scale-depth-wave-out;
+}
+
+@keyframes scale-depth-wave-in {
+  0% { opacity: 0; transform: scaleX(0.03); }
+  24% { opacity: 0.5; }
+  66% { opacity: 0.18; }
+  100% { opacity: 0; transform: scaleX(1); }
+}
+
+@keyframes scale-depth-wave-out {
+  0% { opacity: 0; transform: scaleX(1); }
+  24% { opacity: 0.44; }
+  66% { opacity: 0.16; }
+  100% { opacity: 0; transform: scaleX(0.03); }
 }
 
 .scale-depth-ripple {
@@ -359,10 +380,15 @@ button {
   top: var(--scale-detail-y);
   right: 174px;
   width: min(300px, calc(100% - 206px));
-  padding: 13px 16px 13px 0;
+  padding: 0;
   translate: 0 -50%;
   border: 0;
   border-radius: 0;
+  background: transparent;
+}
+
+.layer-card-copy {
+  padding: 13px 16px 13px 0;
   background: linear-gradient(90deg, rgba(5, 8, 12, 0.82), rgba(5, 8, 12, 0.46) 72%, rgba(5, 8, 12, 0));
   backdrop-filter: blur(8px);
 }
@@ -494,7 +520,8 @@ button {
     left: 50%;
     width: 28px;
     height: 3px;
-    transform: translateX(-50%);
+    margin-top: 0;
+    margin-left: -14px;
   }
 
   .scale-active-marker::after,
