@@ -54,7 +54,7 @@ function focusableElements(root: HTMLElement): HTMLElement[] {
   });
 }
 
-export function useVisualDrawerFocus<T extends HTMLElement>(active: boolean, onClose: () => void) {
+export function useVisualDrawerFocus<T extends HTMLElement>(active: boolean, onClose: () => void, activationKey: unknown = active) {
   const drawerRef = useRef<T>(null);
   const initialFocusRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
@@ -97,7 +97,7 @@ export function useVisualDrawerFocus<T extends HTMLElement>(active: boolean, onC
       document.removeEventListener('keydown', onKeyDown);
       previousFocus?.focus();
     };
-  }, [active]);
+  }, [active, activationKey]);
 
   return { drawerRef, initialFocusRef };
 }
