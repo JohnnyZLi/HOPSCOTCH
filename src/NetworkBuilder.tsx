@@ -667,7 +667,9 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
               {graph.links.map((link) => {
                 const a = layout[link.a]; const b = layout[link.b]; if (!a || !b) return null;
                 const active = activeLinks.has(link.id); const forwarding = forwardingLinks.has(link.id);
-                return <g key={link.id} data-link-id={link.id} className={`builder-link ${link.failed ? 'failed' : active ? 'active' : 'alternate'} ${forwarding ? 'l3-forwarding' : ''} ${probeLinks.has(link.id) ? 'probe-active' : ''} ${selectedLinkId === link.id ? 'selected' : ''}`} role="button" aria-label={`${labelFor(graph, link.a)} to ${labelFor(graph, link.b)} link · ${link.failed ? 'down' : `cost ${link.cost}`}`} tabIndex={0} onClick={() => setSelectedLinkId(link.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setSelectedLinkId(link.id); }}>
+                const linkClassName = `builder-link ${link.failed ? 'failed' : active ? 'active' : 'alternate'} ${forwarding ? 'l3-forwarding' : ''} ${probeLinks.has(link.id) ? 'probe-active' : ''} ${selectedLinkId === link.id ? 'selected' : ''}`;
+                if (stressLabel) return <g key={link.id} className={linkClassName} aria-hidden="true"><line x1={a.x} y1={a.y} x2={b.x} y2={b.y}/></g>;
+                return <g key={link.id} data-link-id={link.id} className={linkClassName} role="button" aria-label={`${labelFor(graph, link.a)} to ${labelFor(graph, link.b)} link · ${link.failed ? 'down' : `cost ${link.cost}`}`} tabIndex={0} onClick={() => setSelectedLinkId(link.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setSelectedLinkId(link.id); }}>
                   <line className="hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y}/><line x1={a.x} y1={a.y} x2={b.x} y2={b.y}/><text x={(a.x+b.x)/2} y={(a.y+b.y)/2 - 1.5}>{link.failed ? 'DOWN' : link.cost}</text>
                 </g>;
               })}
