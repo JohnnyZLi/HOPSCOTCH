@@ -1052,15 +1052,19 @@ async function loadProfile(cdp, origin, profile) {
 
   if (profile.assertMobileGrid) {
     if (structural.modifierControls.length !== 10) throw new Error(`Expected 10 GOD MODE controls, found ${structural.modifierControls.length}.`);
-    const rows = new Map();
-    for (const button of structural.modifierControls) {
-      const row = rows.get(button.y) ?? [];
-      row.push(button);
-      rows.set(button.y, row);
+    const rows = [];
+    for (const button of [...structural.modifierControls].sort((a, b) => a.y - b.y || a.x - b.x)) {
+      const row = rows.find((candidate) => Math.abs(candidate.y - button.y) <= 2);
+      if (row) {
+        row.buttons.push(button);
+        row.y = row.buttons.reduce((sum, item) => sum + item.y, 0) / row.buttons.length;
+      } else {
+        rows.push({ y: button.y, buttons: [button] });
+      }
     }
-    const rowSizes = [...rows.values()].map((row) => row.length).sort((a, b) => a - b);
+    const rowSizes = rows.map((row) => row.buttons.length).sort((a, b) => a - b);
     if (JSON.stringify(rowSizes) !== JSON.stringify([1, 3, 3, 3])) throw new Error(`Unexpected mobile GOD MODE rows: ${JSON.stringify(rowSizes)}`);
-    const finalRow = [...rows.entries()].sort((a, b) => a[0] - b[0]).at(-1)[1];
+    const finalRow = rows.sort((a, b) => a.y - b.y).at(-1).buttons.sort((a, b) => a.x - b.x);
     if (finalRow.map((button) => button.text).join('|') !== 'LEAK') throw new Error(`Unexpected final mobile row: ${finalRow.map((button) => button.text).join('|')}`);
   }
 
