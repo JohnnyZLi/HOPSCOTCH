@@ -314,7 +314,7 @@ if (visualReview) {
     { id: 'as-routing', path: '/internet/as-routing', query: '', readySelector: '.as-visual-workspace', expected: ['LAB 05A · AS ROUTING', 'SIMULATED WINNER', 'PROVENANCE'], workspaceSelector: '.as-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.internet-canvas-wrap', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.as-visual-workspace .visual-drawer-tabs button', drawerSelector: '.as-visual-workspace .visual-drawer' },
     { id: 'physical-atlas', path: '/', query: query({ stress: 'physical-density' }), readySelector: '.physical-visual-workspace', expected: ['LAB 05C · PHYSICAL ATLAS', 'SIMULATED STRESS POINTS', 'PROVENANCE'], workspaceSelector: '.physical-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.globe-viewport', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.physical-visual-workspace .visual-drawer-tabs button', drawerSelector: '.physical-visual-workspace .visual-drawer' },
     { id: 'packet-microscope', path: '/labs/packet', query: '', readySelector: '.packet-visual-workspace', expected: ['LAB 02 · PACKET MICROSCOPE', 'SIMULATED', 'PROVENANCE'], workspaceSelector: '.packet-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.packet-stage', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.packet-visual-workspace .visual-drawer-tabs button', drawerSelector: '.packet-visual-workspace .visual-drawer' },
-    { id: 'network-builder', path: '/labs/builder', query: '', readySelector: '.builder-visual-workspace', expected: ['LAB 04 · NETWORK BUILDER', 'PATH', 'FORWARDING', 'OSPF', 'GRAPH'], workspaceSelector: '.builder-visual-workspace', stageSelector: '.builder-stage', worldSelector: '.builder-canvas', toolbarSelector: '.builder-world-toolbar', hudSelector: '.builder-stage-meta', inspectButtonSelector: '.builder-tool-inspect', drawerSelector: '.builder-context-drawer.open' },
+    { id: 'network-builder', path: '/labs/builder', query: '', readySelector: '.builder-visual-workspace', expected: ['LAB 04 · NETWORK BUILDER', 'PATH', 'FORWARDING', 'OSPF', 'GRAPH'], workspaceSelector: '.builder-visual-workspace', stageSelector: '.builder-stage', worldSelector: '.builder-canvas', semanticSelector: '.builder-node-anchor', semanticMinWidthRatio: 0.72, semanticMinHeightRatio: 0.34, toolbarSelector: '.builder-world-toolbar', hudSelector: '.builder-stage-meta', inspectButtonSelector: '.builder-tool-inspect', drawerSelector: '.builder-context-drawer.open' },
   ];
   profiles.splice(0, profiles.length, ...visualWorlds.flatMap((world) => visualViewports.map((viewport) => ({
     ...world,
@@ -1016,6 +1016,8 @@ async function captureVisualReview(cdp, profile) {
   await sleep(900);
   const geometry = await cdp.evaluate(`(()=>{
     const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
+    const semanticRects=${JSON.stringify(profile.semanticSelector ?? '')}?[...document.querySelectorAll(${JSON.stringify(profile.semanticSelector ?? '')})].map((value)=>value.getBoundingClientRect()).filter((value)=>value.width>0&&value.height>0):[];
+    const semanticBounds=semanticRects.length===0?null:{left:Math.min(...semanticRects.map((value)=>value.left)),top:Math.min(...semanticRects.map((value)=>value.top)),right:Math.max(...semanticRects.map((value)=>value.right)),bottom:Math.max(...semanticRects.map((value)=>value.bottom))};
     const toolbar=rect(${JSON.stringify(profile.toolbarSelector)});
     const hud=rect(${JSON.stringify(profile.hudSelector)});
     return {
@@ -1025,6 +1027,7 @@ async function captureVisualReview(cdp, profile) {
       world:rect(${JSON.stringify(profile.worldSelector)}),
       toolbar,
       hud,
+      semanticBounds:semanticBounds?{...semanticBounds,width:semanticBounds.right-semanticBounds.left,height:semanticBounds.bottom-semanticBounds.top}:null,
       toolbarHudOverlap:Boolean(toolbar&&hud&&toolbar.left<hud.right&&toolbar.right>hud.left&&toolbar.top<hud.bottom&&toolbar.bottom>hud.top),
     };
   })()`);
@@ -1033,6 +1036,8 @@ async function captureVisualReview(cdp, profile) {
   if (outerGutter > 26) throw new Error(`${profile.id} leaves ${outerGutter.toFixed(1)}px of outer desktop gutter.`);
   if (geometry.world.width < geometry.stage.width * 0.96 || geometry.world.height < geometry.stage.height * 0.9) throw new Error(`${profile.id} world does not own its stage: ${JSON.stringify(geometry)}.`);
   if (geometry.toolbarHudOverlap) throw new Error(`${profile.id} toolbar collides with its persistent HUD.`);
+  if (profile.semanticMinWidthRatio && (!geometry.semanticBounds || geometry.semanticBounds.width < geometry.world.width * profile.semanticMinWidthRatio)) throw new Error(`${profile.id} semantic content is compressed horizontally inside its stage: ${JSON.stringify(geometry)}.`);
+  if (profile.semanticMinHeightRatio && (!geometry.semanticBounds || geometry.semanticBounds.height < geometry.world.height * profile.semanticMinHeightRatio)) throw new Error(`${profile.id} semantic content is compressed vertically inside its stage: ${JSON.stringify(geometry)}.`);
 
   const capture = async (suffix = '') => {
     const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });

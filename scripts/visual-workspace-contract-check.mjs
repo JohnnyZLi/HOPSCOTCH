@@ -23,6 +23,7 @@ const capturedPacket = readFileSync(new URL('../src/CapturedPacketMicroscope.tsx
 const packetCss = readFileSync(new URL('../src/packet.phase3.css', import.meta.url), 'utf8');
 const builder = readFileSync(new URL('../src/NetworkBuilder.tsx', import.meta.url), 'utf8');
 const builderCss = readFileSync(new URL('../src/NetworkBuilder.phase3.css', import.meta.url), 'utf8');
+const builderApplication = readFileSync(new URL('../src/BuilderApplicationDataPlaneWorkspace.tsx', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 
 assert.match(shared, /export function VisualWorkspaceShell/);
@@ -168,6 +169,9 @@ assert.match(builder, /data-scene-panel=\{scenePanel \?\? 'graph'\}/);
 assert.match(builder, /builder-scene-switcher/);
 assert.match(builder, /builder-selection-card/);
 assert.match(builderCss, /\.builder-visual-workspace \.builder-canvas \{[\s\S]*position: absolute;/);
+assert.match(builderCss, /\.builder-visual-workspace \.builder-canvas-viewport \{[\s\S]*position: absolute;[\s\S]*inset: 0;/);
+assert.match(builderApplication, /className="builder-application-surfaces"/);
+assert.match(builderCss, /\.builder-visual-workspace \.builder-application-surfaces,[\s\S]*display: none;/);
 assert.match(builderCss, /\.builder-context-drawer \{[\s\S]*position: absolute;/);
 assert.match(builderCss, /\.builder-context-drawer\.open/);
 assert.ok(!builderCss.includes('grid-template-columns:minmax(0,1fr)360px'), 'Phase 3 Builder must not restore the permanent controls column');

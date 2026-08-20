@@ -16,8 +16,8 @@ export default function BuilderApplicationDataPlaneWorkspace(props: BuilderAppli
     dhcpLeases: props.context.dhcpLeases,
     ipv6ControlState,
   });
-  return <>
+  return <div className="builder-application-surfaces">
     <BuilderApplicationWorkspace {...props} onTransaction={onTransaction} />
     <BuilderDataPlanePanel transaction={transaction} context={props.context} historical={props.historical} onIpv6ControlState={onIpv6ControlState} />
-  </>;
+  </div>;
 }

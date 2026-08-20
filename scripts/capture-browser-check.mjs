@@ -23,6 +23,20 @@ const reportPath = resolve(root, process.env.HOPSCOTCH_CAPTURE_BROWSER_REPORT_PA
 const visualReviewDirectory = resolve(root, process.env.HOPSCOTCH_VISUAL_REVIEW_DIR?.trim() || 'artifacts/phase3-visual-review');
 const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 
+async function waitForChildExit(child, timeoutMs = 2000) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  await new Promise((resolvePromise) => {
+    let timeout = null;
+    const finish = () => {
+      if (timeout !== null) clearTimeout(timeout);
+      child.off('exit', finish);
+      resolvePromise();
+    };
+    child.once('exit', finish);
+    timeout = setTimeout(finish, timeoutMs);
+  });
+}
+
 function executableFromPath(command) {
   const result = spawnSync(process.platform === 'win32' ? 'where' : 'which', [command], { encoding: 'utf8' });
   if (result.status !== 0) return null;
@@ -214,7 +228,8 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
   if (!microscope.text.includes('TRACK H · PACKET EVIDENCE') || /TRACK T · PACKET EVIDENCE/.test(microscope.text)) throw new Error(`${profile.id} captured Packet Microscope exposed stale product-track identity.`);
 
   if (profile.visualReview) {
-    await sleep(900);
+    await waitForExpression(cdp, `!document.querySelector('.packet-visual-workspace .visual-entrance')`, 5000);
+    await sleep(120);
     mkdirSync(visualReviewDirectory, { recursive: true });
     const geometry = await cdp.evaluate(`(()=>{
       const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
@@ -312,11 +327,15 @@ async function main() {
     report.failures.push(error instanceof Error ? error.stack ?? error.message : String(error));
   } finally {
     if (cdp) { try { await cdp.call('Browser.close'); } catch { /* cleanup */ } cdp.close(); }
-    if (!chrome.killed) chrome.kill('SIGKILL');
+    await waitForChildExit(chrome);
+    if (chrome.exitCode === null && chrome.signalCode === null) {
+      chrome.kill('SIGKILL');
+      await waitForChildExit(chrome);
+    }
     await new Promise((resolvePromise) => production.server.close(resolvePromise));
     report.browser.stderrTail = stderr || null;
-    rmSync(fixtureDirectory, { recursive: true, force: true });
-    rmSync(userDataDirectory, { recursive: true, force: true });
+    rmSync(fixtureDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    rmSync(userDataDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     mkdirSync(dirname(reportPath), { recursive: true });
     writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   }

@@ -117,6 +117,19 @@
   background-size: 42px 42px;
 }
 
+/* The transformed viewport must establish a real containing block before the
+   lazily loaded authoring tools arrive. Otherwise percentage node positions
+   resolve against a zero-height wrapper and the graph collapses to the top. */
+.builder-visual-workspace .builder-canvas-viewport {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  transition: transform 220ms ease;
+}
+
+.builder-visual-workspace .builder-canvas.is-authoring-zoomed { overflow: hidden; }
+.builder-visual-workspace .builder-canvas.is-authoring-zoomed .builder-canvas-viewport { will-change: transform; }
+
 .builder-visual-workspace .builder-canvas::after {
   right: 16px;
   bottom: 14px;
@@ -221,7 +234,7 @@
 .builder-visual-workspace .builder-forwarding,
 .builder-visual-workspace .builder-policy-panel,
 .builder-visual-workspace .builder-probe-panel,
-.builder-visual-workspace .builder-app-panel,
+.builder-visual-workspace .builder-application-surfaces,
 .builder-visual-workspace .builder-ethernet-stage {
   display: none;
 }
@@ -231,7 +244,7 @@
 .builder-visual-workspace[data-scene-panel='forwarding'] .builder-forwarding,
 .builder-visual-workspace[data-scene-panel='forwarding'] .builder-policy-panel,
 .builder-visual-workspace[data-scene-panel='probe'] .builder-probe-panel,
-.builder-visual-workspace[data-scene-panel='application'] .builder-app-panel,
+.builder-visual-workspace[data-scene-panel='application'] .builder-application-surfaces,
 .builder-visual-workspace[data-scene-panel='lan'] .builder-ethernet-stage {
   position: absolute;
   z-index: 9;
@@ -253,7 +266,7 @@
   bottom: 170px;
 }
 
-.builder-visual-workspace[data-scene-panel='application'] .builder-app-panel,
+.builder-visual-workspace[data-scene-panel='application'] .builder-application-surfaces,
 .builder-visual-workspace[data-scene-panel='lan'] .builder-ethernet-stage {
   top: 108px;
   bottom: 44px;
@@ -416,11 +429,11 @@
   .builder-visual-workspace[data-scene-panel='forwarding'] .builder-forwarding,
   .builder-visual-workspace[data-scene-panel='forwarding'] .builder-policy-panel,
   .builder-visual-workspace[data-scene-panel='probe'] .builder-probe-panel,
-  .builder-visual-workspace[data-scene-panel='application'] .builder-app-panel,
+  .builder-visual-workspace[data-scene-panel='application'] .builder-application-surfaces,
   .builder-visual-workspace[data-scene-panel='lan'] .builder-ethernet-stage { right: 8px; bottom: 39px; left: 8px; width: auto; max-height: 54%; }
   .builder-visual-workspace[data-scene-panel='path'] .builder-ospf-summary,
   .builder-visual-workspace[data-scene-panel='forwarding'] .builder-forwarding { display: none; }
-  .builder-visual-workspace[data-scene-panel='application'] .builder-app-panel,
+  .builder-visual-workspace[data-scene-panel='application'] .builder-application-surfaces,
   .builder-visual-workspace[data-scene-panel='lan'] .builder-ethernet-stage { top: 135px; }
   .builder-visual-workspace .builder-message { max-width: 82%; font-size: 0.5rem; }
   .builder-context-drawer { inset: 0; width: 100%; padding-bottom: 18px; border: 0; border-radius: 0; }
@@ -430,5 +443,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .builder-visual-workspace .builder-canvas-viewport,
   .builder-context-drawer { transition: none; }
 }
