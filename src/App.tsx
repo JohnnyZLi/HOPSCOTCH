@@ -1,6 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
-import { ExploreLauncher, type ExploreDestination } from './ExploreLauncher';
+import { ExploreLauncher } from './ExploreLauncher';
+import { WORKSPACE_COUNT, workspaceDefinition, type ExploreDestination } from './workspace-catalog';
 import { HomeActionDeck } from './HomeActionDeck';
 import { JourneyScenarioMenu } from './JourneyScenarioMenu';
 import type { InternetEvidenceSnapshot } from './internet/evidence';
@@ -46,22 +47,6 @@ const layers: Array<{ id: NetworkLayer; label: string; kicker: string; descripti
   { id: 'packet', label: 'Packet', kicker: 'Scale 01', description: 'Frames, headers, fields, encapsulation, and individual protocol messages.' },
 ];
 
-const DESTINATION_LAYERS: Readonly<Record<ExploreDestination, NetworkLayer>> = {
-  journey: 'application',
-  failure: 'routing',
-  builder: 'routing',
-  packet: 'packet',
-  tcp: 'transport',
-  dns: 'application',
-  tls: 'application',
-  http: 'application',
-  internet: 'internet',
-  physical: 'internet',
-  observed: 'internet',
-  measured: 'internet',
-  capture: 'packet',
-};
-
 const browserHistoryRoutingAvailable = typeof window !== 'undefined'
   && (window.location.protocol === 'http:' || window.location.protocol === 'https:');
 
@@ -81,7 +66,7 @@ function formatTime(timeMs: number): string {
 
 export default function App() {
   const initialSharedJourney = initialJourneyBootstrap.scenario;
-  const [layer, setLayer] = useState<NetworkLayer>(initialAppRoute.destination ? DESTINATION_LAYERS[initialAppRoute.destination] : 'internet');
+  const [layer, setLayer] = useState<NetworkLayer>(initialAppRoute.destination ? workspaceDefinition(initialAppRoute.destination).layer : 'internet');
   const [mode, setMode] = useState<DisplayMode>('overview');
   const [exploreOpen, setExploreOpen] = useState(false);
   const [activeLab, setActiveLab] = useState<ActiveLab>(initialAppRoute.destination);
@@ -157,7 +142,7 @@ export default function App() {
       }
 
       const destination = route.destination;
-      setLayer(DESTINATION_LAYERS[destination]);
+      setLayer(workspaceDefinition(destination).layer);
       if (destination === 'failure') setTimeMs(0);
 
       if (destination === 'journey') {
@@ -187,6 +172,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    document.title = activeLab
+      ? `HOPSCOTCH — ${workspaceDefinition(activeLab).name}`
+      : 'HOPSCOTCH — See the Internet happen';
+  }, [activeLab]);
+
+  useEffect(() => {
     if (!playing || !failureLabActive) return;
     const startedAt = performance.now();
     const startedFrom = timeMs;
@@ -206,21 +197,21 @@ export default function App() {
 
   const openFailureLab = (atMs = 0, autoplay = true) => {
     pushBrowserRoute('failure');
-    setLayer('routing'); setTimeMs(atMs); setActiveLab('failure'); setPlaying(autoplay);
+    setLayer(workspaceDefinition('failure').layer); setTimeMs(atMs); setActiveLab('failure'); setPlaying(autoplay);
   };
-  const openPacketLab = (seed?: BuilderProbePacketSeed) => { setCapturedMicroscopeFrame(null); setCaptureReturnPending(false); setBuilderPacketSeed(seed ?? null); pushBrowserRoute('packet'); setPlaying(false); setLayer('packet'); setActiveLab('packet'); };
-  const openTcpLab = () => { pushBrowserRoute('tcp'); setPlaying(false); setLayer('transport'); setActiveLab('tcp'); };
-  const openDnsLab = () => { pushBrowserRoute('dns'); setPlaying(false); setLayer('application'); setActiveLab('dns'); };
-  const openTlsLab = () => { pushBrowserRoute('tls'); setPlaying(false); setLayer('application'); setActiveLab('tls'); };
-  const openHttpLab = () => { pushBrowserRoute('http'); setPlaying(false); setLayer('application'); setActiveLab('http'); };
-  const openBuilderLab = () => { setBuilderBgpProjection(null); pushBrowserRoute('builder'); setPlaying(false); setLayer('routing'); setActiveLab('builder'); };
-  const openBuilderBgpProjection = (payload: { projection: BuilderBgpAsProjection; scenario: BuilderScenarioV8 }) => { setBuilderBgpProjection(payload); pushBrowserRoute('internet'); setPlaying(false); setLayer('internet'); setActiveLab('internet'); };
-  const returnToProjectedBuilder = () => { if (!builderBgpProjection) { openBuilderLab(); return; } pushBrowserRoute('builder'); setPlaying(false); setLayer('routing'); setActiveLab('builder'); };
-  const openPhysicalInternet = () => { pushBrowserRoute('physical'); setPlaying(false); setLayer('internet'); setActiveLab('physical'); };
-  const openInternetLab = () => { setBuilderBgpProjection(null); pushBrowserRoute('internet'); setPlaying(false); setLayer('internet'); setActiveLab('internet'); };
-  const openObservedInternet = () => { pushBrowserRoute('observed'); setPlaying(false); setLayer('internet'); setActiveLab('observed'); };
-  const openMeasuredNetwork = () => { pushBrowserRoute('measured'); setPlaying(false); setLayer('internet'); setActiveLab('measured'); };
-  const openCaptureReplay = () => { setCapturedMicroscopeFrame(null); setCaptureReturnPending(false); pushBrowserRoute('capture'); setPlaying(false); setLayer('packet'); setActiveLab('capture'); };
+  const openPacketLab = (seed?: BuilderProbePacketSeed) => { setCapturedMicroscopeFrame(null); setCaptureReturnPending(false); setBuilderPacketSeed(seed ?? null); pushBrowserRoute('packet'); setPlaying(false); setLayer(workspaceDefinition('packet').layer); setActiveLab('packet'); };
+  const openTcpLab = () => { pushBrowserRoute('tcp'); setPlaying(false); setLayer(workspaceDefinition('tcp').layer); setActiveLab('tcp'); };
+  const openDnsLab = () => { pushBrowserRoute('dns'); setPlaying(false); setLayer(workspaceDefinition('dns').layer); setActiveLab('dns'); };
+  const openTlsLab = () => { pushBrowserRoute('tls'); setPlaying(false); setLayer(workspaceDefinition('tls').layer); setActiveLab('tls'); };
+  const openHttpLab = () => { pushBrowserRoute('http'); setPlaying(false); setLayer(workspaceDefinition('http').layer); setActiveLab('http'); };
+  const openBuilderLab = () => { setBuilderBgpProjection(null); pushBrowserRoute('builder'); setPlaying(false); setLayer(workspaceDefinition('builder').layer); setActiveLab('builder'); };
+  const openBuilderBgpProjection = (payload: { projection: BuilderBgpAsProjection; scenario: BuilderScenarioV8 }) => { setBuilderBgpProjection(payload); pushBrowserRoute('internet'); setPlaying(false); setLayer(workspaceDefinition('internet').layer); setActiveLab('internet'); };
+  const returnToProjectedBuilder = () => { if (!builderBgpProjection) { openBuilderLab(); return; } pushBrowserRoute('builder'); setPlaying(false); setLayer(workspaceDefinition('builder').layer); setActiveLab('builder'); };
+  const openPhysicalInternet = () => { pushBrowserRoute('physical'); setPlaying(false); setLayer(workspaceDefinition('physical').layer); setActiveLab('physical'); };
+  const openInternetLab = () => { setBuilderBgpProjection(null); pushBrowserRoute('internet'); setPlaying(false); setLayer(workspaceDefinition('internet').layer); setActiveLab('internet'); };
+  const openObservedInternet = () => { pushBrowserRoute('observed'); setPlaying(false); setLayer(workspaceDefinition('observed').layer); setActiveLab('observed'); };
+  const openMeasuredNetwork = () => { pushBrowserRoute('measured'); setPlaying(false); setLayer(workspaceDefinition('measured').layer); setActiveLab('measured'); };
+  const openCaptureReplay = () => { setCapturedMicroscopeFrame(null); setCaptureReturnPending(false); pushBrowserRoute('capture'); setPlaying(false); setLayer(workspaceDefinition('capture').layer); setActiveLab('capture'); };
   const openCapturedFrame = (frame: CapturedFrameEvidence, context: CaptureReplayContext) => {
     setBuilderPacketSeed(null);
     setCapturedMicroscopeFrame(frame);
@@ -228,13 +219,13 @@ export default function App() {
     setCaptureReturnPending(true);
     pushBrowserRoute('packet');
     setPlaying(false);
-    setLayer('packet');
+    setLayer(workspaceDefinition('packet').layer);
     setActiveLab('packet');
   };
   const openJourney = () => {
     pushBrowserRoute('journey');
     setPlaying(false);
-    setLayer('application');
+    setLayer(workspaceDefinition('journey').layer);
     setJourneyTimeMs(0);
     setJourneyStartPlaying(true);
     setJourneyReturnPending(false);
@@ -256,7 +247,7 @@ export default function App() {
     setJourneyReturnPending(false);
     setJourneyEvidence(null);
     setJourneyScenarioName(scenario.name ?? '');
-    setLayer('application');
+    setLayer(workspaceDefinition('journey').layer);
     setExploreOpen(false);
     setActiveLab('journey');
     setJourneyRenderKey((current) => current + 1);
@@ -281,16 +272,13 @@ export default function App() {
     openers[destination]();
   };
   const openJourneyDetail = (lab: JourneyDetailLab, atMs: number) => {
-    const detailLayer: Record<JourneyDetailLab, NetworkLayer> = {
-      dns: 'application', tcp: 'transport', tls: 'application', http: 'application', packet: 'packet',
-      builder: 'routing', failure: 'routing', internet: 'internet', physical: 'internet', observed: 'internet',
-    };
+    const detailDestination = lab as ExploreDestination;
     setPlaying(false);
     setJourneyTimeMs(atMs);
     setJourneyStartPlaying(false);
     setJourneyReturnPending(true);
-    setLayer(detailLayer[lab]);
-    pushBrowserRoute(lab as ExploreDestination);
+    setLayer(workspaceDefinition(detailDestination).layer);
+    pushBrowserRoute(detailDestination);
     if (lab === 'failure') {
       setTimeMs(1900);
       setActiveLab('failure');
@@ -308,7 +296,7 @@ export default function App() {
     setJourneyReturnPending(false);
     setJourneyEvidence(null);
     setJourneyScenarioName(scenario.name ?? '');
-    setLayer('application');
+    setLayer(workspaceDefinition('journey').layer);
     setActiveLab('journey');
     setJourneyRenderKey((current) => current + 1);
   };
@@ -326,7 +314,7 @@ export default function App() {
       setCaptureReturnPending(false);
       setCapturedMicroscopeFrame(null);
       pushBrowserRoute('capture');
-      setLayer('packet');
+      setLayer(workspaceDefinition('capture').layer);
       setActiveLab('capture');
       return;
     }
@@ -340,50 +328,9 @@ export default function App() {
   };
   const seek = (nextTime: number) => { setPlaying(false); setTimeMs(nextTime); };
 
-  const buildLabel = activeLab === 'capture'
-    ? 'TRACK H'
-    : activeLab === 'measured'
-    ? 'LAB 09'
-    : activeLab === 'journey'
-    ? 'LAB 07'
-    : activeLab === 'failure'
-    ? 'LAB 01'
-    : activeLab === 'packet'
-      ? 'LAB 02'
-      : activeLab === 'tcp' || activeLab === 'dns' || activeLab === 'tls' || activeLab === 'http'
-        ? 'LAB 03'
-        : activeLab === 'builder'
-          ? 'LAB 04'
-          : activeLab === 'physical' || activeLab === 'internet' || activeLab === 'observed'
-            ? 'LAB 05'
-            : 'LAB 00';
-  const buildStatus = activeLab === 'capture'
-    ? 'CAPTURED EVIDENCE ACTIVE'
-    : activeLab === 'measured'
-    ? 'LOCAL MEASURED ACTIVE'
-    : activeLab === 'journey'
-    ? 'GOD MODE JOURNEY ACTIVE'
-    : activeLab === 'failure'
-    ? labState.statusLabel
-    : activeLab === 'packet'
-      ? 'PACKET TRACE ACTIVE'
-      : activeLab === 'tcp'
-        ? 'TCP THEATER ACTIVE'
-        : activeLab === 'dns'
-          ? 'DNS THEATER ACTIVE'
-          : activeLab === 'tls'
-            ? 'TLS 1.3 THEATER ACTIVE'
-            : activeLab === 'http'
-              ? 'HTTP/2 ↔ HTTP/3 ACTIVE'
-              : activeLab === 'builder'
-                ? 'NETWORK BUILDER ACTIVE'
-                : activeLab === 'physical'
-                  ? 'PHYSICAL INTERNET ATLAS ACTIVE'
-                  : activeLab === 'internet'
-                    ? 'SIMULATED AS THEATER ACTIVE'
-                    : activeLab === 'observed'
-                      ? 'INTERNET EVIDENCE ACTIVE'
-                      : 'Foundation online';
+  const activeWorkspace = activeLab ? workspaceDefinition(activeLab) : null;
+  const buildLabel = activeWorkspace?.lab ?? 'LAB 00';
+  const buildStatus = failureLabActive ? labState.statusLabel : activeWorkspace?.status ?? 'FOUNDATION ONLINE';
 
   return (
     <main className="app-shell" data-layer={layer} data-mode={mode} data-lab={activeLab ? 'active' : 'idle'}>
@@ -397,7 +344,7 @@ export default function App() {
           <strong>HOPSCOTCH</strong>
         </button>
         <div className="topbar-meta">
-          <button className="explore-trigger" type="button" onClick={() => setExploreOpen(true)}>EXPLORE <span>13 WORKSPACES</span></button>
+          <button className="explore-trigger" type="button" aria-expanded={exploreOpen} aria-controls="explore-dialog" onClick={() => setExploreOpen(true)}>EXPLORE <span>{WORKSPACE_COUNT} WORKSPACES</span></button>
           <div className="build-state"><span>{buildLabel}</span><span className={`status-dot${failureLabActive ? ` phase-${labState.phase}` : ''}`}>{buildStatus}</span></div>
           {activeLab === 'journey' && <JourneyScenarioMenu hostname={journeyHostname} timeMs={journeyTimeMs} name={journeyScenarioName} onNameChange={setJourneyScenarioName} onImportScenario={importJourneyScenario} />}
         </div>

@@ -1,4 +1,4 @@
-import type { ExploreDestination } from './ExploreLauncher';
+import { WORKSPACE_PATHS, type ExploreDestination } from './workspace-catalog.ts';
 
 export type AppRouteKind = 'overview' | 'lab' | 'legacy-journey' | 'unknown';
 
@@ -10,22 +10,7 @@ export interface AppRouteResolution {
 }
 
 export const OVERVIEW_PATH = '/';
-
-export const DESTINATION_PATHS: Readonly<Record<ExploreDestination, string>> = Object.freeze({
-  journey: '/journey',
-  failure: '/labs/failure',
-  builder: '/labs/builder',
-  packet: '/labs/packet',
-  tcp: '/labs/tcp',
-  dns: '/labs/dns',
-  tls: '/labs/tls',
-  http: '/labs/http2-vs-http3',
-  internet: '/internet/as-routing',
-  physical: '/internet/physical',
-  observed: '/internet/observed',
-  measured: '/measured',
-  capture: '/capture',
-});
+export const DESTINATION_PATHS = WORKSPACE_PATHS;
 
 const PATH_DESTINATIONS = new Map<string, ExploreDestination>(
   Object.entries(DESTINATION_PATHS).map(

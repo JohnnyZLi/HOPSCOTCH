@@ -45,6 +45,9 @@ Implemented depth includes:
 
 The Builder does not maintain separate hidden simulators for application traffic, overlays, troubleshooting, CLI, explanation, or presentation. Those surfaces consume the same canonical state and existing protocol/data-plane engines.
 
+
+At the product-shell level, one canonical workspace catalog now owns workspace identity, deep links, scale placement, lab/track labels, status copy, Explore grouping, and browser titles. Navigation surfaces consume that catalog rather than maintaining independent copies that can drift. Explore is keyboard-contained and restores focus when closed, and permanent visual corrections live in their owning stylesheets rather than late `*-audit.css` patches.
+
 ### Packet Microscope
 
 - Ethernet + IPv4/IPv6 + TCP/UDP/ICMP packet construction

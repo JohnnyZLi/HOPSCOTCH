@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { WORKSPACE_PATHS, workspaceDefinition } from '../src/workspace-catalog.ts';
 import './capture-track-h-contract-check.mjs';
 
 const workspace = readFileSync(new URL('../src/CaptureReplayWorkspace.tsx', import.meta.url), 'utf8');
@@ -67,11 +68,17 @@ assert.match(microscope, /data-packet-provenance="SIMULATED"/);
 assert.match(microscope, /SIMULATED FRAME/);
 assert.match(microscope, /if \(props\.capturedFrame\)/);
 
-assert.match(launcher, /id: 'capture'/);
-assert.match(navigation, /capture: '\/capture'/);
+const captureProduct = workspaceDefinition('capture');
+assert.equal(captureProduct.lab, 'TRACK H', 'current Capture Replay identity must belong to completed Track H');
+assert.equal(captureProduct.path, '/capture');
+assert.equal(captureProduct.status, 'CAPTURED EVIDENCE ACTIVE');
+assert.equal(WORKSPACE_PATHS.capture, '/capture');
+assert.match(launcher, /EXPLORE_GROUPS/, 'Explore must consume the catalog group containing Capture Replay');
+assert.match(launcher, /workspaceDefinition\(id\)/, 'Explore must resolve Capture Replay metadata from the canonical catalog');
+assert.match(navigation, /WORKSPACE_PATHS/, 'navigation must consume catalog-owned capture path rather than duplicate it');
 assert.match(app, /lazy\(\(\) => import\('\.\/CaptureReplayWorkspace\.tsx'\)/);
 assert.match(app, /captureReturnPending/);
 assert.match(app, /capturedFrame=\{capturedMicroscopeFrame \?\? undefined\}/);
-assert.match(app, /CAPTURED EVIDENCE ACTIVE/);
+assert.match(app, /workspaceDefinition/, 'App must consume catalog-owned Capture Replay status/lab metadata');
 
-console.log('Track H workspace contract passed: explicit local import, worker-backed primary parsing, bounded analysis surfaces, preserved replay/microscopy, local-only comparison and sidecars, and provenance-separated counterfactual inspection.');
+console.log('Track H workspace contract passed: explicit local import, worker-backed primary parsing, bounded analysis surfaces, preserved replay/microscopy, catalog-owned current product identity, local-only comparison and sidecars, and provenance-separated counterfactual inspection.');

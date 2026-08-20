@@ -3,15 +3,11 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import './styles.css';
 import './lab.css';
-import './visual-audit.css';
 import './event-effects.css';
 import './tcp.css';
-import './tcp-audit.css';
 import './dns.css';
-import './dns-audit.css';
 import './tls.css';
 import './http-comparison.css';
-import './journey-audit.css';
 
 type StressProfile = 'as-density' | 'builder-density' | 'physical-density';
 

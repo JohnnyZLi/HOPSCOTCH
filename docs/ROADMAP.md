@@ -13,6 +13,21 @@ HOPSCOTCH still grows as deterministic vertical slices. A slice is complete only
 
 ---
 
+## Integrated product hardening after Tracks A–L
+
+The regular A–L roadmap is complete. Product work now treats HOPSCOTCH as one integrated system instead of adding another lettered track by default.
+
+- [x] one canonical workspace catalog owns destination IDs, deep links, scale/layer placement, lab/track labels, product titles, status copy, Explore grouping, and featured actions
+- [x] stale navigation nomenclature is removed (`TRACK H` owns Capture Replay; the combined Journey surface is consistently `LAB 06 + 07`)
+- [x] Explore is a contained keyboard dialog with initial focus, Tab/Shift+Tab trapping, Escape close, scroll lock, ARIA state, and focus restoration
+- [x] browser document titles identify the active deep-linked workspace from the same catalog
+- [x] permanent visual hardening rules are folded out of `*-audit.css` patch files into canonical owned stylesheets
+- [x] product-wide keyboard focus visibility has a shared baseline while component-specific visual focus remains allowed
+- [x] navigation, home actions, Explore, App metadata, and route paths are guarded by a permanent integration contract
+- [x] no network truth, evidence provenance, scenario schema, or performance budget is changed by this pass
+
+`docs/PRODUCT-HARDENING.md` records the integration contract and closeout validation. Future work should be evidence-driven maintenance, usability refinement, protocol depth, or deliberately selected moonshots—not a new track letter merely for roadmap continuity.
+
 ## Completed foundation — lab series through Lab 11
 
 **The implemented lab sequence through Lab 11 is complete.** The old roadmap carried hundreds of completed checkboxes; those are now treated as shipped history rather than active planning work.
