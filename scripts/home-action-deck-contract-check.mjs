@@ -29,7 +29,7 @@ assert.ok(!component.includes('Explore all 13 workspaces'), 'workspace count mus
 assert.match(css, /grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
 assert.match(css, /@media \(max-width: 760px\)[\s\S]*grid-template-columns:\s*1fr/);
 assert.match(css, /@media \(max-width: 420px\)[\s\S]*grid-template-columns:\s*1fr 1fr/);
-assert.match(styles, /@media \(max-width: 760px\)\s*\{\s*\.scale-rail\s*\{\s*top:\s*94px;\s*bottom:\s*auto;/, 'mobile scale rail must stay above the action deck instead of overlapping it');
+assert.match(styles, /@media \(max-width: 760px\)\s*\{\s*\.scale-inspector\s*\{\s*top:\s*94px;/, 'mobile scale inspector must stay above the action deck instead of overlapping it');
 
 assert.match(app, /import \{ HomeActionDeck \} from '\.\/HomeActionDeck';/);
 assert.match(app, /<HomeActionDeck/);
