@@ -1,0 +1,230 @@
+.failure-visual-workspace .visual-workspace__stage {
+  background:
+    radial-gradient(circle at 50% 53%, rgba(56, 94, 255, 0.11), transparent 42%),
+    radial-gradient(circle at 35% 70%, rgba(121, 242, 218, 0.07), transparent 30%),
+    linear-gradient(180deg, rgba(5, 10, 14, 0.78), rgba(3, 6, 9, 0.98));
+}
+
+.failure-cinematic-stage {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  overflow: hidden;
+}
+
+.failure-cinematic-stage::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.34;
+  background: radial-gradient(circle at var(--failure-anchor-x) var(--failure-anchor-y), rgba(121, 242, 218, 0.1), transparent 18%);
+  transition: background 280ms ease;
+}
+
+.failure-cinematic-stage.phase-failure::after {
+  background: radial-gradient(circle at var(--failure-anchor-x) var(--failure-anchor-y), rgba(255, 94, 112, 0.18), transparent 22%);
+}
+
+.failure-cinematic-stage.phase-converging::after,
+.failure-cinematic-stage.phase-recomputing::after {
+  background: radial-gradient(circle at var(--failure-anchor-x) var(--failure-anchor-y), rgba(255, 203, 112, 0.15), transparent 21%);
+}
+
+.failure-scene-camera {
+  position: absolute;
+  z-index: 2;
+  inset: 56px 18px 18px;
+  transform-origin: center;
+}
+
+.failure-scene-camera .lab-network-field {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.failure-object-annotation {
+  position: absolute;
+  z-index: 11;
+  top: var(--failure-anchor-y);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(300px, 32vw);
+  pointer-events: none;
+}
+
+.failure-object-annotation.align-right {
+  left: var(--failure-anchor-x);
+  flex-direction: row;
+  margin-left: 18px;
+  transform-origin: left center;
+}
+
+.failure-object-annotation.align-left {
+  right: calc(100% - var(--failure-anchor-x));
+  flex-direction: row-reverse;
+  margin-right: 18px;
+  text-align: right;
+  transform-origin: right center;
+}
+
+.failure-object-annotation > i {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border: 1px solid var(--cyan);
+  border-radius: 50%;
+  background: #06100e;
+  box-shadow: 0 0 16px rgba(121, 242, 218, 0.72);
+}
+
+.failure-object-annotation > i::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 22px;
+  height: 1px;
+  background: rgba(121, 242, 218, 0.4);
+}
+
+.failure-object-annotation.align-right > i::after { left: 100%; }
+.failure-object-annotation.align-left > i::after { right: 100%; }
+
+.failure-object-annotation > div {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(121, 242, 218, 0.11);
+  border-radius: 4px;
+  background: rgba(3, 8, 11, 0.68);
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(14px);
+}
+
+.failure-object-annotation span {
+  color: #607078;
+  font: 700 0.43rem ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.07em;
+}
+
+.failure-object-annotation strong { color: #dce7ea; font-size: 0.68rem; }
+.failure-object-annotation p { margin: 0; color: #89989e; font-size: 0.56rem; line-height: 1.45; }
+
+.failure-object-annotation.severity-critical > i { border-color: var(--danger); box-shadow: 0 0 16px rgba(255, 94, 112, 0.72); }
+.failure-object-annotation.severity-critical > i::after { background: rgba(255, 94, 112, 0.46); }
+.failure-object-annotation.severity-critical > div { border-color: rgba(255, 94, 112, 0.16); }
+.failure-object-annotation.severity-warning > i { border-color: var(--warning); box-shadow: 0 0 16px rgba(255, 203, 112, 0.62); }
+.failure-object-annotation.severity-warning > i::after { background: rgba(255, 203, 112, 0.42); }
+.failure-object-annotation.severity-warning > div { border-color: rgba(255, 203, 112, 0.14); }
+
+.failure-visual-tools {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.failure-inspect-drawer {
+  display: grid;
+  gap: 12px;
+}
+
+.failure-inspect-drawer > section,
+.failure-inspect-event {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.012);
+}
+
+.failure-inspect-drawer > section > span {
+  color: #607078;
+  font-size: 0.44rem;
+  font-weight: 900;
+  letter-spacing: 0.13em;
+}
+
+.failure-inspect-event > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.failure-inspect-event > div span { color: #65757c; font: 650 0.51rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+.failure-inspect-event > div b { color: #84949b; font-size: 0.42rem; letter-spacing: 0.09em; }
+.failure-inspect-event h3 { margin: 0; color: #e1e9ec; font-size: 1.02rem; }
+.failure-inspect-event p { margin: 0; color: #93a1a7; font-size: 0.64rem; line-height: 1.5; }
+.failure-inspect-event small { color: #6c7b82; font-size: 0.57rem; line-height: 1.55; }
+
+.failure-fact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.failure-fact-grid > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 4px;
+}
+
+.failure-fact-grid small { color: #596971; font-size: 0.42rem; font-weight: 900; }
+.failure-fact-grid strong { overflow: hidden; color: #bdc9ce; font-size: 0.56rem; text-overflow: ellipsis; white-space: nowrap; }
+
+.failure-path-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 4px;
+  opacity: 0.54;
+}
+
+.failure-path-row.active { border-color: rgba(121, 242, 218, 0.17); background: rgba(121, 242, 218, 0.025); opacity: 1; }
+.failure-path-row > div { display: grid; gap: 3px; min-width: 0; }
+.failure-path-row strong { color: #b9c5ca; font-size: 0.58rem; }
+.failure-path-row small { overflow: hidden; color: #64737a; font-size: 0.48rem; text-overflow: ellipsis; white-space: nowrap; }
+.failure-path-row > b { color: #d7e2e5; font-size: 0.67rem; }
+
+.failure-events-drawer {
+  display: grid;
+  min-height: 100%;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  margin: -14px;
+}
+
+.failure-events-drawer .event-list { overflow: visible; }
+
+@media (max-width: 900px) {
+  .failure-scene-camera { inset: 72px 6px 76px; }
+  .failure-object-annotation { width: min(260px, 38vw); }
+}
+
+@media (max-width: 680px) {
+  .failure-visual-tools { min-width: 0; }
+  .failure-scene-camera { inset: 96px 0 118px; }
+  .failure-object-annotation,
+  .failure-object-annotation.align-left,
+  .failure-object-annotation.align-right {
+    right: 9px;
+    bottom: 12px;
+    left: 9px;
+    top: auto;
+    width: auto;
+    margin: 0;
+    text-align: left;
+  }
+  .failure-object-annotation > i { display: none; }
+  .failure-object-annotation > div { width: 100%; padding: 9px 10px; }
+  .failure-object-annotation p { display: none; }
+}

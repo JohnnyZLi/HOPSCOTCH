@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
-const journey = readFileSync(new URL('../src/JourneyTheater.css', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 const networkField = readFileSync(new URL('../src/NetworkField.tsx', import.meta.url), 'utf8');
+const visualWorkspace = readFileSync(new URL('../src/VisualWorkspace.tsx', import.meta.url), 'utf8');
+const visualWorkspaceCss = readFileSync(new URL('../src/VisualWorkspace.css', import.meta.url), 'utf8');
+const journeySource = readFileSync(new URL('../src/JourneyTheaterV2.tsx', import.meta.url), 'utf8');
+const journeyCss = readFileSync(new URL('../src/JourneyTheater.css', import.meta.url), 'utf8');
 
 // Keep the selected scale explanation structurally attached to the rail; production review covers all five rows.
 assert.ok(
@@ -83,24 +86,28 @@ assert.ok(
 );
 
 assert.ok(
-  journey.includes('.journey-stage-meta>div{display:grid;flex:1 1 0;min-width:0;gap:3px}'),
-  'Journey metadata cells must use stable equal flex bases',
+  visualWorkspaceCss.includes('font-variant-numeric: tabular-nums'),
+  'shared visual Time Rail must use tabular numerals so advancing time cannot shift controls',
 );
 assert.ok(
-  journey.includes('.journey-stage-meta>div:first-child{flex:0 0 8.6rem}'),
-  'Journey timer cell must reserve a fixed lane so changing digits cannot shift adjacent metadata',
+  visualWorkspaceCss.includes('grid-template-rows: minmax(0, 1fr) auto'),
+  'shared visual workspaces must reserve only the Time Rail outside the scene',
 );
 assert.ok(
-  journey.includes('font-variant-numeric:tabular-nums'),
-  'Journey timer must request tabular numerals',
+  visualWorkspaceCss.includes('.visual-drawer {') && visualWorkspaceCss.includes('position: absolute;'),
+  'shared drawers must overlay rather than resize the stage',
 );
 assert.ok(
-  journey.includes('font-feature-settings:"tnum" 1'),
-  'Journey timer must explicitly request the tnum OpenType feature',
+  visualWorkspace.includes("event.key === 'Escape'") && visualWorkspace.includes("event.key !== 'Tab'") && visualWorkspace.includes('previousFocus?.focus()'),
+  'shared drawers must preserve Escape, focus containment, and focus restoration',
 );
 assert.ok(
-  journey.includes('.journey-stage-meta{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;padding:9px}'),
-  'mobile Journey metadata must keep its two-column responsive override',
+  journeySource.includes('className="journey-visual-workspace"') && !journeySource.includes('className="journey-stage-meta"'),
+  'Journey must use the scene-first shell instead of the unstable permanent metadata strip',
+);
+assert.ok(
+  journeyCss.includes('.journey-cinematic-stage .journey-scene-transition') && journeyCss.includes('position: absolute;'),
+  'Journey scale transitions must remain inside a stable full-stage positioning context',
 );
 
-console.log('UI stability contract passed: attached scale motion preserves geometry, direction, depth, reduced-motion behavior, and Journey timer stability.');
+console.log('UI stability contract passed: overview scale motion and visual workspace overlays preserve geometry, focus, reduced motion, and Time Rail stability.');
