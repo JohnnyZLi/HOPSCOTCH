@@ -198,15 +198,15 @@ Captured evidence, application truth, causal replay, authoring, enterprise depth
 
 ## Current priority order
 
-### 1. Track L — Explain This Network
+### Core regular-track roadmap complete
 
-Track K is complete. The next regular product priority is Track L: deterministic explanation of topology, protocol state, forwarding, policy, and failure causality from the canonical Builder model.
+Track L is complete. The next priority is integrated product hardening: use the completed canonical simulation, evidence, troubleshooting, CLI, and explanation layers as one coherent system without inventing another lettered track merely to extend the roadmap.
 
 ---
 
-## Remaining regular tracks
+## Completed regular tracks
 
-These remain real product work. They should follow Track K unless a bounded dependency requires a different order.
+The regular A–L product tracks are now implemented. The sections below retain their completion records and architectural boundaries.
 
 ### Track K — vendor-neutral HOPSCOTCH CLI
 
@@ -233,11 +233,16 @@ These remain real product work. They should follow Track K unless a bounded depe
 
 ### Track L — explain-this-network layer
 
-- [ ] simulator emits structured cause/effect facts before natural-language explanation exists
-- [ ] explanations cite the exact canonical configuration/state/events they interpret
-- [ ] summarize why a route was selected, packet was dropped, adjacency changed, or application failed
-- [ ] novice / operational / protocol-detail explanation levels change wording, never simulation truth
-- [ ] AI may explain/query canonical facts but never decides routing, forwarding, packet outcomes, protocol state, or evidence provenance
+- [x] structured cause/effect facts are emitted before natural-language explanation
+- [x] explanations cite exact canonical configuration, state, immutable outcomes, and causal events
+- [x] NETWORK / ROUTE / OSPF / POLICY / PACKET / APPLICATION / EVENT targets explain the major canonical truth surfaces without adding a second network model
+- [x] route selection, packet/drop outcome, adjacency state/change, policy result, application failure/success, and event cause chains are grounded in existing engines/results
+- [x] NOVICE / OPERATIONAL / PROTOCOL DETAIL levels change wording only; structured facts and citations remain identical
+- [x] the AI query pack is advisory-only: it may summarize/query cited facts but cannot decide routing, forwarding, policy, protocol state, mutations, outcomes, or provenance
+- [x] Time Machine explanation uses the same staged control/RIB/FIB snapshot and truncated causal journal as the rest of Builder
+- [x] the explanation workspace remains lazy-loaded and absent from stress Builder
+
+`docs/TRACKL.md` is the Track L closeout architecture and validation record.
 
 ---
 
