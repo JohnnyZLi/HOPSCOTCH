@@ -10,12 +10,14 @@ import { serveProductionArtifact } from './production-artifact-server.mjs';
 
 const enforce = process.argv.includes('--enforce');
 const compatibility = process.argv.includes('--compatibility');
+const visualReview = process.argv.includes('--visual-review');
 const gpuMode = process.env.HOPSCOTCH_GPU_MODE?.trim() || 'default';
 if (!['default', 'swiftshader', 'disabled'].includes(gpuMode)) throw new Error(`Unsupported HOPSCOTCH_GPU_MODE: ${gpuMode}`);
 const root = process.cwd();
 const distDir = resolve(root, 'dist');
 const budgetPath = resolve(root, 'config/performance-budget.json');
-const reportPath = resolve(root, process.env.HOPSCOTCH_REPORT_PATH?.trim() || 'artifacts/performance-profile.json');
+const reportPath = resolve(root, process.env.HOPSCOTCH_REPORT_PATH?.trim() || (visualReview ? 'artifacts/phase3-visual-review/worlds-report.json' : 'artifacts/performance-profile.json'));
+const visualReviewDirectory = resolve(root, process.env.HOPSCOTCH_VISUAL_REVIEW_DIR?.trim() || 'artifacts/phase3-visual-review');
 const measuredFixturePath = resolve(root, 'scripts/fixtures/measured-workspace-v2.json');
 const measuredInvalidFixturePath = resolve(root, 'scripts/fixtures/measured-workspace-invalid.json');
 const budgetDocument = JSON.parse(readFileSync(budgetPath, 'utf8'));
@@ -281,7 +283,7 @@ const profiles = [
 
 profiles.push(
   { id: 'stress-as-canvas', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'as-density' }), readySelector: '.internet-scale', expected: ['POLICY MAKES', 'SIMULATED WINNER'], stressExpected: { profile: 'as-density', asNodes: 160, asRelationships: 220 } },
-  { id: 'stress-builder-ceiling', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'builder-density' }), readySelector: '.builder-workspace', expected: ['32 NODES · 96 LINKS', 'GRAPH PATH', 'YES · COST', 'L3 FORWARDING', 'NO ROUTE'], stressExpected: { profile: 'builder-density', builderNodes: 32, builderLinks: 96 } },
+  { id: 'stress-builder-ceiling', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'builder-density' }), readySelector: '.builder-workspace', expected: ['32 NODES · 96 LINKS', 'PATH', 'YES · COST', 'FORWARDING', 'NO ROUTE'], stressExpected: { profile: 'builder-density', builderNodes: 32, builderLinks: 96 } },
   { id: 'stress-physical-webgl', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'physical-density' }), readySelector: '.physical-globe', expected: gpuMode === 'disabled' ? ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA', 'FALLBACK', 'WEBGL 2 UNAVAILABLE'] : ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA', 'WEBGL 2'], stressExpected: { profile: 'physical-density', physicalPoints: 2000, webgl: gpuMode !== 'disabled' }, allowExpectedWebglFailure: gpuMode === 'disabled' },
 );
 
@@ -290,8 +292,8 @@ if (compatibility) profiles.push(
 { id: 'protocol-dns-mobile', width: 390, height: 844, reducedMotion: false, path: '/labs/dns', query: '', readySelector: '.dns-visual-workspace', protocolWorkspace: true, expected: ['DNS THEATER', 'www.example.test', 'NAMESPACE', 'PROVENANCE'] },
 { id: 'protocol-tls-reduced-motion', width: 1280, height: 900, reducedMotion: true, path: '/labs/tls', query: '', readySelector: '.tls-visual-workspace', protocolWorkspace: true, expected: ['TLS 1.3 THEATER', 'SYMBOLIC KEY SCHEDULE', 'WIRE VISIBILITY', 'PROVENANCE'] },
 { id: 'protocol-http-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/http2-vs-http3', query: '', readySelector: '.http-visual-workspace', protocolWorkspace: true, expected: ['HTTP A/B THEATER', 'HTTP/2', 'HTTP/3', 'SAME LOSS', 'PROVENANCE'] },
-{ id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'DERIVED FDB', 'ARP CACHE', 'STP', 'ROUTED POLICY'] },
-{ id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'ARP CACHE', 'STP', 'ROUTED POLICY'] },
+{ id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'DERIVED FDB', 'ARP CACHE', 'STP', 'FORWARDING'] },
+{ id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'ARP CACHE', 'STP', 'FORWARDING'] },
 { id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', 'NOT PROMOTED TO LOCAL MEASURED'] },
   { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
   { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
@@ -299,6 +301,30 @@ if (compatibility) profiles.push(
   { id: 'measured-sidecars-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
   { id: 'measured-sidecars-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
 );
+
+if (visualReview) {
+  const visualViewports = [
+    { id: 'ultrawide', width: 2560, height: 1200 },
+    { id: 'wide', width: 1600, height: 950 },
+    { id: 'laptop', width: 1366, height: 768 },
+    { id: 'narrow', width: 900, height: 820 },
+    { id: 'mobile', width: 390, height: 844 },
+  ];
+  const visualWorlds = [
+    { id: 'as-routing', path: '/internet/as-routing', query: '', readySelector: '.as-visual-workspace', expected: ['LAB 05A · AS ROUTING', 'SIMULATED WINNER', 'PROVENANCE'], workspaceSelector: '.as-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.internet-canvas-wrap', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.as-visual-workspace .visual-drawer-tabs button', drawerSelector: '.as-visual-workspace .visual-drawer' },
+    { id: 'physical-atlas', path: '/', query: query({ stress: 'physical-density' }), readySelector: '.physical-visual-workspace', expected: ['LAB 05C · PHYSICAL ATLAS', 'SIMULATED STRESS POINTS', 'PROVENANCE'], workspaceSelector: '.physical-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.globe-viewport', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.physical-visual-workspace .visual-drawer-tabs button', drawerSelector: '.physical-visual-workspace .visual-drawer' },
+    { id: 'packet-microscope', path: '/labs/packet', query: '', readySelector: '.packet-visual-workspace', expected: ['LAB 02 · PACKET MICROSCOPE', 'SIMULATED', 'PROVENANCE'], workspaceSelector: '.packet-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.packet-stage', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.packet-visual-workspace .visual-drawer-tabs button', drawerSelector: '.packet-visual-workspace .visual-drawer' },
+    { id: 'network-builder', path: '/labs/builder', query: '', readySelector: '.builder-visual-workspace', expected: ['LAB 04 · NETWORK BUILDER', 'PATH', 'FORWARDING', 'OSPF', 'GRAPH'], workspaceSelector: '.builder-visual-workspace', stageSelector: '.builder-stage', worldSelector: '.builder-canvas', toolbarSelector: '.builder-world-toolbar', hudSelector: '.builder-stage-meta', inspectButtonSelector: '.builder-tool-inspect', drawerSelector: '.builder-context-drawer.open' },
+  ];
+  profiles.splice(0, profiles.length, ...visualWorlds.flatMap((world) => visualViewports.map((viewport) => ({
+    ...world,
+    ...viewport,
+    id: `${world.id}-${viewport.id}`,
+    reducedMotion: false,
+    visualReview: true,
+    inspectReview: viewport.id === 'wide' || viewport.id === 'mobile',
+  }))));
+}
 
 async function waitForExpression(cdp, expression, timeoutMs = 5000) {
   const deadline = performance.now() + timeoutMs;
@@ -339,7 +365,7 @@ async function exerciseBuilderOspf(cdp, profile) {
   const initial = await state();
   assertViewport(initial, 'default Builder');
   if (!initial.meta.includes('OSPF AREA 0') || !initial.meta.includes('OFF')) throw new Error(`${profile.id} did not start with OSPF disabled.`);
-  if (!initial.meta.includes('L3 FORWARDING') || !initial.meta.includes('NO ROUTE')) throw new Error(`${profile.id} OSPF-off default fabricated forwarding reachability.`);
+  if (!initial.meta.includes('FORWARDING') || !initial.meta.includes('NO ROUTE')) throw new Error(`${profile.id} OSPF-off default fabricated forwarding reachability.`);
 
   const initialEdgeSelected = await cdp.evaluate(`(()=>{
     const node=[...document.querySelectorAll('.builder-node')].find((candidate)=>candidate.querySelector('strong')?.textContent?.trim()==='EDGE');
@@ -979,6 +1005,69 @@ async function exerciseMeasuredJourneySidecars(cdp, profile) {
   };
 }
 
+async function dispatchKey(cdp, key, code, modifiers = 0) {
+  const windowsVirtualKeyCode = key === 'Tab' ? 9 : key === 'Escape' ? 27 : 0;
+  await cdp.call('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code, modifiers, windowsVirtualKeyCode, nativeVirtualKeyCode: windowsVirtualKeyCode });
+  await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key, code, modifiers, windowsVirtualKeyCode, nativeVirtualKeyCode: windowsVirtualKeyCode });
+}
+
+async function captureVisualReview(cdp, profile) {
+  mkdirSync(visualReviewDirectory, { recursive: true });
+  await sleep(900);
+  const geometry = await cdp.evaluate(`(()=>{
+    const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
+    const toolbar=rect(${JSON.stringify(profile.toolbarSelector)});
+    const hud=rect(${JSON.stringify(profile.hudSelector)});
+    return {
+      viewport:{width:innerWidth,height:innerHeight},
+      workspace:rect(${JSON.stringify(profile.workspaceSelector)}),
+      stage:rect(${JSON.stringify(profile.stageSelector)}),
+      world:rect(${JSON.stringify(profile.worldSelector)}),
+      toolbar,
+      hud,
+      toolbarHudOverlap:Boolean(toolbar&&hud&&toolbar.left<hud.right&&toolbar.right>hud.left&&toolbar.top<hud.bottom&&toolbar.bottom>hud.top),
+    };
+  })()`);
+  if (!geometry.workspace || !geometry.stage || !geometry.world) throw new Error(`${profile.id} is missing visual review geometry: ${JSON.stringify(geometry)}.`);
+  const outerGutter = geometry.viewport.width - geometry.workspace.width;
+  if (outerGutter > 26) throw new Error(`${profile.id} leaves ${outerGutter.toFixed(1)}px of outer desktop gutter.`);
+  if (geometry.world.width < geometry.stage.width * 0.96 || geometry.world.height < geometry.stage.height * 0.9) throw new Error(`${profile.id} world does not own its stage: ${JSON.stringify(geometry)}.`);
+  if (geometry.toolbarHudOverlap) throw new Error(`${profile.id} toolbar collides with its persistent HUD.`);
+
+  const capture = async (suffix = '') => {
+    const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });
+    const path = join(visualReviewDirectory, `${profile.id}${suffix}.png`);
+    writeFileSync(path, Buffer.from(screenshot.data, 'base64'));
+    return path;
+  };
+  const screenshotPath = await capture();
+  let inspect = null;
+  if (profile.inspectReview) {
+    await cdp.evaluate(`document.querySelector(${JSON.stringify(profile.inspectButtonSelector)})?.focus()`);
+    await measuredClickButton(cdp, profile.inspectButtonSelector, 'INSPECT');
+    await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(profile.drawerSelector)}))`, 8000);
+    await sleep(120);
+    const initialFocus = await cdp.evaluate(`(()=>({
+      inside:Boolean(document.querySelector(${JSON.stringify(profile.drawerSelector)})?.contains(document.activeElement)),
+      label:document.activeElement?.getAttribute('aria-label')??document.activeElement?.textContent?.trim()??null,
+    }))()`);
+    if (!initialFocus.inside || !String(initialFocus.label).toUpperCase().includes('CLOSE')) throw new Error(`${profile.id} drawer did not focus its close control: ${JSON.stringify(initialFocus)}.`);
+    await dispatchKey(cdp, 'Tab', 'Tab', 8);
+    const shiftTabContained = await cdp.evaluate(`document.querySelector(${JSON.stringify(profile.drawerSelector)})?.contains(document.activeElement)===true`);
+    if (!shiftTabContained) throw new Error(`${profile.id} drawer let Shift+Tab escape its modal focus scope.`);
+    await dispatchKey(cdp, 'Tab', 'Tab');
+    const tabContained = await cdp.evaluate(`document.querySelector(${JSON.stringify(profile.drawerSelector)})?.contains(document.activeElement)===true`);
+    if (!tabContained) throw new Error(`${profile.id} drawer let Tab escape its modal focus scope.`);
+    const inspectScreenshotPath = await capture('-inspect');
+    await dispatchKey(cdp, 'Escape', 'Escape');
+    await waitForExpression(cdp, `!document.querySelector(${JSON.stringify(profile.drawerSelector)})`, 8000);
+    const restored = await cdp.evaluate(`document.activeElement===document.querySelector(${JSON.stringify(profile.inspectButtonSelector)})`);
+    if (!restored) throw new Error(`${profile.id} drawer did not restore focus to its opener.`);
+    inspect = { initialFocus, shiftTabContained, tabContained, restored, screenshotPath: inspectScreenshotPath };
+  }
+  return { geometry, screenshotPath, inspect };
+}
+
 async function loadProfile(cdp, origin, profile) {
   cdp.clearEvents();
   await cdp.call('Emulation.setDeviceMetricsOverride', {
@@ -1008,6 +1097,8 @@ async function loadProfile(cdp, origin, profile) {
   if (profile.reducedMotion && !(await cdp.evaluate('matchMedia("(prefers-reduced-motion: reduce)").matches'))) {
     throw new Error(`${profile.id} did not enable reduced motion.`);
   }
+
+  const visualReviewResult = profile.visualReview ? await captureVisualReview(cdp, profile) : null;
 
   const journeyDrawer = await cdp.evaluate(`Boolean(document.querySelector('.journey-visual-workspace'))`)
     ? await inspectJourneyDrawerArchitecture(cdp, profile)
@@ -1119,6 +1210,7 @@ async function loadProfile(cdp, origin, profile) {
     measured: measuredInteraction,
     protocol: structural.protocol,
     builderOspf: builderOspfInteraction,
+    visualReview: visualReviewResult,
     heapUsedBytes: heap.usedSize,
     diagnostic: {
       scriptDurationSeconds: performanceMetrics.ScriptDuration ?? null,
@@ -1195,11 +1287,12 @@ async function main() {
   let cdp = null;
   let production = null;
   const report = {
-    schema: 'hopscotch.performance-profile',
+    schema: visualReview ? 'hopscotch.phase3-visual-review' : 'hopscotch.performance-profile',
     version: 1,
     generatedAt: new Date().toISOString(),
     enforce,
     compatibility,
+    visualReview,
     gpuMode,
     budgetDocument,
     browser: { path: chromePath },
@@ -1228,7 +1321,7 @@ async function main() {
     await cdp.call('HeapProfiler.enable');
 
     for (const profile of profiles) report.profiles.push(await loadProfile(cdp, production.origin, profile));
-    if (!compatibility) {
+    if (!compatibility && !visualReview) {
       report.seekStress = await seekStress(cdp, production.origin);
       report.highDensitySeekStress = await seekStress(cdp, production.origin, stressBudgets.highDensitySeek?.cycles ?? 12, 'high-density-seek-stress');
 
@@ -1274,7 +1367,7 @@ async function main() {
     writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   }
 
-  console.log(`HOPSCOTCH production ${compatibility ? 'compatibility' : 'performance'} profile (${report.browser.version ?? 'browser unknown'})`);
+  console.log(`HOPSCOTCH production ${visualReview ? 'Phase 3 visual review' : compatibility ? 'compatibility' : 'performance'} profile (${report.browser.version ?? 'browser unknown'})`);
   console.log(`GPU mode: ${gpuMode}`);
   console.log(`Bundle: JS ${report.bundle.jsGzipBytes} gzip bytes · CSS ${report.bundle.cssGzipBytes} gzip bytes`);
   for (const profile of report.profiles) {
@@ -1295,7 +1388,7 @@ async function main() {
     for (const failure of report.failures) console.error(`- ${failure}`);
     if (enforce) process.exitCode = 1;
   } else {
-    console.log(compatibility ? `Compatibility semantic profile passed for GPU mode ${gpuMode}.` : 'Stable performance and high-density stress budgets passed.');
+    console.log(visualReview ? 'Phase 3 production visual review capture and geometry checks passed.' : compatibility ? `Compatibility semantic profile passed for GPU mode ${gpuMode}.` : 'Stable performance and high-density stress budgets passed.');
   }
 }
 

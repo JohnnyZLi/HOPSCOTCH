@@ -3,7 +3,8 @@
   z-index: 3;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
-  width: min(1680px, calc(100% - 32px));
+  width: calc(100% - 20px);
+  max-width: none;
   height: calc(100dvh - 89px);
   min-height: 570px;
   margin: 0 auto;
@@ -441,7 +442,7 @@
 
 @media (max-width: 900px) {
   .visual-workspace {
-    width: min(100% - 20px, 980px);
+    width: calc(100% - 16px);
   }
 
   .visual-workspace__toolbar {

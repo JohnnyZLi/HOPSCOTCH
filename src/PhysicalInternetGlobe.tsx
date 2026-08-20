@@ -539,11 +539,11 @@ export function PhysicalInternetGlobe({
             <p>{facilityLocation(selectedFacility)} · {selectedFacility.latitude.toFixed(2)}, {selectedFacility.longitude.toFixed(2)}</p>
             <div><button type="button" onClick={() => setActiveDrawer('inspect')}>INSPECT FACILITY ↗</button><button type="button" onClick={() => setCorridorAId(selectedFacility.id)}>SET A</button><button type="button" onClick={() => setCorridorBId(selectedFacility.id)}>SET B</button></div>
           </article>}
-          <article className={`physical-corridor-card ${corridorA && corridorB ? 'active' : ''}`}>
+          {(corridorA || corridorB) && <article className={`physical-corridor-card ${corridorA && corridorB ? 'active' : ''}`}>
             <span>INFERRED GEOMETRIC CORRIDOR</span>
-            <strong>{corridorA && corridorB ? `${corridorA.name} → ${corridorB.name}` : 'SELECT TWO FACILITIES'}</strong>
-            <p>{corridorA && corridorB ? 'Great-circle geometry · not a measured route, cable, or proof of traversal.' : 'Assign corridor A and B from a selected public facility.'}</p>
-          </article>
+            <strong>{corridorA && corridorB ? `${corridorA.name} → ${corridorB.name}` : corridorA ? `${corridorA.name} → SELECT B` : `SELECT A → ${corridorB?.name}`}</strong>
+            <p>{corridorA && corridorB ? 'Great-circle geometry · not a measured route, cable, or proof of traversal.' : 'Choose the other corridor endpoint from a selected public facility.'}</p>
+          </article>}
         </section>
       </VisualWorkspaceShell>
     </div>

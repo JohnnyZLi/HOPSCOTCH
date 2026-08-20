@@ -2,7 +2,8 @@
 .builder-workspace.builder-visual-workspace {
   position: relative;
   display: block;
-  width: min(1760px, calc(100% - 20px));
+  width: calc(100% - 20px);
+  max-width: none;
   height: calc(100dvh - 74px);
   min-height: 600px;
   margin: 0 auto;
@@ -383,15 +384,14 @@
 .builder-context-drawer .builder-live-controls { gap: 9px; }
 
 @media (max-width: 1080px) {
-  .builder-workspace.builder-visual-workspace { width: min(100% - 16px, 1180px); }
+  .builder-workspace.builder-visual-workspace { width: calc(100% - 16px); }
   .builder-world-toolbar { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; }
   .builder-world-tools { justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
   .builder-world-tools::-webkit-scrollbar { display: none; }
   .builder-world-tools button { flex: 0 0 auto; }
   .builder-world-toolbar .interactive-world-toolbar__actions button:first-child { display: none; }
-  .builder-visual-workspace .builder-stage-meta { max-width: calc(100% - 310px); }
-  .builder-visual-workspace .builder-stage-meta > div:nth-last-child(2),
-  .builder-visual-workspace .builder-stage-meta > div:nth-last-child(3) { display: none; }
+  .builder-visual-workspace .builder-stage-meta { max-width: calc(100% - 330px); }
+  .builder-visual-workspace .builder-stage-meta > div { min-width: 70px; }
 }
 
 @media (max-width: 680px) {
@@ -402,13 +402,11 @@
   .builder-world-toolbar .interactive-world-toolbar__actions button { width: 34px; padding: 0; font-size: 0; }
   .builder-world-toolbar .interactive-world-toolbar__actions button:last-child::after { content: '×'; font-size: 0.9rem; }
   .builder-world-tools button { min-height: 32px; padding-inline: 8px; }
-  .builder-world-tools button:nth-child(2),
-  .builder-world-tools button:nth-child(3),
-  .builder-world-tools button:nth-child(5) { display: none; }
+  .builder-world-tools .builder-tool-topology,
+  .builder-world-tools .builder-tool-fault { display: none; }
   .builder-visual-workspace .builder-stage-meta { top: 54px; right: 8px; left: 8px; max-width: none; }
   .builder-visual-workspace .builder-stage-meta > div { min-width: 0; flex: 1 1 0; padding-inline: 6px; }
-  .builder-visual-workspace .builder-stage-meta > div:nth-child(n + 4) { display: none; }
-  .builder-visual-workspace .builder-stage-meta > div.builder-meta-ospf { display: grid; }
+  .builder-visual-workspace .builder-stage-meta > div.builder-meta-probe { display: none; }
   .builder-scene-switcher { top: 96px; right: 8px; max-width: calc(100% - 16px); overflow-x: auto; }
   .builder-scene-switcher button { flex: 0 0 auto; }
   .builder-selection-card { right: 8px; bottom: 40px; left: 8px; width: auto; }

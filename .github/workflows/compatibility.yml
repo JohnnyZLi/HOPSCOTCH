@@ -81,3 +81,25 @@ jobs:
           path: artifacts/capture-browser.json
           if-no-files-found: error
           retention-days: 3
+
+  phase3-visual-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Capture Phase 3 production viewport matrix
+        run: npm run visual:phase3
+      - name: Upload Phase 3 visual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-phase3-visual-review
+          path: artifacts/phase3-visual-review
+          if-no-files-found: error
+          retention-days: 7

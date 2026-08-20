@@ -4,7 +4,8 @@
 }
 
 .as-visual-workspace {
-  width: min(1720px, calc(100% - 24px));
+  width: calc(100% - 20px);
+  max-width: none;
   height: calc(100dvh - 76px);
   min-height: 580px;
 }
@@ -215,7 +216,7 @@
 .internet-inspect-grid dd { margin: 0; color: #becbd0; font-size: 0.57rem; font-weight: 800; }
 
 @media (max-width: 900px) {
-  .as-visual-workspace { width: min(100% - 16px, 1100px); }
+  .as-visual-workspace { width: calc(100% - 16px); }
   .as-winner-readout { width: min(440px, 53vw); }
   .as-selection-card { width: min(260px, 34vw); }
   .as-visual-workspace .interactive-world-hud > div:nth-child(4) { display: none; }

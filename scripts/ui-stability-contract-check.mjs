@@ -120,10 +120,9 @@ for (const [name, source] of [['TCP', tcpSource], ['DNS', dnsSource], ['TLS', tl
     source.includes('protocol-cinematic-stage') && source.includes('protocol-scene-annotation'),
     `${name} must keep its active explanation attached to the stable scene positioning context`,
   );
-  assert.ok(
-    source.includes("setActiveDrawer('inspect')") && source.includes('setActiveDrawer(null)'),
-    `${name} playback must deterministically trade the inspection overlay for unobstructed motion`,
-  );
+  const playbackToggle = source.match(/const togglePlayback = \(\) => \{([\s\S]*?)\n  \};/)?.[1] ?? '';
+  assert.ok(playbackToggle && !playbackToggle.includes('setActiveDrawer'), `${name} playback must freeze/resume without mutating inspection state`);
+  assert.ok(source.includes('const openDrawer') && source.includes('setActiveDrawer'), `${name} inspection controls must retain explicit drawer ownership`);
 }
 assert.ok(
   protocolCss.includes('.tls-workspace-stage') && protocolCss.includes('.http-workspace-stage') && protocolCss.includes('@media (max-width: 680px)'),

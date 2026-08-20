@@ -110,10 +110,8 @@ export function TlsTheater({
   const togglePlayback = () => {
     if (playing) {
       setPlaying(false);
-      setActiveDrawer('inspect');
       return;
     }
-    setActiveDrawer(null);
     if (timeMs >= tlsDurationMs) setTimeMs(0);
     setPlaying(true);
   };

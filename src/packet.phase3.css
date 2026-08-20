@@ -4,7 +4,8 @@
 }
 
 .packet-visual-workspace {
-  width: min(1740px, calc(100% - 24px));
+  width: calc(100% - 20px);
+  max-width: none;
   height: calc(100dvh - 76px);
   min-height: 610px;
 }
@@ -347,7 +348,7 @@
 }
 
 @media (max-width: 1120px) {
-  .packet-visual-workspace { width: min(100% - 16px, 1180px); }
+  .packet-visual-workspace { width: calc(100% - 16px); }
   .packet-visual-workspace .packet-stage { grid-template-rows: auto minmax(116px, 0.9fr) auto minmax(180px, 1.1fr); }
   .packet-visual-workspace .packet-relations small { display: none; }
   .packet-field-lens { width: min(300px, 35vw); }

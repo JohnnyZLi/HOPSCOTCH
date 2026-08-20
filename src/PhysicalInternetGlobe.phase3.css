@@ -4,7 +4,8 @@
 }
 
 .physical-visual-workspace {
-  width: min(1760px, calc(100% - 20px));
+  width: calc(100% - 20px);
+  max-width: none;
   height: calc(100dvh - 74px);
   min-height: 590px;
 }
@@ -185,7 +186,7 @@
 .physical-truth-ledger strong { color: #b9c6cb; font-size: 0.56rem; line-height: 1.4; }
 
 @media (max-width: 980px) {
-  .physical-visual-workspace { width: min(100% - 16px, 1120px); }
+  .physical-visual-workspace { width: calc(100% - 16px); }
   .physical-selection-card { width: min(320px, 37vw); }
   .physical-corridor-card { width: min(330px, 38vw); }
   .physical-visual-workspace .interactive-world-hud > div:nth-child(4) { display: none; }
