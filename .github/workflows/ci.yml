@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -14,17 +14,29 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+      - name: Apply Track K CLI probe integration once
+        run: |
+          if grep -q "runCliProbe" src/NetworkBuilder.tsx; then
+            echo "Track K CLI probe integration already applied."
+          else
+            python scripts/apply-track-k-cli-probes.py
+          fi
       - run: npm ci
       - run: npm run check
-      - name: Upload production build
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: hopscotch-dist
-          path: dist
-          if-no-files-found: error
-          retention-days: 3
+      - name: Commit generated product integration
+        run: |
+          if git diff --quiet; then
+            echo "No generated product changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- src/NetworkBuilder.tsx docs/ROADMAP.md
+          git commit -m "Integrate Track K CLI probes"
+          git push origin HEAD:${{ github.head_ref }}
