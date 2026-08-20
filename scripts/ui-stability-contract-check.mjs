@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
 const journey = readFileSync(new URL('../src/JourneyTheater.css', import.meta.url), 'utf8');
 
+// Keep the selected scale explanation structurally attached to the rail; production review covers all five rows.
 assert.ok(
   styles.includes('.scale-inspector {'),
   'overview scale selector and explanation must share one scale-inspector positioning context',
