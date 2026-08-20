@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -14,51 +14,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.head_ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - name: Apply overview scale motion once
-        run: |
-          if grep -q 'layoutId="overview-scale-marker"' src/App.tsx; then
-            echo "Overview scale motion already applied."
-          else
-            python scripts/apply-overview-scale-motion.py
-          fi
-          if grep -q 'activeLayerTop' src/App.tsx; then
-            echo "Travelling scale explanation already applied."
-          else
-            python scripts/refine-overview-scale-motion.py
-          fi
-          if grep -q '@keyframes scale-depth-wave-in' src/styles.css; then
-            echo "Overview scale motion polish already applied."
-          else
-            python scripts/polish-overview-scale-motion.py
-          fi
       - run: npm ci
       - run: npm run check
-      - name: Capture overview scale motion
-        run: node scripts/capture-overview-scale-motion.mjs
-      - name: Upload overview scale motion review
-        uses: actions/upload-artifact@v4
-        with:
-          name: overview-scale-motion-review
-          path: artifacts/overview-scale-motion
-          if-no-files-found: error
-          retention-days: 3
-      - name: Commit overview scale motion
-        run: |
-          if git diff --quiet; then
-            echo "No generated changes to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- src/App.tsx src/styles.css src/NetworkField.tsx scripts/ui-stability-contract-check.mjs
-          git commit -m "Polish overview scale transition motion"
-          git push origin HEAD:${{ github.head_ref }}
       - name: Upload production build
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
