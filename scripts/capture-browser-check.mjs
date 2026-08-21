@@ -18,9 +18,13 @@ import { serveProductionArtifact } from './production-artifact-server.mjs';
 
 const root = process.cwd();
 const distDir = resolve(root, 'dist');
-const visualReview = process.argv.includes('--visual-review');
-const reportPath = resolve(root, process.env.HOPSCOTCH_CAPTURE_BROWSER_REPORT_PATH?.trim() || (visualReview ? 'artifacts/phase3-visual-review/captured-report.json' : 'artifacts/capture-browser.json'));
-const visualReviewDirectory = resolve(root, process.env.HOPSCOTCH_VISUAL_REVIEW_DIR?.trim() || 'artifacts/phase3-visual-review');
+const phase3VisualReview = process.argv.includes('--visual-review');
+const phase4VisualReview = process.argv.includes('--phase4-visual-review');
+const visualReview = phase3VisualReview || phase4VisualReview;
+const defaultVisualDirectory = phase4VisualReview ? 'artifacts/phase4-visual-review' : 'artifacts/phase3-visual-review';
+const defaultVisualReport = phase4VisualReview ? `${defaultVisualDirectory}/capture-report.json` : `${defaultVisualDirectory}/captured-report.json`;
+const reportPath = resolve(root, process.env.HOPSCOTCH_CAPTURE_BROWSER_REPORT_PATH?.trim() || (visualReview ? defaultVisualReport : 'artifacts/capture-browser.json'));
+const visualReviewDirectory = resolve(root, process.env.HOPSCOTCH_VISUAL_REVIEW_DIR?.trim() || defaultVisualDirectory);
 const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 
 async function waitForChildExit(child, timeoutMs = 2000) {
@@ -162,9 +166,9 @@ function makeFixtures(directory) {
     { bytes: dnsRequest, fraction: 400_000 },
     { bytes: dnsReply, fraction: 500_000 },
   ];
-  const pcapPath = join(directory, 'track-t-fixture.pcap');
-  const pcapngPath = join(directory, 'track-t-fixture.pcapng');
-  const invalidPath = join(directory, 'track-t-invalid.pcap');
+  const pcapPath = join(directory, 'track-h-fixture.pcap');
+  const pcapngPath = join(directory, 'track-h-fixture.pcapng');
+  const invalidPath = join(directory, 'track-h-invalid.pcap');
   writeFileSync(pcapPath, pcapCapture(records));
   writeFileSync(pcapngPath, pcapngSection({
     interfaces: [{ linkType: 1, snapLength: 262144, tsresol: 9 }],
@@ -172,6 +176,81 @@ function makeFixtures(directory) {
   }));
   writeFileSync(invalidPath, Uint8Array.of(0x0a, 0x0d, 0x0d));
   return { pcapPath, pcapngPath, invalidPath };
+}
+
+async function captureReplayPhase4VisualReview(cdp, profile) {
+  await waitForExpression(cdp, `!document.querySelector('.capture-replay .visual-entrance')`, 5000);
+  await sleep(140);
+  mkdirSync(visualReviewDirectory, { recursive: true });
+
+  const geometry = await cdp.evaluate(`(()=>{
+    const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
+    return {
+      viewport:{width:innerWidth,height:innerHeight},workspace:rect('.capture-replay'),grid:rect('.capture-workspace-grid'),replay:rect('.capture-cinematic-stage'),toolbar:rect('.capture-heading'),summary:rect('.capture-summary'),
+      scrollWidth:document.documentElement.scrollWidth,scrollY,mode:document.querySelector('.capture-replay')?.getAttribute('data-capture-mode'),drawer:document.querySelector('.capture-replay')?.getAttribute('data-context-drawer'),
+    };
+  })()`);
+  if (!geometry.workspace || !geometry.grid || !geometry.replay) throw new Error(`${profile.id} Capture Replay is missing Phase 4 geometry.`);
+  if (geometry.viewport.width - geometry.workspace.width > 26) throw new Error(`${profile.id} Capture Replay retains a restrictive outer width cap.`);
+  if (geometry.replay.width < geometry.grid.width * 0.98 || geometry.replay.height < geometry.grid.height * 0.98) throw new Error(`${profile.id} replay does not own the analysis stage: ${JSON.stringify(geometry)}.`);
+  if (geometry.grid.height < geometry.workspace.height * 0.52) throw new Error(`${profile.id} replay stage is too small inside the workspace: ${JSON.stringify(geometry)}.`);
+  if (geometry.scrollWidth > geometry.viewport.width || geometry.scrollY !== 0) throw new Error(`${profile.id} Capture Replay overflows the viewport.`);
+
+  const screenshot = async (suffix) => {
+    const result = await cdp.call('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });
+    const path = join(visualReviewDirectory, `${profile.id}-${suffix}.png`);
+    writeFileSync(path, Buffer.from(result.data, 'base64'));
+    return path;
+  };
+
+  const replayScreenshot = await screenshot('replay');
+  let flowsScreenshot = null;
+  let analysisScreenshot = null;
+  let focusLifecycle = null;
+  if (profile.inspectReview) {
+    await clickText(cdp, '.capture-heading-actions .capture-action', 'FLOWS');
+    await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='flows'`);
+    await sleep(80);
+    const initialFocus = await cdp.evaluate(`document.activeElement?.classList.contains('capture-drawer-close')===true`);
+    await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', modifiers: 8 });
+    await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', modifiers: 8 });
+    const shiftTabContained = await cdp.evaluate(`document.querySelector('.capture-flow-browser')?.contains(document.activeElement)===true`);
+    await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab' });
+    await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab' });
+    const tabContained = await cdp.evaluate(`document.querySelector('.capture-flow-browser')?.contains(document.activeElement)===true`);
+    flowsScreenshot = await screenshot('flows');
+    await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
+    await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
+    await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='none'`);
+    const restored = await cdp.evaluate(`document.activeElement?.textContent?.includes('FLOWS')===true`);
+    if (!initialFocus || !shiftTabContained || !tabContained || !restored) throw new Error(`${profile.id} Capture Replay drawer focus lifecycle failed.`);
+    focusLifecycle = { initialFocus, shiftTabContained, tabContained, restored };
+  }
+
+  await clickText(cdp, '.capture-mode-switch button', 'FRAME SPECIMEN');
+  await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-capture-mode')==='frame'`);
+  await sleep(80);
+  const frameGeometry = await cdp.evaluate(`(()=>{
+    const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{width:value.width,height:value.height,left:value.left,right:value.right,top:value.top,bottom:value.bottom}:null};
+    return {grid:rect('.capture-workspace-grid'),frame:rect('.capture-evidence-inspector.is-frame-stage'),bytes:document.querySelectorAll('.capture-evidence-inspector.is-frame-stage .capture-hex-grid > span').length,scrollWidth:document.documentElement.scrollWidth};
+  })()`);
+  if (!frameGeometry.grid || !frameGeometry.frame || frameGeometry.bytes <= 0) throw new Error(`${profile.id} frame mode did not promote an exact-byte specimen.`);
+  if (frameGeometry.frame.width < frameGeometry.grid.width * 0.98 || frameGeometry.frame.height < frameGeometry.grid.height * 0.98 || frameGeometry.scrollWidth > profile.width) throw new Error(`${profile.id} frame specimen does not own the stage: ${JSON.stringify(frameGeometry)}.`);
+  const frameScreenshot = await screenshot('frame-specimen');
+
+  if (profile.inspectReview) {
+    await clickText(cdp, '.capture-heading-actions .capture-action', 'ANALYSIS');
+    await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='analysis'`);
+    await sleep(100);
+    analysisScreenshot = await screenshot('analysis');
+    await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
+    await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
+    await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='none'`);
+  }
+
+  await clickText(cdp, '.capture-mode-switch button', 'REPLAY');
+  await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-capture-mode')==='replay'`);
+  return { geometry, frameGeometry, replayScreenshot, flowsScreenshot, frameScreenshot, analysisScreenshot, focusLifecycle };
 }
 
 async function exerciseProfile(cdp, origin, fixtures, profile) {
@@ -189,6 +268,7 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
   const loaded = await cdp.evaluate(`(()=>({
     pathname:location.pathname,
     text:document.body.innerText,
+    inspectorText:document.querySelector('.capture-evidence-inspector')?.textContent??'',
     innerWidth,
     scrollWidth:document.documentElement.scrollWidth,
     flowCount:document.querySelectorAll('.capture-flow-list button').length,
@@ -202,8 +282,11 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
   if (loaded.flowCount < 2 || loaded.eventCount < 3) throw new Error(`${profile.id} did not expose the synthetic conversations/events.`);
   if (loaded.byteCount > 256) throw new Error(`${profile.id} rendered more than one bounded byte page.`);
   if (loaded.elementCount > 1600) throw new Error(`${profile.id} capture DOM is unexpectedly dense: ${loaded.elementCount}.`);
-  if (!loaded.text.includes('CAPTURED + INFERRED') || !loaded.text.includes('WHY HOPSCOTCH SAID THIS')) throw new Error(`${profile.id} lost provenance or lineage.`);
+  if (!loaded.text.includes('CAPTURED + INFERRED') || !loaded.inspectorText.includes('WHY HOPSCOTCH SAID THIS')) throw new Error(`${profile.id} lost provenance or lineage.`);
+  if (!loaded.text.includes('track-h-fixture.pcap') || /track-t-fixture/i.test(loaded.text)) throw new Error(`${profile.id} Capture Replay exposed stale Track T fixture identity.`);
   if (loaded.reducedMotion !== profile.reducedMotion) throw new Error(`${profile.id} reduced-motion emulation was not preserved.`);
+
+  const captureReplayVisualReview = phase4VisualReview ? await captureReplayPhase4VisualReview(cdp, profile) : null;
 
   await cdp.evaluate(`document.querySelectorAll('.capture-event-rail button')[1]?.click()`);
   await clickText(cdp, '.capture-time-controls button', '▶');
@@ -212,6 +295,8 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
   if (pause) await clickText(cdp, '.capture-time-controls button', 'Ⅱ');
   const scrubbed = await cdp.evaluate(`(()=>{const input=document.querySelector('.capture-scrubber input');if(!input)return false;const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')?.set;setter?.call(input,input.max);input.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
   if (!scrubbed) throw new Error(`${profile.id} could not scrub capture time.`);
+  await clickText(cdp, '.capture-heading-actions .capture-action', 'FRAME DETAILS');
+  await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='inspect'`);
   await clickText(cdp, '.capture-open-microscope', 'OPEN READ-ONLY PACKET MICROSCOPE');
   await waitForExpression(cdp, `document.querySelector('.packet-microscope')?.getAttribute('data-packet-provenance')==='CAPTURED'`);
   await clickText(cdp, '.packet-field-list button', 'Sequence Number');
@@ -261,7 +346,7 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
       || (event.method === 'Log.entryAdded' && event.params?.entry?.level === 'error')
       || (event.method === 'Runtime.consoleAPICalled' && event.params?.type === 'error'));
     if (errors.length > 0) throw new Error(`${profile.id} emitted ${errors.length} runtime/console error(s): ${JSON.stringify(errors.slice(0, 2))}`);
-    return { id: profile.id, viewport: { width: profile.width, height: profile.height }, reducedMotion: profile.reducedMotion, ...loaded, capturedMicroscopeVerified: true, visualReview: { geometry, screenshotPath, inspectScreenshotPath } };
+    return { id: profile.id, viewport: { width: profile.width, height: profile.height }, reducedMotion: profile.reducedMotion, ...loaded, capturedMicroscopeVerified: true, captureReplayVisualReview, visualReview: { geometry, screenshotPath, inspectScreenshotPath } };
   }
   await clickText(cdp, '.packet-origin-strip button', 'RETURN TO CAPTURE');
   await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-capture-loaded')==='true'`);
@@ -272,7 +357,7 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
   if (!preserved) throw new Error(`${profile.id} malformed replacement corrupted the valid capture session.`);
 
   await setFileInput(cdp, '.capture-file-input', fixtures.pcapngPath);
-  await waitForExpression(cdp, `document.body.innerText.includes('track-t-fixture.pcapng') && document.body.innerText.includes('PCAPNG')`);
+  await waitForExpression(cdp, `document.body.innerText.includes('track-h-fixture.pcapng') && document.body.innerText.includes('PCAPNG')`);
   await clickText(cdp, '.capture-clear', 'CLEAR');
   await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-capture-loaded')==='false'`);
 
@@ -280,7 +365,7 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
     || (event.method === 'Log.entryAdded' && event.params?.entry?.level === 'error')
     || (event.method === 'Runtime.consoleAPICalled' && event.params?.type === 'error'));
   if (errors.length > 0) throw new Error(`${profile.id} emitted ${errors.length} runtime/console error(s): ${JSON.stringify(errors.slice(0, 2))}`);
-  return { id: profile.id, viewport: { width: profile.width, height: profile.height }, reducedMotion: profile.reducedMotion, ...loaded, malformedReplacementPreserved: true, pcapngReplacementVerified: true, capturedMicroscopeVerified: true };
+  return { id: profile.id, viewport: { width: profile.width, height: profile.height }, reducedMotion: profile.reducedMotion, ...loaded, malformedReplacementPreserved: true, pcapngReplacementVerified: true, capturedMicroscopeVerified: true, captureReplayVisualReview };
 }
 
 async function main() {
@@ -298,7 +383,7 @@ async function main() {
   let stderr = '';
   chrome.stderr.setEncoding('utf8');
   chrome.stderr.on('data', (chunk) => { stderr = `${stderr}${chunk}`.slice(-16000); });
-  const report = { schema: visualReview ? 'hopscotch.phase3-captured-visual-review' : 'hopscotch.capture-browser', version: 1, browser: { path: chromePath }, profiles: [], failures: [] };
+  const report = { schema: phase4VisualReview ? 'hopscotch.phase4-capture-visual-review' : phase3VisualReview ? 'hopscotch.phase3-captured-visual-review' : 'hopscotch.capture-browser', version: 1, browser: { path: chromePath }, profiles: [], failures: [] };
   let cdp = null;
   try {
     const version = await waitForDevTools(debuggingPort);
@@ -312,11 +397,11 @@ async function main() {
     await cdp.call('Runtime.enable');
     await cdp.call('Log.enable');
     const profiles = visualReview ? [
-      { id: 'captured-packet-ultrawide', width: 2560, height: 1200, reducedMotion: false, visualReview: true, inspectReview: false },
-      { id: 'captured-packet-wide', width: 1600, height: 950, reducedMotion: false, visualReview: true, inspectReview: true },
-      { id: 'captured-packet-laptop', width: 1366, height: 768, reducedMotion: false, visualReview: true, inspectReview: false },
-      { id: 'captured-packet-narrow', width: 900, height: 820, reducedMotion: false, visualReview: true, inspectReview: false },
-      { id: 'captured-packet-mobile', width: 390, height: 844, reducedMotion: false, visualReview: true, inspectReview: true },
+      { id: phase4VisualReview ? 'capture-replay-ultrawide' : 'captured-packet-ultrawide', width: 2560, height: 1200, reducedMotion: false, visualReview: true, inspectReview: false },
+      { id: phase4VisualReview ? 'capture-replay-wide' : 'captured-packet-wide', width: 1600, height: 950, reducedMotion: false, visualReview: true, inspectReview: true },
+      { id: phase4VisualReview ? 'capture-replay-laptop' : 'captured-packet-laptop', width: 1366, height: 768, reducedMotion: false, visualReview: true, inspectReview: false },
+      { id: phase4VisualReview ? 'capture-replay-narrow' : 'captured-packet-narrow', width: 900, height: 820, reducedMotion: false, visualReview: true, inspectReview: false },
+      { id: phase4VisualReview ? 'capture-replay-mobile' : 'captured-packet-mobile', width: 390, height: 844, reducedMotion: false, visualReview: true, inspectReview: true },
     ] : [
       { id: 'capture-desktop', width: 1440, height: 1000, reducedMotion: false },
       { id: 'capture-mobile', width: 390, height: 844, reducedMotion: false },
@@ -343,7 +428,7 @@ async function main() {
   for (const profile of report.profiles) console.log(`${profile.id}: ${profile.flowCount} flows · ${profile.eventCount} events · ${profile.byteCount} visible bytes · DOM ${profile.elementCount}`);
   console.log(`Report: ${reportPath}`);
   if (report.failures.length > 0) { for (const failure of report.failures) console.error(failure); process.exitCode = 1; }
-  else console.log(visualReview ? 'Captured Packet Microscope production visual review passed.' : 'Capture browser check passed: PCAP/PCAPNG import, rejected replacement preservation, time controls, lineage, read-only microscopy, desktop/mobile/reduced motion, and console health.');
+  else console.log(phase4VisualReview ? 'Capture Replay Phase 4 production visual review passed.' : visualReview ? 'Captured Packet Microscope production visual review passed.' : 'Capture browser check passed: PCAP/PCAPNG import, rejected replacement preservation, time controls, lineage, read-only microscopy, desktop/mobile/reduced motion, and console health.');
 }
 
 await main();

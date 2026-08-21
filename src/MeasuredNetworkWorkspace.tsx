@@ -21,7 +21,15 @@ import type {
   NativeMeasurementUnit,
   NativeMeasurementValue,
 } from './measurement/native.ts';
+import {
+  VisualDrawerTabs,
+  type VisualDrawerDefinition,
+  type VisualDrawerId,
+  VisualEntranceTransition,
+  VisualOverlayDrawer,
+} from './VisualWorkspace.tsx';
 import './MeasuredNetworkWorkspace.css';
+import './MeasuredNetworkWorkspace.phase4.css';
 
 const MAX_REPORT_BYTES = 10 * 1024 * 1024;
 
@@ -163,6 +171,7 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
   const [bridgeStatus, setBridgeStatus] = useState<LoopbackBridgeStatus>('disconnected');
   const [bridgeConnection, setBridgeConnection] = useState<LoopbackBridgeConnection | null>(null);
   const [bridgeError, setBridgeError] = useState<string | null>(null);
+  const [activeDrawer, setActiveDrawer] = useState<VisualDrawerId | null>(null);
 
   useEffect(() => {
     if (measuredState === null) return;
@@ -260,29 +269,7 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
     setSelectedTargetKey(null);
   };
 
-  return <motion.section
-    className="measured-workspace"
-    data-measured-loaded={measuredState ? 'true' : 'false'}
-    data-bridge-status={bridgeStatus}
-    initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.987, filter: 'blur(12px)' }}
-    animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-    exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.012, filter: 'blur(8px)' }}
-    transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-  >
-    <header className="measured-heading">
-      <div>
-        <p className="eyebrow">Lab 09 · Local measurement</p>
-        <h1>MEASURED HERE.<br /><span>NOT EVERYWHERE.</span></h1>
-      </div>
-      <div className="measured-heading-actions">
-        <span className="measured-truth-chip">LOCAL MEASURED · BOUNDED · NOT GLOBAL</span>
-        <button className="lab-mode" type="button" onClick={() => inputRef.current?.click()}>{measuredState ? 'IMPORT ANOTHER' : 'IMPORT REPORT'}</button>
-        {measuredState && <button className="lab-mode measured-clear" type="button" onClick={clear}>CLEAR</button>}
-        <button className="lab-mode" type="button" onClick={onExit}>EXIT LAB</button>
-        <input ref={inputRef} className="measured-file-input" type="file" accept=".json,application/json" onChange={(event) => void importFile(event)} />
-      </div>
-    </header>
-
+  const setupDrawer = <div className="measured-setup-drawer">
     <div className="measured-boundary" role="note">
       <div><span>VANTAGE</span><strong>LOCAL HOST</strong></div>
       <i />
@@ -291,6 +278,8 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
       <div><span>GLOBAL TRUTH</span><strong>NO</strong></div>
       <p>Imported bytes stay in this browser session. Facts are shown only after the Network Diagnostics v2 adapter, native provenance validator, and measured-state projection accept them. Separate targets are not drawn as one observed route.</p>
     </div>
+
+    <button className="measured-setup-import" type="button" onClick={() => inputRef.current?.click()}>{measuredState ? 'IMPORT ANOTHER REPORT' : 'CHOOSE JSON REPORT'} <span>↗</span></button>
 
     <section className="measured-bridge" aria-label="Optional local Network Diagnostics bridge">
       <div className="measured-bridge-copy">
@@ -315,6 +304,59 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
       </div>
       {bridgeError && <p className="measured-bridge-error"><strong>BRIDGE {bridgeStatus === 'connected' ? 'REPORT REJECTED' : bridgeStatus.toUpperCase()}</strong><span>{bridgeError}</span>{measuredState && <small>PREVIOUS VALID MEASUREMENT REMAINS ACTIVE.</small>}</p>}
     </section>
+  </div>;
+
+  const provenanceDrawer = measuredState ? <div className="measured-evidence-drawer">
+    <aside className="measured-provenance-panel">
+      <header><span>PROVENANCE BOUNDARY</span><strong>WHAT THIS REPORT CAN SAY</strong></header>
+      <dl>
+        <div><dt>VANTAGE</dt><dd>LOCAL HOST</dd></div>
+        <div><dt>COMPLETENESS</dt><dd>BOUNDED</dd></div>
+        <div><dt>GLOBAL COMPLETE</dt><dd>FALSE</dd></div>
+        <div><dt>SNAPSHOT TARGET</dt><dd>MULTI-TARGET / NONE</dd></div>
+      </dl>
+      <section><span>LIMITATIONS</span>{measuredState.snapshot.scope.limitations.map((line) => <p key={line}>{line}</p>)}</section>
+      {skippedSections.length > 0 && <section className="measured-skipped"><span>NOT PROMOTED TO LOCAL MEASURED</span>{skippedSections.map((line) => <p key={line}>{line}</p>)}</section>}
+      {measuredState.snapshot.warnings.length > 0 && <details><summary>ALL ADAPTER WARNINGS · {measuredState.snapshot.warnings.length}</summary><div>{measuredState.snapshot.warnings.map((line) => <p key={line}>{line}</p>)}</div></details>}
+      <footer><span>SESSION ONLY</span><strong>NOT STORED · NOT UPLOADED</strong></footer>
+    </aside>
+    <Suspense fallback={null}><MeasuredNativeCorrelationPanel measuredState={measuredState} /></Suspense>
+  </div> : <div className="measured-provenance-empty"><strong>NO ACCEPTED REPORT</strong><p>Provenance and limitations become available after a report passes the bounded ingestion path.</p></div>;
+
+  const drawers: readonly VisualDrawerDefinition[] = [
+    { id: 'config', label: 'Setup', eyebrow: 'EXPLICIT INPUTS', title: 'Import or bridge setup', content: setupDrawer },
+    { id: 'evidence', label: 'Provenance', eyebrow: 'LOCAL MEASURED', title: 'Evidence boundary', content: provenanceDrawer },
+  ];
+
+  return <motion.section
+    className="measured-workspace"
+    data-measured-loaded={measuredState ? 'true' : 'false'}
+    data-bridge-status={bridgeStatus}
+    initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.987, filter: 'blur(12px)' }}
+    animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+    exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.012, filter: 'blur(8px)' }}
+    transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+  >
+    <header className="measured-heading">
+      <div className="visual-identity"><span>LAB 09</span><strong>MEASURED NETWORK</strong></div>
+      <span className="measured-truth-chip">LOCAL MEASURED · BOUNDED · NOT GLOBAL</span>
+      <div className="measured-heading-actions">
+        <VisualDrawerTabs
+          active={activeDrawer}
+          items={[
+            { id: 'config', label: 'SETUP', badge: bridgeStatus === 'connected' ? 'LIVE' : undefined },
+            { id: 'evidence', label: 'PROVENANCE', badge: measuredState ? String(measuredState.snapshot.warnings.length) : '—' },
+          ]}
+          onSelect={(id) => setActiveDrawer((current) => current === id ? null : id)}
+        />
+        <button className="lab-mode" type="button" onClick={() => inputRef.current?.click()}>{measuredState ? 'IMPORT ANOTHER' : 'IMPORT REPORT'}</button>
+        {measuredState && <button className="lab-mode measured-clear" type="button" onClick={clear}>CLEAR</button>}
+        <button className="lab-mode" type="button" onClick={onExit}>EXIT LAB</button>
+      </div>
+      <input ref={inputRef} className="measured-file-input" type="file" accept=".json,application/json" onChange={(event) => void importFile(event)} />
+    </header>
+
+    <VisualEntranceTransition entrance={{ eyebrow: 'LAB 09 · LOCAL MEASUREMENT', title: 'MEASURED HERE.', accentTitle: 'NOT EVERYWHERE.', subtitle: 'Analysis-first facts with an explicit evidence boundary.' }} />
 
     <AnimatePresence mode="wait" initial={false}>
       {error && <motion.div key={error} className="measured-error" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
@@ -324,7 +366,7 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
 
     {!measuredState ? <section className="measured-empty">
       <SemanticGlyph category="route" />
-      <div><strong>NO LOCAL MEASUREMENT LOADED</strong><p>Import a Network Diagnostics Suite report-v2 JSON file or explicitly connect the optional loopback bridge above. HOPSCOTCH does not scan localhost, poll in the background, upload reports, or invent measurements for sections that were not captured.</p></div>
+      <div><strong>NO LOCAL MEASUREMENT LOADED</strong><p>Import a Network Diagnostics Suite report-v2 JSON file or explicitly connect the optional loopback bridge in Setup. HOPSCOTCH does not scan localhost, poll in the background, upload reports, or invent measurements for sections that were not captured.</p></div>
       <button type="button" onClick={() => inputRef.current?.click()}>CHOOSE JSON REPORT <span>↗</span></button>
     </section> : <>
       <section className="measured-capture-strip" aria-label="Imported measurement capture">
@@ -334,8 +376,6 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
         <div className={`capture-freshness state-${freshness?.classification ?? 'fresh'}`}><span>CAPTURE AGE</span><strong>{freshness ? freshnessLabel(freshness.classification) : '—'}</strong><small>{freshness ? captureAgeLabel(freshness.ageMs) : '—'}</small></div>
         <div><span>COMPLETED</span><strong>{new Date(measuredState.snapshot.capture.completedAt).toLocaleString()}</strong></div>
       </section>
-
-      <Suspense fallback={null}><MeasuredNativeCorrelationPanel measuredState={measuredState} /></Suspense>
 
       <div className="measured-main">
         <nav className="measured-categories" aria-label="Measured fact categories">
@@ -352,7 +392,7 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
         <section className="measured-scene">
           <header className="measured-scene-heading">
             <div><span>{categoryCopy.kicker}</span><h2>{categoryCopy.label.toUpperCase()}</h2><p>{categoryCopy.description}</p></div>
-            <SemanticGlyph category={selectedCategory} />
+            <div className="measured-scene-heading-side"><span>NO CROSS-TARGET MERGE</span><SemanticGlyph category={selectedCategory} /></div>
           </header>
           <div className="measured-scene-body">
             {selectedGroups.length > 1 && <nav className="measured-target-selector" aria-label={`${categoryCopy.label} target scopes`}>
@@ -377,20 +417,8 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
           </div>
         </section>
 
-        <aside className="measured-provenance-panel">
-          <header><span>PROVENANCE BOUNDARY</span><strong>WHAT THIS REPORT CAN SAY</strong></header>
-          <dl>
-            <div><dt>VANTAGE</dt><dd>LOCAL HOST</dd></div>
-            <div><dt>COMPLETENESS</dt><dd>BOUNDED</dd></div>
-            <div><dt>GLOBAL COMPLETE</dt><dd>FALSE</dd></div>
-            <div><dt>SNAPSHOT TARGET</dt><dd>MULTI-TARGET / NONE</dd></div>
-          </dl>
-          <section><span>LIMITATIONS</span>{measuredState.snapshot.scope.limitations.map((line) => <p key={line}>{line}</p>)}</section>
-          {skippedSections.length > 0 && <section className="measured-skipped"><span>NOT PROMOTED TO LOCAL MEASURED</span>{skippedSections.map((line) => <p key={line}>{line}</p>)}</section>}
-          {measuredState.snapshot.warnings.length > 0 && <details><summary>ALL ADAPTER WARNINGS · {measuredState.snapshot.warnings.length}</summary><div>{measuredState.snapshot.warnings.map((line) => <p key={line}>{line}</p>)}</div></details>}
-          <footer><span>SESSION ONLY</span><strong>NOT STORED · NOT UPLOADED</strong></footer>
-        </aside>
       </div>
     </>}
+    <VisualOverlayDrawer active={activeDrawer} drawers={drawers} onClose={() => setActiveDrawer(null)} className="measured-context-drawer" />
   </motion.section>;
 }

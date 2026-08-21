@@ -6,13 +6,18 @@ import { endpointDisplay } from './capture/protocol.ts';
 import { CaptureSessionIndex } from './capture/session.ts';
 import { CAPTURE_LIMITS, type CapturedField, type CapturedFrameEvidence, type CapturedLayer, type SemanticCapturedEvent } from './capture/types.ts';
 import { CaptureTrackHPanel } from './CaptureTrackHPanel.tsx';
+import { useVisualDrawerFocus, VisualEntranceTransition } from './VisualWorkspace.tsx';
 import './CaptureReplayWorkspace.css';
+import './CaptureReplayWorkspace.phase4.css';
 
 const FLOW_RENDER_LIMIT = 80;
 const EVENT_WINDOW_RADIUS = 36;
 const BYTE_PAGE_SIZE = 256;
 const DENSITY_BIN_COUNT = 96;
 const SCRUB_UNITS = 100_000n;
+
+type CaptureWorkspaceMode = 'replay' | 'frame';
+type CaptureContextDrawer = 'flows' | 'inspect' | 'analysis';
 
 export interface CaptureReplayContext {
   readonly conversationId: string;
@@ -187,6 +192,9 @@ export function CaptureReplayWorkspace({
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [bytePage, setBytePage] = useState(0);
   const [frameNumberDraft, setFrameNumberDraft] = useState('');
+  const [workspaceMode, setWorkspaceMode] = useState<CaptureWorkspaceMode>('replay');
+  const [activeDrawer, setActiveDrawer] = useState<CaptureContextDrawer | null>(null);
+  const { drawerRef, initialFocusRef } = useVisualDrawerFocus<HTMLElement>(activeDrawer !== null, () => setActiveDrawer(null), activeDrawer);
 
   const activeConversation = session?.conversation(conversationId) ?? session?.conversations[0] ?? null;
   const activeConversationId = activeConversation?.id ?? '';
@@ -294,6 +302,8 @@ export function CaptureReplayWorkspace({
       setSelectedFieldId(null);
       setBytePage(0);
       setPlaying(false);
+      setWorkspaceMode('replay');
+      setActiveDrawer(null);
       requestAnimationFrame(() => rootRef.current?.focus({ preventScroll: true }));
     } catch (cause) {
       const message = cause instanceof CaptureParseError
@@ -415,12 +425,23 @@ export function CaptureReplayWorkspace({
     ? Math.max(0, Math.min(Number(SCRUB_UNITS), Number(((timeNanoseconds - activeConversation.firstObservedNanoseconds) * SCRUB_UNITS) / (activeConversation.durationNanoseconds || 1n))))
     : 0;
 
+  const openContextDrawer = (drawer: CaptureContextDrawer) => {
+    setPlaying(false);
+    setActiveDrawer((current) => current === drawer ? null : drawer);
+  };
+
+  const selectWorkspaceMode = (mode: CaptureWorkspaceMode) => {
+    setPlaying(false);
+    setActiveDrawer(null);
+    setWorkspaceMode(mode);
+  };
+
   const handleWorkspaceKey = (event: ReactKeyboardEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
     if (target.matches('input, textarea, select, button')) return;
-    if (event.key === 'ArrowLeft') { event.preventDefault(); seekEventDelta(-1); }
-    else if (event.key === 'ArrowRight') { event.preventDefault(); seekEventDelta(1); }
-    else if (event.key === ' ') { event.preventDefault(); setPlaying((current) => !current); }
+    if (event.key === 'ArrowLeft') { event.preventDefault(); workspaceMode === 'frame' ? stepFrame(-1) : seekEventDelta(-1); }
+    else if (event.key === 'ArrowRight') { event.preventDefault(); workspaceMode === 'frame' ? stepFrame(1) : seekEventDelta(1); }
+    else if (event.key === ' ' && workspaceMode === 'replay') { event.preventDefault(); setPlaying((current) => !current); }
     else if (event.key === 'Home' && events[0]) { event.preventDefault(); setPlaying(false); chooseEvent(events[0]); }
   };
 
@@ -430,6 +451,8 @@ export function CaptureReplayWorkspace({
       className="capture-replay"
       data-capture-loaded={session ? 'true' : 'false'}
       data-follow-flow={followFlow ? 'true' : 'false'}
+      data-capture-mode={workspaceMode}
+      data-context-drawer={activeDrawer ?? 'none'}
       tabIndex={-1}
       onKeyDown={handleWorkspaceKey}
       initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.992 }}
@@ -445,27 +468,30 @@ export function CaptureReplayWorkspace({
         onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void loadFile(file); }}
       />
       <header className="capture-heading">
-        <div>
-          <p className="eyebrow">Track H · Captured evidence + replay</p>
-          <h1>REPLAY THE EVIDENCE.<br /><span>DESCEND TO THE BYTES.</span></h1>
-        </div>
+        <div className="visual-identity"><span>TRACK H</span><strong>CAPTURE REPLAY</strong></div>
+        <span className="capture-local-badge">CAPTURED · LOCAL ONLY · SESSION MEMORY</span>
         <div className="capture-heading-actions">
-          <span className="capture-local-badge">LOCAL ONLY · SESSION MEMORY</span>
+          {session && <div className="capture-mode-switch" role="group" aria-label="Capture workspace mode">
+            <button type="button" className={workspaceMode === 'replay' ? 'active' : ''} aria-pressed={workspaceMode === 'replay'} onClick={() => selectWorkspaceMode('replay')}>REPLAY</button>
+            <button type="button" className={workspaceMode === 'frame' ? 'active' : ''} aria-pressed={workspaceMode === 'frame'} onClick={() => selectWorkspaceMode('frame')}>FRAME SPECIMEN</button>
+          </div>}
+          {session && <button type="button" className={activeDrawer === 'flows' ? 'capture-action active' : 'capture-action'} aria-pressed={activeDrawer === 'flows'} onClick={() => openContextDrawer('flows')}>FLOWS <span>{session.metadata.conversationCount}</span></button>}
+          {session && workspaceMode === 'replay' && <button type="button" className={activeDrawer === 'inspect' ? 'capture-action active' : 'capture-action'} aria-pressed={activeDrawer === 'inspect'} onClick={() => openContextDrawer('inspect')}>FRAME DETAILS</button>}
+          {session && <button type="button" className={activeDrawer === 'analysis' ? 'capture-action active' : 'capture-action'} aria-pressed={activeDrawer === 'analysis'} onClick={() => openContextDrawer('analysis')}>ANALYSIS</button>}
           <button type="button" className="capture-action" onClick={() => fileInputRef.current?.click()} disabled={parsing}>{session ? 'REPLACE CAPTURE' : 'IMPORT CAPTURE'}</button>
-          {session && <button type="button" className="capture-action capture-clear" onClick={() => { setPlaying(false); setError(null); onContextChange(null); onSessionChange(null, null); }}>CLEAR</button>}
-          <button type="button" className="lab-mode" onClick={onExit}>EXIT LAB</button>
+          {session && <button type="button" className="capture-action capture-clear" onClick={() => { setPlaying(false); setActiveDrawer(null); setWorkspaceMode('replay'); setError(null); onContextChange(null); onSessionChange(null, null); }}>CLEAR</button>}
+          <button type="button" className="lab-mode" onClick={onExit}>EXIT</button>
         </div>
       </header>
+      <VisualEntranceTransition entrance={{ eyebrow: 'Track H · Captured evidence + replay', title: 'REPLAY THE EVIDENCE.', accentTitle: 'DESCEND TO THE BYTES.', subtitle: 'Conversation playback and exact frame inspection remain capture-bounded.' }} />
 
       {!session ? (
         <EmptyCapture parsing={parsing} dragging={dragging} error={error} onChoose={() => fileInputRef.current?.click()} onDrop={(file) => void loadFile(file)} onDragState={setDragging} />
       ) : (
         <>
           <section className="capture-summary" aria-label="Capture summary">
-            <div className="capture-summary-source"><span>ACTIVE CAPTURE</span><strong title={sourceName ?? undefined}>{sourceName ?? 'Unnamed local capture'}</strong><small>{session.metadata.captureId}</small></div>
-            <div><span>CONTAINER</span><strong>{session.metadata.format.toUpperCase()}</strong><small>{formatBytes(session.metadata.byteLength)} · {session.metadata.interfaceCount} interface{session.metadata.interfaceCount === 1 ? '' : 's'}</small></div>
-            <div><span>FRAMES</span><strong>{session.metadata.frameCount.toLocaleString()}</strong><small>{session.metadata.truncatedFrameCount} truncated · {session.metadata.unsupportedFrameCount} unsupported</small></div>
-            <div><span>CONVERSATIONS</span><strong>{session.metadata.conversationCount.toLocaleString()}</strong><small>{session.metadata.eventCount.toLocaleString()} semantic events</small></div>
+            <div className="capture-summary-source"><span>ACTIVE CAPTURE</span><strong title={sourceName ?? undefined}>{sourceName ?? 'Unnamed local capture'}</strong><small>{session.metadata.format.toUpperCase()} · {formatBytes(session.metadata.byteLength)} · {session.metadata.interfaceCount} interface{session.metadata.interfaceCount === 1 ? '' : 's'}</small></div>
+            <div><span>CAPTURED EVIDENCE</span><strong>{session.metadata.frameCount.toLocaleString()} FRAMES · {session.metadata.conversationCount.toLocaleString()} FLOWS</strong><small>{session.metadata.eventCount.toLocaleString()} events · {session.metadata.truncatedFrameCount} truncated · {session.metadata.unsupportedFrameCount} unsupported</small></div>
             <div><span>CAPTURE SPAN</span><strong>{formatDuration(session.metadata.durationNanoseconds)}</strong><small>{session.metadata.firstTimestamp?.iso8601 ?? 'timestamp unavailable'}</small></div>
             <div className="capture-noise"><span>PROVENANCE</span><strong>CAPTURED + INFERRED</strong><small>never simulated · never measured</small></div>
           </section>
@@ -474,9 +500,29 @@ export function CaptureReplayWorkspace({
             <details className="capture-warnings"><summary>{session.warnings.length} capture limitation{session.warnings.length === 1 ? '' : 's'} / decoder note{session.warnings.length === 1 ? '' : 's'}</summary><ul>{session.warnings.slice(0, 20).map((warning) => <li key={warning}>{warning}</li>)}</ul></details>
           )}
 
+          <AnimatePresence>
+            {activeDrawer && <motion.button
+              type="button"
+              className="capture-context-backdrop"
+              aria-label={`Close ${activeDrawer} drawer`}
+              onClick={() => setActiveDrawer(null)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />}
+          </AnimatePresence>
+
           <div className="capture-workspace-grid">
-            <aside className="capture-flow-browser">
-              <header><div><span>CONVERSATIONS</span><strong>{filteredConversations.length.toLocaleString()} MATCH</strong></div><small>DETERMINISTIC A / B</small></header>
+            <aside
+              ref={activeDrawer === 'flows' ? drawerRef : undefined}
+              className={`capture-flow-browser${activeDrawer === 'flows' ? ' is-open' : ''}`}
+              role={activeDrawer === 'flows' ? 'dialog' : undefined}
+              aria-modal={activeDrawer === 'flows' ? 'true' : undefined}
+              aria-labelledby="capture-flow-drawer-title"
+              aria-hidden={activeDrawer !== 'flows'}
+              inert={activeDrawer !== 'flows'}
+            >
+              <header><div><span>CONVERSATIONS</span><strong id="capture-flow-drawer-title">{filteredConversations.length.toLocaleString()} MATCH</strong></div><small>DETERMINISTIC A / B</small><button ref={activeDrawer === 'flows' ? initialFocusRef : undefined} type="button" className="capture-drawer-close" onClick={() => setActiveDrawer(null)} aria-label="Close conversations">×</button></header>
               <div className="capture-flow-tools">
                 <input value={flowQuery} onChange={(event) => setFlowQuery(event.currentTarget.value)} placeholder="Endpoint, port, protocol…" aria-label="Filter capture conversations" />
                 <select value={protocolFilter} onChange={(event) => setProtocolFilter(event.currentTarget.value)} aria-label="Filter by protocol">
@@ -492,7 +538,7 @@ export function CaptureReplayWorkspace({
                     className={conversation.id === activeConversation?.id ? 'active' : ''}
                     data-protocol={protocolTone(conversation.protocol)}
                     key={conversation.id}
-                    onClick={() => chooseConversation(conversation.id)}
+                    onClick={() => { chooseConversation(conversation.id); setActiveDrawer(null); }}
                   >
                     <span className="capture-flow-protocol">{conversation.applicationProtocol ?? conversation.protocol}</span>
                     <strong>{endpointDisplay(conversation.endpointA)}</strong>
@@ -589,12 +635,21 @@ export function CaptureReplayWorkspace({
               ) : <div className="capture-no-flows"><strong>NO RECOGNIZED CONVERSATIONS</strong><p>Frames are retained exactly, but this capture contains no supported IP transport tuple. Unsupported evidence was not turned into a fictional flow.</p></div>}
             </main>
 
-            <aside className="capture-evidence-inspector">
+            <aside
+              ref={activeDrawer === 'inspect' ? drawerRef : undefined}
+              className={`capture-evidence-inspector${activeDrawer === 'inspect' ? ' is-open' : ''}${workspaceMode === 'frame' ? ' is-frame-stage' : ''}`}
+              role={activeDrawer === 'inspect' ? 'dialog' : undefined}
+              aria-modal={activeDrawer === 'inspect' ? 'true' : undefined}
+              aria-labelledby="capture-frame-inspector-title"
+              aria-hidden={activeDrawer !== null ? activeDrawer !== 'inspect' : workspaceMode !== 'frame'}
+              inert={activeDrawer !== null ? activeDrawer !== 'inspect' : workspaceMode !== 'frame'}
+            >
+              {workspaceMode === 'frame' && <div className="capture-specimen-mode-banner"><span>FRAME SPECIMEN</span><strong>EXACT CAPTURED STRUCTURE + BYTES</strong><small>← / → steps captured frames · selection changes focus only</small></div>}
               {selectedFrame ? (
                 <>
                   <header className="capture-frame-heading">
-                    <div><span>SOURCE FRAME</span><strong>FRAME {selectedFrame.record.number}</strong><small>{formatCaptureTime(selectedFrame.record.relativeTimeNanoseconds)} · {selectedFrame.record.interfaceId}</small></div>
-                    <span className="capture-provenance provenance-captured">CAPTURED</span>
+                    <div><span>SOURCE FRAME</span><strong id="capture-frame-inspector-title">FRAME {selectedFrame.record.number}</strong><small>{formatCaptureTime(selectedFrame.record.relativeTimeNanoseconds)} · {selectedFrame.record.interfaceId}</small></div>
+                    <div className="capture-frame-heading-actions"><span className="capture-provenance provenance-captured">CAPTURED</span>{activeDrawer === 'inspect' && <button ref={initialFocusRef} type="button" className="capture-drawer-close" onClick={() => setActiveDrawer(null)} aria-label="Close frame details">×</button>}</div>
                   </header>
                   <div className="capture-frame-nav">
                     <button type="button" onClick={() => stepFrame(-1)} aria-label="Previous frame in conversation">← FRAME</button>
@@ -649,10 +704,22 @@ export function CaptureReplayWorkspace({
 
                   <button type="button" className="capture-open-microscope" onClick={() => onOpenFrame(selectedFrame, { conversationId: activeConversation?.id ?? '', eventId: selectedEvent?.id ?? null, frameId: selectedFrame.record.id, timeNanoseconds })}>OPEN READ-ONLY PACKET MICROSCOPE ↗</button>
                 </>
-              ) : <div className="capture-inspector-empty"><strong>SELECT A CAPTURED FRAME</strong><p>Choose a semantic event or frame to resolve protocol fields and exact byte ranges.</p></div>}
+              ) : <div className="capture-inspector-empty">{activeDrawer === 'inspect' && <button ref={initialFocusRef} type="button" className="capture-drawer-close" onClick={() => setActiveDrawer(null)} aria-label="Close frame details">×</button>}<strong id="capture-frame-inspector-title">SELECT A CAPTURED FRAME</strong><p>Choose a semantic event or frame to resolve protocol fields and exact byte ranges.</p></div>}
+            </aside>
+
+            <aside
+              ref={activeDrawer === 'analysis' ? drawerRef : undefined}
+              className={`capture-analysis-drawer${activeDrawer === 'analysis' ? ' is-open' : ''}`}
+              role={activeDrawer === 'analysis' ? 'dialog' : undefined}
+              aria-modal={activeDrawer === 'analysis' ? 'true' : undefined}
+              aria-labelledby="capture-analysis-drawer-title"
+              aria-hidden={activeDrawer !== 'analysis'}
+              inert={activeDrawer !== 'analysis'}
+            >
+              <header><div><span>TRACK H · DEEP ANALYSIS</span><strong id="capture-analysis-drawer-title">Capture-bounded analysis</strong></div><button ref={activeDrawer === 'analysis' ? initialFocusRef : undefined} type="button" className="capture-drawer-close" onClick={() => setActiveDrawer(null)} aria-label="Close capture analysis">×</button></header>
+              <div className="capture-analysis-drawer-body">{activeConversation ? <CaptureTrackHPanel session={session} conversationId={activeConversation.id} /> : <div className="capture-inspector-empty"><strong>NO RECOGNIZED CONVERSATION</strong><p>Analysis remains empty rather than inventing a flow.</p></div>}</div>
             </aside>
           </div>
-          {activeConversation && <CaptureTrackHPanel session={session} conversationId={activeConversation.id} />}
         </>
       )}
     </motion.section>

@@ -10,14 +10,17 @@ import { serveProductionArtifact } from './production-artifact-server.mjs';
 
 const enforce = process.argv.includes('--enforce');
 const compatibility = process.argv.includes('--compatibility');
-const visualReview = process.argv.includes('--visual-review');
+const phase3VisualReview = process.argv.includes('--visual-review');
+const phase4VisualReview = process.argv.includes('--phase4-visual-review');
+const visualReview = phase3VisualReview || phase4VisualReview;
 const gpuMode = process.env.HOPSCOTCH_GPU_MODE?.trim() || 'default';
 if (!['default', 'swiftshader', 'disabled'].includes(gpuMode)) throw new Error(`Unsupported HOPSCOTCH_GPU_MODE: ${gpuMode}`);
 const root = process.cwd();
 const distDir = resolve(root, 'dist');
 const budgetPath = resolve(root, 'config/performance-budget.json');
-const reportPath = resolve(root, process.env.HOPSCOTCH_REPORT_PATH?.trim() || (visualReview ? 'artifacts/phase3-visual-review/worlds-report.json' : 'artifacts/performance-profile.json'));
-const visualReviewDirectory = resolve(root, process.env.HOPSCOTCH_VISUAL_REVIEW_DIR?.trim() || 'artifacts/phase3-visual-review');
+const defaultVisualDirectory = phase4VisualReview ? 'artifacts/phase4-visual-review' : 'artifacts/phase3-visual-review';
+const reportPath = resolve(root, process.env.HOPSCOTCH_REPORT_PATH?.trim() || (visualReview ? `${defaultVisualDirectory}/${phase4VisualReview ? 'evidence-report.json' : 'worlds-report.json'}` : 'artifacts/performance-profile.json'));
+const visualReviewDirectory = resolve(root, process.env.HOPSCOTCH_VISUAL_REVIEW_DIR?.trim() || defaultVisualDirectory);
 const measuredFixturePath = resolve(root, 'scripts/fixtures/measured-workspace-v2.json');
 const measuredInvalidFixturePath = resolve(root, 'scripts/fixtures/measured-workspace-invalid.json');
 const budgetDocument = JSON.parse(readFileSync(budgetPath, 'utf8'));
@@ -294,7 +297,7 @@ if (compatibility) profiles.push(
 { id: 'protocol-http-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/http2-vs-http3', query: '', readySelector: '.http-visual-workspace', protocolWorkspace: true, expected: ['HTTP A/B THEATER', 'HTTP/2', 'HTTP/3', 'SAME LOSS', 'PROVENANCE'] },
 { id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'DERIVED FDB', 'ARP CACHE', 'STP', 'FORWARDING'] },
 { id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'ARP CACHE', 'STP', 'FORWARDING'] },
-{ id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', 'NOT PROMOTED TO LOCAL MEASURED'] },
+{ id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
   { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
   { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
   { id: 'measured-sidecars-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
@@ -302,7 +305,7 @@ if (compatibility) profiles.push(
   { id: 'measured-sidecars-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
 );
 
-if (visualReview) {
+if (phase3VisualReview) {
   const visualViewports = [
     { id: 'ultrawide', width: 2560, height: 1200 },
     { id: 'wide', width: 1600, height: 950 },
@@ -322,6 +325,29 @@ if (visualReview) {
     id: `${world.id}-${viewport.id}`,
     reducedMotion: false,
     visualReview: true,
+    inspectReview: viewport.id === 'wide' || viewport.id === 'mobile',
+  }))));
+}
+
+if (phase4VisualReview) {
+  const evidenceViewports = [
+    { id: 'ultrawide', width: 2560, height: 1200 },
+    { id: 'wide', width: 1600, height: 950 },
+    { id: 'laptop', width: 1366, height: 768 },
+    { id: 'narrow', width: 900, height: 820 },
+    { id: 'mobile', width: 390, height: 844 },
+  ];
+  const evidenceWorlds = [
+    { id: 'internet-evidence', path: '/internet/observed', query: '', readySelector: '.observed-internet', phase4Observed: true, expected: ['NO ROUTE CLAIM', 'NO CONTINUOUS OBSERVATION', 'PUBLIC COLLECTOR'] },
+    { id: 'measured-network', path: '/measured', query: '', readySelector: '.measured-workspace', phase4Measured: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', 'NO CROSS-TARGET MERGE'] },
+  ];
+  profiles.splice(0, profiles.length, ...evidenceWorlds.flatMap((world) => evidenceViewports.map((viewport) => ({
+    ...world,
+    ...viewport,
+    id: `${world.id}-${viewport.id}`,
+    reducedMotion: false,
+    visualReview: true,
+    phase4VisualReview: true,
     inspectReview: viewport.id === 'wide' || viewport.id === 'mobile',
   }))));
 }
@@ -633,6 +659,9 @@ async function exerciseLoopbackBridgeWorkspace(cdp, profile) {
     return true;
   })()`);
 
+  await measuredClickButton(cdp, '.measured-heading .visual-drawer-tabs button', 'SETUP');
+  await waitForExpression(cdp, `Boolean(document.querySelector('.measured-workspace .visual-drawer'))`);
+
   const setOrigin = async (value) => {
     const changed = await cdp.evaluate(`(()=>{
       const input=document.querySelector('.measured-bridge-origin input');
@@ -737,6 +766,8 @@ async function exerciseLoopbackBridgeWorkspace(cdp, profile) {
     }
   }
 
+  await measuredClickButton(cdp, '.measured-workspace .visual-drawer__close', '×');
+  await waitForExpression(cdp, `!document.querySelector('.measured-workspace .visual-drawer')`);
   await cdp.evaluate(`(()=>{const mock=globalThis.__hopscotchBridgeMock;if(mock?.originalFetch)globalThis.fetch=mock.originalFetch;delete globalThis.__hopscotchBridgeMock;return true})()`);
   return {
     privateLanRejectedBeforeFetch: true,
@@ -792,6 +823,11 @@ async function exerciseMeasuredWorkspace(cdp, profile) {
     if (loaded.text.includes(forbidden)) throw new Error(`${profile.id} leaked excluded report content into the visible measured workspace: ${forbidden}`);
   }
 
+  await measuredClickButton(cdp, '.measured-heading .visual-drawer-tabs button', 'PROVENANCE');
+  await waitForExpression(cdp, `document.body.innerText.includes('NOT PROMOTED TO LOCAL MEASURED')`, 8000);
+  await measuredClickButton(cdp, '.measured-workspace .visual-drawer__close', '×');
+  await waitForExpression(cdp, `!document.querySelector('.measured-workspace .visual-drawer')`);
+
   await setFileInput(cdp, '.measured-file-input', measuredInvalidFixturePath);
   await waitForExpression(cdp, `document.body.innerText.includes('IMPORT REJECTED')`, 8000);
   const rejected = await cdp.evaluate(`(()=>({
@@ -820,6 +856,7 @@ async function exerciseMeasuredWorkspace(cdp, profile) {
     validFactCount: loaded.factCount,
     categoryCount: loaded.categoryCount,
     targetScopeSelectionVerified: true,
+    contextualProvenanceVerified: true,
     rejectedReplacementPreserved: true,
     clearReturnedToEmpty: true,
   };
@@ -1005,10 +1042,123 @@ async function exerciseMeasuredJourneySidecars(cdp, profile) {
   };
 }
 
+async function exercisePhase4ObservedInternet(cdp, profile) {
+  const snapshot = {
+    schema: 'hopscotch.internet-evidence', version: 1, generatedAt: '2026-08-20T22:00:00.000Z',
+    edge: { provenance: 'EDGE OBSERVED', availability: 'available', asn: 13335, organization: 'Cloudflare, Inc.', colo: 'LHR', country: 'GB', region: 'England', city: 'London', transportRttMs: 17, transport: 'QUIC', observedAt: '2026-08-20T22:00:00.000Z', note: 'Observed at the edge serving this explicit HOPSCOTCH request.' },
+    destination: { provenance: 'INFERRED', availability: 'available', hostname: 'cloudflare.com', addresses: ['104.16.132.229', '104.16.133.229', '2606:4700::6810:84e5'], selectedAddress: '104.16.132.229', note: 'DNS resolution provides destination context, not a measured forwarding path.' },
+    routing: { provenance: 'PUBLIC COLLECTOR', availability: 'available', prefix: '104.16.128.0/20', originAsns: [13335], note: 'Public route-origin context seen from independent collector vantage points.' },
+    collectorPaths: [
+      { provenance: 'PUBLIC COLLECTOR', availability: 'available', sourceId: 'rrc00-peer-64500', targetPrefix: '104.16.128.0/20', asPath: [64500, 3356, 13335], note: 'Independent RIS vantage; not the browser path.' },
+      { provenance: 'PUBLIC COLLECTOR', availability: 'available', sourceId: 'rrc10-peer-64496', targetPrefix: '104.16.128.0/20', asPath: [64496, 1299, 13335], note: 'Independent RIS vantage; not the browser path.' },
+      { provenance: 'PUBLIC COLLECTOR', availability: 'available', sourceId: 'rrc21-peer-64497', targetPrefix: '104.16.128.0/20', asPath: [64497, 174, 13335], note: 'Independent RIS vantage; not the browser path.' },
+    ],
+    bridge: { provenance: 'INFERRED', availability: 'partial', sourceAsn: 13335, destinationOriginAsns: [13335], note: 'No continuous observation joins the request edge, the browser forwarding path, and these public collector routes.' },
+    warnings: ['Collector paths are independent route observations and do not identify the current browser path.'],
+  };
+  await cdp.evaluate(`(()=>{
+    const originalFetch=globalThis.fetch;
+    const snapshot=${JSON.stringify(snapshot)};
+    globalThis.__hopscotchObservedFetch=originalFetch;
+    globalThis.fetch=async(input)=>{
+      const url=typeof input==='string'?input:(input?.url??String(input));
+      if(url.includes('/api/internet/snapshot'))return new Response(JSON.stringify(snapshot),{status:200,headers:{'content-type':'application/json'}});
+      return originalFetch(input);
+    };
+    return true;
+  })()`);
+  await measuredClickButton(cdp, '.observed-query button', 'BUILD EVIDENCE SNAPSHOT');
+  await waitForExpression(cdp, `Boolean(document.querySelector('.observed-main'))`, 8000);
+  await waitForExpression(cdp, `document.querySelectorAll('.evidence-card').length===3`, 8000);
+  await cdp.evaluate(`(()=>{if(globalThis.__hopscotchObservedFetch)globalThis.fetch=globalThis.__hopscotchObservedFetch;delete globalThis.__hopscotchObservedFetch;return true})()`);
+  const state = await cdp.evaluate(`(()=>({cards:document.querySelectorAll('.evidence-card').length,collectors:document.querySelectorAll('.collector-paths article').length,drawer:document.querySelector('.observed-internet')?.getAttribute('data-inspect-mode'),text:document.querySelector('.observed-internet')?.innerText??''}))()`);
+  if (state.cards !== 3 || state.drawer !== 'idle' || !state.text.includes('NO CONTINUOUS OBSERVATION')) throw new Error(`${profile.id} did not build the bounded evidence-island scene.`);
+  return state;
+}
+
+async function exercisePhase4MeasuredNetwork(cdp, profile) {
+  await setFileInput(cdp, '.measured-file-input', measuredFixturePath);
+  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
+  await waitForExpression(cdp, `document.querySelectorAll('.measured-fact').length>0`, 8000);
+  const state = await cdp.evaluate(`(()=>({facts:document.querySelectorAll('.measured-fact').length,categories:document.querySelectorAll('.measured-categories button').length,permanentProvenance:document.querySelectorAll('.measured-main > .measured-provenance-panel').length,source:document.querySelector('.capture-source strong')?.textContent??null}))()`);
+  if (state.facts <= 0 || state.categories !== 7 || state.permanentProvenance !== 0) throw new Error(`${profile.id} did not reach the Phase 4 measured analysis layout.`);
+  return state;
+}
+
 async function dispatchKey(cdp, key, code, modifiers = 0) {
   const windowsVirtualKeyCode = key === 'Tab' ? 9 : key === 'Escape' ? 27 : 0;
   await cdp.call('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code, modifiers, windowsVirtualKeyCode, nativeVirtualKeyCode: windowsVirtualKeyCode });
   await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key, code, modifiers, windowsVirtualKeyCode, nativeVirtualKeyCode: windowsVirtualKeyCode });
+}
+
+async function capturePhase4EvidenceReview(cdp, profile) {
+  mkdirSync(visualReviewDirectory, { recursive: true });
+  await waitForExpression(cdp, `!document.querySelector('.visual-entrance')`, 5000);
+  await sleep(120);
+  const observed = profile.phase4Observed === true;
+  const geometry = await cdp.evaluate(`(()=>{
+    const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
+    const toolbar=rect(${JSON.stringify(observed ? '.observed-internet .visual-workspace__toolbar' : '.measured-heading')});
+    const hud=rect(${JSON.stringify(observed ? '.observed-internet .visual-workspace__hud' : '.measured-capture-strip')});
+    return {
+      viewport:{width:innerWidth,height:innerHeight},
+      workspace:rect(${JSON.stringify(observed ? '.observed-internet' : '.measured-workspace')}),
+      stage:rect(${JSON.stringify(observed ? '.observed-internet .visual-workspace__stage' : '.measured-main')}),
+      world:rect(${JSON.stringify(observed ? '.observed-main' : '.measured-scene')}),
+      categories:rect('.measured-categories'),toolbar,hud,
+      toolbarHudOverlap:Boolean(toolbar&&hud&&toolbar.left<hud.right&&toolbar.right>hud.left&&toolbar.top<hud.bottom&&toolbar.bottom>hud.top),
+      scrollWidth:document.documentElement.scrollWidth,scrollY,
+      permanentProvenance:document.querySelectorAll('.measured-main > .measured-provenance-panel').length,
+      collectorPanelInWorld:document.querySelectorAll('.observed-main > .collector-panel').length,
+    };
+  })()`);
+  if (!geometry.workspace || !geometry.stage || !geometry.world) throw new Error(`${profile.id} is missing Phase 4 evidence geometry: ${JSON.stringify(geometry)}.`);
+  if (geometry.viewport.width - geometry.workspace.width > 26) throw new Error(`${profile.id} retains a restrictive outer width cap.`);
+  if (geometry.world.width < geometry.stage.width * (observed ? 0.94 : 0.68)) throw new Error(`${profile.id} central evidence content is too narrow: ${JSON.stringify(geometry)}.`);
+  if (geometry.world.height < geometry.stage.height * (observed ? 0.62 : 0.72)) throw new Error(`${profile.id} central evidence content is too short: ${JSON.stringify(geometry)}.`);
+  if (geometry.scrollWidth > geometry.viewport.width || geometry.scrollY !== 0) throw new Error(`${profile.id} overflows or moves the document viewport.`);
+  if (observed && geometry.collectorPanelInWorld !== 0) throw new Error(`${profile.id} retained a permanent collector panel in the world.`);
+  if (!observed && geometry.permanentProvenance !== 0) throw new Error(`${profile.id} retained a permanent provenance column.`);
+  if (observed && geometry.toolbarHudOverlap) throw new Error(`${profile.id} toolbar collides with its truth HUD.`);
+
+  const capture = async (suffix = '') => {
+    const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });
+    const path = join(visualReviewDirectory, `${profile.id}${suffix}.png`);
+    writeFileSync(path, Buffer.from(screenshot.data, 'base64'));
+    return path;
+  };
+  const screenshotPath = await capture();
+  let inspect = null;
+  let setupScreenshotPath = null;
+  if (profile.inspectReview) {
+    const openerSelector = observed ? '.observed-internet .visual-drawer-tabs button:nth-child(2)' : '.measured-heading .visual-drawer-tabs button:nth-child(2)';
+    const openerText = observed ? 'COLLECTORS' : 'PROVENANCE';
+    await cdp.evaluate(`document.querySelector(${JSON.stringify(openerSelector)})?.focus()`);
+    await measuredClickButton(cdp, openerSelector, openerText);
+    await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(observed ? '.observed-internet .visual-drawer' : '.measured-workspace .visual-drawer')}))`, 8000);
+    const drawerSelector = observed ? '.observed-internet .visual-drawer' : '.measured-workspace .visual-drawer';
+    const initialFocus = await cdp.evaluate(`document.activeElement?.classList.contains('visual-drawer__close')===true`);
+    await dispatchKey(cdp, 'Tab', 'Tab', 8);
+    const shiftTabContained = await cdp.evaluate(`document.querySelector(${JSON.stringify(drawerSelector)})?.contains(document.activeElement)===true`);
+    await dispatchKey(cdp, 'Tab', 'Tab');
+    const tabContained = await cdp.evaluate(`document.querySelector(${JSON.stringify(drawerSelector)})?.contains(document.activeElement)===true`);
+    const inspectScreenshotPath = await capture('-context');
+    await dispatchKey(cdp, 'Escape', 'Escape');
+    await waitForExpression(cdp, `!document.querySelector(${JSON.stringify(drawerSelector)})`, 8000);
+    const restored = await cdp.evaluate(`document.activeElement===document.querySelector(${JSON.stringify(openerSelector)})`);
+    if (!initialFocus || !shiftTabContained || !tabContained || !restored) throw new Error(`${profile.id} contextual drawer focus lifecycle failed.`);
+    inspect = { initialFocus, shiftTabContained, tabContained, restored, screenshotPath: inspectScreenshotPath };
+
+    if (!observed) {
+      const setupSelector = '.measured-heading .visual-drawer-tabs button:nth-child(1)';
+      await measuredClickButton(cdp, setupSelector, 'SETUP');
+      await waitForExpression(cdp, `Boolean(document.querySelector('.measured-workspace .visual-drawer'))`);
+      setupScreenshotPath = await capture('-setup');
+      await dispatchKey(cdp, 'Escape', 'Escape');
+      await waitForExpression(cdp, `!document.querySelector('.measured-workspace .visual-drawer')`);
+    }
+  }
+  return { geometry, screenshotPath, inspect, setupScreenshotPath };
 }
 
 async function captureVisualReview(cdp, profile) {
@@ -1088,6 +1238,11 @@ async function loadProfile(cdp, origin, profile) {
   await cdp.call('Page.navigate', { url: `${origin}${profile.path ?? '/'}${profile.query}` });
   await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(profile.readySelector ?? '.journey-visual-workspace')}))`);
   await sleep(550);
+  const phase4Interaction = profile.phase4Observed
+    ? await exercisePhase4ObservedInternet(cdp, profile)
+    : profile.phase4Measured
+      ? await exercisePhase4MeasuredNetwork(cdp, profile)
+      : null;
   const builderOspfInteraction = profile.builderOspf ? await exerciseBuilderOspf(cdp, profile) : null;
   const measuredInteraction = profile.measuredWorkspace
     ? await exerciseMeasuredWorkspace(cdp, profile)
@@ -1103,7 +1258,11 @@ async function loadProfile(cdp, origin, profile) {
     throw new Error(`${profile.id} did not enable reduced motion.`);
   }
 
-  const visualReviewResult = profile.visualReview ? await captureVisualReview(cdp, profile) : null;
+  const visualReviewResult = profile.phase4VisualReview
+    ? await capturePhase4EvidenceReview(cdp, profile)
+    : profile.visualReview
+      ? await captureVisualReview(cdp, profile)
+      : null;
 
   const journeyDrawer = await cdp.evaluate(`Boolean(document.querySelector('.journey-visual-workspace'))`)
     ? await inspectJourneyDrawerArchitecture(cdp, profile)
@@ -1213,6 +1372,7 @@ async function loadProfile(cdp, origin, profile) {
     drawerArchitecture: structural.drawerArchitecture,
     stress: structural.stress,
     measured: measuredInteraction,
+    phase4Evidence: phase4Interaction,
     protocol: structural.protocol,
     builderOspf: builderOspfInteraction,
     visualReview: visualReviewResult,
@@ -1292,7 +1452,7 @@ async function main() {
   let cdp = null;
   let production = null;
   const report = {
-    schema: visualReview ? 'hopscotch.phase3-visual-review' : 'hopscotch.performance-profile',
+    schema: phase4VisualReview ? 'hopscotch.phase4-evidence-visual-review' : phase3VisualReview ? 'hopscotch.phase3-visual-review' : 'hopscotch.performance-profile',
     version: 1,
     generatedAt: new Date().toISOString(),
     enforce,
@@ -1372,7 +1532,7 @@ async function main() {
     writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   }
 
-  console.log(`HOPSCOTCH production ${visualReview ? 'Phase 3 visual review' : compatibility ? 'compatibility' : 'performance'} profile (${report.browser.version ?? 'browser unknown'})`);
+  console.log(`HOPSCOTCH production ${phase4VisualReview ? 'Phase 4 visual review' : phase3VisualReview ? 'Phase 3 visual review' : compatibility ? 'compatibility' : 'performance'} profile (${report.browser.version ?? 'browser unknown'})`);
   console.log(`GPU mode: ${gpuMode}`);
   console.log(`Bundle: JS ${report.bundle.jsGzipBytes} gzip bytes · CSS ${report.bundle.cssGzipBytes} gzip bytes`);
   for (const profile of report.profiles) {
@@ -1393,7 +1553,7 @@ async function main() {
     for (const failure of report.failures) console.error(`- ${failure}`);
     if (enforce) process.exitCode = 1;
   } else {
-    console.log(visualReview ? 'Phase 3 production visual review capture and geometry checks passed.' : compatibility ? `Compatibility semantic profile passed for GPU mode ${gpuMode}.` : 'Stable performance and high-density stress budgets passed.');
+    console.log(phase4VisualReview ? 'Phase 4 evidence production visual review capture and geometry checks passed.' : phase3VisualReview ? 'Phase 3 production visual review capture and geometry checks passed.' : compatibility ? `Compatibility semantic profile passed for GPU mode ${gpuMode}.` : 'Stable performance and high-density stress budgets passed.');
   }
 }
 

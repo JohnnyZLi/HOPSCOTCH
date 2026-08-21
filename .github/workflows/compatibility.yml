@@ -103,3 +103,25 @@ jobs:
           path: artifacts/phase3-visual-review
           if-no-files-found: error
           retention-days: 7
+
+  phase4-visual-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Capture Phase 4 evidence viewport matrix
+        run: npm run visual:phase4
+      - name: Upload Phase 4 visual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-phase4-visual-review
+          path: artifacts/phase4-visual-review
+          if-no-files-found: error
+          retention-days: 7
