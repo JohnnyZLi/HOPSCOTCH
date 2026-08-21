@@ -1,0 +1,143 @@
+/*
+ * Keep the desktop overview composition stable across ordinary browser chrome
+ * differences. The original <=820px rules caused a hard mode switch: a few
+ * pixels of viewport height could shrink the hero, compress the action deck,
+ * and jump the scale inspector by more than 100px.
+ *
+ * Normal laptop/desktop heights (760–850px) now share one composition. Shorter
+ * windows compress progressively into it, and taller windows expand
+ * progressively out of it, with matched values at both boundaries so there is
+ * no visual cliff.
+ */
+@media (min-width: 1181px) {
+  .hero-copy {
+    margin-top: 48px;
+  }
+
+  .hero-copy h1 {
+    margin-top: 12px;
+    margin-bottom: 18px;
+    font-size: clamp(4.5rem, 7.2vw, 94px);
+  }
+
+  .lede {
+    max-width: 610px;
+    font-size: clamp(0.96rem, 1.2vw, 16.75px);
+    line-height: 1.55;
+  }
+
+  .scale-inspector {
+    top: 250px;
+  }
+
+  .home-action-deck {
+    margin-top: 18px;
+  }
+
+  .home-action-card {
+    min-height: 154px;
+    padding: 12px 14px;
+  }
+
+  .home-action-card p {
+    margin: 7px 0 9px;
+    font-size: 0.66rem;
+    line-height: 1.42;
+  }
+
+  .home-action-footer {
+    padding-top: 8px;
+  }
+
+  .home-action-card small {
+    margin-top: 5px;
+  }
+}
+
+@media (min-width: 1181px) and (max-height: 759px) {
+  .hero-copy {
+    margin-top: clamp(34px, calc(23.333vh - 129.333px), 48px);
+  }
+
+  .hero-copy h1 {
+    margin-top: clamp(10px, calc(3.333vh - 13.333px), 12px);
+    margin-bottom: clamp(14px, calc(6.667vh - 32.667px), 18px);
+    font-size: clamp(4.875rem, min(7.2vw, calc(26.667vh - 108.667px)), 94px);
+  }
+
+  .lede {
+    font-size: clamp(0.96rem, calc(2.317vh - 0.859px), 16.75px);
+  }
+
+  .scale-inspector {
+    top: clamp(220px, calc(50vh - 130px), 250px);
+  }
+
+  .home-action-deck {
+    margin-top: clamp(12px, calc(10vh - 58px), 18px);
+  }
+
+  .home-action-card {
+    min-height: clamp(128px, calc(43.333vh - 175.333px), 154px);
+    padding-block: clamp(9px, calc(5vh - 26px), 12px);
+    padding-inline: clamp(11px, calc(5vh - 24px), 14px);
+  }
+
+  .home-action-card p {
+    margin-top: clamp(4px, calc(5vh - 31px), 7px);
+    margin-bottom: clamp(6px, calc(5vh - 29px), 9px);
+    font-size: clamp(0.61rem, calc(1.333vh + 0.427px), 0.66rem);
+  }
+
+  .home-action-footer {
+    padding-top: clamp(5px, calc(5vh - 30px), 8px);
+  }
+
+  .home-action-card small {
+    margin-top: clamp(3px, calc(3.333vh - 20.333px), 5px);
+  }
+}
+
+@media (min-width: 1181px) and (min-height: 851px) {
+  .hero-copy {
+    margin-top: clamp(48px, calc(26vh - 173px), 74px);
+  }
+
+  .hero-copy h1 {
+    margin-top: clamp(12px, calc(4vh - 22px), 16px);
+    margin-bottom: clamp(18px, calc(6vh - 33px), 24px);
+    font-size: clamp(4.875rem, min(7.2vw, calc(21.2vh - 86.2px)), 8.4rem);
+  }
+
+  .lede {
+    font-size: clamp(16.75px, calc(2.13vh - 1.355px), 1.18rem);
+  }
+
+  .scale-inspector {
+    top: clamp(250px, calc(44.5vh - 128.25px), 320px);
+  }
+
+  .home-action-deck {
+    margin-top: clamp(18px, calc(8vh - 50px), 26px);
+  }
+
+  .home-action-card {
+    min-height: clamp(154px, calc(36vh - 152px), 190px);
+    padding-block: clamp(12px, calc(3vh - 13.5px), 15px);
+    padding-inline: clamp(14px, calc(2vh - 3px), 16px);
+  }
+
+  .home-action-card p {
+    margin-top: clamp(7px, calc(1vh - 1.5px), 8px);
+    margin-bottom: clamp(9px, calc(4vh - 25px), 13px);
+    font-size: clamp(0.66rem, calc(0.32vh + 7.84px), 0.68rem);
+  }
+
+  .home-action-footer {
+    padding-top: clamp(8px, calc(2vh - 9px), 10px);
+  }
+
+  .home-action-card small {
+    margin-top: clamp(5px, calc(2vh - 12px), 7px);
+  }
+}
