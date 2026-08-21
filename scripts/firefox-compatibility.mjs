@@ -116,7 +116,7 @@ const profiles = [
     width: 1440,
     height: 1000,
     query: query({ journey: '2', host: 'example.test', transport: 'quic-h3', dns: 'cache-miss', mods: maxModifierSet, t: '999999' }),
-    readySelector: '.journey-workspace',
+    readySelector: '.journey-visual-workspace',
     expected: ['DNS FAIL + ROUTE + LEAK + SERVER + LOSS + LATENCY + CONGESTION + PARTITION', 'NO ROUTE', 'NETWORK UNREACHABLE', 'ACTIVE PATH NONE', 'ROUTE CANDIDATES 0'],
   },
   {
@@ -124,7 +124,7 @@ const profiles = [
     width: 1440,
     height: 1000,
     query: query({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', impairment: 'route-leak', t: '4810' }),
-    readySelector: '.journey-workspace',
+    readySelector: '.journey-visual-workspace',
     expected: ['POLICY-ANOMALY', 'ACTIVE LOCAL_PREF\n300', 'REACHABLE\nYES', 'POLICY COMPLIANT\nNO'],
   },
   {
@@ -132,7 +132,7 @@ const profiles = [
     width: 390,
     height: 844,
     query: query({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', impairment: 'route-leak', t: '4810' }),
-    readySelector: '.journey-workspace',
+    readySelector: '.journey-visual-workspace',
     expected: ['POLICY-ANOMALY', 'REACHABLE\nYES', 'POLICY COMPLIANT\nNO'],
   },
   {

@@ -20,17 +20,17 @@ import type { CaptureSessionIndex } from './capture/session.ts';
 import type { CapturedFrameEvidence } from './capture/types.ts';
 import type { ScenarioPresetId } from './scenarios/catalog.ts';
 import { lab01Scenario, lab01StateAt } from './simulation/lab01';
-import { latestEventAtOrBefore, type NetworkLayer } from './simulation/model';
+import type { NetworkLayer } from './simulation/model';
 
 type DisplayMode = 'overview' | 'xray';
 type ActiveLab = ExploreDestination | null;
 
 const CaptureReplayWorkspace = lazy(() => import('./CaptureReplayWorkspace.tsx').then((module) => ({ default: module.CaptureReplayWorkspace })));
 const DnsTheater = lazy(() => import('./DnsTheater.tsx').then((module) => ({ default: module.DnsTheater })));
+const FailureStoryWorkspace = lazy(() => import('./FailureStoryWorkspace.tsx').then((module) => ({ default: module.FailureStoryWorkspace })));
 const HttpComparisonTheater = lazy(() => import('./HttpComparisonTheater.tsx').then((module) => ({ default: module.HttpComparisonTheater })));
 const InternetScaleTheater = lazy(() => import('./InternetScaleTheater.tsx').then((module) => ({ default: module.InternetScaleTheater })));
 const JourneyTheater = lazy(() => import('./JourneyTheater.tsx').then((module) => ({ default: module.JourneyTheater })));
-const LabNetworkField = lazy(() => import('./LabNetworkField.tsx').then((module) => ({ default: module.LabNetworkField })));
 const MeasuredNetworkWorkspace = lazy(() => import('./MeasuredNetworkWorkspace.tsx').then((module) => ({ default: module.MeasuredNetworkWorkspace })));
 const NetworkBuilder = lazy(() => import('./NetworkBuilder.tsx').then((module) => ({ default: module.NetworkBuilder })));
 const ObservedInternet = lazy(() => import('./ObservedInternet.tsx').then((module) => ({ default: module.ObservedInternet })));
@@ -57,12 +57,6 @@ const initialAppRoute = browserHistoryRoutingAvailable
 const initialJourneyBootstrap = typeof window === 'undefined' || initialAppRoute.destination !== 'journey'
   ? { scenario: null, error: null }
   : bootstrapJourneyFromSearch(window.location.search);
-
-function formatTime(timeMs: number): string {
-  const seconds = Math.floor(timeMs / 1000).toString().padStart(2, '0');
-  const milliseconds = Math.floor(timeMs % 1000).toString().padStart(3, '0');
-  return `00:${seconds}.${milliseconds}`;
-}
 
 export default function App() {
   const initialSharedJourney = initialJourneyBootstrap.scenario;
@@ -93,27 +87,7 @@ export default function App() {
   const active = layers.find((item) => item.id === layer) ?? layers[0];
   const activeLayerTop = 24.5 + Math.max(0, layers.findIndex((item) => item.id === layer)) * 52;
   const labState = useMemo(() => lab01StateAt(timeMs), [timeMs]);
-  const activeEvent = useMemo(() => latestEventAtOrBefore(lab01Scenario, timeMs), [timeMs]);
-  const activePath = lab01Scenario.paths.find((path) => path.id === labState.activePathId) ?? lab01Scenario.paths[0];
   const failureLabActive = activeLab === 'failure';
-
-  const actorNode = lab01Scenario.nodes.find((node) => node.id === activeEvent.actorId);
-  const targetNode = lab01Scenario.nodes.find((node) => node.id === activeEvent.targetId);
-  const focusX = actorNode && targetNode ? (actorNode.x + targetNode.x) / 2 : actorNode?.x ?? targetNode?.x ?? 60;
-  const focusY = actorNode && targetNode ? (actorNode.y + targetNode.y) / 2 : actorNode?.y ?? targetNode?.y ?? 36;
-  const cameraScale = labState.phase === 'failure'
-    ? 1.045
-    : labState.phase === 'converging'
-      ? 1.028
-      : labState.phase === 'recomputing'
-        ? 1.018
-        : labState.phase === 'rerouting'
-          ? 1.032
-          : labState.phase === 'recovered'
-            ? 1.012
-            : 1;
-  const cameraX = ((60 - focusX) / 60) * 14;
-  const cameraY = ((36 - focusY) / 36) * 9;
 
   const pushBrowserRoute = (destination: ExploreDestination | null) => {
     if (!browserHistoryRoutingAvailable) return;
@@ -452,17 +426,16 @@ export default function App() {
           ) : activeLab === 'measured' ? (
             <MeasuredNetworkWorkspace key="lab09-measured" measuredState={measuredSession} onMeasuredStateChange={setMeasuredSession} onExit={exitActiveLab} />
           ) : (
-            <motion.section key="lab01" className="lab-workspace" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.985, filter: 'blur(14px)' }} animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.02, filter: 'blur(10px)' }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
-              <header className="lab-heading"><div><p className="eyebrow">Lab 01 · Failure & recovery</p><h1>BREAK THE ROUTE.<br /><span>WATCH IT THINK.</span></h1></div><div className="lab-heading-actions"><button type="button" className={labXray ? 'lab-mode active' : 'lab-mode'} onClick={() => setLabXray((current) => !current)}>X-RAY {labXray ? 'ON' : 'OFF'}</button><button type="button" className="lab-mode" onClick={exitActiveLab}>EXIT LAB</button></div></header>
-              <div className="lab-stage">
-                <motion.div key={`flash-${activeEvent.id}`} className={`lab-phase-flash severity-${activeEvent.payload.severity}`} initial={reduceMotion ? false : { opacity: activeEvent.payload.severity === 'critical' ? 0.34 : 0.16 }} animate={{ opacity: 0 }} transition={{ duration: activeEvent.payload.severity === 'critical' ? 0.95 : 0.7 }} aria-hidden="true" />
-                <div className="lab-stage-meta"><div><span>PHASE</span><strong>{labState.phase.toUpperCase()}</strong></div><div><span>INSTALLED PATH</span><strong>{activePath.label.toUpperCase()}</strong></div><div><span>PATH COST</span><strong>{activePath.metric}</strong></div></div>
-                <motion.div className="lab-camera" animate={reduceMotion ? undefined : { x: cameraX, y: cameraY, scale: cameraScale }} transition={{ type: 'spring', stiffness: 110, damping: 20, mass: 0.85 }}><LabNetworkField scenario={lab01Scenario} state={labState} activeEvent={activeEvent} xray={labXray} /></motion.div>
-                <AnimatePresence mode="wait" initial={false}><motion.div key={activeEvent.id} className={`lab-event-callout severity-${activeEvent.payload.severity}`} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 12, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.99 }} transition={{ duration: 0.28 }}><span>{formatTime(activeEvent.atMs)}</span><strong>{activeEvent.payload.title}</strong><p>{activeEvent.payload.summary}</p></motion.div></AnimatePresence>
-              </div>
-              <aside className="event-inspector" aria-label="Causal event chain"><div className="inspector-heading"><span>CAUSAL CHAIN</span><strong>{String(lab01Scenario.events.indexOf(activeEvent) + 1).padStart(2, '0')} / {String(lab01Scenario.events.length).padStart(2, '0')}</strong></div><div className="event-list">{lab01Scenario.events.map((event, index) => { const complete = event.atMs <= timeMs; const current = event.id === activeEvent.id; return <button key={event.id} type="button" className={`${complete ? 'complete' : ''}${current ? ' current' : ''}`} onClick={() => seek(event.atMs)}><span className="event-index">{String(index + 1).padStart(2, '0')}</span><span className="event-copy"><strong>{event.payload.title}</strong><small>{formatTime(event.atMs)} · {event.kind.replace('.', ' ')}</small></span></button>; })}</div><div className="event-detail"><span>WHY THIS MATTERS</span><p>{activeEvent.payload.detail}</p></div></aside>
-              <footer className="time-machine"><div className="time-controls"><button type="button" onClick={togglePlayback} aria-label={playing ? 'Pause scenario' : 'Play scenario'}>{playing ? 'Ⅱ' : '▶'}</button><button type="button" onClick={() => seek(0)} aria-label="Reset scenario">↺</button></div><div className="time-readout"><span>TIME MACHINE</span><strong>{formatTime(timeMs)}</strong></div><div className="scrubber-wrap"><div className="timeline-markers" aria-hidden="true">{lab01Scenario.events.map((event) => <i key={event.id} className={event.atMs <= timeMs ? 'passed' : ''} style={{ left: `${(event.atMs / lab01Scenario.durationMs) * 100}%` }} />)}</div><input type="range" min="0" max={lab01Scenario.durationMs} step="10" value={Math.round(timeMs)} onChange={(event) => seek(Number(event.currentTarget.value))} aria-label="Scenario time" /></div><span className="time-duration">{formatTime(lab01Scenario.durationMs)}</span></footer>
-            </motion.section>
+            <FailureStoryWorkspace
+              key="lab01"
+              timeMs={timeMs}
+              playing={playing}
+              xray={labXray}
+              onTogglePlayback={togglePlayback}
+              onSeek={seek}
+              onToggleXray={() => setLabXray((current) => !current)}
+              onExit={exitActiveLab}
+            />
           )}
         </AnimatePresence>
       </Suspense>

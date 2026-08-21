@@ -291,9 +291,9 @@ if (compatibility) profiles.push(
 { id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', 'NOT PROMOTED TO LOCAL MEASURED'] },
   { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
   { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
-  { id: 'measured-sidecars-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['ONE REQUEST.', 'BREAK THE PATH.'] },
-  { id: 'measured-sidecars-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['ONE REQUEST.', 'BREAK THE PATH.'] },
-  { id: 'measured-sidecars-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['ONE REQUEST.', 'BREAK THE PATH.'] },
+  { id: 'measured-sidecars-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
+  { id: 'measured-sidecars-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
+  { id: 'measured-sidecars-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
 );
 
 async function waitForExpression(cdp, expression, timeoutMs = 5000) {
@@ -805,6 +805,81 @@ async function measuredClickButton(cdp, selector, text) {
   if (!clicked) throw new Error(`Unable to click ${selector} containing ${JSON.stringify(text)}.`);
 }
 
+async function openJourneyDrawer(cdp, label) {
+  await measuredClickButton(cdp, '.visual-drawer-tabs button', label);
+  await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace .visual-drawer'))`, 8000);
+  await waitForExpression(cdp, `(()=>{
+    const drawer=document.querySelector('.journey-visual-workspace .visual-drawer')?.getBoundingClientRect();
+    const stage=document.querySelector('.journey-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
+    return Boolean(drawer&&stage&&drawer.left>=stage.left-1&&drawer.right<=stage.right+1);
+  })()`, 8000);
+  await sleep(80);
+}
+
+async function closeJourneyDrawer(cdp) {
+  const closed = await cdp.evaluate(`(()=>{
+    const button=document.querySelector('.journey-visual-workspace .visual-drawer__close');
+    if(!button)return false;
+    button.click();
+    return true;
+  })()`);
+  if (!closed) throw new Error('Unable to close the active Journey drawer.');
+  await waitForExpression(cdp, `!document.querySelector('.journey-visual-workspace .visual-drawer')`, 8000);
+}
+
+async function selectJourneyEvent(cdp, title) {
+  await openJourneyDrawer(cdp, 'EVENTS');
+  await measuredClickButton(cdp, '.journey-event', title);
+  await waitForExpression(cdp, `document.querySelector('.journey-callout-overlay h2')?.textContent?.includes(${JSON.stringify(title)})`, 8000);
+  await closeJourneyDrawer(cdp);
+}
+
+async function inspectJourneyDrawerArchitecture(cdp, profile) {
+  const before = await cdp.evaluate(`(()=>{
+    const stage=document.querySelector('.journey-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
+    const exit=[...document.querySelectorAll('.journey-visual-tools .visual-tool-button')].find((button)=>button.textContent?.includes('EXIT'))?.getBoundingClientRect();
+    return {stage:stage?{x:stage.x,y:stage.y,width:stage.width,height:stage.height}:null,exit:exit?{x:exit.x,y:exit.y,width:exit.width,height:exit.height}:null};
+  })()`);
+  if (!before.stage) throw new Error(`${profile.id} is missing the Journey visual stage.`);
+  if (!before.exit || before.exit.width <= 0 || before.exit.height <= 0) throw new Error(`${profile.id} does not expose a visible Journey Exit action.`);
+  if (before.exit.x < before.stage.x || before.exit.x + before.exit.width > before.stage.x + before.stage.width + 1) throw new Error(`${profile.id} Journey Exit action is outside the visible stage.`);
+
+  await openJourneyDrawer(cdp, 'CONFIG');
+  const opened = await cdp.evaluate(`(()=>{
+    const stage=document.querySelector('.journey-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
+    const drawer=document.querySelector('.journey-visual-workspace .visual-drawer')?.getBoundingClientRect();
+    const modifierProfile=document.querySelector('.journey-modifier-profile');
+    const controls=[...document.querySelectorAll('.journey-modifier-profile button')].map((button,index)=>{const rect=button.getBoundingClientRect();return {index:index+1,text:button.innerText,x:Math.round(rect.x),y:Math.round(rect.y),width:Math.round(rect.width),height:Math.round(rect.height)}});
+    return {
+      stage:stage?{x:stage.x,y:stage.y,width:stage.width,height:stage.height}:null,
+      drawer:drawer?{x:drawer.x,y:drawer.y,width:drawer.width,height:drawer.height}:null,
+      controls,
+      modifierColumns:modifierProfile?getComputedStyle(modifierProfile).gridTemplateColumns.split(' ').filter(Boolean).length:0,
+      modal:document.querySelector('.journey-visual-workspace .visual-drawer')?.getAttribute('aria-modal'),
+    };
+  })()`);
+  if (!opened.stage || !opened.drawer) throw new Error(`${profile.id} did not render the Config drawer over the Journey stage.`);
+  if (opened.modal !== 'true') throw new Error(`${profile.id} Journey drawer lost modal accessibility semantics.`);
+  if (opened.controls.length !== 10) throw new Error(`${profile.id} expected 10 GOD MODE controls, found ${opened.controls.length}.`);
+  for (const key of ['x', 'y', 'width', 'height']) {
+    if (Math.abs(opened.stage[key] - before.stage[key]) > 1) throw new Error(`${profile.id} Config drawer changed stage ${key}: ${before.stage[key]} → ${opened.stage[key]}.`);
+  }
+  if (profile.width <= 680) {
+    for (const key of ['x', 'y', 'width', 'height']) {
+      if (Math.abs(opened.drawer[key] - opened.stage[key]) > 1) throw new Error(`${profile.id} mobile drawer did not cover the full stage ${key}.`);
+    }
+  } else if (opened.drawer.x < opened.stage.x || opened.drawer.x + opened.drawer.width > opened.stage.x + opened.stage.width + 1) {
+    throw new Error(`${profile.id} desktop drawer escaped the visual stage.`);
+  }
+  await closeJourneyDrawer(cdp);
+  const after = await cdp.evaluate(`(()=>{const stage=document.querySelector('.journey-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();return stage?{x:stage.x,y:stage.y,width:stage.width,height:stage.height}:null})()`);
+  if (!after) throw new Error(`${profile.id} lost the Journey stage after closing Config.`);
+  for (const key of ['x', 'y', 'width', 'height']) {
+    if (Math.abs(after[key] - before.stage[key]) > 1) throw new Error(`${profile.id} stage did not recover after closing Config (${key}).`);
+  }
+  return { modifierControls: opened.controls, modifierColumns: opened.modifierColumns, modal: true, stagePreserved: true, mobileFullStage: profile.width <= 680 };
+}
+
 async function measuredViewportState(cdp) {
   return cdp.evaluate(`(()=>({
     innerWidth,
@@ -813,7 +888,7 @@ async function measuredViewportState(cdp) {
     sidecar:document.querySelector('.journey-measured-sidecar')?.innerText ?? null,
     compatibility:document.querySelector('.journey-measured-sidecar')?.getAttribute('data-measured-compatibility') ?? null,
     scene:document.querySelector('.journey-measured-sidecar')?.getAttribute('data-measured-scene') ?? null,
-    activeEvent:document.querySelector('.journey-event.current strong')?.textContent ?? null,
+    activeEvent:document.querySelector('.journey-callout-overlay h2')?.textContent ?? null,
   }))()`);
 }
 
@@ -830,22 +905,22 @@ async function exerciseMeasuredJourneySidecars(cdp, profile) {
   await measuredClickButton(cdp, '.measured-heading-actions button', 'EXIT LAB');
   await waitForExpression(cdp, `Boolean(document.querySelector('.overview-scene'))`);
   await measuredClickButton(cdp, 'button', 'Play URL journey');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.journey-workspace'))`, 8000);
+  await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`, 8000);
 
-  await measuredClickButton(cdp, '.journey-event', 'Default gateway selected');
+  await selectJourneyEvent(cdp, 'Default gateway selected');
   await waitForExpression(cdp, `document.querySelector('.journey-measured-sidecar')?.getAttribute('data-measured-compatibility')==='local-context'`, 8000);
   const routing = await measuredViewportState(cdp);
   assertMeasuredViewport(profile, routing, 'routing sidecar');
   if (routing.scene !== 'routing' || routing.activeEvent !== 'Default gateway selected') throw new Error(`${profile.id} did not bind LOCAL CONTEXT to the routing phase.`);
   if (!routing.sidecar?.includes('LOCAL MEASURED') || !routing.sidecar.includes('LOCAL CONTEXT') || !routing.sidecar.includes('SIMULATED STORY UNCHANGED')) throw new Error(`${profile.id} routing sidecar lost provenance/boundary language.`);
 
-  await measuredClickButton(cdp, '.journey-event', 'Stub asks recursive resolver');
+  await selectJourneyEvent(cdp, 'Stub asks recursive resolver');
   await waitForExpression(cdp, `document.querySelector('.journey-measured-sidecar')?.getAttribute('data-measured-compatibility')==='matched-target'`, 8000);
   const dns = await measuredViewportState(cdp);
   assertMeasuredViewport(profile, dns, 'DNS sidecar');
   if (dns.scene !== 'dns' || !dns.sidecar?.includes('MATCHED TARGET') || !dns.sidecar.includes('8 ms')) throw new Error(`${profile.id} DNS sidecar did not expose exact-target measured DNS context.`);
 
-  await measuredClickButton(cdp, '.journey-event', 'TCP connection established');
+  await selectJourneyEvent(cdp, 'TCP connection established');
   await waitForExpression(cdp, `document.querySelector('.journey-measured-sidecar')?.getAttribute('data-measured-compatibility')==='matched-target'`, 8000);
   const transport = await measuredViewportState(cdp);
   assertMeasuredViewport(profile, transport, 'transport sidecar');
@@ -853,9 +928,10 @@ async function exerciseMeasuredJourneySidecars(cdp, profile) {
   if (transport.sidecar.includes('500 Mbps')) throw new Error(`${profile.id} leaked other-target speed-test throughput into matched Journey transport evidence.`);
   if (!transport.sidecar.includes('OTHER-TARGET FACT')) throw new Error(`${profile.id} did not disclose that other-target transport facts were hidden.`);
 
+  await openJourneyDrawer(cdp, 'CONFIG');
   const changedHost = await cdp.evaluate(`(()=>{
-    const input=document.querySelector('.journey-config input');
-    const form=document.querySelector('.journey-config');
+    const input=document.querySelector('.journey-drawer-form input');
+    const form=document.querySelector('.journey-drawer-form');
     if(!input||!form)return false;
     const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')?.set;
     setter?.call(input,'other.test');
@@ -864,15 +940,16 @@ async function exerciseMeasuredJourneySidecars(cdp, profile) {
     return true;
   })()`);
   if (!changedHost) throw new Error(`${profile.id} could not change Journey hostname for mismatch validation.`);
-  await waitForExpression(cdp, `document.querySelector('.journey-config input')?.value==='other.test'`, 8000);
-  await measuredClickButton(cdp, '.journey-event', 'TCP connection established');
+  await waitForExpression(cdp, `document.querySelector('.journey-drawer-form input')?.value==='other.test'`, 8000);
+  await closeJourneyDrawer(cdp);
+  await selectJourneyEvent(cdp, 'TCP connection established');
   await waitForExpression(cdp, `document.querySelector('.journey-measured-sidecar')?.getAttribute('data-measured-compatibility')==='other-target'`, 8000);
   const mismatch = await measuredViewportState(cdp);
   assertMeasuredViewport(profile, mismatch, 'mismatched transport sidecar');
   if (!mismatch.sidecar?.includes('NO COMPATIBLE TRANSPORT TARGET') || !mismatch.sidecar.includes('OTHER TARGET')) throw new Error(`${profile.id} mismatched target did not fail closed visibly.`);
   if (mismatch.sidecar.includes('500 Mbps') || mismatch.sidecar.includes('24 ms') || mismatch.sidecar.includes('17 ms')) throw new Error(`${profile.id} rendered mismatched measured values as Journey evidence.`);
 
-  await measuredClickButton(cdp, '.journey-heading-actions button', 'EXIT JOURNEY');
+  await measuredClickButton(cdp, '.journey-visual-tools .visual-tool-button', 'EXIT');
   await waitForExpression(cdp, `Boolean(document.querySelector('.overview-scene'))`);
   await measuredClickButton(cdp, 'button', 'Inspect measured report');
   await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
@@ -881,8 +958,8 @@ async function exerciseMeasuredJourneySidecars(cdp, profile) {
   await measuredClickButton(cdp, '.measured-heading-actions button', 'EXIT LAB');
   await waitForExpression(cdp, `Boolean(document.querySelector('.overview-scene'))`);
   await measuredClickButton(cdp, 'button', 'Play URL journey');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.journey-workspace'))`, 8000);
-  await measuredClickButton(cdp, '.journey-event', 'Default gateway selected');
+  await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`, 8000);
+  await selectJourneyEvent(cdp, 'Default gateway selected');
   await sleep(120);
   if (await cdp.evaluate(`Boolean(document.querySelector('.journey-measured-sidecar'))`)) throw new Error(`${profile.id} measured sidecar survived explicit Lab 09 Clear.`);
   const cleared = await measuredViewportState(cdp);
@@ -911,7 +988,7 @@ async function loadProfile(cdp, origin, profile) {
   });
   const startedAt = performance.now();
   await cdp.call('Page.navigate', { url: `${origin}/${profile.query}` });
-  await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(profile.readySelector ?? '.journey-workspace')}))`);
+  await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(profile.readySelector ?? '.journey-visual-workspace')}))`);
   await sleep(550);
   const builderOspfInteraction = profile.builderOspf ? await exerciseBuilderOspf(cdp, profile) : null;
   const measuredInteraction = profile.measuredWorkspace
@@ -928,19 +1005,21 @@ async function loadProfile(cdp, origin, profile) {
     throw new Error(`${profile.id} did not enable reduced motion.`);
   }
 
+  const journeyDrawer = await cdp.evaluate(`Boolean(document.querySelector('.journey-visual-workspace'))`)
+    ? await inspectJourneyDrawerArchitecture(cdp, profile)
+    : null;
+
   await cdp.call('HeapProfiler.collectGarbage');
   const heap = await cdp.call('Runtime.getHeapUsage');
   const performanceMetrics = Object.fromEntries((await cdp.call('Performance.getMetrics')).metrics.map((metric) => [metric.name, metric.value]));
   const structural = await cdp.evaluate(`(()=>{
-    const controls=[...document.querySelectorAll('.journey-modifier-profile button')].map((button,index)=>{const rect=button.getBoundingClientRect();return {index:index+1,text:button.innerText,x:Math.round(rect.x),y:Math.round(rect.y),width:Math.round(rect.width),height:Math.round(rect.height)}});
     return {
       elementCount: document.getElementsByTagName('*').length,
-      eventCount: document.querySelectorAll('.journey-event').length,
+      eventCount: document.querySelectorAll('.visual-time-rail__events button').length,
       innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
       scrollY,
-      modifierControls: controls,
-      heading: document.querySelector('.journey-heading-actions > span')?.innerText ?? null,
+      heading: document.querySelector('.visual-identity > strong')?.textContent ?? null,
       measured: {
         loaded: document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded') ?? null,
         categoryButtons: document.querySelectorAll('.measured-categories button').length,
@@ -959,6 +1038,8 @@ async function loadProfile(cdp, origin, profile) {
       },
     };
   })()`);
+  structural.modifierControls = journeyDrawer?.modifierControls ?? [];
+  structural.drawerArchitecture = journeyDrawer;
 
   if (structural.scrollWidth > structural.innerWidth) throw new Error(`${profile.id} horizontally overflows: ${structural.scrollWidth} > ${structural.innerWidth}`);
   if (structural.scrollY !== 0) throw new Error(`${profile.id} unexpectedly moved document scrollY to ${structural.scrollY}.`);
@@ -978,16 +1059,12 @@ async function loadProfile(cdp, origin, profile) {
 
   if (profile.assertMobileGrid) {
     if (structural.modifierControls.length !== 10) throw new Error(`Expected 10 GOD MODE controls, found ${structural.modifierControls.length}.`);
-    const rows = new Map();
+    if (structural.drawerArchitecture?.modifierColumns !== 3) throw new Error(`Expected a three-column mobile GOD MODE grid, found ${structural.drawerArchitecture?.modifierColumns ?? 0} columns.`);
     for (const button of structural.modifierControls) {
-      const row = rows.get(button.y) ?? [];
-      row.push(button);
-      rows.set(button.y, row);
+      if (button.width < 40 || button.height < 32) throw new Error(`Mobile GOD MODE control ${button.text} is too small: ${button.width}×${button.height}.`);
     }
-    const rowSizes = [...rows.values()].map((row) => row.length).sort((a, b) => a - b);
-    if (JSON.stringify(rowSizes) !== JSON.stringify([2, 4, 4])) throw new Error(`Unexpected mobile GOD MODE rows: ${JSON.stringify(rowSizes)}`);
-    const finalRow = [...rows.entries()].sort((a, b) => a[0] - b[0]).at(-1)[1];
-    if (finalRow.map((button) => button.text).join('|') !== 'PARTITION|LEAK') throw new Error(`Unexpected final mobile row: ${finalRow.map((button) => button.text).join('|')}`);
+    const finalControl = structural.modifierControls.at(-1);
+    if (finalControl?.text !== 'LEAK') throw new Error(`Unexpected final mobile control: ${finalControl?.text ?? 'missing'}`);
   }
 
   const pageErrors = cdp.events.filter((event) =>
@@ -1011,6 +1088,7 @@ async function loadProfile(cdp, origin, profile) {
     scrollY: structural.scrollY,
     modifierControls: structural.modifierControls.length,
     heading: structural.heading,
+    drawerArchitecture: structural.drawerArchitecture,
     stress: structural.stress,
     measured: measuredInteraction,
     builderOspf: builderOspfInteraction,
@@ -1037,15 +1115,15 @@ async function seekStress(cdp, origin, cycles = stressConfig.seekCycles, id = 'm
   await cdp.call('HeapProfiler.collectGarbage');
   const before = await cdp.call('Runtime.getHeapUsage');
   const beforeState = await cdp.evaluate(`(()=>({
-    eventCount:document.querySelectorAll('.journey-event').length,
-    heading:document.querySelector('.journey-heading-actions > span')?.innerText ?? null,
+    eventCount:document.querySelectorAll('.visual-time-rail__events button').length,
+    heading:document.querySelector('.visual-identity > strong')?.textContent ?? null,
     scrollY,
     elementCount:document.getElementsByTagName('*').length,
   }))()`);
   const startedAt = performance.now();
   const stressResult = await cdp.evaluate(`(async()=>{
     const cycles=${Number(cycles)};
-    const buttons=[...document.querySelectorAll('.journey-event')];
+    const buttons=[...document.querySelectorAll('.visual-time-rail__events button')];
     for(let cycle=0;cycle<cycles;cycle+=1){
       for(const button of buttons){
         button.click();
@@ -1054,8 +1132,8 @@ async function seekStress(cdp, origin, cycles = stressConfig.seekCycles, id = 'm
     }
     await new Promise((resolve)=>setTimeout(resolve,${Number(stressConfig.settleMs)}));
     return {
-      eventCount:document.querySelectorAll('.journey-event').length,
-      heading:document.querySelector('.journey-heading-actions > span')?.innerText ?? null,
+      eventCount:document.querySelectorAll('.visual-time-rail__events button').length,
+      heading:document.querySelector('.visual-identity > strong')?.textContent ?? null,
       scrollY,
       elementCount:document.getElementsByTagName('*').length,
     };
