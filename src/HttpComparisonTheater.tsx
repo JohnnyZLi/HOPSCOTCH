@@ -5,6 +5,7 @@ import {
   VisualDrawerTabs,
   VisualTimeRail,
   VisualWorkspaceShell,
+  useVisualPresentationPlayback,
   type VisualDrawerDefinition,
   type VisualDrawerId,
   type VisualTimelineEvent,
@@ -51,24 +52,20 @@ export function HttpComparisonTheater({ onExit, onOpenTls }: { onExit: () => voi
   const state = useMemo(() => httpComparisonStateAt(timeMs), [timeMs]);
   const activeEvent = useMemo(() => latestHttpComparisonEvent(timeMs), [timeMs]);
   const activeIndex = httpComparisonEvents.indexOf(activeEvent);
-
-  useEffect(() => {
-    if (!playing) return;
-    const startedAt = performance.now();
-    const startedFrom = timeMs;
-    let frameId = 0;
-    const tick = (now: number) => {
-      const next = Math.min(HTTP_COMPARISON_DURATION_MS, startedFrom + (now - startedAt));
-      setTimeMs(next);
-      if (next >= HTTP_COMPARISON_DURATION_MS) {
-        setPlaying(false);
-        return;
-      }
-      frameId = requestAnimationFrame(tick);
-    };
-    frameId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frameId);
-  }, [playing]);
+  const timelineEvents: VisualTimelineEvent[] = httpComparisonEvents.map((event) => ({
+    id: event.id,
+    atMs: event.atMs,
+    label: event.title,
+    tone: event.id === 'loss' || event.id === 'hol-diverges' ? 'danger' : event.id.includes('retransmit') ? 'warning' : event.id === 'complete' ? 'success' : 'neutral',
+  }));
+  const { playbackSpeed, setPlaybackSpeed } = useVisualPresentationPlayback({
+    playing,
+    timeMs,
+    durationMs: HTTP_COMPARISON_DURATION_MS,
+    events: timelineEvents,
+    onTimeChange: setTimeMs,
+    onComplete: () => setPlaying(false),
+  });
 
   useEffect(() => {
     const root = rootRef.current;
@@ -98,12 +95,6 @@ export function HttpComparisonTheater({ onExit, onOpenTls }: { onExit: () => voi
     setActiveDrawer((current) => current === drawer ? null : drawer);
   };
 
-  const timelineEvents: VisualTimelineEvent[] = httpComparisonEvents.map((event) => ({
-    id: event.id,
-    atMs: event.atMs,
-    label: event.title,
-    tone: event.id === 'loss' || event.id === 'hol-diverges' ? 'danger' : event.id.includes('retransmit') ? 'warning' : event.id === 'complete' ? 'success' : 'neutral',
-  }));
   const timelineMilestones: VisualTimelineMilestone[] = [
     { id: 'open', atMs: 0, label: 'OPEN' },
     { id: 'loss', atMs: 900, label: 'LOSS' },
@@ -142,7 +133,7 @@ export function HttpComparisonTheater({ onExit, onOpenTls }: { onExit: () => voi
     onCloseDrawer={() => setActiveDrawer(null)}
     toolbar={<><div className="visual-identity"><i/><span>HTTP A/B THEATER</span><strong>H2/TCP × H3/QUIC</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'INSPECT' }, { id: 'events', label: 'EVENTS', badge: String(httpComparisonEvents.length) }, { id: 'tools', label: 'MODEL' }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button protocol-link-button" onClick={onOpenTls}>TLS ↗</button><button type="button" className="visual-tool-button" onClick={onExit}>EXIT</button></div></>}
     hud={<><div><span>PHASE</span><strong>{state.phaseLabel}</strong></div><div><span>LOSS TARGET</span><strong>{HTTP_STREAM_A}</strong></div><div><span>CONTROL</span><strong>SYNCHRONIZED A/B</strong></div><div><span>PROVENANCE</span><strong>SIMULATED</strong></div></>}
-    timeline={<VisualTimeRail timeMs={timeMs} durationMs={HTTP_COMPARISON_DURATION_MS} playing={playing} label="HTTP A/B TIME MACHINE" context={`${activeEvent.focus.toUpperCase()} FOCUS · SAME LOSS TRACE`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
+    timeline={<VisualTimeRail timeMs={timeMs} durationMs={HTTP_COMPARISON_DURATION_MS} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="HTTP A/B TIME MACHINE" context={`${activeEvent.focus.toUpperCase()} FOCUS · SAME LOSS TRACE`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
   >
     <div ref={rootRef} className={`protocol-cinematic-stage http-cinematic-stage focus-${activeEvent.focus}`}>
       <div className="protocol-scene-kicker"><span>APPLICATION / TRANSPORT COUPLING</span><strong>{activeEvent.focus.toUpperCase()} FOCUS</strong></div>
