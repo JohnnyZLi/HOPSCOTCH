@@ -62,21 +62,21 @@
 }
 
 @media (max-width: 680px) {
-  /* Physical Atlas stays a full-stage world, but the renderer gets a deliberately wide,
-     shorter portrait viewport. Extending it beyond the side clips increases the WebGL
-     camera aspect ratio, so the globe fits instead of becoming a giant cropped sphere. */
+  /* Physical Atlas stays a full-stage world. The WebGL host intentionally extends well
+     past the clipped stage edges so the camera gets a landscape-ish aspect ratio on a
+     portrait phone; that keeps the sphere fully readable instead of magnifying/cropping it. */
   .physical-visual-workspace .physical-cinematic-stage > .globe-viewport {
     top: 0;
     bottom: 0;
   }
 
   .physical-visual-workspace .physical-cinematic-stage .globe-render-host {
-    inset: 108px -22% 136px;
+    inset: 118px -50% 180px;
   }
 
   .physical-visual-workspace .physical-cinematic-stage .globe-reticle {
-    top: 46%;
-    transform: translate(-50%, -50%) scale(0.76);
+    top: 45%;
+    transform: translate(-50%, -50%) scale(0.72);
   }
 
   /* The original Phase 3 mobile rule left three HUD chips in a flex row. Keep only the
