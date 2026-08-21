@@ -1,0 +1,33 @@
+.scale-inspector {
+  width: min(620px, calc(100vw - 64px));
+}
+
+.layer-card {
+  width: min(350px, calc(100% - 206px));
+}
+
+.layer-card-copy {
+  padding: 22px 24px 20px;
+  background: linear-gradient(90deg, rgba(5, 8, 12, 0.9), rgba(5, 8, 12, 0.62) 78%, rgba(5, 8, 12, 0.08));
+}
+
+.layer-card p {
+  max-width: none;
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.card-rule {
+  width: 100%;
+  margin: 18px 0 15px;
+}
+
+.layer-card small {
+  display: block;
+}
+
+@media (max-width: 1380px) {
+  .scale-inspector {
+    width: auto;
+  }
+}
