@@ -161,11 +161,21 @@ jobs:
       - run: npm run build
       - name: Measure and capture overview scale detail card
         run: node scripts/scale-inspector-visual-review.mjs
+      - name: Verify desktop overview layout stability
+        run: node scripts/overview-layout-stability-review.mjs
       - name: Upload scale inspector visual review
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: hopscotch-scale-inspector-visual-review
           path: artifacts/scale-inspector-visual-review
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload overview layout stability review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-overview-layout-stability-review
+          path: artifacts/overview-layout-stability-review
           if-no-files-found: error
           retention-days: 7
