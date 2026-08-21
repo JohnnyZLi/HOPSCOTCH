@@ -26,35 +26,6 @@
   display: block;
 }
 
-/*
- * Keep the overview composition continuous across ordinary desktop viewport
- * height differences. The base stylesheet's <=820px desktop mode was a hard
- * switch: a few pixels of browser chrome could shrink the hero and jump the
- * inspector more than 100px. These values compress progressively only when
- * the viewport is genuinely short instead of crossing a single cliff.
- */
-@media (min-width: 1181px) {
-  .hero-copy {
-    margin-top: clamp(50px, calc(30vh - 148px), 74px);
-  }
-
-  .hero-copy h1 {
-    margin-top: clamp(10px, calc(6vh - 28px), 16px);
-    margin-bottom: clamp(16px, calc(8vh - 35px), 24px);
-    font-size: clamp(3.75rem, min(7.2vw, calc(30vh - 112px)), 8.4rem);
-  }
-
-  .lede {
-    max-width: 610px;
-    font-size: clamp(0.96rem, min(max(1rem, 1.2vw), calc(3vh - 5px)), 1.18rem);
-    line-height: 1.6;
-  }
-
-  .scale-inspector {
-    top: clamp(210px, calc(25vh + 50px), 320px);
-  }
-}
-
 @media (max-width: 1380px) {
   .scale-inspector {
     width: auto;
