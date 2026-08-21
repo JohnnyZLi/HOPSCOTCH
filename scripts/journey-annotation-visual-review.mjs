@@ -12,6 +12,7 @@ const outputDir = resolve(process.cwd(), process.env.HOPSCOTCH_JOURNEY_ANNOTATIO
 const reportPath = join(outputDir, 'report.json');
 const viewports = [
   { id: 'wide', width: 1600, height: 950 },
+  { id: 'compact', width: 1180, height: 800 },
   { id: 'mobile', width: 390, height: 844 },
 ];
 const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
@@ -225,8 +226,9 @@ async function auditDrawer(cdp, viewport) {
   })()`);
   assert.ok(drawer, `${viewport.id}: drawer did not render.`);
   if (viewport.id === 'mobile') {
-    assert.ok(drawer.left <= 1 && drawer.top <= 1 && Math.abs(drawer.width - viewport.width) <= 1, `mobile drawer is not full width: ${JSON.stringify(drawer)}`);
+    assert.ok(drawer.left <= 1 && Math.abs(drawer.width - viewport.width) <= 1, `mobile drawer is not stage-width: ${JSON.stringify(drawer)}`);
     assert.ok(!/rgba\([^)]*,\s*0(?:\.\d+)?\)/.test(drawer.backgroundColor), `mobile drawer is transparent: ${drawer.backgroundColor}`);
+    assert.equal(drawer.backdropFilter, 'none', `mobile drawer should not rely on background bleed-through blur: ${drawer.backdropFilter}`);
   }
   await cdp.evaluate(`document.querySelector('.visual-drawer__close')?.click()`);
   await sleep(180);
