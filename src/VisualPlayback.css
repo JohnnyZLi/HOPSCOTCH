@@ -47,6 +47,39 @@
   width: 100%;
 }
 
+/* Desktop Journey and Failure explanations previously occupied the same pixels as the
+   semantic scene. Give them a stable event zone beneath the HUD instead. Mobile keeps
+   the existing compact bottom treatment where the scenes already reserve space. */
+@media (min-width: 681px) {
+  .journey-callout-overlay {
+    top: 118px;
+    right: 22px;
+    bottom: auto;
+  }
+
+  .journey-callout-overlay::before {
+    display: none;
+  }
+
+  .failure-object-annotation,
+  .failure-object-annotation.align-left,
+  .failure-object-annotation.align-right {
+    top: 118px;
+    right: 22px;
+    bottom: auto;
+    left: auto;
+    width: min(300px, 32vw);
+    margin: 0;
+    flex-direction: row;
+    text-align: left;
+    transform-origin: right top;
+  }
+
+  .failure-object-annotation > i {
+    display: none;
+  }
+}
+
 @media (max-width: 680px) {
   .visual-time-rail__controls {
     flex-wrap: wrap;
