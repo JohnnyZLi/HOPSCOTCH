@@ -2,6 +2,15 @@ import { animate } from 'animejs';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  VisualDrawerTabs,
+  VisualTimeRail,
+  VisualWorkspaceShell,
+  type VisualDrawerDefinition,
+  type VisualDrawerId,
+  type VisualTimelineEvent,
+  type VisualTimelineMilestone,
+} from './VisualWorkspace';
+import {
   DNS_ANSWER,
   DNS_QNAME,
   dnsLatestEventAtOrBefore,
@@ -36,11 +45,18 @@ function messageLabel(event: DnsEvent): string {
   return event.title;
 }
 
+function eventTone(event: DnsEvent): VisualTimelineEvent['tone'] {
+  if (event.severity === 'warning') return 'warning';
+  if (event.severity === 'success') return 'success';
+  return 'neutral';
+}
+
 export function DnsTheater({ onExit }: { onExit: () => void }) {
   const [mode, setMode] = useState<DnsMode>('miss');
   const [timeMs, setTimeMs] = useState(0);
   const [playing, setPlaying] = useState(true);
-  const rootRef = useRef<HTMLElement>(null);
+  const [activeDrawer, setActiveDrawer] = useState<VisualDrawerId | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
   const scenario = useMemo(() => dnsScenario(mode), [mode]);
   const state = useMemo(() => dnsStateAt(mode, timeMs), [mode, timeMs]);
@@ -71,10 +87,9 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
     const token = root.querySelector<HTMLElement>('.dns-message-token');
     const from = root.querySelector<HTMLElement>(`[data-dns-actor="${activeEvent.from}"]`);
     const to = root.querySelector<HTMLElement>(`[data-dns-actor="${activeEvent.to}"]`);
-    if (!token || !from || !to) return;
-
     const stage = root.querySelector<HTMLElement>('.dns-map');
-    if (!stage) return;
+    if (!token || !from || !to || !stage) return;
+
     const stageRect = stage.getBoundingClientRect();
     const fromRect = from.getBoundingClientRect();
     const toRect = to.getBoundingClientRect();
@@ -110,184 +125,95 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
       duration: localCache ? 580 : 760,
       ease: 'inOutSine',
     });
-
-    return () => {
-      animation.cancel();
-    };
+    return () => { animation.cancel(); };
   }, [activeEvent.id, reduceMotion]);
 
   const chooseMode = (nextMode: DnsMode) => {
     setMode(nextMode);
     setTimeMs(0);
     setPlaying(true);
+    setActiveDrawer(null);
   };
 
   const seek = (nextTime: number) => {
     setPlaying(false);
-    setTimeMs(nextTime);
+    setTimeMs(Math.max(0, Math.min(scenario.durationMs, nextTime)));
   };
 
   const togglePlayback = () => {
     if (playing) {
       setPlaying(false);
+      setActiveDrawer('inspect');
       return;
     }
+    setActiveDrawer(null);
     if (timeMs >= scenario.durationMs) setTimeMs(0);
     setPlaying(true);
+  };
+
+  const openDrawer = (drawer: VisualDrawerId) => {
+    if (playing) setPlaying(false);
+    setActiveDrawer((current) => current === drawer ? null : drawer);
   };
 
   const namespace = ['.', 'test.', 'example.test.', `${DNS_QNAME}.`];
   const activeNamespaceIndex = Math.max(0, namespace.indexOf(state.activeDelegation));
   const upstreamDimmed = mode === 'hit';
+  const timelineEvents: VisualTimelineEvent[] = scenario.events.map((event) => ({ id: event.id, atMs: event.atMs, label: event.title, tone: eventTone(event) }));
+  const timelineMilestones: VisualTimelineMilestone[] = mode === 'miss' ? [
+    { id: 'stub', atMs: 0, label: 'STUB' },
+    { id: 'root', atMs: 650, label: 'ROOT' },
+    { id: 'tld', atMs: 1450, label: 'TLD' },
+    { id: 'auth', atMs: 2250, label: 'AUTH' },
+    { id: 'cache', atMs: 3050, label: 'CACHE' },
+    { id: 'answer', atMs: 3450, label: 'ANSWER' },
+  ] : [
+    { id: 'stub', atMs: 0, label: 'STUB' },
+    { id: 'cache', atMs: 350, label: 'CACHE' },
+    { id: 'answer', atMs: 750, label: 'ANSWER' },
+  ];
 
-  return (
-    <motion.section
-      ref={rootRef}
-      className="dns-theater"
-      initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.985 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.015 }}
-      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-    >
-      <header className="dns-heading">
-        <div>
-          <p className="eyebrow">Lab 03B · Protocol theater</p>
-          <h1>FOLLOW THE NAME.<br /><span>WATCH DELEGATION DESCEND.</span></h1>
-        </div>
-        <div className="dns-heading-actions">
-          <span className="dns-sim-badge">SIMULATED · RESERVED TEST NAMESPACE</span>
-          <div className="dns-mode-toggle" aria-label="DNS cache scenario">
-            <button type="button" className={mode === 'miss' ? 'active' : ''} onClick={() => chooseMode('miss')}>CACHE MISS</button>
-            <button type="button" className={mode === 'hit' ? 'active' : ''} onClick={() => chooseMode('hit')}>CACHE HIT</button>
-          </div>
-          <button type="button" className="lab-mode" onClick={onExit}>EXIT LAB</button>
-        </div>
-      </header>
+  const inspectContent = <div className="protocol-inspect-drawer dns-protocol-drawer">
+    <article className={`protocol-inspect-event severity-${activeEvent.severity}`}><div><span>{formatTime(activeEvent.atMs)}</span><b>SIMULATED · RESERVED NAMESPACE</b></div><h3>{activeEvent.title}</h3><p>{activeEvent.summary}</p><small>{activeEvent.detail}</small></article>
+    <section><span>RESOLUTION STATE</span><div className="protocol-fact-grid"><div><small>MODE</small><strong>CACHE {mode.toUpperCase()}</strong></div><div><small>DELEGATION</small><strong>{state.activeDelegation}</strong></div><div><small>CACHE</small><strong>{state.cacheState.toUpperCase()}</strong></div><div><small>TTL</small><strong>{state.cacheTtlSeconds === null ? '—' : `${state.cacheTtlSeconds}s`}</strong></div></div></section>
+    <section><span>RECURSION VS ITERATION</span><p>STUB → RECURSIVE requests recursion. The recursive resolver’s ROOT, TLD, and authoritative queries are iterative in this scenario.</p></section>
+  </div>;
 
-      <div className="dns-stage">
-        <div className="dns-stage-meta">
-          <div><span>PHASE</span><strong>{state.phaseLabel}</strong></div>
-          <div><span>QNAME</span><strong>{DNS_QNAME}</strong></div>
-          <div><span>CACHE TTL</span><strong>{state.cacheTtlSeconds === null ? '—' : `${state.cacheTtlSeconds}s`}</strong></div>
-        </div>
+  const configContent = <div className="protocol-model-drawer dns-config-drawer">
+    <section><span>RESOLUTION PATH</span><strong>{mode === 'miss' ? 'WALK THE DELEGATION' : 'REUSE A FRESH ANSWER'}</strong><div className="dns-mode-toggle" role="group" aria-label="DNS cache scenario"><button type="button" className={mode === 'miss' ? 'active' : ''} onClick={() => chooseMode('miss')}>CACHE MISS</button><button type="button" className={mode === 'hit' ? 'active' : ''} onClick={() => chooseMode('hit')}>CACHE HIT</button></div></section>
+    <section><span>PATH COMPARISON</span><div className="dns-path-comparison"><div className={mode === 'miss' ? 'active' : ''}><span>MISS</span><strong>STUB → REC → ROOT → TLD → AUTH → REC → STUB</strong></div><div className={mode === 'hit' ? 'active' : ''}><span>HIT</span><strong>STUB → REC/CACHE → STUB</strong></div></div></section>
+    <section><span>MODEL BOUNDARY</span><p>The name, answer, referrals, and TTL are deterministic teaching data under the reserved .test namespace. No live resolver query changes this scene.</p></section>
+  </div>;
 
-        <div className="dns-map">
-          <div className="dns-link stub-recursive" aria-hidden="true" />
-          <div className="dns-link recursive-root" aria-hidden="true" />
-          <div className="dns-link recursive-tld" aria-hidden="true" />
-          <div className="dns-link recursive-auth" aria-hidden="true" />
-          <div className="dns-link recursive-cache" aria-hidden="true" />
+  const eventsContent = <section className="protocol-events-drawer dns-events-drawer"><div className="dns-inspector-heading"><span>{mode === 'miss' ? 'DELEGATION CHAIN' : 'CACHE-HIT CHAIN'}</span><strong>{String(activeIndex + 1).padStart(2, '0')} / {String(scenario.events.length).padStart(2, '0')}</strong></div><div className="dns-event-list">{scenario.events.map((event, index) => { const complete = event.atMs <= timeMs; const current = event.id === activeEvent.id; return <button key={event.id} type="button" className={`${complete ? 'complete' : ''}${current ? ' current' : ''}`} onClick={() => seek(event.atMs)}><span className="dns-event-index">{String(index + 1).padStart(2, '0')}</span><span className="dns-event-copy"><strong>{event.title}</strong><small>{formatTime(event.atMs)} · {event.from} → {event.to}</small></span></button>; })}</div><div className="dns-event-detail"><span>WHY THIS MATTERS</span><p>{activeEvent.detail}</p></div></section>;
 
-          {(['stub', 'recursive', 'root', 'tld', 'authoritative', 'cache'] as const).map((actor) => {
-            const idleUpstream = upstreamDimmed && (actor === 'root' || actor === 'tld' || actor === 'authoritative');
-            return (
-              <div
-                key={actor}
-                data-dns-actor={actor}
-                className={`dns-actor actor-${actor}${idleUpstream ? ' is-idle-upstream' : ''}${activeEvent.from === actor || activeEvent.to === actor ? ' is-current' : ''}`}
-              >
-                <span>{actorLabels[actor].label}</span>
-                <strong>{actorLabels[actor].sub}</strong>
-                {actor === 'cache' && (
-                  <small>{state.cacheState === 'empty' ? 'EMPTY' : `${DNS_ANSWER} · ${state.cacheTtlSeconds ?? 0}s`}</small>
-                )}
-              </div>
-            );
-          })}
+  const drawers: VisualDrawerDefinition[] = [
+    { id: 'inspect', label: 'Inspect', title: 'Current resolver state', eyebrow: `${state.phase.toUpperCase()} · ${formatTime(timeMs)}`, content: inspectContent },
+    { id: 'config', label: 'Configure', title: 'Choose the cache path', eyebrow: 'DETERMINISTIC COMPARISON', content: configContent },
+    { id: 'events', label: 'Events', title: 'Delegation event chain', eyebrow: `${scenario.events.length} ${mode.toUpperCase()} EVENTS`, content: eventsContent },
+  ];
 
-          <div className={`dns-message-token severity-${activeEvent.severity}`}>
-            <span>{activeEvent.kind.replace('.', ' ')}</span>
-            <strong>{messageLabel(activeEvent)}</strong>
-          </div>
-
-          <div className="dns-namespace-ladder" aria-label="DNS namespace delegation">
-            <span>NAMESPACE</span>
-            {namespace.map((label, index) => (
-              <motion.div
-                key={label}
-                className={`${index <= activeNamespaceIndex ? 'resolved' : ''}${index === activeNamespaceIndex ? ' current' : ''}`}
-                animate={reduceMotion ? undefined : { x: index === activeNamespaceIndex ? 5 : 0 }}
-              >
-                <i />
-                <strong>{label}</strong>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={`${mode}-${activeEvent.id}`}
-            className={`dns-event-callout severity-${activeEvent.severity}`}
-            initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -7 }}
-            transition={{ duration: 0.24 }}
-          >
-            <span>{formatTime(activeEvent.atMs)} · {activeEvent.kind.replace('.', ' ')}</span>
-            <strong>{activeEvent.title}</strong>
-            <p>{activeEvent.summary}</p>
-          </motion.div>
-        </AnimatePresence>
-
-        <div className="dns-cache-panel">
-          <div className="dns-subhead">
-            <div><span>RECURSIVE CACHE</span><strong>{state.cacheState.toUpperCase()}</strong></div>
-            <small>TTL is reusable lifetime, not permanence</small>
-          </div>
-          <div className={`dns-cache-record state-${state.cacheState}`}>
-            <span>A</span>
-            <strong>{state.cacheState === 'empty' ? DNS_QNAME : `${DNS_QNAME} → ${DNS_ANSWER}`}</strong>
-            <b>{state.cacheTtlSeconds === null ? 'NO ENTRY' : `${state.cacheTtlSeconds}s`}</b>
-          </div>
-          <div className="dns-path-comparison">
-            <div className={mode === 'miss' ? 'active' : ''}><span>MISS</span><strong>STUB → REC → ROOT → TLD → AUTH → REC → STUB</strong></div>
-            <div className={mode === 'hit' ? 'active' : ''}><span>HIT</span><strong>STUB → REC/CACHE → STUB</strong></div>
-          </div>
-        </div>
+  return <VisualWorkspaceShell
+    className="protocol-visual-workspace dns-visual-workspace"
+    entrance={{ eyebrow: 'LAB 03B · DNS THEATER', title: 'FOLLOW THE NAME.', accentTitle: 'DESCEND THE TREE.', subtitle: 'Watch recursion, iteration, delegation, and cache state become one spatial path.' }}
+    stageLabel="DNS delegation and cache theater"
+    activeDrawer={activeDrawer}
+    drawers={drawers}
+    onCloseDrawer={() => setActiveDrawer(null)}
+    toolbar={<><div className="visual-identity"><i/><span>DNS THEATER</span><strong>{DNS_QNAME} · CACHE {mode.toUpperCase()}</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'INSPECT' }, { id: 'config', label: 'CONFIG' }, { id: 'events', label: 'EVENTS', badge: String(scenario.events.length) }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button" onClick={onExit}>EXIT</button></div></>}
+    hud={<><div><span>PHASE</span><strong>{state.phaseLabel}</strong></div><div><span>QNAME</span><strong>{DNS_QNAME}</strong></div><div><span>CACHE TTL</span><strong>{state.cacheTtlSeconds === null ? '—' : `${state.cacheTtlSeconds}s`}</strong></div><div><span>PROVENANCE</span><strong>SIMULATED</strong></div></>}
+    timeline={<VisualTimeRail timeMs={timeMs} durationMs={scenario.durationMs} playing={playing} label="DNS TIME MACHINE" context={`CACHE ${mode.toUpperCase()} · ${state.cacheState.toUpperCase()}`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
+  >
+    <div ref={rootRef} className={`protocol-cinematic-stage dns-cinematic-stage mode-${mode}`}>
+      <div className="protocol-scene-kicker"><span>DNS / NAMESPACE</span><strong>{activeEvent.from.toUpperCase()} → {activeEvent.to.toUpperCase()}</strong></div>
+      <div className="dns-map dns-workspace-map">
+        <div className="dns-link stub-recursive" aria-hidden="true"/><div className="dns-link recursive-root" aria-hidden="true"/><div className="dns-link recursive-tld" aria-hidden="true"/><div className="dns-link recursive-auth" aria-hidden="true"/><div className="dns-link recursive-cache" aria-hidden="true"/>
+        {(['stub', 'recursive', 'root', 'tld', 'authoritative', 'cache'] as const).map((actor) => { const idleUpstream = upstreamDimmed && (actor === 'root' || actor === 'tld' || actor === 'authoritative'); return <div key={actor} data-dns-actor={actor} className={`dns-actor actor-${actor}${idleUpstream ? ' is-idle-upstream' : ''}${activeEvent.from === actor || activeEvent.to === actor ? ' is-current' : ''}`}><span>{actorLabels[actor].label}</span><strong>{actorLabels[actor].sub}</strong>{actor === 'cache' && <small>{state.cacheState === 'empty' ? 'EMPTY' : `${DNS_ANSWER} · ${state.cacheTtlSeconds ?? 0}s`}</small>}</div>; })}
+        <div className={`dns-message-token severity-${activeEvent.severity}`}><span>{activeEvent.kind.replace('.', ' ')}</span><strong>{messageLabel(activeEvent)}</strong></div>
+        <div className="dns-namespace-ladder" aria-label="DNS namespace delegation"><span>NAMESPACE</span>{namespace.map((label, index) => <motion.div key={label} className={`${index <= activeNamespaceIndex ? 'resolved' : ''}${index === activeNamespaceIndex ? ' current' : ''}`} animate={reduceMotion ? undefined : { x: index === activeNamespaceIndex ? 5 : 0 }}><i/><strong>{label}</strong></motion.div>)}</div>
+        <div className="dns-path-readout"><span>{mode === 'miss' ? 'MISS PATH' : 'HIT PATH'}</span><strong>{mode === 'miss' ? 'STUB → RECURSIVE → AUTHORITY' : 'STUB → RECURSIVE CACHE'}</strong></div>
+        <AnimatePresence mode="wait" initial={false}><motion.article key={`${mode}-${activeEvent.id}`} className={`protocol-scene-annotation dns-scene-annotation severity-${activeEvent.severity}`} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 9 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: reduceMotion ? 0 : 0.24 }}><i aria-hidden="true"/><div><span>{formatTime(activeEvent.atMs)} · {activeEvent.kind.replace('.', ' ')}</span><strong>{activeEvent.title}</strong><p>{activeEvent.summary}</p></div></motion.article></AnimatePresence>
       </div>
-
-      <aside className="dns-inspector" aria-label="DNS causal chain">
-        <div className="dns-inspector-heading">
-          <span>{mode === 'miss' ? 'DELEGATION CHAIN' : 'CACHE-HIT CHAIN'}</span>
-          <strong>{String(activeIndex + 1).padStart(2, '0')} / {String(scenario.events.length).padStart(2, '0')}</strong>
-        </div>
-        <div className="dns-event-list">
-          {scenario.events.map((event, index) => {
-            const complete = event.atMs <= timeMs;
-            const current = event.id === activeEvent.id;
-            return (
-              <button key={event.id} type="button" className={`${complete ? 'complete' : ''}${current ? ' current' : ''}`} onClick={() => seek(event.atMs)}>
-                <span className="dns-event-index">{String(index + 1).padStart(2, '0')}</span>
-                <span className="dns-event-copy"><strong>{event.title}</strong><small>{formatTime(event.atMs)} · {event.from} → {event.to}</small></span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="dns-event-detail">
-          <span>WHY THIS MATTERS</span>
-          <p>{activeEvent.detail}</p>
-        </div>
-        <div className="dns-recursion-note">
-          <span>RECURSION VS ITERATION</span>
-          <p>STUB → RECURSIVE requests recursion. The recursive resolver’s ROOT/TLD/AUTH queries are iterative in this scenario.</p>
-        </div>
-      </aside>
-
-      <footer className="time-machine dns-time-machine">
-        <div className="time-controls">
-          <button type="button" onClick={togglePlayback} aria-label={playing ? 'Pause DNS scenario' : 'Play DNS scenario'}>{playing ? 'Ⅱ' : '▶'}</button>
-          <button type="button" onClick={() => seek(0)} aria-label="Reset DNS scenario">↺</button>
-        </div>
-        <div className="time-readout"><span>DNS TIME MACHINE</span><strong>{formatTime(timeMs)}</strong></div>
-        <div className="scrubber-wrap">
-          <div className="timeline-markers" aria-hidden="true">
-            {scenario.events.map((event) => <i key={event.id} className={event.atMs <= timeMs ? 'passed' : ''} style={{ left: `${(event.atMs / scenario.durationMs) * 100}%` }} />)}
-          </div>
-          <input type="range" min="0" max={scenario.durationMs} step="10" value={Math.round(timeMs)} onChange={(event) => seek(Number(event.currentTarget.value))} aria-label="DNS scenario time" />
-        </div>
-        <span className="time-duration">{formatTime(scenario.durationMs)}</span>
-      </footer>
-    </motion.section>
-  );
+    </div>
+  </VisualWorkspaceShell>;
 }

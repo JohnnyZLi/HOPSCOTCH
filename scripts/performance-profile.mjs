@@ -286,6 +286,10 @@ profiles.push(
 );
 
 if (compatibility) profiles.push(
+{ id: 'protocol-tcp-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/tcp', query: '', readySelector: '.tcp-visual-workspace', protocolWorkspace: true, expected: ['TCP THEATER', 'CLIENT SEQUENCE SPACE', 'CONGESTION WINDOW', 'PROVENANCE'] },
+{ id: 'protocol-dns-mobile', width: 390, height: 844, reducedMotion: false, path: '/labs/dns', query: '', readySelector: '.dns-visual-workspace', protocolWorkspace: true, expected: ['DNS THEATER', 'www.example.test', 'NAMESPACE', 'PROVENANCE'] },
+{ id: 'protocol-tls-reduced-motion', width: 1280, height: 900, reducedMotion: true, path: '/labs/tls', query: '', readySelector: '.tls-visual-workspace', protocolWorkspace: true, expected: ['TLS 1.3 THEATER', 'SYMBOLIC KEY SCHEDULE', 'WIRE VISIBILITY', 'PROVENANCE'] },
+{ id: 'protocol-http-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/http2-vs-http3', query: '', readySelector: '.http-visual-workspace', protocolWorkspace: true, expected: ['HTTP A/B THEATER', 'HTTP/2', 'HTTP/3', 'SAME LOSS', 'PROVENANCE'] },
 { id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'DERIVED FDB', 'ARP CACHE', 'STP', 'ROUTED POLICY'] },
 { id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'ARP CACHE', 'STP', 'ROUTED POLICY'] },
 { id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', 'NOT PROMOTED TO LOCAL MEASURED'] },
@@ -987,7 +991,7 @@ async function loadProfile(cdp, origin, profile) {
     features: [{ name: 'prefers-reduced-motion', value: profile.reducedMotion ? 'reduce' : 'no-preference' }],
   });
   const startedAt = performance.now();
-  await cdp.call('Page.navigate', { url: `${origin}/${profile.query}` });
+  await cdp.call('Page.navigate', { url: `${origin}${profile.path ?? '/'}${profile.query}` });
   await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(profile.readySelector ?? '.journey-visual-workspace')}))`);
   await sleep(550);
   const builderOspfInteraction = profile.builderOspf ? await exerciseBuilderOspf(cdp, profile) : null;
@@ -1025,6 +1029,20 @@ async function loadProfile(cdp, origin, profile) {
         categoryButtons: document.querySelectorAll('.measured-categories button').length,
         visibleFacts: document.querySelectorAll('.measured-fact').length,
       },
+      protocol: (()=>{
+        const stage=document.querySelector('.protocol-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
+        const scene=document.querySelector('.protocol-cinematic-stage')?.getBoundingClientRect();
+        return {
+          active:Boolean(stage&&scene),
+          stageWidth:stage?.width??0,
+          stageHeight:stage?.height??0,
+          sceneWidth:scene?.width??0,
+          sceneHeight:scene?.height??0,
+          drawerTabs:document.querySelectorAll('.protocol-visual-workspace .visual-drawer-tabs button').length,
+          timeRail:Boolean(document.querySelector('.protocol-visual-workspace .visual-time-rail')),
+          permanentInspectors:document.querySelectorAll('.tcp-inspector,.dns-inspector,.tls-inspector,.http-inspector').length,
+        };
+      })(),
       stress: {
         profile: document.querySelector('[data-stress-profile]')?.getAttribute('data-stress-profile') ?? null,
         asNodes: Number(document.querySelector('.internet-scale')?.getAttribute('data-node-count') ?? 0),
@@ -1055,6 +1073,14 @@ async function loadProfile(cdp, origin, profile) {
     if (structural.measured.loaded !== 'true') throw new Error(`${profile.id} mobile measured workspace did not remain loaded.`);
     if (structural.measured.categoryButtons !== 7) throw new Error(`${profile.id} mobile measured category count ${structural.measured.categoryButtons}; expected 7.`);
     if (structural.measured.visibleFacts <= 0) throw new Error(`${profile.id} mobile measured workspace rendered no facts.`);
+  }
+
+  if (profile.protocolWorkspace) {
+    if (!structural.protocol.active) throw new Error(`${profile.id} did not render a protocol scene inside the shared visual workspace.`);
+    if (structural.protocol.sceneWidth < structural.protocol.stageWidth * 0.98 || structural.protocol.sceneHeight < structural.protocol.stageHeight * 0.98) throw new Error(`${profile.id} scene does not occupy the visual stage: ${JSON.stringify(structural.protocol)}.`);
+    if (structural.protocol.drawerTabs < 3) throw new Error(`${profile.id} exposed only ${structural.protocol.drawerTabs} on-demand workspace tools.`);
+    if (!structural.protocol.timeRail) throw new Error(`${profile.id} did not render the shared Time Rail.`);
+    if (structural.protocol.permanentInspectors !== 0) throw new Error(`${profile.id} retained ${structural.protocol.permanentInspectors} permanent legacy inspector(s).`);
   }
 
   if (profile.assertMobileGrid) {
@@ -1091,6 +1117,7 @@ async function loadProfile(cdp, origin, profile) {
     drawerArchitecture: structural.drawerArchitecture,
     stress: structural.stress,
     measured: measuredInteraction,
+    protocol: structural.protocol,
     builderOspf: builderOspfInteraction,
     heapUsedBytes: heap.usedSize,
     diagnostic: {

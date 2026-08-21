@@ -1,0 +1,258 @@
+/* Phase 2 scene-first overrides for TLS and HTTP comparison theaters. */
+
+.tls-visual-workspace .visual-workspace__stage {
+  background:
+    radial-gradient(circle at 50% 43%, rgba(187, 140, 255, .16), transparent 37%),
+    radial-gradient(circle at 26% 78%, rgba(122, 156, 255, .06), transparent 28%),
+    linear-gradient(180deg, rgba(7, 8, 15, .86), rgba(3, 5, 10, .98));
+}
+
+.tls-visual-workspace .visual-identity > i { background: #bb8cff; box-shadow: 0 0 12px rgba(187, 140, 255, .68); }
+.tls-visual-workspace .visual-time-rail__track input { accent-color: #bb8cff; }
+.tls-visual-workspace .visual-time-rail__events button.passed { background: #bb8cff; }
+
+.tls-cinematic-stage::before {
+  content: "";
+  position: absolute;
+  inset: 86px 6% 13%;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(187, 140, 255, .1), transparent 64%);
+  filter: blur(10px);
+}
+
+.tls-workspace-stage {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-color: rgba(187, 140, 255, .11);
+  background: rgba(3, 6, 12, .24);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .025), 0 28px 80px rgba(0, 0, 0, .22);
+}
+
+.tls-workspace-stage .tls-wire-stage {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-height: 0;
+  border-right: 0;
+}
+
+.tls-workspace-stage .tls-endpoint {
+  width: 190px;
+  padding: 17px 16px;
+  background: rgba(4, 7, 13, .87);
+  box-shadow: 0 22px 68px rgba(0, 0, 0, .34), 0 0 44px rgba(187, 140, 255, .035);
+}
+
+.tls-workspace-stage .tls-endpoint.endpoint-client { left: 28px; }
+.tls-workspace-stage .tls-endpoint.endpoint-server { right: 28px; }
+.tls-workspace-stage .tls-wire { right: 218px; left: 218px; }
+.tls-workspace-stage .tls-encryption-boundary { top: 18px; width: 270px; }
+.tls-workspace-stage .tls-key-schedule { grid-column: 1; grid-row: 2; background: rgba(4, 7, 13, .73); backdrop-filter: blur(12px); }
+.tls-workspace-stage .tls-transcript-panel { grid-column: 2; grid-row: 2; background: rgba(4, 7, 13, .78); backdrop-filter: blur(12px); }
+
+.tls-cipher-field {
+  position: absolute;
+  z-index: 0;
+  inset: 12% 18%;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 280ms ease;
+}
+
+.is-encrypted .tls-cipher-field { opacity: .23; }
+.tls-cipher-field span { position: absolute; color: #bb8cff; font: 700 .54rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .22em; text-shadow: 0 0 16px rgba(187, 140, 255, .4); }
+.tls-cipher-field span:nth-child(1) { top: 18%; left: 22%; }
+.tls-cipher-field span:nth-child(2) { top: 31%; right: 20%; }
+.tls-cipher-field span:nth-child(3) { bottom: 27%; left: 33%; }
+.tls-cipher-field span:nth-child(4) { right: 34%; bottom: 14%; }
+
+.tls-scene-annotation { right: 24px; bottom: 20px; }
+.tls-scene-annotation.protection-handshake > i,
+.tls-scene-annotation.protection-application > i { border-color: #bb8cff; box-shadow: 0 0 16px rgba(187, 140, 255, .7); }
+.tls-scene-annotation.protection-handshake > i::after,
+.tls-scene-annotation.protection-application > i::after { background: rgba(187, 140, 255, .46); }
+.tls-scene-annotation.protection-handshake > div,
+.tls-scene-annotation.protection-application > div { border-color: rgba(187, 140, 255, .17); }
+
+.tls-protocol-drawer .tls-field-chips { margin-top: 2px; }
+.tls-protocol-drawer .tls-field-chips > span { grid-template-columns: 112px minmax(0, 1fr); }
+
+.http-visual-workspace .visual-workspace__stage {
+  background:
+    radial-gradient(circle at 25% 48%, rgba(122, 156, 255, .14), transparent 32%),
+    radial-gradient(circle at 75% 48%, rgba(121, 242, 218, .12), transparent 32%),
+    linear-gradient(180deg, rgba(5, 10, 14, .86), rgba(3, 6, 9, .98));
+}
+
+.http-visual-workspace .visual-identity > i { background: linear-gradient(135deg, var(--blue) 0 50%, var(--cyan) 50% 100%); }
+.http-cinematic-stage { padding-inline: 14px; }
+
+.http-workspace-stage {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, .09);
+  background: rgba(3, 7, 11, .2);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .025), 0 28px 80px rgba(0, 0, 0, .2);
+}
+
+.http-workspace-stage .http-lanes {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  gap: 14px;
+  padding: 14px;
+}
+
+.http-workspace-stage .http-lane {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 20px;
+  min-height: 0;
+  padding: 22px;
+  border-color: rgba(255, 255, 255, .09);
+  background: rgba(3, 7, 11, .58);
+}
+
+.http-workspace-stage .lane-h2 { background: linear-gradient(145deg, rgba(122, 156, 255, .055), rgba(3, 7, 11, .66) 42%); }
+.http-workspace-stage .lane-h3 { background: linear-gradient(215deg, rgba(121, 242, 218, .05), rgba(3, 7, 11, .66) 42%); }
+.http-workspace-stage .http-lane > header span { font-size: .72rem; }
+.http-workspace-stage .http-lane > header strong { font-size: .94rem; }
+.http-workspace-stage .http-transport-rail { min-height: 52px; padding: 11px 12px; }
+.http-workspace-stage .http-streams { align-content: center; gap: 16px; }
+.http-workspace-stage .http-stream-row { min-height: 72px; padding: 14px; }
+.http-workspace-stage .http-progress-track { height: 9px; }
+.http-workspace-stage .http-progress-value { font-size: .7rem; }
+
+.http-divergence-axis {
+  position: absolute;
+  z-index: 5;
+  top: 30px;
+  bottom: 30px;
+  left: 50%;
+  width: 1px;
+  pointer-events: none;
+  background: linear-gradient(transparent, rgba(255, 255, 255, .15) 18%, rgba(255, 94, 112, .4) 50%, rgba(255, 255, 255, .15) 82%, transparent);
+}
+
+.http-divergence-axis span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 94, 112, .2);
+  border-radius: 3px;
+  color: #a66b73;
+  background: rgba(7, 8, 12, .92);
+  font-size: .42rem;
+  font-weight: 900;
+  letter-spacing: .11em;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  white-space: nowrap;
+}
+
+.http-scene-annotation {
+  bottom: 22px;
+  left: 24px;
+  width: min(480px, 41vw);
+}
+
+.http-scene-annotation.focus-h3 { right: 24px; left: auto; }
+.http-scene-annotation > div { background: rgba(3, 8, 11, .82); }
+.http-scene-annotation .http-event-compare { gap: 4px; margin-top: 4px; }
+.http-scene-annotation .http-event-compare > div { grid-template-columns: 27px minmax(0, 1fr); padding: 5px 6px; font-size: .46rem; }
+.http-scene-annotation .http-event-compare b { font-size: .43rem; }
+
+.http-drawer-lanes { display: grid; gap: 6px; }
+.http-drawer-lanes > div { display: grid; gap: 5px; padding: 10px; border: 1px solid rgba(255, 255, 255, .06); border-radius: 4px; }
+.http-drawer-lanes b { color: #68777e; font-size: .44rem; letter-spacing: .09em; }
+.http-drawer-lanes strong { color: #c3ced2; font-size: .66rem; }
+.http-drawer-lanes small { color: #65737a; font-size: .51rem; line-height: 1.4; }
+.http-drawer-lanes > div:first-child { border-left-color: rgba(122, 156, 255, .35); }
+.http-drawer-lanes > div:last-child { border-left-color: rgba(121, 242, 218, .35); }
+
+@media (max-width: 1100px) {
+  .tls-workspace-stage { grid-template-columns: minmax(0, 1fr) 285px; }
+  .tls-workspace-stage .tls-endpoint { width: 158px; }
+  .tls-workspace-stage .tls-endpoint.endpoint-client { left: 18px; }
+  .tls-workspace-stage .tls-endpoint.endpoint-server { right: 18px; }
+  .tls-workspace-stage .tls-wire { right: 184px; left: 184px; }
+  .http-workspace-stage .http-lane { gap: 14px; padding: 16px; }
+  .http-workspace-stage .http-stream-row { grid-template-columns: 105px minmax(0, 1fr) 38px; }
+  .http-scene-annotation { width: min(420px, 46vw); }
+}
+
+@media (max-width: 680px) {
+  .tls-workspace-stage {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(245px, 1fr) auto auto;
+  }
+
+  .tls-workspace-stage .tls-wire-stage { grid-column: 1; grid-row: 1; }
+  .tls-workspace-stage .tls-key-schedule { grid-column: 1; grid-row: 2; padding: 10px; }
+  .tls-workspace-stage .tls-transcript-panel { grid-column: 1; grid-row: 3; padding: 9px 10px; border-left: 0; }
+  .tls-workspace-stage .tls-endpoint { width: 102px; padding: 10px 8px; }
+  .tls-workspace-stage .tls-endpoint.endpoint-client { left: 8px; }
+  .tls-workspace-stage .tls-endpoint.endpoint-server { right: 8px; }
+  .tls-workspace-stage .tls-wire { right: 113px; left: 113px; }
+  .tls-workspace-stage .tls-encryption-boundary { top: 9px; width: 178px; padding: 7px; }
+  .tls-workspace-stage .tls-encryption-boundary small { display: none; }
+  .tls-workspace-stage .tls-message-token { top: calc(50% - 55px); min-width: 86px; max-width: 112px; padding: 6px 7px; }
+  .tls-key-chain { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .tls-key-stage { padding: 7px 5px; }
+  .tls-key-stage small { display: none; }
+  .tls-key-stage strong { font-size: .46rem; }
+  .tls-subhead { margin-bottom: 7px; }
+  .tls-subhead small { display: none; }
+  .tls-transcript-item { padding: 4px 5px; font-size: .4rem; }
+  .tls-scene-annotation { right: 8px; bottom: 8px; width: min(220px, 62vw); }
+  .tls-scene-annotation p { display: none; }
+
+  .http-cinematic-stage { padding-inline: 8px; }
+  .http-workspace-stage .http-lanes { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; gap: 7px; padding: 7px; }
+  .http-workspace-stage .http-lane { gap: 7px; padding: 9px; }
+  .http-workspace-stage .http-lane > header span { font-size: .51rem; }
+  .http-workspace-stage .http-lane > header strong { font-size: .63rem; }
+  .http-workspace-stage .http-lane > header small { max-width: 120px; font-size: .38rem; }
+  .http-workspace-stage .http-transport-rail { min-height: 0; grid-template-columns: 88px minmax(50px, 1fr); padding: 6px 7px; }
+  .http-workspace-stage .http-transport-rail > small { display: none; }
+  .http-workspace-stage .http-streams { grid-template-columns: 1fr 1fr; gap: 5px; }
+  .http-workspace-stage .http-stream-row { grid-template-columns: 72px minmax(0, 1fr) 28px; min-height: 48px; padding: 6px; }
+  .http-workspace-stage .http-stream-label > strong { font-size: .5rem; }
+  .http-workspace-stage .http-stream-label > span,
+  .http-workspace-stage .http-stream-label > small { font-size: .37rem; }
+  .http-workspace-stage .http-progress-value { font-size: .46rem; }
+  .http-workspace-stage .http-lane > footer { padding-top: 4px; }
+  .http-divergence-axis {
+    top: 50%;
+    right: 18px;
+    bottom: auto;
+    left: 18px;
+    width: auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .15) 18%, rgba(255, 94, 112, .4) 50%, rgba(255, 255, 255, .15) 82%, transparent);
+  }
+  .http-divergence-axis span { transform: translate(-50%, -50%); }
+  .http-scene-annotation,
+  .http-scene-annotation.focus-h3 { top: 7px; right: 7px; bottom: auto; left: auto; width: min(224px, 62vw); }
+  .http-scene-annotation p,
+  .http-scene-annotation .http-event-compare { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tls-cipher-field { transition: none; }
+}

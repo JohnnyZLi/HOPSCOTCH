@@ -8,6 +8,7 @@ import './tcp.css';
 import './dns.css';
 import './tls.css';
 import './http-comparison.css';
+import './protocol-workspaces.css';
 
 type StressProfile = 'as-density' | 'builder-density' | 'physical-density';
 
