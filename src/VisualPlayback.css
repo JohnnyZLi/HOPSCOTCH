@@ -1,0 +1,38 @@
+.visual-time-rail__speed {
+  width: 58px;
+  height: 34px;
+  padding: 0 7px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #91a1a8;
+  background: rgba(255, 255, 255, 0.025);
+  cursor: pointer;
+  font: 800 0.5rem ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: center;
+}
+
+.visual-time-rail__speed:hover,
+.visual-time-rail__speed:focus-visible {
+  border-color: rgba(121, 242, 218, 0.32);
+  color: #c3eee6;
+  outline: none;
+}
+
+.visual-time-rail__speed option {
+  color: #d8e2e5;
+  background: #071014;
+}
+
+@media (max-width: 680px) {
+  .visual-time-rail__controls {
+    flex-wrap: wrap;
+    width: 73px;
+  }
+
+  .visual-time-rail__speed {
+    width: 73px;
+    height: 26px;
+    padding-inline: 5px;
+    font-size: 0.46rem;
+  }
+}
