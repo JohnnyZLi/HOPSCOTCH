@@ -45,12 +45,16 @@ export interface VisualPresentationSegment {
   tone: NonNullable<VisualTimelineEvent['tone']>;
 }
 
+// 1× is the human-readable presentation baseline. Scaling every presentation
+// segment by two makes the new 1× exactly match the previous 0.5× pace while
+// leaving canonical model time, displayed timestamps, and exact scrubbing intact.
+const PRESENTATION_READABILITY_SCALE = 2;
 const PRESENTATION_DWELL_MS: Record<NonNullable<VisualTimelineEvent['tone']>, number> = {
-  neutral: 1400,
-  evidence: 1600,
-  success: 1700,
-  warning: 2100,
-  danger: 2800,
+  neutral: 1400 * PRESENTATION_READABILITY_SCALE,
+  evidence: 1600 * PRESENTATION_READABILITY_SCALE,
+  success: 1700 * PRESENTATION_READABILITY_SCALE,
+  warning: 2100 * PRESENTATION_READABILITY_SCALE,
+  danger: 2800 * PRESENTATION_READABILITY_SCALE,
 };
 
 const TONE_PRIORITY: Record<NonNullable<VisualTimelineEvent['tone']>, number> = {
@@ -61,7 +65,7 @@ const TONE_PRIORITY: Record<NonNullable<VisualTimelineEvent['tone']>, number> = 
   danger: 4,
 };
 
-const PRESENTATION_BASE_SLOWDOWN = 1.35;
+const PRESENTATION_BASE_SLOWDOWN = 1.35 * PRESENTATION_READABILITY_SCALE;
 
 function strongerTone(
   left: NonNullable<VisualTimelineEvent['tone']>,
@@ -453,17 +457,37 @@ export function VisualTimeRail({
   return (
     <footer className="visual-time-rail">
       <div className="visual-time-rail__controls">
-        <button type="button" onClick={onToggle} aria-label={playing ? 'Pause scenario' : 'Play scenario'}>{playing ? 'Ⅱ' : '▶'}</button>
-        <button type="button" onClick={onReset} aria-label="Reset scenario">↺</button>
-        {onPlaybackSpeedChange && <select
-          className="visual-time-rail__speed"
-          value={playbackSpeed}
-          onChange={(event) => onPlaybackSpeedChange(Number(event.currentTarget.value) as VisualPlaybackSpeed)}
-          aria-label="Playback speed"
-          title="Presentation playback speed"
-        >
-          {VISUAL_PLAYBACK_SPEEDS.map((speed) => <option key={speed} value={speed}>{speed}×</option>)}
-        </select>}
+        <div className="visual-time-rail__transport" role="group" aria-label="Timeline transport">
+          <button type="button" onClick={onToggle} aria-label={playing ? 'Pause scenario' : 'Play scenario'}>{playing ? 'Ⅱ' : '▶'}</button>
+          <button type="button" onClick={onReset} aria-label="Reset scenario">↺</button>
+        </div>
+        {onPlaybackSpeedChange && <div className="visual-time-rail__speed-group" role="group" aria-label="Playback speed">
+          <span>RATE</span>
+          <div className="visual-time-rail__speed-options">
+            {VISUAL_PLAYBACK_SPEEDS.map((speed) => (
+              <button
+                key={speed}
+                type="button"
+                data-playback-speed={speed}
+                className={playbackSpeed === speed ? 'active' : ''}
+                aria-pressed={playbackSpeed === speed}
+                onClick={() => onPlaybackSpeedChange(speed)}
+                title={`${speed}× presentation speed`}
+              >
+                {speed}×
+              </button>
+            ))}
+          </div>
+          <select
+            className="visual-time-rail__speed"
+            value={playbackSpeed}
+            onChange={(event) => onPlaybackSpeedChange(Number(event.currentTarget.value) as VisualPlaybackSpeed)}
+            aria-hidden="true"
+            tabIndex={-1}
+          >
+            {VISUAL_PLAYBACK_SPEEDS.map((speed) => <option key={speed} value={speed}>{speed}×</option>)}
+          </select>
+        </div>}
       </div>
       <div className="visual-time-rail__readout">
         <span>{label}</span>
