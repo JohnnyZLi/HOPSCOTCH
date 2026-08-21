@@ -5,40 +5,25 @@
 .layer-card-copy {
   padding: 22px 24px 20px;
   background: linear-gradient(90deg, rgba(5, 8, 12, 0.9), rgba(5, 8, 12, 0.62) 78%, rgba(5, 8, 12, 0.08));
-  animation: scale-card-copy-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .layer-card p {
   max-width: none;
   font-size: 0.8rem;
   line-height: 1.55;
-  animation: scale-card-description-in 120ms 20ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation: scale-card-description-in 120ms 20ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .card-rule {
   width: 100%;
   margin: 18px 0 15px;
   transform-origin: left center;
-  animation: scale-card-rule-in 120ms 55ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation: scale-card-rule-in 120ms 55ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .layer-card small {
   display: block;
-  animation: scale-card-status-in 130ms 105ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
-}
-
-@keyframes scale-card-copy-in {
-  from {
-    opacity: 0;
-    transform: translate3d(7px, 3px, 0);
-    filter: blur(4px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-    filter: blur(0);
-  }
+  animation: scale-card-status-in 130ms 105ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes scale-card-description-in {
@@ -86,7 +71,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .layer-card-copy,
   .layer-card p,
   .card-rule,
   .layer-card small {
