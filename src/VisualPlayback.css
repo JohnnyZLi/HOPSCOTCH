@@ -23,6 +23,30 @@
   background: #071014;
 }
 
+/* HTTP's comparison lanes are the semantic surface. Keep the active-event explanation
+   in its own band instead of painting a card over either lane. */
+.http-workspace-stage .http-lanes {
+  padding-top: 94px;
+}
+
+.http-scene-annotation,
+.http-scene-annotation.focus-h3 {
+  top: 16px;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  width: min(620px, calc(100% - 56px));
+  transform: translateX(-50%);
+}
+
+.http-scene-annotation > i {
+  display: none;
+}
+
+.http-scene-annotation > div {
+  width: 100%;
+}
+
 @media (max-width: 680px) {
   .visual-time-rail__controls {
     flex-wrap: wrap;
@@ -34,5 +58,27 @@
     height: 26px;
     padding-inline: 5px;
     font-size: 0.46rem;
+  }
+
+  .http-workspace-stage .http-lanes {
+    padding-top: 70px;
+  }
+
+  .http-scene-annotation,
+  .http-scene-annotation.focus-h3 {
+    top: 7px;
+    right: 7px;
+    left: 7px;
+    width: auto;
+    transform: none;
+  }
+
+  .http-scene-annotation > div {
+    gap: 2px;
+    padding: 7px 9px;
+  }
+
+  .http-scene-annotation strong {
+    font-size: 0.61rem;
   }
 }
