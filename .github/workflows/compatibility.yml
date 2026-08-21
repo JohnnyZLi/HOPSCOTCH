@@ -147,3 +147,25 @@ jobs:
           path: artifacts/timeline-visual-review
           if-no-files-found: error
           retention-days: 7
+
+  scale-inspector-visual-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Measure and capture overview scale detail card
+        run: node scripts/scale-inspector-visual-review.mjs
+      - name: Upload scale inspector visual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-scale-inspector-visual-review
+          path: artifacts/scale-inspector-visual-review
+          if-no-files-found: error
+          retention-days: 7
