@@ -5,6 +5,7 @@ import {
   VisualDrawerTabs,
   VisualTimeRail,
   VisualWorkspaceShell,
+  useVisualPresentationPlayback,
   type VisualDrawerDefinition,
   type VisualDrawerId,
   type VisualTimelineEvent,
@@ -60,24 +61,15 @@ export function TlsTheater({
   const state = useMemo(() => tlsStateAt(timeMs), [timeMs]);
   const activeEvent = useMemo(() => tlsLatestEventAtOrBefore(timeMs), [timeMs]);
   const activeIndex = tlsEvents.indexOf(activeEvent);
-
-  useEffect(() => {
-    if (!playing) return;
-    const startedAt = performance.now();
-    const startedFrom = timeMs;
-    let frameId = 0;
-    const tick = (now: number) => {
-      const next = Math.min(tlsDurationMs, startedFrom + (now - startedAt));
-      setTimeMs(next);
-      if (next >= tlsDurationMs) {
-        setPlaying(false);
-        return;
-      }
-      frameId = requestAnimationFrame(tick);
-    };
-    frameId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frameId);
-  }, [playing]);
+  const timelineEvents: VisualTimelineEvent[] = tlsEvents.map((event) => ({ id: event.id, atMs: event.atMs, label: event.title, tone: eventTone(event.protection) }));
+  const { playbackSpeed, setPlaybackSpeed } = useVisualPresentationPlayback({
+    playing,
+    timeMs,
+    durationMs: tlsDurationMs,
+    events: timelineEvents,
+    onTimeChange: setTimeMs,
+    onComplete: () => setPlaying(false),
+  });
 
   useEffect(() => {
     const root = rootRef.current;
@@ -127,7 +119,6 @@ export function TlsTheater({
   const protectionLabel = wireProtection === 'cleartext' ? 'VISIBLE HANDSHAKE' : wireProtection === 'handshake' ? 'HANDSHAKE KEYS' : 'APPLICATION KEYS';
   const boundaryTitle = activeEvent.direction === 'local' ? 'LOCAL STATE TRANSITION' : wireEncrypted ? 'ENCRYPTED TLS RECORD' : activeEvent.message;
   const boundaryNote = activeEvent.direction === 'local' ? `No wire message · protection remains ${wireProtection}` : wireEncrypted ? 'Semantic label supplied by the curated trace' : 'Negotiation remains visible at this point';
-  const timelineEvents: VisualTimelineEvent[] = tlsEvents.map((event) => ({ id: event.id, atMs: event.atMs, label: event.title, tone: eventTone(event.protection) }));
   const timelineMilestones: VisualTimelineMilestone[] = [
     { id: 'offer', atMs: 0, label: 'OFFER' },
     { id: 'keys', atMs: 680, label: 'KEYS' },
@@ -165,7 +156,7 @@ export function TlsTheater({
     onCloseDrawer={() => setActiveDrawer(null)}
     toolbar={<><div className="visual-identity"><i/><span>TLS 1.3 THEATER</span><strong>{TLS_HOST} · {protectionLabel}</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'INSPECT' }, { id: 'events', label: 'EVENTS', badge: String(tlsEvents.length) }, { id: 'tools', label: 'MODEL' }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button" onClick={onExit}>EXIT</button></div></>}
     hud={<><div><span>PHASE</span><strong>{state.phaseLabel}</strong></div><div><span>WIRE</span><strong>{protectionLabel}</strong></div><div><span>ALPN</span><strong>{state.negotiatedAlpn ?? 'OFFERING h2'}</strong></div><div><span>PROVENANCE</span><strong>SIMULATED</strong></div></>}
-    timeline={<VisualTimeRail timeMs={timeMs} durationMs={tlsDurationMs} playing={playing} label="TLS TIME MACHINE" context={`${state.transcript.length} transcript messages · ${state.activeKeys.length} key stages`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
+    timeline={<VisualTimeRail timeMs={timeMs} durationMs={tlsDurationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="TLS TIME MACHINE" context={`${state.transcript.length} transcript messages · ${state.activeKeys.length} key stages`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
   >
     <div ref={rootRef} className={`protocol-cinematic-stage tls-cinematic-stage protection-${wireProtection}`}>
       <div className="protocol-scene-kicker"><span>TLS 1.3 / RECORD LAYER</span><strong>{activeEvent.direction === 'local' ? 'LOCAL DERIVATION' : activeEvent.direction.replaceAll('-', ' ').toUpperCase()}</strong></div>

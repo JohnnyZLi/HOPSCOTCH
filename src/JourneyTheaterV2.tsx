@@ -11,6 +11,7 @@ import {
   VisualDrawerTabs,
   VisualTimeRail,
   VisualWorkspaceShell,
+  useVisualPresentationPlayback,
   type VisualDrawerDefinition,
   type VisualDrawerId,
   type VisualTimelineEvent,
@@ -303,26 +304,30 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, measu
   const state = useMemo(() => journeyStateAt(scenario, timeMs), [scenario, timeMs]);
   const mode = sceneMode(state);
   const selectedModifiers = scenario.modifierIds;
+  const timelineEvents: VisualTimelineEvent[] = scenario.events.map((current) => ({
+    id: current.id,
+    atMs: current.atMs,
+    label: current.title,
+    tone: isRouteFailureEvent(current.kind) || isPartitionEvent(current.kind) || isDnsFailureEvent(current.kind) || isServerFailureEvent(current.kind)
+      ? 'danger'
+      : isLossEvent(current.kind) || isLatencyEvent(current.kind) || isCongestionEvent(current.kind) || isPolicyLeakEvent(current.kind)
+        ? 'warning'
+        : current.provenance === 'SIMULATED'
+          ? 'neutral'
+          : 'evidence',
+  }));
+  const { playbackSpeed, setPlaybackSpeed } = useVisualPresentationPlayback({
+    playing,
+    timeMs,
+    durationMs: scenario.durationMs,
+    events: timelineEvents,
+    onTimeChange,
+    onComplete: () => setPlaying(false),
+  });
 
   useEffect(() => {
     writeJourneyBrowserConfig({ transportProfile: profile, dnsProfile, impairmentProfile, modifierIds: selectedModifiers });
   }, [profile, dnsProfile, impairmentProfile, selectedModifiers.join('|')]);
-
-  useEffect(() => {
-    if (!playing) return;
-    const startedAt = performance.now();
-    const startedFrom = timeMs >= scenario.durationMs ? 0 : timeMs;
-    if (timeMs >= scenario.durationMs) onTimeChange(0);
-    let frame = 0;
-    const tick = (now: number) => {
-      const next = Math.min(scenario.durationMs, startedFrom + now - startedAt);
-      onTimeChange(next);
-      if (next >= scenario.durationMs) { setPlaying(false); return; }
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [playing, scenario.id, scenario.durationMs]);
 
   useEffect(() => {
     const rail = eventRailRef.current;
@@ -405,18 +410,6 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, measu
   const routeLeakSelected = selectedModifiers.includes('route-leak');
   const partitionSelected = selectedModifiers.includes('partition');
   const measuredScene = state.scale === 'routing' ? 'routing' : state.scale === 'transport' ? 'transport' : state.scale === 'application' && state.protocol === 'DNS' ? 'dns' : null;
-  const timelineEvents: VisualTimelineEvent[] = scenario.events.map((current) => ({
-    id: current.id,
-    atMs: current.atMs,
-    label: current.title,
-    tone: isRouteFailureEvent(current.kind) || isPartitionEvent(current.kind) || isDnsFailureEvent(current.kind) || isServerFailureEvent(current.kind)
-      ? 'danger'
-      : isLossEvent(current.kind) || isLatencyEvent(current.kind) || isCongestionEvent(current.kind) || isPolicyLeakEvent(current.kind)
-        ? 'warning'
-        : current.provenance === 'SIMULATED'
-          ? 'neutral'
-          : 'evidence',
-  }));
   const firstEventAt = (predicate: (current: typeof scenario.events[number]) => boolean, fallback: number) => scenario.events.find(predicate)?.atMs ?? fallback;
   const timelineMilestones: VisualTimelineMilestone[] = [
     { id: 'dns', atMs: firstEventAt((current) => current.protocol === 'DNS', 420), label: 'DNS' },
@@ -462,7 +455,7 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, measu
     onCloseDrawer={()=>setActiveDrawer(null)}
     toolbar={<><div className="visual-identity"><i/><span>URL JOURNEY</span><strong>{hostname} · {profileLabel} · {dnsLabel}</strong></div><div className="journey-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{id:'inspect',label:'INSPECT'},{id:'config',label:'CONFIG'},{id:'events',label:'EVENTS',badge:String(scenario.events.length)},{id:'evidence',label:'EVIDENCE',badge:evidence?'ON':undefined}]} onSelect={openDrawer}/><button type="button" className="visual-tool-button" onClick={onExit}>EXIT</button></div></>}
     hud={<><div><span>SCALE</span><strong>{state.scale.toUpperCase()}</strong></div><div><span>PROTOCOL</span><strong>{state.protocol}</strong></div><div><span>ACTIVE STATE</span><strong className={toneClass}>{state.impairmentState.toUpperCase()}</strong></div><div><span>PROVENANCE</span><strong className={provenanceClass(state.provenance)}>{state.provenance}</strong></div></>}
-    timeline={<VisualTimeRail timeMs={timeMs} durationMs={scenario.durationMs} playing={playing} label="GLOBAL TIME MACHINE" context={`${profileLabel} · ${dnsLabel} · ${godModeLabel}`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={()=>seek(0)} onSeek={seek}/>}
+    timeline={<VisualTimeRail timeMs={timeMs} durationMs={scenario.durationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="GLOBAL TIME MACHINE" context={`${profileLabel} · ${dnsLabel} · ${godModeLabel}`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={()=>seek(0)} onSeek={seek}/>}
   >
     <div className={`journey-cinematic-stage ${toneClass}`} data-profile={profile} data-dns-profile={dnsProfile} data-impairment={impairmentProfile} data-modifiers={selectedModifiers.join(' ')}>
       <nav className="journey-depth journey-depth-overlay" aria-label="Active Journey scale">{scaleOrder.map((scale)=><div key={scale} className={`${scale===state.scale?'active':''} ${JOURNEY_SCALE_DEPTH[scale] < state.scaleDepth?'behind':''}`}><i/><span>{scale.toUpperCase()}</span><small>0{JOURNEY_SCALE_DEPTH[scale]+1}</small></div>)}</nav>

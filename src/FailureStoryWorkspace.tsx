@@ -9,6 +9,7 @@ import {
   VisualWorkspaceShell,
   type VisualDrawerDefinition,
   type VisualDrawerId,
+  type VisualPlaybackSpeed,
   type VisualTimelineEvent,
   type VisualTimelineMilestone,
 } from './VisualWorkspace';
@@ -30,6 +31,8 @@ function eventTone(severity: string): VisualTimelineEvent['tone'] {
 export function FailureStoryWorkspace({
   timeMs,
   playing,
+  playbackSpeed,
+  onPlaybackSpeedChange,
   xray,
   onTogglePlayback,
   onSeek,
@@ -38,6 +41,8 @@ export function FailureStoryWorkspace({
 }: {
   timeMs: number;
   playing: boolean;
+  playbackSpeed: VisualPlaybackSpeed;
+  onPlaybackSpeedChange: (speed: VisualPlaybackSpeed) => void;
   xray: boolean;
   onTogglePlayback: () => void;
   onSeek: (timeMs: number) => void;
@@ -119,7 +124,7 @@ export function FailureStoryWorkspace({
     onCloseDrawer={()=>setActiveDrawer(null)}
     toolbar={<><div className="visual-identity"><i/><span>FAILURE STORY</span><strong>{state.statusLabel}</strong></div><div className="failure-visual-tools"><button type="button" className={`visual-tool-button ${xray?'active':''}`} aria-pressed={xray} onClick={onToggleXray}>X-RAY {xray?'ON':'OFF'}</button><VisualDrawerTabs active={activeDrawer} items={[{id:'inspect',label:'INSPECT'},{id:'events',label:'EVENTS',badge:String(lab01Scenario.events.length)}]} onSelect={openDrawer}/><button type="button" className="visual-tool-button" onClick={onExit}>EXIT</button></div></>}
     hud={<><div><span>PHASE</span><strong>{state.phase.toUpperCase()}</strong></div><div><span>INSTALLED PATH</span><strong>{activePath.label.toUpperCase()}</strong></div><div><span>PATH COST</span><strong>{activePath.metric}</strong></div><div><span>PROVENANCE</span><strong>SIMULATED</strong></div></>}
-    timeline={<VisualTimeRail timeMs={timeMs} durationMs={lab01Scenario.durationMs} playing={playing} label="FAILURE TIME MACHINE" context={state.statusLabel} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={()=>onSeek(0)} onSeek={onSeek}/>}
+    timeline={<VisualTimeRail timeMs={timeMs} durationMs={lab01Scenario.durationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={onPlaybackSpeedChange} label="FAILURE TIME MACHINE" context={state.statusLabel} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={()=>onSeek(0)} onSeek={onSeek}/>}
   >
     <div className={`failure-cinematic-stage phase-${state.phase}`} style={annotationStyle}>
       <motion.div key={`flash-${activeEvent.id}`} className={`lab-phase-flash severity-${activeEvent.payload.severity}`} initial={reduceMotion ? false : {opacity:activeEvent.payload.severity==='critical'?.34:.16}} animate={{opacity:0}} transition={{duration:activeEvent.payload.severity==='critical'?.95:.7}} aria-hidden="true"/>

@@ -5,6 +5,7 @@ import {
   VisualDrawerTabs,
   VisualTimeRail,
   VisualWorkspaceShell,
+  useVisualPresentationPlayback,
   type VisualDrawerDefinition,
   type VisualDrawerId,
   type VisualTimelineEvent,
@@ -62,24 +63,15 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
   const state = useMemo(() => dnsStateAt(mode, timeMs), [mode, timeMs]);
   const activeEvent = useMemo(() => dnsLatestEventAtOrBefore(mode, timeMs), [mode, timeMs]);
   const activeIndex = scenario.events.indexOf(activeEvent);
-
-  useEffect(() => {
-    if (!playing) return;
-    const startedAt = performance.now();
-    const startedFrom = timeMs;
-    let frameId = 0;
-    const tick = (now: number) => {
-      const next = Math.min(scenario.durationMs, startedFrom + (now - startedAt));
-      setTimeMs(next);
-      if (next >= scenario.durationMs) {
-        setPlaying(false);
-        return;
-      }
-      frameId = requestAnimationFrame(tick);
-    };
-    frameId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frameId);
-  }, [playing, scenario.durationMs]);
+  const timelineEvents: VisualTimelineEvent[] = scenario.events.map((event) => ({ id: event.id, atMs: event.atMs, label: event.title, tone: eventTone(event) }));
+  const { playbackSpeed, setPlaybackSpeed } = useVisualPresentationPlayback({
+    playing,
+    timeMs,
+    durationMs: scenario.durationMs,
+    events: timelineEvents,
+    onTimeChange: setTimeMs,
+    onComplete: () => setPlaying(false),
+  });
 
   useEffect(() => {
     const root = rootRef.current;
@@ -157,7 +149,6 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
   const namespace = ['.', 'test.', 'example.test.', `${DNS_QNAME}.`];
   const activeNamespaceIndex = Math.max(0, namespace.indexOf(state.activeDelegation));
   const upstreamDimmed = mode === 'hit';
-  const timelineEvents: VisualTimelineEvent[] = scenario.events.map((event) => ({ id: event.id, atMs: event.atMs, label: event.title, tone: eventTone(event) }));
   const timelineMilestones: VisualTimelineMilestone[] = mode === 'miss' ? [
     { id: 'stub', atMs: 0, label: 'STUB' },
     { id: 'root', atMs: 650, label: 'ROOT' },
@@ -200,7 +191,7 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
     onCloseDrawer={() => setActiveDrawer(null)}
     toolbar={<><div className="visual-identity"><i/><span>DNS THEATER</span><strong>{DNS_QNAME} · CACHE {mode.toUpperCase()}</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'INSPECT' }, { id: 'config', label: 'CONFIG' }, { id: 'events', label: 'EVENTS', badge: String(scenario.events.length) }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button" onClick={onExit}>EXIT</button></div></>}
     hud={<><div><span>PHASE</span><strong>{state.phaseLabel}</strong></div><div><span>QNAME</span><strong>{DNS_QNAME}</strong></div><div><span>CACHE TTL</span><strong>{state.cacheTtlSeconds === null ? '—' : `${state.cacheTtlSeconds}s`}</strong></div><div><span>PROVENANCE</span><strong>SIMULATED</strong></div></>}
-    timeline={<VisualTimeRail timeMs={timeMs} durationMs={scenario.durationMs} playing={playing} label="DNS TIME MACHINE" context={`CACHE ${mode.toUpperCase()} · ${state.cacheState.toUpperCase()}`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
+    timeline={<VisualTimeRail timeMs={timeMs} durationMs={scenario.durationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="DNS TIME MACHINE" context={`CACHE ${mode.toUpperCase()} · ${state.cacheState.toUpperCase()}`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
   >
     <div ref={rootRef} className={`protocol-cinematic-stage dns-cinematic-stage mode-${mode}`}>
       <div className="protocol-scene-kicker"><span>DNS / NAMESPACE</span><strong>{activeEvent.from.toUpperCase()} → {activeEvent.to.toUpperCase()}</strong></div>

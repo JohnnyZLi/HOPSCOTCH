@@ -125,3 +125,25 @@ jobs:
           path: artifacts/phase4-visual-review
           if-no-files-found: error
           retention-days: 7
+
+  timeline-visual-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Measure presentation pacing and capture timeline workspaces
+        run: node scripts/timeline-visual-review.mjs
+      - name: Upload timeline visual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-timeline-visual-review
+          path: artifacts/timeline-visual-review
+          if-no-files-found: error
+          retention-days: 7

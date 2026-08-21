@@ -5,6 +5,7 @@ import {
   VisualDrawerTabs,
   VisualTimeRail,
   VisualWorkspaceShell,
+  useVisualPresentationPlayback,
   type VisualDrawerDefinition,
   type VisualDrawerId,
   type VisualTimelineEvent,
@@ -78,24 +79,15 @@ export function TcpTheater({ onExit, onOpenPacket }: { onExit: () => void; onOpe
   const state = useMemo(() => tcpStateAt(timeMs), [timeMs]);
   const activeEvent = useMemo(() => tcpLatestEventAtOrBefore(timeMs), [timeMs]);
   const activeIndex = tcpScenario.events.indexOf(activeEvent);
-
-  useEffect(() => {
-    if (!playing) return;
-    const startedAt = performance.now();
-    const startedFrom = timeMs;
-    let frameId = 0;
-    const tick = (now: number) => {
-      const next = Math.min(tcpScenario.durationMs, startedFrom + (now - startedAt));
-      setTimeMs(next);
-      if (next >= tcpScenario.durationMs) {
-        setPlaying(false);
-        return;
-      }
-      frameId = requestAnimationFrame(tick);
-    };
-    frameId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frameId);
-  }, [playing]);
+  const timelineEvents: VisualTimelineEvent[] = tcpScenario.events.map((event) => ({ id: event.id, atMs: event.atMs, label: event.title, tone: eventTone(event.severity) }));
+  const { playbackSpeed, setPlaybackSpeed } = useVisualPresentationPlayback({
+    playing,
+    timeMs,
+    durationMs: tcpScenario.durationMs,
+    events: timelineEvents,
+    onTimeChange: setTimeMs,
+    onComplete: () => setPlaying(false),
+  });
 
   useEffect(() => {
     const root = rootRef.current;
@@ -171,7 +163,6 @@ export function TcpTheater({ onExit, onOpenPacket }: { onExit: () => void; onOpe
     setActiveDrawer((current) => current === drawer ? null : drawer);
   };
 
-  const timelineEvents: VisualTimelineEvent[] = tcpScenario.events.map((event) => ({ id: event.id, atMs: event.atMs, label: event.title, tone: eventTone(event.severity) }));
   const timelineMilestones: VisualTimelineMilestone[] = [
     { id: 'open', atMs: 0, label: 'OPEN' },
     { id: 'loss', atMs: 1250, label: 'LOSS' },
@@ -206,7 +197,7 @@ export function TcpTheater({ onExit, onOpenPacket }: { onExit: () => void; onOpe
     onCloseDrawer={() => setActiveDrawer(null)}
     toolbar={<><div className="visual-identity"><i/><span>TCP THEATER</span><strong>FAST RETRANSMIT · RENO</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'INSPECT' }, { id: 'events', label: 'EVENTS', badge: String(tcpScenario.events.length) }, { id: 'tools', label: 'MODEL' }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button protocol-link-button" onClick={onOpenPacket}>PACKET ↗</button><button type="button" className="visual-tool-button" onClick={onExit}>EXIT</button></div></>}
     hud={<><div><span>PHASE</span><strong>{state.connectionLabel}</strong></div><div><span>EXPECTED ACK</span><strong>{state.expectedAck || '—'}</strong></div><div><span>DUP ACKS</span><strong>{state.duplicateAcks} / 3</strong></div><div><span>PROVENANCE</span><strong>SIMULATED</strong></div></>}
-    timeline={<VisualTimeRail timeMs={timeMs} durationMs={tcpScenario.durationMs} playing={playing} label="TCP TIME MACHINE" context={`${state.cwndMss} MSS cwnd · ${state.ssthreshMss} MSS threshold`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
+    timeline={<VisualTimeRail timeMs={timeMs} durationMs={tcpScenario.durationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="TCP TIME MACHINE" context={`${state.cwndMss} MSS cwnd · ${state.ssthreshMss} MSS threshold`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
   >
     <div ref={rootRef} className={`protocol-cinematic-stage tcp-cinematic-stage phase-${state.phase}`}>
       <div className="protocol-scene-kicker"><span>TCP / BYTE STREAM</span><strong>{activeEvent.direction === 'local' ? 'ENDPOINT STATE' : activeEvent.direction.replaceAll('-', ' ').toUpperCase()}</strong></div>
