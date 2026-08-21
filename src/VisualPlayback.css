@@ -26,7 +26,7 @@
 /* HTTP's comparison lanes are the semantic surface. Keep the active-event explanation
    in its own band instead of painting a card over either lane. */
 .http-workspace-stage .http-lanes {
-  padding-top: 94px;
+  padding-top: 118px;
 }
 
 .http-scene-annotation,
