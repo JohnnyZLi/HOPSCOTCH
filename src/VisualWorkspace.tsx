@@ -32,6 +32,193 @@ export interface VisualTimelineMilestone {
   label: string;
 }
 
+export type VisualPlaybackSpeed = 0.5 | 1 | 1.5 | 2;
+export const VISUAL_PLAYBACK_SPEEDS: readonly VisualPlaybackSpeed[] = [0.5, 1, 1.5, 2];
+
+type VisualPresentationCue = Pick<VisualTimelineEvent, 'atMs' | 'tone'>;
+
+export interface VisualPresentationSegment {
+  modelStartMs: number;
+  modelEndMs: number;
+  presentationStartMs: number;
+  presentationEndMs: number;
+  tone: NonNullable<VisualTimelineEvent['tone']>;
+}
+
+const PRESENTATION_DWELL_MS: Record<NonNullable<VisualTimelineEvent['tone']>, number> = {
+  neutral: 1400,
+  evidence: 1600,
+  success: 1700,
+  warning: 2100,
+  danger: 2800,
+};
+
+const TONE_PRIORITY: Record<NonNullable<VisualTimelineEvent['tone']>, number> = {
+  neutral: 0,
+  evidence: 1,
+  success: 2,
+  warning: 3,
+  danger: 4,
+};
+
+const PRESENTATION_BASE_SLOWDOWN = 1.35;
+
+function strongerTone(
+  left: NonNullable<VisualTimelineEvent['tone']>,
+  right: NonNullable<VisualTimelineEvent['tone']>,
+): NonNullable<VisualTimelineEvent['tone']> {
+  return TONE_PRIORITY[right] > TONE_PRIORITY[left] ? right : left;
+}
+
+export function buildVisualPresentationTimeline(
+  durationMs: number,
+  cues: readonly VisualPresentationCue[],
+): readonly VisualPresentationSegment[] {
+  const safeDuration = Math.max(0, durationMs);
+  if (safeDuration === 0) return [];
+
+  const cueToneByTime = new Map<number, NonNullable<VisualTimelineEvent['tone']>>();
+  for (const cue of cues) {
+    const atMs = Math.max(0, Math.min(safeDuration, cue.atMs));
+    const tone = cue.tone ?? 'neutral';
+    const previous = cueToneByTime.get(atMs);
+    cueToneByTime.set(atMs, previous ? strongerTone(previous, tone) : tone);
+  }
+
+  const anchors = Array.from(new Set([0, ...cueToneByTime.keys(), safeDuration])).sort((a, b) => a - b);
+  const segments: VisualPresentationSegment[] = [];
+  let presentationCursor = 0;
+  let activeTone: NonNullable<VisualTimelineEvent['tone']> = cueToneByTime.get(0) ?? 'neutral';
+
+  for (let index = 0; index < anchors.length - 1; index += 1) {
+    const modelStartMs = anchors[index];
+    const modelEndMs = anchors[index + 1];
+    activeTone = cueToneByTime.get(modelStartMs) ?? activeTone;
+    const modelDeltaMs = Math.max(0, modelEndMs - modelStartMs);
+    if (modelDeltaMs === 0) continue;
+
+    const presentationDeltaMs = Math.max(
+      modelDeltaMs * PRESENTATION_BASE_SLOWDOWN,
+      PRESENTATION_DWELL_MS[activeTone],
+    );
+    const segment: VisualPresentationSegment = {
+      modelStartMs,
+      modelEndMs,
+      presentationStartMs: presentationCursor,
+      presentationEndMs: presentationCursor + presentationDeltaMs,
+      tone: activeTone,
+    };
+    segments.push(segment);
+    presentationCursor = segment.presentationEndMs;
+  }
+
+  return segments;
+}
+
+export function visualPresentationDurationMs(
+  durationMs: number,
+  cues: readonly VisualPresentationCue[],
+): number {
+  const segments = buildVisualPresentationTimeline(durationMs, cues);
+  return segments.at(-1)?.presentationEndMs ?? 0;
+}
+
+function presentationTimeAtModelTime(
+  modelTimeMs: number,
+  durationMs: number,
+  segments: readonly VisualPresentationSegment[],
+): number {
+  const clamped = Math.max(0, Math.min(durationMs, modelTimeMs));
+  if (clamped >= durationMs) return segments.at(-1)?.presentationEndMs ?? 0;
+  const segment = segments.find((candidate) => clamped >= candidate.modelStartMs && clamped < candidate.modelEndMs);
+  if (!segment) return 0;
+  const modelSpan = segment.modelEndMs - segment.modelStartMs;
+  const presentationSpan = segment.presentationEndMs - segment.presentationStartMs;
+  const progress = modelSpan <= 0 ? 0 : (clamped - segment.modelStartMs) / modelSpan;
+  return segment.presentationStartMs + presentationSpan * progress;
+}
+
+function modelTimeAtPresentationTime(
+  presentationTimeMs: number,
+  durationMs: number,
+  segments: readonly VisualPresentationSegment[],
+): number {
+  const finalPresentation = segments.at(-1)?.presentationEndMs ?? 0;
+  if (presentationTimeMs >= finalPresentation) return durationMs;
+  const clamped = Math.max(0, presentationTimeMs);
+  const segment = segments.find((candidate) => clamped >= candidate.presentationStartMs && clamped < candidate.presentationEndMs);
+  if (!segment) return 0;
+  const presentationSpan = segment.presentationEndMs - segment.presentationStartMs;
+  const modelSpan = segment.modelEndMs - segment.modelStartMs;
+  const progress = presentationSpan <= 0 ? 0 : (clamped - segment.presentationStartMs) / presentationSpan;
+  return segment.modelStartMs + modelSpan * progress;
+}
+
+export function useVisualPresentationPlayback({
+  playing,
+  timeMs,
+  durationMs,
+  events,
+  onTimeChange,
+  onComplete,
+  initialSpeed = 1,
+}: {
+  playing: boolean;
+  timeMs: number;
+  durationMs: number;
+  events: readonly VisualPresentationCue[];
+  onTimeChange: (timeMs: number) => void;
+  onComplete: () => void;
+  initialSpeed?: VisualPlaybackSpeed;
+}) {
+  const [playbackSpeed, setPlaybackSpeed] = useState<VisualPlaybackSpeed>(initialSpeed);
+  const timeRef = useRef(timeMs);
+  const onTimeChangeRef = useRef(onTimeChange);
+  const onCompleteRef = useRef(onComplete);
+  const eventSignature = events.map((event) => `${event.atMs}:${event.tone ?? 'neutral'}`).join('|');
+
+  useEffect(() => {
+    timeRef.current = timeMs;
+  }, [timeMs]);
+
+  useEffect(() => {
+    onTimeChangeRef.current = onTimeChange;
+    onCompleteRef.current = onComplete;
+  }, [onTimeChange, onComplete]);
+
+  useEffect(() => {
+    if (!playing || durationMs <= 0) return;
+    const segments = buildVisualPresentationTimeline(durationMs, events);
+    if (segments.length === 0) {
+      onCompleteRef.current();
+      return;
+    }
+
+    const startedFromModel = timeRef.current >= durationMs ? 0 : Math.max(0, timeRef.current);
+    if (timeRef.current >= durationMs) onTimeChangeRef.current(0);
+    const startedFromPresentation = presentationTimeAtModelTime(startedFromModel, durationMs, segments);
+    const startedAt = performance.now();
+    let frameId = 0;
+
+    const tick = (now: number) => {
+      const presentationTime = startedFromPresentation + (now - startedAt) * playbackSpeed;
+      const nextModelTime = modelTimeAtPresentationTime(presentationTime, durationMs, segments);
+      timeRef.current = nextModelTime;
+      onTimeChangeRef.current(nextModelTime);
+      if (nextModelTime >= durationMs) {
+        onCompleteRef.current();
+        return;
+      }
+      frameId = requestAnimationFrame(tick);
+    };
+
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, [playing, durationMs, eventSignature, playbackSpeed]);
+
+  return { playbackSpeed, setPlaybackSpeed } as const;
+}
+
 function formatTime(timeMs: number): string {
   const seconds = Math.floor(timeMs / 1000).toString().padStart(2, '0');
   const milliseconds = Math.floor(timeMs % 1000).toString().padStart(3, '0');
@@ -242,6 +429,8 @@ export function VisualTimeRail({
   context,
   events,
   milestones = [],
+  playbackSpeed = 1,
+  onPlaybackSpeedChange,
   onToggle,
   onReset,
   onSeek,
@@ -253,6 +442,8 @@ export function VisualTimeRail({
   context?: string;
   events: readonly VisualTimelineEvent[];
   milestones?: readonly VisualTimelineMilestone[];
+  playbackSpeed?: VisualPlaybackSpeed;
+  onPlaybackSpeedChange?: (speed: VisualPlaybackSpeed) => void;
   onToggle: () => void;
   onReset: () => void;
   onSeek: (timeMs: number) => void;
@@ -264,6 +455,15 @@ export function VisualTimeRail({
       <div className="visual-time-rail__controls">
         <button type="button" onClick={onToggle} aria-label={playing ? 'Pause scenario' : 'Play scenario'}>{playing ? 'Ⅱ' : '▶'}</button>
         <button type="button" onClick={onReset} aria-label="Reset scenario">↺</button>
+        {onPlaybackSpeedChange && <select
+          className="visual-time-rail__speed"
+          value={playbackSpeed}
+          onChange={(event) => onPlaybackSpeedChange(Number(event.currentTarget.value) as VisualPlaybackSpeed)}
+          aria-label="Playback speed"
+          title="Presentation playback speed"
+        >
+          {VISUAL_PLAYBACK_SPEEDS.map((speed) => <option key={speed} value={speed}>{speed}×</option>)}
+        </select>}
       </div>
       <div className="visual-time-rail__readout">
         <span>{label}</span>
