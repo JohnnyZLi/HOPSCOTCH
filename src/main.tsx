@@ -2,6 +2,7 @@ import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './styles.css';
+import './ScaleInspectorPolish.css';
 import './lab.css';
 import './event-effects.css';
 import './tcp.css';
