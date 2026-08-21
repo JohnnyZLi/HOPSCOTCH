@@ -41,7 +41,7 @@
   .hero-copy h1 {
     margin-top: clamp(10px, calc(6vh - 28px), 16px);
     margin-bottom: clamp(16px, calc(8vh - 35px), 24px);
-    font-size: clamp(3.75rem, min(7.2vw, calc(30vh - 80px)), 8.4rem);
+    font-size: clamp(3.75rem, min(7.2vw, calc(30vh - 112px)), 8.4rem);
   }
 
   .lede {
