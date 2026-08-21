@@ -32,11 +32,11 @@
 .http-scene-annotation,
 .http-scene-annotation.focus-h3 {
   top: 16px;
-  right: auto;
+  right: 28px;
   bottom: auto;
-  left: 50%;
+  left: 28px;
   width: min(620px, calc(100% - 56px));
-  transform: translateX(-50%);
+  margin-inline: auto;
 }
 
 .http-scene-annotation > i {
@@ -103,7 +103,7 @@
     right: 7px;
     left: 7px;
     width: auto;
-    transform: none;
+    margin-inline: 0;
   }
 
   .http-scene-annotation > div {
