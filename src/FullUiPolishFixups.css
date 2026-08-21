@@ -1,0 +1,18 @@
+/* Follow-up corrections discovered by the fresh rendered audit. */
+
+@media (max-width: 680px) {
+  /* Keep the Physical world full-stage for cinematic ownership. Shrink the rendered
+     globe inside that world instead of shortening the world container. */
+  .physical-visual-workspace .physical-cinematic-stage > .globe-viewport {
+    top: 0;
+    bottom: 0;
+  }
+
+  .physical-visual-workspace .physical-cinematic-stage .globe-render-host {
+    inset: 5% 3% 14%;
+  }
+
+  .physical-visual-workspace .physical-cinematic-stage .globe-reticle {
+    transform: translate(-50%, -54%) scale(0.84);
+  }
+}
