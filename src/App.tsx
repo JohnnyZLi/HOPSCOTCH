@@ -21,6 +21,7 @@ import type { CapturedFrameEvidence } from './capture/types.ts';
 import type { ScenarioPresetId } from './scenarios/catalog.ts';
 import { lab01Scenario, lab01StateAt } from './simulation/lab01';
 import type { NetworkLayer } from './simulation/model';
+import { useVisualPresentationPlayback, type VisualTimelineEvent } from './VisualWorkspace';
 
 type DisplayMode = 'overview' | 'xray';
 type ActiveLab = ExploreDestination | null;
@@ -58,6 +59,13 @@ const initialJourneyBootstrap = typeof window === 'undefined' || initialAppRoute
   ? { scenario: null, error: null }
   : bootstrapJourneyFromSearch(window.location.search);
 
+function failureTimelineTone(severity: string): VisualTimelineEvent['tone'] {
+  if (severity === 'critical') return 'danger';
+  if (severity === 'warning') return 'warning';
+  if (severity === 'success') return 'success';
+  return 'neutral';
+}
+
 export default function App() {
   const initialSharedJourney = initialJourneyBootstrap.scenario;
   const [layer, setLayer] = useState<NetworkLayer>(initialAppRoute.destination ? workspaceDefinition(initialAppRoute.destination).layer : 'internet');
@@ -88,6 +96,20 @@ export default function App() {
   const activeLayerTop = 24.5 + Math.max(0, layers.findIndex((item) => item.id === layer)) * 52;
   const labState = useMemo(() => lab01StateAt(timeMs), [timeMs]);
   const failureLabActive = activeLab === 'failure';
+  const failurePresentationEvents = useMemo<VisualTimelineEvent[]>(() => lab01Scenario.events.map((event) => ({
+    id: event.id,
+    atMs: event.atMs,
+    label: event.payload.title,
+    tone: failureTimelineTone(event.payload.severity),
+  })), []);
+  const { playbackSpeed: failurePlaybackSpeed, setPlaybackSpeed: setFailurePlaybackSpeed } = useVisualPresentationPlayback({
+    playing: playing && failureLabActive,
+    timeMs,
+    durationMs: lab01Scenario.durationMs,
+    events: failurePresentationEvents,
+    onTimeChange: setTimeMs,
+    onComplete: () => setPlaying(false),
+  });
 
   const pushBrowserRoute = (destination: ExploreDestination | null) => {
     if (!browserHistoryRoutingAvailable) return;
@@ -152,24 +174,6 @@ export default function App() {
       ? `HOPSCOTCH — ${workspaceDefinition(activeLab).name}`
       : 'HOPSCOTCH — See the Internet happen';
   }, [activeLab]);
-
-  useEffect(() => {
-    if (!playing || !failureLabActive) return;
-    const startedAt = performance.now();
-    const startedFrom = timeMs;
-    let frameId = 0;
-    const tick = (now: number) => {
-      const next = Math.min(lab01Scenario.durationMs, startedFrom + (now - startedAt));
-      setTimeMs(next);
-      if (next >= lab01Scenario.durationMs) {
-        setPlaying(false);
-        return;
-      }
-      frameId = requestAnimationFrame(tick);
-    };
-    frameId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frameId);
-  }, [failureLabActive, playing]);
 
   const openFailureLab = (atMs = 0, autoplay = true) => {
     pushBrowserRoute('failure');
@@ -430,6 +434,8 @@ export default function App() {
               key="lab01"
               timeMs={timeMs}
               playing={playing}
+              playbackSpeed={failurePlaybackSpeed}
+              onPlaybackSpeedChange={setFailurePlaybackSpeed}
               xray={labXray}
               onTogglePlayback={togglePlayback}
               onSeek={seek}
