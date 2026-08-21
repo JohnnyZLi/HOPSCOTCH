@@ -45,20 +45,132 @@
   .journey-visual-workspace .journey-cinematic-stage .journey-scene-transition { inset: 280px 22px 72px; }
 }
 
+/* The Track H panel is dark; do not let the browser's default bright scrollbar become
+   the highest-contrast object in the entire drawer. */
+.capture-analysis-drawer .capture-analysis-drawer-body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(121, 242, 218, 0.26) transparent;
+}
+
+.capture-analysis-drawer .capture-analysis-drawer-body::-webkit-scrollbar { width: 8px; }
+.capture-analysis-drawer .capture-analysis-drawer-body::-webkit-scrollbar-track { background: transparent; }
+.capture-analysis-drawer .capture-analysis-drawer-body::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(121, 242, 218, 0.24);
+  background-clip: padding-box;
+}
+
 @media (max-width: 680px) {
-  /* Keep the Physical world full-stage for cinematic ownership. Shrink the rendered
-     globe inside that world instead of shortening the world container. */
+  /* Physical Atlas stays a full-stage world, but the renderer gets a deliberately wide,
+     shorter portrait viewport. Extending it beyond the side clips increases the WebGL
+     camera aspect ratio, so the globe fits instead of becoming a giant cropped sphere. */
   .physical-visual-workspace .physical-cinematic-stage > .globe-viewport {
     top: 0;
     bottom: 0;
   }
 
   .physical-visual-workspace .physical-cinematic-stage .globe-render-host {
-    inset: 5% 3% 14%;
+    inset: 108px -22% 136px;
   }
 
   .physical-visual-workspace .physical-cinematic-stage .globe-reticle {
-    transform: translate(-50%, -54%) scale(0.84);
+    top: 46%;
+    transform: translate(-50%, -50%) scale(0.76);
+  }
+
+  /* The original Phase 3 mobile rule left three HUD chips in a flex row. Keep only the
+     two facts that matter on a phone and let provenance wrap instead of overlapping. */
+  .physical-visual-workspace .interactive-world-hud.physical-stage-meta {
+    top: 54px;
+    right: 8px;
+    left: 8px;
+    display: grid;
+    grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
+    gap: 4px;
+  }
+
+  .physical-visual-workspace .interactive-world-hud.physical-stage-meta > div:first-child,
+  .physical-visual-workspace .interactive-world-hud.physical-stage-meta > div:nth-child(3),
+  .physical-visual-workspace .interactive-world-hud.physical-stage-meta > div:nth-child(4) {
+    display: none;
+  }
+
+  .physical-visual-workspace .interactive-world-hud.physical-stage-meta > div:nth-child(2),
+  .physical-visual-workspace .interactive-world-hud.physical-stage-meta > .interactive-world-hud__truth {
+    display: grid;
+    min-width: 0;
+  }
+
+  .physical-visual-workspace .interactive-world-hud.physical-stage-meta strong {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  /* Give the selected facility its name back. Controls live on their own row rather than
+     squeezing the primary label into an ellipsis between three buttons. */
+  .physical-visual-workspace .physical-selection-card {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    gap: 7px;
+    padding: 9px 10px;
+  }
+
+  .physical-visual-workspace .physical-selection-card > span { display: none; }
+
+  .physical-visual-workspace .physical-selection-card > strong {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 0.62rem;
+    line-height: 1.18;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .physical-visual-workspace .physical-selection-card > div {
+    grid-column: 1;
+    grid-row: 2;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    width: 100%;
+    gap: 5px;
+    margin: 0;
+  }
+
+  .physical-visual-workspace .physical-selection-card button {
+    min-width: 0;
+    min-height: 31px;
+    padding-inline: 7px;
+  }
+
+  /* Mobile Track H uses deliberate horizontal rails rather than an accidental clipped
+     toolbar or a lopsided 3+2 analysis-tab grid. */
+  .capture-replay .capture-heading-actions {
+    padding-right: 24px;
+    scroll-padding-right: 24px;
+    mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 24px), transparent 100%);
+  }
+
+  .capture-replay .capture-analysis-drawer .capture-track-h-tabs,
+  .capture-analysis-drawer .capture-track-h-tabs {
+    display: flex;
+    grid-template-columns: none;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 24px), transparent 100%);
+  }
+
+  .capture-replay .capture-analysis-drawer .capture-track-h-tabs::-webkit-scrollbar,
+  .capture-analysis-drawer .capture-track-h-tabs::-webkit-scrollbar { display: none; }
+
+  .capture-replay .capture-analysis-drawer .capture-track-h-tabs button,
+  .capture-analysis-drawer .capture-track-h-tabs button {
+    flex: 0 0 auto;
+    min-width: 126px;
+    min-height: 38px;
   }
 
   /* Mobile detail buttons are already hidden by the Journey stylesheet. Keep the scene
