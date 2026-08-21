@@ -250,6 +250,40 @@
 
 .capture-replay .visual-entrance { border-radius: 8px; }
 
+@media (min-width: 1800px) and (min-height: 1000px) {
+  .capture-event-rail {
+    display: grid;
+    grid-auto-rows: minmax(48px, 1fr);
+  }
+
+  .capture-evidence-inspector.is-frame-stage {
+    grid-template-rows: auto auto auto auto auto minmax(220px, 1fr) auto;
+    align-content: stretch;
+  }
+
+  .capture-evidence-inspector.is-frame-stage > .capture-byte-inspector {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    align-self: stretch;
+  }
+
+  .capture-evidence-inspector.is-frame-stage .capture-hex-grid {
+    align-content: center;
+    grid-auto-rows: minmax(28px, 46px);
+  }
+
+  .capture-evidence-inspector.is-frame-stage > .capture-field-list {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .capture-evidence-inspector.is-frame-stage > .capture-field-list > div {
+    display: grid;
+    grid-auto-rows: minmax(39px, 1fr);
+    max-height: none;
+  }
+}
+
 @media (max-width: 1280px) {
   .capture-replay {
     display: flex;

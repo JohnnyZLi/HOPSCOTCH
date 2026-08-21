@@ -298,6 +298,16 @@
 .observed-drawer-empty strong { color: #9aaab1; font-size: 0.62rem; }
 .observed-drawer-empty p { max-width: 280px; margin: 0; color: #627078; font-size: 0.55rem; line-height: 1.5; }
 
+@media (min-width: 1800px) and (min-height: 1000px) {
+  .evidence-edge-island,
+  .evidence-destination-island,
+  .evidence-routing-island {
+    align-content: center;
+  }
+
+  .evidence-edge-island { padding-top: clamp(16px, 1.4vw, 24px); }
+}
+
 @media (max-width: 1050px) {
   .observed-internet.visual-workspace { width: calc(100% - 16px); }
   .evidence-flow { grid-template-columns: minmax(240px, 1fr) minmax(160px, 0.56fr) minmax(260px, 1fr); gap: 10px; }

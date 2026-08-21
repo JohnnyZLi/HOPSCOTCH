@@ -164,6 +164,18 @@
 .measured-workspace .visual-drawer-backdrop { position: absolute; }
 .measured-workspace .visual-entrance { border-radius: 8px; }
 
+@media (min-width: 1800px) and (min-height: 1000px) {
+  .measured-target-groups { grid-auto-rows: minmax(min-content, 1fr); }
+
+  .measured-target-group {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .measured-fact-list { grid-auto-rows: minmax(58px, 1fr); }
+  .measured-fact { align-content: center; }
+}
+
 @media (max-width: 1080px) {
   .measured-workspace { width: calc(100% - 16px); }
   .measured-heading .visual-identity { margin-right: auto; }

@@ -166,9 +166,9 @@ function makeFixtures(directory) {
     { bytes: dnsRequest, fraction: 400_000 },
     { bytes: dnsReply, fraction: 500_000 },
   ];
-  const pcapPath = join(directory, 'track-t-fixture.pcap');
-  const pcapngPath = join(directory, 'track-t-fixture.pcapng');
-  const invalidPath = join(directory, 'track-t-invalid.pcap');
+  const pcapPath = join(directory, 'track-h-fixture.pcap');
+  const pcapngPath = join(directory, 'track-h-fixture.pcapng');
+  const invalidPath = join(directory, 'track-h-invalid.pcap');
   writeFileSync(pcapPath, pcapCapture(records));
   writeFileSync(pcapngPath, pcapngSection({
     interfaces: [{ linkType: 1, snapLength: 262144, tsresol: 9 }],
@@ -283,6 +283,7 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
   if (loaded.byteCount > 256) throw new Error(`${profile.id} rendered more than one bounded byte page.`);
   if (loaded.elementCount > 1600) throw new Error(`${profile.id} capture DOM is unexpectedly dense: ${loaded.elementCount}.`);
   if (!loaded.text.includes('CAPTURED + INFERRED') || !loaded.inspectorText.includes('WHY HOPSCOTCH SAID THIS')) throw new Error(`${profile.id} lost provenance or lineage.`);
+  if (!loaded.text.includes('track-h-fixture.pcap') || /track-t-fixture/i.test(loaded.text)) throw new Error(`${profile.id} Capture Replay exposed stale Track T fixture identity.`);
   if (loaded.reducedMotion !== profile.reducedMotion) throw new Error(`${profile.id} reduced-motion emulation was not preserved.`);
 
   const captureReplayVisualReview = phase4VisualReview ? await captureReplayPhase4VisualReview(cdp, profile) : null;
@@ -356,7 +357,7 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
   if (!preserved) throw new Error(`${profile.id} malformed replacement corrupted the valid capture session.`);
 
   await setFileInput(cdp, '.capture-file-input', fixtures.pcapngPath);
-  await waitForExpression(cdp, `document.body.innerText.includes('track-t-fixture.pcapng') && document.body.innerText.includes('PCAPNG')`);
+  await waitForExpression(cdp, `document.body.innerText.includes('track-h-fixture.pcapng') && document.body.innerText.includes('PCAPNG')`);
   await clickText(cdp, '.capture-clear', 'CLEAR');
   await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-capture-loaded')==='false'`);
 
