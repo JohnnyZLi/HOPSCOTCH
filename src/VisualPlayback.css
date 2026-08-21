@@ -47,23 +47,29 @@
   width: 100%;
 }
 
-/* Desktop Journey and Failure explanations previously occupied the same pixels as the
-   semantic scene. Give them a stable event zone beneath the HUD instead. Mobile keeps
-   the existing compact bottom treatment where the scenes already reserve space. */
+/* Lazy workspace styles load after this shared stylesheet. These selectors intentionally
+   include the cinematic-stage parent so the reserved event zones remain authoritative
+   without !important or scene reflow. */
 @media (min-width: 681px) {
-  .journey-callout-overlay {
+  .journey-cinematic-stage .journey-callout-overlay {
     top: 118px;
     right: 22px;
     bottom: auto;
+    left: auto;
+    width: min(350px, calc(100% - 44px));
+    height: auto;
+    min-height: 0;
+    align-self: auto;
+    margin: 0;
   }
 
-  .journey-callout-overlay::before {
+  .journey-cinematic-stage .journey-callout-overlay::before {
     display: none;
   }
 
-  .failure-object-annotation,
-  .failure-object-annotation.align-left,
-  .failure-object-annotation.align-right {
+  .failure-cinematic-stage .failure-object-annotation,
+  .failure-cinematic-stage .failure-object-annotation.align-left,
+  .failure-cinematic-stage .failure-object-annotation.align-right {
     top: 118px;
     right: 22px;
     bottom: auto;
@@ -75,7 +81,7 @@
     transform-origin: right top;
   }
 
-  .failure-object-annotation > i {
+  .failure-cinematic-stage .failure-object-annotation > i {
     display: none;
   }
 }
