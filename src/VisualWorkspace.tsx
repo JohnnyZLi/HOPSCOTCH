@@ -47,18 +47,23 @@ function focusableElements(root: HTMLElement): HTMLElement[] {
     'textarea:not([disabled])',
     '[tabindex]:not([tabindex="-1"])',
   ].join(',');
-  return Array.from(root.querySelectorAll<HTMLElement>(selector)).filter((element) => !element.hidden);
+  return Array.from(root.querySelectorAll<HTMLElement>(selector)).filter((element) => {
+    if (element.hidden || element.getClientRects().length === 0) return false;
+    const style = window.getComputedStyle(element);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+  });
 }
 
-function VisualWorkspaceDrawer({ drawer, onClose }: { drawer: VisualDrawerDefinition; onClose: () => void }) {
-  const drawerRef = useRef<HTMLElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
+export function useVisualDrawerFocus<T extends HTMLElement>(active: boolean, onClose: () => void) {
+  const drawerRef = useRef<T>(null);
+  const initialFocusRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
   useEffect(() => {
+    if (!active) return;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    closeRef.current?.focus();
+    initialFocusRef.current?.focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -70,12 +75,15 @@ function VisualWorkspaceDrawer({ drawer, onClose }: { drawer: VisualDrawerDefini
       const focusable = focusableElements(drawerRef.current);
       if (focusable.length === 0) {
         event.preventDefault();
-        closeRef.current?.focus();
+        initialFocusRef.current?.focus();
         return;
       }
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      if (!drawerRef.current.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
@@ -89,7 +97,13 @@ function VisualWorkspaceDrawer({ drawer, onClose }: { drawer: VisualDrawerDefini
       document.removeEventListener('keydown', onKeyDown);
       previousFocus?.focus();
     };
-  }, []);
+  }, [active]);
+
+  return { drawerRef, initialFocusRef };
+}
+
+export function VisualWorkspaceDrawer({ drawer, onClose, className = '' }: { drawer: VisualDrawerDefinition; onClose: () => void; className?: string }) {
+  const { drawerRef, initialFocusRef } = useVisualDrawerFocus<HTMLElement>(true, onClose);
 
   return (
     <>
@@ -104,7 +118,7 @@ function VisualWorkspaceDrawer({ drawer, onClose }: { drawer: VisualDrawerDefini
       />
       <motion.aside
         ref={drawerRef}
-        className="visual-drawer"
+        className={`visual-drawer ${className}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={`visual-drawer-${drawer.id}-title`}
@@ -118,12 +132,58 @@ function VisualWorkspaceDrawer({ drawer, onClose }: { drawer: VisualDrawerDefini
             <span>{drawer.eyebrow ?? drawer.label}</span>
             <h2 id={`visual-drawer-${drawer.id}-title`}>{drawer.title}</h2>
           </div>
-          <button ref={closeRef} type="button" className="visual-drawer__close" onClick={onClose} aria-label={`Close ${drawer.label}`}>×</button>
+          <button ref={initialFocusRef} type="button" className="visual-drawer__close" onClick={onClose} aria-label={`Close ${drawer.label}`}>×</button>
         </header>
         <div className="visual-drawer__body">{drawer.content}</div>
       </motion.aside>
     </>
   );
+}
+
+export function VisualOverlayDrawer({
+  active,
+  drawers,
+  onClose,
+  className = '',
+}: {
+  active: VisualDrawerId | null;
+  drawers: readonly VisualDrawerDefinition[];
+  onClose: () => void;
+  className?: string;
+}) {
+  const drawer = drawers.find((candidate) => candidate.id === active) ?? null;
+  return <AnimatePresence>{drawer && <VisualWorkspaceDrawer key={drawer.id} drawer={drawer} onClose={onClose} className={className} />}</AnimatePresence>;
+}
+
+export function VisualEntranceTransition({ entrance }: {
+  entrance: { eyebrow: string; title: string; accentTitle: string; subtitle?: string };
+}) {
+  const reduceMotion = useReducedMotion();
+  const [visible, setVisible] = useState(!reduceMotion);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      setVisible(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setVisible(false), 1280);
+    return () => window.clearTimeout(timeout);
+  }, [reduceMotion]);
+
+  return <AnimatePresence>{visible && (
+    <motion.div
+      className="visual-entrance"
+      aria-hidden="true"
+      initial={{ opacity: 0, scale: 1.035, filter: 'blur(16px)' }}
+      animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+      exit={{ opacity: 0, scale: 0.82, y: -84, filter: 'blur(12px)' }}
+      transition={{ duration: 0.62, ease: [0.16, 1, 0.3, 1] }}
+    >
+      <span>{entrance.eyebrow}</span>
+      <strong>{entrance.title}<em>{entrance.accentTitle}</em></strong>
+      {entrance.subtitle && <small>{entrance.subtitle}</small>}
+    </motion.div>
+  )}</AnimatePresence>;
 }
 
 export function VisualWorkspaceShell({
@@ -150,17 +210,7 @@ export function VisualWorkspaceShell({
   timeline: ReactNode;
 }) {
   const reduceMotion = useReducedMotion();
-  const [entranceVisible, setEntranceVisible] = useState(!reduceMotion);
   const drawer = drawers.find((candidate) => candidate.id === activeDrawer) ?? null;
-
-  useEffect(() => {
-    if (reduceMotion) {
-      setEntranceVisible(false);
-      return;
-    }
-    const timeout = window.setTimeout(() => setEntranceVisible(false), 1280);
-    return () => window.clearTimeout(timeout);
-  }, [reduceMotion]);
 
   return (
     <motion.section
@@ -176,23 +226,8 @@ export function VisualWorkspaceShell({
         {children}
         {hud && <div className="visual-workspace__hud">{hud}</div>}
         {toolbar && <div className="visual-workspace__toolbar">{toolbar}</div>}
-        <AnimatePresence>{drawer && <VisualWorkspaceDrawer key={drawer.id} drawer={drawer} onClose={onCloseDrawer} />}</AnimatePresence>
-        <AnimatePresence>
-          {entranceVisible && (
-            <motion.div
-              className="visual-entrance"
-              aria-hidden="true"
-              initial={{ opacity: 0, scale: 1.035, filter: 'blur(16px)' }}
-              animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, scale: 0.82, y: -84, filter: 'blur(12px)' }}
-              transition={{ duration: 0.62, ease: [0.16, 1, 0.3, 1] }}
-            >
-              <span>{entrance.eyebrow}</span>
-              <strong>{entrance.title}<em>{entrance.accentTitle}</em></strong>
-              {entrance.subtitle && <small>{entrance.subtitle}</small>}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <VisualOverlayDrawer active={activeDrawer} drawers={drawers} onClose={onCloseDrawer} />
+        <VisualEntranceTransition entrance={entrance} />
       </div>
       {timeline}
     </motion.section>

@@ -2,6 +2,12 @@ import { animate, stagger } from 'animejs';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ByteRange, CapturedField, CapturedFrameEvidence, CapturedLayer, CapturedLayerProtocol } from './capture/types.ts';
+import {
+  VisualDrawerTabs,
+  VisualWorkspaceShell,
+  type VisualDrawerDefinition,
+  type VisualDrawerId,
+} from './VisualWorkspace';
 
 const BYTE_PAGE_SIZE = 256;
 
@@ -54,8 +60,9 @@ export function CapturedPacketMicroscope({
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(defaultLayer?.id ?? null);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(defaultLayer?.fields[0]?.id ?? null);
   const [bytePage, setBytePage] = useState(() => Math.floor((defaultLayer?.byteRange.offset ?? 0) / BYTE_PAGE_SIZE));
-  const rootRef = useRef<HTMLElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
+  const [activeDrawer, setActiveDrawer] = useState<VisualDrawerId | null>(null);
   const selectedLayer = frame.layers.find((layer) => layer.id === selectedLayerId) ?? defaultLayer;
   const selectedField = selectedLayer?.fields.find((field) => field.id === selectedFieldId) ?? null;
   const pageCount = Math.max(1, Math.ceil(frame.record.bytes.length / BYTE_PAGE_SIZE));
@@ -103,19 +110,61 @@ export function CapturedPacketMicroscope({
 
   const byteEnd = byteStart + visibleBytes.length;
 
+  const toggleDrawer = (id: VisualDrawerId) => setActiveDrawer((current) => current === id ? null : id);
+  const drawers: VisualDrawerDefinition[] = [
+    {
+      id: 'inspect',
+      label: 'Inspect',
+      eyebrow: selectedLayer ? `${layerKicker(selectedLayer)} · ${selectedLayer.status.toUpperCase()}` : 'Captured structure',
+      title: selectedField?.label ?? selectedLayer?.label ?? 'No decoded layer',
+      content: <div className="packet-inspector packet-drawer-panel">
+        {selectedLayer ? <>
+          <div className="packet-inspector-title"><div><span>{layerKicker(selectedLayer)} · {selectedLayer.status.toUpperCase()}</span><strong>{selectedLayer.label}</strong></div><small>BYTES {selectedLayer.byteRange.offset}–{selectedLayer.byteRange.offset + Math.max(0, selectedLayer.byteRange.length - 1)}</small></div>
+          <div className="packet-field-list">{selectedLayer.fields.map((field) => <button key={field.id} type="button" className={field.id === selectedField?.id ? 'active' : ''} onClick={() => chooseField(field)}><span>{field.label}</span><strong>{field.displayValue}</strong><small>CAPTURED</small></button>)}{selectedLayer.fields.length === 0 && <p className="packet-empty-fields">No bounded fields decoded for this captured layer.</p>}</div>
+          <AnimatePresence mode="wait" initial={false}>{selectedField && <motion.div key={`${selectedLayer.id}-${selectedField.id}`} className="packet-field-detail" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.22 }}><span>FIELD → CAPTURED BYTES</span><h2>{selectedField.label}</h2><strong>{selectedField.displayValue}</strong><p>{selectedField.byteRanges.map((range) => `${range.offset}–${range.offset + Math.max(0, range.length - 1)}`).join(', ') || 'No direct byte range.'}</p>{selectedField.note && <p>{selectedField.note}</p>}</motion.div>}</AnimatePresence>
+        </> : <div className="packet-empty-inspector"><span>UNSUPPORTED LINK TYPE</span><p>No Ethernet interpretation was attempted. Raw captured bytes remain inspectable.</p></div>}
+      </div>,
+    },
+    {
+      id: 'tools',
+      label: 'Layers',
+      eyebrow: 'Bounded decoder output',
+      title: `${frame.layers.length} captured layers`,
+      content: <div className="packet-layer-drawer">{frame.layers.map((layer) => <button key={layer.id} type="button" className={selectedLayer?.id === layer.id ? 'active' : ''} onClick={() => chooseLayer(layer)}><span>{layerKicker(layer)} · {layer.status.toUpperCase()}</span><strong>{layer.label}</strong><small>BYTES {layer.byteRange.offset}–{layer.byteRange.offset + Math.max(0, layer.byteRange.length - 1)}</small></button>)}{frame.layers.length === 0 && <p>Raw bytes are preserved even though this link type was not decoded.</p>}</div>,
+    },
+    {
+      id: 'evidence',
+      label: 'Evidence',
+      eyebrow: 'Immutable capture',
+      title: 'Captured · read only',
+      content: <div className="packet-model-drawer">
+        <div className="packet-readonly-note"><div><span>EVIDENCE BOUNDARY</span><strong>CAPTURED BYTES NEVER CHANGE</strong></div><p>Selection only changes focus. HOPSCOTCH does not recompute, repair, decrypt, or invent this frame.</p></div>
+        <div className="packet-evidence-ledger"><div><span>CAPTURE SOURCE</span><strong>{origin?.label ?? `FRAME ${frame.record.number}`}</strong></div><div><span>CAPTURE TIME</span><strong>{origin?.timestamp ?? formatRelativeTime(frame.record.relativeTimeNanoseconds)}</strong></div><div><span>CAPTURED / WIRE</span><strong>{frame.record.capturedLength} B / {frame.record.originalLength} B</strong></div><div><span>BOUNDARY</span><strong>{frame.record.truncated ? 'SNAPLEN TRUNCATED' : 'COMPLETE RECORD'}</strong></div></div>
+        <div className="packet-causality-note"><span>CAPTURE LIMIT</span><p>{frame.record.truncated ? 'This frame is snaplen-truncated. Missing bytes are unknown and are never fabricated.' : 'This view describes one capture vantage point. Path, unseen packets, and encrypted content remain unknown.'}</p></div>
+      </div>,
+    },
+  ];
+
   return (
-    <motion.section
+    <div
       ref={rootRef}
-      className="packet-microscope packet-microscope-captured"
+      className="packet-microscope packet-microscope-captured packet-world-root"
       data-packet-provenance="CAPTURED"
-      initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.985 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.015 }}
-      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
     >
+      <VisualWorkspaceShell
+        className="packet-visual-workspace interactive-world-workspace captured-packet-workspace"
+        entrance={{ eyebrow: 'Track H · Captured packet microscope', title: 'PEEL THE EVIDENCE.', accentTitle: 'FOLLOW IT TO BYTES.', subtitle: 'Every decoded field remains anchored to immutable captured bytes.' }}
+        stageLabel="Captured packet specimen and exact byte evidence"
+        activeDrawer={activeDrawer}
+        drawers={drawers}
+        onCloseDrawer={() => setActiveDrawer(null)}
+        timeline={null}
+        toolbar={<><div className="interactive-world-toolbar__identity"><span>TRACK H · PACKET EVIDENCE</span><strong>PEEL THE EVIDENCE · FOLLOW IT TO BYTES</strong></div><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'INSPECT', badge: selectedField ? '1' : '0' }, { id: 'tools', label: 'LAYERS', badge: String(frame.layers.length) }, { id: 'evidence', label: 'EVIDENCE' }]} onSelect={toggleDrawer} /><div className="interactive-world-toolbar__actions">{onOpenSourceEvent && <button type="button" onClick={onOpenSourceEvent}>{origin?.actionLabel ?? 'RETURN TO CAPTURE ↗'}</button>}<button type="button" onClick={onExit}>EXIT LAB</button></div></>}
+        hud={<div className="interactive-world-hud packet-stage-hud"><div><span>FRAME</span><strong>{frame.record.number}</strong></div><div><span>CAPTURED</span><strong>{frame.record.capturedLength} BYTES</strong></div><div><span>LAYERS</span><strong>{frame.layers.length}</strong></div><div><span>FIELD</span><strong>{selectedField?.label ?? '—'}</strong></div><div className="interactive-world-hud__truth"><span>PROVENANCE</span><strong>CAPTURED · READ ONLY</strong></div></div>}
+      >
       <header className="packet-heading">
         <div>
-          <p className="eyebrow">Track T · Captured packet microscope</p>
+          <p className="eyebrow">Track H · Captured packet microscope</p>
           <h1>PEEL THE EVIDENCE.<br /><span>FOLLOW IT TO BYTES.</span></h1>
         </div>
         <div className="packet-heading-actions">
@@ -203,6 +252,12 @@ export function CapturedPacketMicroscope({
             })}
           </div>
         </div>
+        <article className="packet-field-lens captured-field-lens">
+          <span>{selectedLayer ? `${layerKicker(selectedLayer)} · ${selectedLayer.label}` : 'RAW CAPTURE'} · FIELD EVIDENCE</span>
+          <strong>{selectedField?.label ?? 'SELECT A FIELD'}</strong>
+          <p>{selectedField ? `${selectedField.displayValue} · CAPTURED BYTES ${selectedField.byteRanges.map((range) => `${range.offset}–${range.offset + Math.max(0, range.length - 1)}`).join(', ') || 'NO DIRECT RANGE'}` : 'Open Inspect to trace decoded structure to immutable bytes.'}</p>
+          <button type="button" onClick={() => setActiveDrawer('inspect')}>INSPECT EVIDENCE ↗</button>
+        </article>
       </div>
 
       <aside className="packet-inspector">
@@ -247,6 +302,7 @@ export function CapturedPacketMicroscope({
           <div className="packet-empty-inspector"><span>UNSUPPORTED LINK TYPE</span><p>No Ethernet interpretation was attempted. Raw captured bytes remain inspectable.</p></div>
         )}
       </aside>
-    </motion.section>
+      </VisualWorkspaceShell>
+    </div>
   );
 }

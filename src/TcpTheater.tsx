@@ -160,10 +160,8 @@ export function TcpTheater({ onExit, onOpenPacket }: { onExit: () => void; onOpe
   const togglePlayback = () => {
     if (playing) {
       setPlaying(false);
-      setActiveDrawer('inspect');
       return;
     }
-    setActiveDrawer(null);
     if (timeMs >= tcpScenario.durationMs) setTimeMs(0);
     setPlaying(true);
   };

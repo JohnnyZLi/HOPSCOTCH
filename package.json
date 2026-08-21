@@ -42,6 +42,7 @@
     "compatibility:chrome": "node scripts/performance-profile.mjs --compatibility",
     "compatibility:firefox": "node scripts/firefox-compatibility.mjs",
     "compatibility:capture": "node scripts/capture-browser-check.mjs",
+    "visual:phase3": "node scripts/performance-profile.mjs --visual-review && node scripts/capture-browser-check.mjs --visual-review",
     "test:explore-launcher-contract": "node scripts/explore-launcher-contract-check.mjs",
     "test:navigation-contract": "node scripts/navigation-contract-check.mjs",
     "test:home-action-deck-contract": "node scripts/home-action-deck-contract-check.mjs",

@@ -143,10 +143,8 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
   const togglePlayback = () => {
     if (playing) {
       setPlaying(false);
-      setActiveDrawer('inspect');
       return;
     }
-    setActiveDrawer(null);
     if (timeMs >= scenario.durationMs) setTimeMs(0);
     setPlaying(true);
   };

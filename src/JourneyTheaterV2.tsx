@@ -375,10 +375,8 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, measu
   const togglePlayback = () => {
     if (playing) {
       setPlaying(false);
-      setActiveDrawer('inspect');
       return;
     }
-    setActiveDrawer(null);
     setPlaying(true);
   };
   const openDrawer = (drawer: VisualDrawerId) => {

@@ -18,8 +18,24 @@ import { serveProductionArtifact } from './production-artifact-server.mjs';
 
 const root = process.cwd();
 const distDir = resolve(root, 'dist');
-const reportPath = resolve(root, process.env.HOPSCOTCH_CAPTURE_BROWSER_REPORT_PATH?.trim() || 'artifacts/capture-browser.json');
+const visualReview = process.argv.includes('--visual-review');
+const reportPath = resolve(root, process.env.HOPSCOTCH_CAPTURE_BROWSER_REPORT_PATH?.trim() || (visualReview ? 'artifacts/phase3-visual-review/captured-report.json' : 'artifacts/capture-browser.json'));
+const visualReviewDirectory = resolve(root, process.env.HOPSCOTCH_VISUAL_REVIEW_DIR?.trim() || 'artifacts/phase3-visual-review');
 const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
+
+async function waitForChildExit(child, timeoutMs = 2000) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  await new Promise((resolvePromise) => {
+    let timeout = null;
+    const finish = () => {
+      if (timeout !== null) clearTimeout(timeout);
+      child.off('exit', finish);
+      resolvePromise();
+    };
+    child.once('exit', finish);
+    timeout = setTimeout(finish, timeoutMs);
+  });
+}
 
 function executableFromPath(command) {
   const result = spawnSync(process.platform === 'win32' ? 'where' : 'which', [command], { encoding: 'utf8' });
@@ -209,6 +225,44 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
   if (microscope.provenance !== 'CAPTURED' || microscope.rangeControls !== 0 || microscope.highlighted <= 0 || !microscope.text.includes('CAPTURED · READ ONLY')) {
     throw new Error(`${profile.id} captured Packet Microscope crossed the read-only boundary.`);
   }
+  if (!microscope.text.includes('TRACK H · PACKET EVIDENCE') || /TRACK T · PACKET EVIDENCE/.test(microscope.text)) throw new Error(`${profile.id} captured Packet Microscope exposed stale product-track identity.`);
+
+  if (profile.visualReview) {
+    await waitForExpression(cdp, `!document.querySelector('.packet-visual-workspace .visual-entrance')`, 5000);
+    await sleep(120);
+    mkdirSync(visualReviewDirectory, { recursive: true });
+    const geometry = await cdp.evaluate(`(()=>{
+      const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
+      const toolbar=rect('.packet-visual-workspace .visual-workspace__toolbar');
+      const hud=rect('.packet-visual-workspace .visual-workspace__hud');
+      return {viewport:{width:innerWidth,height:innerHeight},workspace:rect('.packet-visual-workspace'),stage:rect('.packet-visual-workspace .visual-workspace__stage'),world:rect('.packet-visual-workspace .packet-stage'),toolbar,hud,scrollWidth:document.documentElement.scrollWidth,toolbarHudOverlap:Boolean(toolbar&&hud&&toolbar.left<hud.right&&toolbar.right>hud.left&&toolbar.top<hud.bottom&&toolbar.bottom>hud.top)};
+    })()`);
+    if (!geometry.workspace || !geometry.stage || !geometry.world) throw new Error(`${profile.id} captured microscope is missing visual review geometry.`);
+    if (geometry.viewport.width - geometry.workspace.width > 26) throw new Error(`${profile.id} captured microscope retains a restrictive outer width cap.`);
+    if (geometry.world.width < geometry.stage.width * 0.96 || geometry.world.height < geometry.stage.height * 0.9) throw new Error(`${profile.id} captured packet specimen does not own its stage.`);
+    if (geometry.scrollWidth > geometry.viewport.width || geometry.toolbarHudOverlap) throw new Error(`${profile.id} captured microscope overflows or collides: ${JSON.stringify(geometry)}.`);
+    const captureScreenshot = async (suffix = '') => {
+      const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });
+      const path = join(visualReviewDirectory, `${profile.id}${suffix}.png`);
+      writeFileSync(path, Buffer.from(screenshot.data, 'base64'));
+      return path;
+    };
+    const screenshotPath = await captureScreenshot();
+    let inspectScreenshotPath = null;
+    if (profile.inspectReview) {
+      await clickText(cdp, '.packet-visual-workspace .visual-drawer-tabs button', 'INSPECT');
+      await waitForExpression(cdp, `Boolean(document.querySelector('.packet-visual-workspace .visual-drawer'))`);
+      await sleep(120);
+      inspectScreenshotPath = await captureScreenshot('-inspect');
+      await clickText(cdp, '.packet-visual-workspace .visual-drawer__close', '×');
+      await waitForExpression(cdp, `!document.querySelector('.packet-visual-workspace .visual-drawer')`);
+    }
+    const errors = cdp.events.filter((event) => event.method === 'Runtime.exceptionThrown'
+      || (event.method === 'Log.entryAdded' && event.params?.entry?.level === 'error')
+      || (event.method === 'Runtime.consoleAPICalled' && event.params?.type === 'error'));
+    if (errors.length > 0) throw new Error(`${profile.id} emitted ${errors.length} runtime/console error(s): ${JSON.stringify(errors.slice(0, 2))}`);
+    return { id: profile.id, viewport: { width: profile.width, height: profile.height }, reducedMotion: profile.reducedMotion, ...loaded, capturedMicroscopeVerified: true, visualReview: { geometry, screenshotPath, inspectScreenshotPath } };
+  }
   await clickText(cdp, '.packet-origin-strip button', 'RETURN TO CAPTURE');
   await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-capture-loaded')==='true'`);
 
@@ -244,7 +298,7 @@ async function main() {
   let stderr = '';
   chrome.stderr.setEncoding('utf8');
   chrome.stderr.on('data', (chunk) => { stderr = `${stderr}${chunk}`.slice(-16000); });
-  const report = { schema: 'hopscotch.capture-browser', version: 1, browser: { path: chromePath }, profiles: [], failures: [] };
+  const report = { schema: visualReview ? 'hopscotch.phase3-captured-visual-review' : 'hopscotch.capture-browser', version: 1, browser: { path: chromePath }, profiles: [], failures: [] };
   let cdp = null;
   try {
     const version = await waitForDevTools(debuggingPort);
@@ -257,20 +311,31 @@ async function main() {
     await cdp.call('DOM.enable');
     await cdp.call('Runtime.enable');
     await cdp.call('Log.enable');
-    for (const profile of [
+    const profiles = visualReview ? [
+      { id: 'captured-packet-ultrawide', width: 2560, height: 1200, reducedMotion: false, visualReview: true, inspectReview: false },
+      { id: 'captured-packet-wide', width: 1600, height: 950, reducedMotion: false, visualReview: true, inspectReview: true },
+      { id: 'captured-packet-laptop', width: 1366, height: 768, reducedMotion: false, visualReview: true, inspectReview: false },
+      { id: 'captured-packet-narrow', width: 900, height: 820, reducedMotion: false, visualReview: true, inspectReview: false },
+      { id: 'captured-packet-mobile', width: 390, height: 844, reducedMotion: false, visualReview: true, inspectReview: true },
+    ] : [
       { id: 'capture-desktop', width: 1440, height: 1000, reducedMotion: false },
       { id: 'capture-mobile', width: 390, height: 844, reducedMotion: false },
       { id: 'capture-reduced-motion', width: 1280, height: 900, reducedMotion: true },
-    ]) report.profiles.push(await exerciseProfile(cdp, production.origin, fixtures, profile));
+    ];
+    for (const profile of profiles) report.profiles.push(await exerciseProfile(cdp, production.origin, fixtures, profile));
   } catch (error) {
     report.failures.push(error instanceof Error ? error.stack ?? error.message : String(error));
   } finally {
     if (cdp) { try { await cdp.call('Browser.close'); } catch { /* cleanup */ } cdp.close(); }
-    if (!chrome.killed) chrome.kill('SIGKILL');
+    await waitForChildExit(chrome);
+    if (chrome.exitCode === null && chrome.signalCode === null) {
+      chrome.kill('SIGKILL');
+      await waitForChildExit(chrome);
+    }
     await new Promise((resolvePromise) => production.server.close(resolvePromise));
     report.browser.stderrTail = stderr || null;
-    rmSync(fixtureDirectory, { recursive: true, force: true });
-    rmSync(userDataDirectory, { recursive: true, force: true });
+    rmSync(fixtureDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    rmSync(userDataDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     mkdirSync(dirname(reportPath), { recursive: true });
     writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   }
@@ -278,7 +343,7 @@ async function main() {
   for (const profile of report.profiles) console.log(`${profile.id}: ${profile.flowCount} flows · ${profile.eventCount} events · ${profile.byteCount} visible bytes · DOM ${profile.elementCount}`);
   console.log(`Report: ${reportPath}`);
   if (report.failures.length > 0) { for (const failure of report.failures) console.error(failure); process.exitCode = 1; }
-  else console.log('Capture browser check passed: PCAP/PCAPNG import, rejected replacement preservation, time controls, lineage, read-only microscopy, desktop/mobile/reduced motion, and console health.');
+  else console.log(visualReview ? 'Captured Packet Microscope production visual review passed.' : 'Capture browser check passed: PCAP/PCAPNG import, rejected replacement preservation, time controls, lineage, read-only microscopy, desktop/mobile/reduced motion, and console health.');
 }
 
 await main();

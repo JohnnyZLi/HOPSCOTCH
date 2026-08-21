@@ -2,7 +2,14 @@ import { animate, stagger } from 'animejs';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { CapturedFrameEvidence } from './capture/types.ts';
+import {
+  VisualDrawerTabs,
+  VisualWorkspaceShell,
+  type VisualDrawerDefinition,
+  type VisualDrawerId,
+} from './VisualWorkspace';
 import './packet.css';
+import './packet.phase3.css';
 import {
   buildPacket,
   defaultPacketConfig,
@@ -66,11 +73,16 @@ function SimulatedPacketMicroscope({
   const [config, setConfig] = useState<PacketConfig>(() => ({ ...defaultPacketConfig, ...initialConfig }));
   const [selectedLayer, setSelectedLayer] = useState<PacketLayerId>('network');
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>('ip-length');
-  const rootRef = useRef<HTMLElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
+  const [activeDrawer, setActiveDrawer] = useState<VisualDrawerId | null>(null);
   const snapshot = useMemo(() => buildPacket(config), [config]);
   const selectedSegment = snapshot.segments.find((segment) => segment.id === selectedLayer) ?? snapshot.segments[0];
   const selectedField = selectedSegment.fields.find((field) => field.id === selectedFieldId) ?? null;
+  const networkSegment = snapshot.segments.find((segment) => segment.id === 'network') ?? snapshot.segments[0];
+  const transportSegment = snapshot.segments.find((segment) => segment.id === 'transport') ?? snapshot.segments[0];
+  const sourceAddress = networkSegment.fields.find((field) => field.id === 'ip-src' || field.id === 'ip6-src')?.value ?? 'SOURCE UNKNOWN';
+  const destinationAddress = networkSegment.fields.find((field) => field.id === 'ip-dst' || field.id === 'ip6-dst')?.value ?? 'DESTINATION UNKNOWN';
 
   useEffect(() => {
     if (selectedFieldId && selectedSegment.fields.some((field) => field.id === selectedFieldId)) return;
@@ -130,16 +142,61 @@ function SimulatedPacketMicroscope({
     setSelectedFieldId(transport === 'tcp' ? 'tcp-checksum' : transport === 'udp' ? 'udp-checksum' : 'icmp-checksum');
   };
 
+  const toggleDrawer = (id: VisualDrawerId) => setActiveDrawer((current) => current === id ? null : id);
+  const drawers: VisualDrawerDefinition[] = [
+    {
+      id: 'inspect',
+      label: 'Inspect',
+      eyebrow: `${layerKickers[selectedSegment.id]} · ${selectedSegment.label}`,
+      title: selectedField?.label ?? 'Select a field',
+      content: <div className="packet-inspector packet-drawer-panel">
+        <div className="packet-inspector-title"><div><span>{layerKickers[selectedSegment.id]}</span><strong>{selectedSegment.label}</strong></div><small>BYTES {selectedSegment.offset}–{selectedSegment.offset + selectedSegment.length - 1}</small></div>
+        <div className="packet-field-list">{selectedSegment.fields.map((field) => <button key={field.id} type="button" className={field.id === selectedField?.id ? 'active' : ''} onClick={() => setSelectedFieldId(field.id)}><span>{field.label}</span><strong>{field.value}</strong>{field.derived && <small>DERIVED</small>}</button>)}</div>
+        <AnimatePresence mode="wait" initial={false}>{selectedField && <motion.div key={`${selectedSegment.id}-${selectedField.id}-${selectedField.value}`} className="packet-field-detail" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.22 }}><span>FIELD TRACE</span><h2>{selectedField.label}</h2><strong>{selectedField.value}</strong>{selectedField.length > 0 && <p>Maps to {selectedField.length} byte{selectedField.length === 1 ? '' : 's'} beginning at frame offset {selectedSegment.offset + selectedField.offset}.</p>}{selectedField.note && <p>{selectedField.note}</p>}</motion.div>}</AnimatePresence>
+      </div>,
+    },
+    {
+      id: 'config',
+      label: 'Configure',
+      eyebrow: 'Simulated packet inputs',
+      title: `${config.family.toUpperCase()} · ${config.transport.toUpperCase()}`,
+      content: <div className="packet-config-drawer">
+        <section><span>NETWORK FAMILY</span><div className="packet-toggle-group" aria-label="Network family">{(['ipv4', 'ipv6'] as const).map((family) => <button key={family} type="button" className={config.family === family ? 'active' : ''} onClick={() => chooseFamily(family)}>{family.toUpperCase()}</button>)}</div></section>
+        <section><span>TRANSPORT PROTOCOL</span><div className="packet-toggle-group" aria-label="Transport protocol">{(['tcp', 'udp', 'icmp'] as const).map((transport) => <button key={transport} type="button" className={config.transport === transport ? 'active' : ''} onClick={() => chooseTransport(transport)}>{transport.toUpperCase()}</button>)}</div></section>
+        <section><div><span>APPLICATION PAYLOAD</span><strong>{snapshot.payloadBytes} BYTES</strong></div><input type="range" min="16" max="1400" step="8" value={config.payloadBytes} onChange={(event) => patchConfig('payloadBytes', Number(event.currentTarget.value))} aria-label="Application payload size" /></section>
+        <section><div><span>{config.family === 'ipv4' ? 'TTL' : 'HOP LIMIT'}</span><strong>{config.ttl}</strong></div><div className="packet-stepper"><button type="button" onClick={() => patchConfig('ttl', Math.max(1, config.ttl - 1))}>−</button><strong>{config.ttl}</strong><button type="button" onClick={() => patchConfig('ttl', Math.min(255, config.ttl + 1))}>+</button></div></section>
+      </div>,
+    },
+    {
+      id: 'evidence',
+      label: 'Model',
+      eyebrow: 'Derived relationships',
+      title: 'Change propagation',
+      content: <div className="packet-model-drawer">
+        <div className="packet-relations packet-drawer-relations"><div><span>FRAME BYTES</span><strong>{snapshot.frameBytes}</strong><small>Ethernet + network + transport + payload</small></div><div><span>{config.family === 'ipv4' ? 'IP TOTAL LENGTH' : 'IPV6 PAYLOAD LENGTH'}</span><strong>{config.family === 'ipv4' ? snapshot.networkBytes : snapshot.transportBytes}</strong><small>{config.family === 'ipv4' ? 'Network header through payload' : 'Transport header + payload'}</small></div><div><span>NETWORK CHECKSUM</span><strong>{snapshot.networkChecksum === null ? 'NONE' : hex16(snapshot.networkChecksum)}</strong><small>{config.family === 'ipv4' ? 'Recomputed from IPv4 header' : 'IPv6 removed this checksum'}</small></div><div><span>{config.transport.toUpperCase()} CHECKSUM</span><strong>{hex16(snapshot.transportChecksum)}</strong><small>Pseudo-header and payload dependent</small></div></div>
+        <div className="packet-causality-note"><span>CHANGE PROPAGATION</span><p>Payload size changes propagate into network length fields and the {config.transport.toUpperCase()} checksum. {config.family === 'ipv4' ? 'IPv4 Total Length also changes its header checksum.' : 'IPv6 changes Payload Length but has no network-header checksum.'}</p></div>
+        <div className="packet-origin-card"><span>SCENARIO SOURCE</span><strong>{origin?.label ?? 'LAB 01 · TRAFFIC RECOVERS'}</strong><small>{origin?.timestamp ?? '00:05.400'} · SIMULATED</small></div>
+      </div>,
+    },
+  ];
+
   return (
-    <motion.section
+    <div
       ref={rootRef}
-      className="packet-microscope packet-microscope-simulated"
+      className="packet-microscope packet-microscope-simulated packet-world-root"
       data-packet-provenance="SIMULATED"
-      initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.985 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.015 }}
-      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
     >
+      <VisualWorkspaceShell
+        className="packet-visual-workspace interactive-world-workspace"
+        entrance={{ eyebrow: 'Lab 02 · Packet microscope', title: 'PEEL THE PACKET.', accentTitle: 'WATCH THE MATH MOVE.', subtitle: 'Move from layer to field to the exact bytes that carry it.' }}
+        stageLabel="Simulated packet specimen and exact byte map"
+        activeDrawer={activeDrawer}
+        drawers={drawers}
+        onCloseDrawer={() => setActiveDrawer(null)}
+        timeline={null}
+        toolbar={<><div className="interactive-world-toolbar__identity"><span>LAB 02 · PACKET MICROSCOPE</span><strong>PEEL THE PACKET · WATCH THE MATH MOVE</strong></div><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'INSPECT', badge: selectedField ? '1' : '0' }, { id: 'config', label: 'CONFIGURE' }, { id: 'evidence', label: 'MODEL' }]} onSelect={toggleDrawer} /><div className="interactive-world-toolbar__actions">{onOpenSourceEvent && <button type="button" onClick={onOpenSourceEvent}>{origin?.actionLabel ?? 'SOURCE ↗'}</button>}<button type="button" onClick={onExit}>EXIT LAB</button></div></>}
+        hud={<div className="interactive-world-hud packet-stage-hud"><div><span>FRAME</span><strong>{snapshot.frameBytes} BYTES</strong></div><div><span>NETWORK</span><strong>{config.family.toUpperCase()}</strong></div><div><span>TRANSPORT</span><strong>{config.transport.toUpperCase()}</strong></div><div><span>FIELD</span><strong>{selectedField?.label ?? '—'}</strong></div><div className="interactive-world-hud__truth"><span>PROVENANCE</span><strong>SIMULATED · RECOMPUTED</strong></div></div>}
+      >
       <header className="packet-heading">
         <div>
           <p className="eyebrow">Lab 02 · Packet microscope</p>
@@ -179,6 +236,7 @@ function SimulatedPacketMicroscope({
           <div>
             <span>SCENARIO SOURCE</span>
             <strong>{origin?.label ?? 'LAB 01 · TRAFFIC RECOVERS'}</strong>
+            <small className="packet-origin-route">{networkSegment.label} · {transportSegment.label} · {sourceAddress} → {destinationAddress}</small>
           </div>
           <div>
             <span>TIMESTAMP</span>
@@ -290,6 +348,12 @@ function SimulatedPacketMicroscope({
             })}
           </div>
         </div>
+        <article className="packet-field-lens">
+          <span>{layerKickers[selectedSegment.id]} · {selectedSegment.label} · FIELD FOCUS</span>
+          <strong>{selectedField?.label ?? 'SELECT A FIELD'}</strong>
+          <p>{selectedField ? `${selectedField.value} · ${selectedField.length > 0 ? `FRAME BYTES ${selectedSegment.offset + selectedField.offset}–${selectedSegment.offset + selectedField.offset + selectedField.length - 1}` : 'DERIVED VALUE'}` : 'Open Inspect to map protocol structure to exact bytes.'}</p>
+          <button type="button" onClick={() => setActiveDrawer('inspect')}>INSPECT FIELDS ↗</button>
+        </article>
       </div>
 
       <aside className="packet-inspector">
@@ -347,6 +411,7 @@ function SimulatedPacketMicroscope({
           </p>
         </div>
       </aside>
-    </motion.section>
+      </VisualWorkspaceShell>
+    </div>
   );
 }

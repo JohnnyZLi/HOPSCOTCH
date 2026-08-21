@@ -87,10 +87,8 @@ export function HttpComparisonTheater({ onExit, onOpenTls }: { onExit: () => voi
   const togglePlayback = () => {
     if (playing) {
       setPlaying(false);
-      setActiveDrawer('inspect');
       return;
     }
-    setActiveDrawer(null);
     if (timeMs >= HTTP_COMPARISON_DURATION_MS) setTimeMs(0);
     setPlaying(true);
   };

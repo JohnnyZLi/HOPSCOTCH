@@ -3,7 +3,8 @@
   z-index: 3;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
-  width: min(1680px, calc(100% - 32px));
+  width: calc(100% - 20px);
+  max-width: none;
   height: calc(100dvh - 89px);
   min-height: 570px;
   margin: 0 auto;
@@ -441,7 +442,7 @@
 
 @media (max-width: 900px) {
   .visual-workspace {
-    width: min(100% - 20px, 980px);
+    width: calc(100% - 16px);
   }
 
   .visual-workspace__toolbar {
@@ -787,4 +788,122 @@
   .protocol-visual-tools { max-width: 68vw; }
   .protocol-visual-tools .visual-drawer-tabs { max-width: 52vw; }
   .protocol-scene-annotation { width: min(260px, 68vw); }
+}
+
+/* Shared full-stage composition for Builder, AS, Physical, and Packet worlds. */
+.interactive-world-workspace .visual-workspace__stage {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+
+.interactive-world-toolbar__identity {
+  display: grid;
+  min-width: 190px;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 4px;
+  background: rgba(3, 7, 10, 0.66);
+  backdrop-filter: blur(14px);
+}
+
+.interactive-world-toolbar__identity span {
+  color: #5b6c74;
+  font-size: 0.4rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.interactive-world-toolbar__identity strong {
+  overflow: hidden;
+  color: #d5e0e4;
+  font-size: 0.56rem;
+  letter-spacing: 0.055em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.interactive-world-toolbar__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 5px;
+  min-width: 190px;
+}
+
+.interactive-world-toolbar__actions button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 4px;
+  color: #74838b;
+  background: rgba(4, 9, 12, 0.66);
+  backdrop-filter: blur(14px);
+  cursor: pointer;
+  font-size: 0.43rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.interactive-world-toolbar__actions button:hover {
+  border-color: rgba(121, 242, 218, 0.3);
+  color: #c3eee6;
+}
+
+.visual-workspace__hud > .interactive-world-hud {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.interactive-world-hud > div {
+  display: grid;
+  min-width: 80px;
+  gap: 2px;
+  padding: 7px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
+  background: rgba(3, 8, 11, 0.62);
+  backdrop-filter: blur(13px);
+}
+
+.interactive-world-hud > div > span {
+  color: #53636b;
+  font-size: 0.4rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.interactive-world-hud > div > strong {
+  overflow: hidden;
+  color: #c6d4d9;
+  font-size: 0.52rem;
+  letter-spacing: 0.05em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.interactive-world-hud > .interactive-world-hud__truth {
+  min-width: 190px;
+}
+
+@media (max-width: 900px) {
+  .interactive-world-toolbar__identity,
+  .interactive-world-toolbar__actions { min-width: 0; }
+  .interactive-world-toolbar__actions button:first-child:not(:last-child) { display: none; }
+  .interactive-world-hud > .interactive-world-hud__truth { display: none; }
+}
+
+@media (max-width: 680px) {
+  .interactive-world-workspace .visual-workspace__stage { border-radius: 0; }
+  .interactive-world-toolbar__identity { max-width: 108px; padding-inline: 8px; }
+  .interactive-world-toolbar__identity strong { display: none; }
+  .interactive-world-toolbar__actions button { width: 34px; padding: 0; font-size: 0; }
+  .interactive-world-toolbar__actions button:last-child::after { content: '×'; font-size: 0.9rem; }
+  .visual-workspace__hud > .interactive-world-hud { width: 100%; overflow: hidden; }
+  .interactive-world-hud > div { min-width: 0; flex: 1 1 0; padding-inline: 6px; }
 }

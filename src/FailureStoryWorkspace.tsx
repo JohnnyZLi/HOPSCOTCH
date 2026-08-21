@@ -78,10 +78,8 @@ export function FailureStoryWorkspace({
   const togglePlayback = () => {
     if (playing) {
       onTogglePlayback();
-      setActiveDrawer('inspect');
       return;
     }
-    setActiveDrawer(null);
     onTogglePlayback();
   };
 
