@@ -9,6 +9,7 @@ import './dns.css';
 import './tls.css';
 import './http-comparison.css';
 import './protocol-workspaces.css';
+import './VisualPlayback.css';
 
 type StressProfile = 'as-density' | 'builder-density' | 'physical-density';
 
