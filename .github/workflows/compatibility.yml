@@ -161,12 +161,22 @@ jobs:
       - run: npm run build
       - name: Audit every Journey annotation state
         run: node scripts/journey-annotation-visual-review.mjs
+      - name: Verify Journey DNS connector geometry
+        run: node scripts/journey-dns-geometry-review.mjs
       - name: Upload Journey annotation audit
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: hopscotch-journey-annotation-visual-review
           path: artifacts/journey-annotation-visual-review
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload Journey DNS geometry review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-journey-dns-geometry-review
+          path: artifacts/journey-dns-geometry-review
           if-no-files-found: error
           retention-days: 7
 
