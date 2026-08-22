@@ -61,6 +61,17 @@
   background-clip: padding-box;
 }
 
+/* Journey DNS nodes are a circle plus a label. Centering the connector on the whole
+   two-row node stack puts it below the circle center. The label is 0.56rem tall with a
+   13px gap, so move only the connector by half of that below-circle content. */
+.journey-visual-workspace .journey-cinematic-stage .dns-chain span {
+  line-height: 1;
+}
+
+.journey-visual-workspace .journey-cinematic-stage .dns-chain::before {
+  top: calc(50% - 6.5px - 0.28rem);
+}
+
 @media (max-width: 680px) {
   /* Physical Atlas stays a full-stage world. The WebGL host intentionally extends well
      past the clipped stage edges so the camera gets a landscape-ish aspect ratio on a
@@ -177,5 +188,10 @@
      safely below the compact annotation and the two-row HUD. */
   .journey-visual-workspace .journey-cinematic-stage .journey-scene-transition {
     inset: 252px 10px 112px;
+  }
+
+  /* The mobile label is 0.38rem; keep the same geometric relationship to the node ring. */
+  .journey-visual-workspace .journey-cinematic-stage .dns-chain::before {
+    top: calc(50% - 6.5px - 0.19rem);
   }
 }
