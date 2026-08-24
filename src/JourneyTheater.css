@@ -101,6 +101,7 @@
 }
 
 .journey-cinematic-stage.causal-world-active .journey-callout-overlay {
+  display: none !important;
   opacity: 0 !important;
   transform: translateY(-7px) !important;
   pointer-events: none !important;
