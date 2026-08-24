@@ -8,7 +8,11 @@
 }
 
 .journey-visual-workspace .journey-cinematic-stage .dns-chain::before {
-  top: 50%;
+  top: 0;
+  bottom: 0;
+  height: 1px;
+  margin-block: auto;
+  transform: none;
 }
 
 .journey-visual-workspace .journey-cinematic-stage .dns-chain > div {
