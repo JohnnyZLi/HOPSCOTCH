@@ -1,6 +1,6 @@
 import { animate } from 'animejs';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   VisualDrawerTabs,
   VisualTimeRail,
@@ -31,6 +31,18 @@ const actorLabels: Record<DnsActorId, { label: string; sub: string }> = {
   cache: { label: 'CACHE', sub: 'RECURSIVE STATE' },
 };
 
+const dnsActors = ['stub', 'recursive', 'root', 'tld', 'authoritative', 'cache'] as const satisfies readonly DnsActorId[];
+const dnsLinks = [
+  ['stub', 'recursive'],
+  ['recursive', 'root'],
+  ['recursive', 'tld'],
+  ['recursive', 'authoritative'],
+  ['recursive', 'cache'],
+] as const satisfies readonly (readonly [DnsActorId, DnsActorId])[];
+
+type DnsAnchorPoint = { x: number; y: number };
+type DnsAnchorPoints = Record<DnsActorId, DnsAnchorPoint>;
+
 function formatTime(timeMs: number): string {
   const seconds = Math.floor(timeMs / 1000).toString().padStart(2, '0');
   const milliseconds = Math.floor(timeMs % 1000).toString().padStart(3, '0');
@@ -52,11 +64,17 @@ function eventTone(event: DnsEvent): VisualTimelineEvent['tone'] {
   return 'neutral';
 }
 
+function sameAnchorPoints(current: DnsAnchorPoints | null, next: DnsAnchorPoints): boolean {
+  if (!current) return false;
+  return dnsActors.every((actor) => Math.abs(current[actor].x - next[actor].x) < 0.1 && Math.abs(current[actor].y - next[actor].y) < 0.1);
+}
+
 export function DnsTheater({ onExit }: { onExit: () => void }) {
   const [mode, setMode] = useState<DnsMode>('miss');
   const [timeMs, setTimeMs] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [activeDrawer, setActiveDrawer] = useState<VisualDrawerId | null>(null);
+  const [anchorPoints, setAnchorPoints] = useState<DnsAnchorPoints | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
   const scenario = useMemo(() => dnsScenario(mode), [mode]);
@@ -73,30 +91,57 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
     onComplete: () => setPlaying(false),
   });
 
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const stage = root?.querySelector<HTMLElement>('.dns-map');
+    const linkLayer = root?.querySelector<SVGSVGElement>('.dns-link-layer');
+    if (!root || !stage || !linkLayer) return;
+
+    const anchorElements = dnsActors.map((actor) => root.querySelector<HTMLElement>(`[data-dns-anchor="${actor}"]`));
+    if (anchorElements.some((anchor) => !anchor)) return;
+    const anchors = anchorElements as HTMLElement[];
+
+    const measure = () => {
+      const coordinateRect = linkLayer.getBoundingClientRect();
+      const next = Object.fromEntries(dnsActors.map((actor, index) => {
+        const rect = anchors[index].getBoundingClientRect();
+        return [actor, {
+          x: rect.left + rect.width / 2 - coordinateRect.left,
+          y: rect.top + rect.height / 2 - coordinateRect.top,
+        }];
+      })) as DnsAnchorPoints;
+      setAnchorPoints((current) => sameAnchorPoints(current, next) ? current : next);
+    };
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage);
+    anchors.forEach((anchor) => observer.observe(anchor.parentElement ?? anchor));
+    window.addEventListener('resize', measure);
+    measure();
+
+    return () => {
+      window.removeEventListener('resize', measure);
+      observer.disconnect();
+    };
+  }, []);
+
   useEffect(() => {
     const root = rootRef.current;
-    if (!root) return;
+    if (!root || !anchorPoints) return;
     const token = root.querySelector<HTMLElement>('.dns-message-token');
-    const from = root.querySelector<HTMLElement>(`[data-dns-actor="${activeEvent.from}"]`);
-    const to = root.querySelector<HTMLElement>(`[data-dns-actor="${activeEvent.to}"]`);
     const stage = root.querySelector<HTMLElement>('.dns-map');
-    if (!token || !from || !to || !stage) return;
+    if (!token || !stage) return;
 
-    const stageRect = stage.getBoundingClientRect();
-    const fromRect = from.getBoundingClientRect();
-    const toRect = to.getBoundingClientRect();
-    const rawStartX = fromRect.left + fromRect.width / 2 - stageRect.left;
-    const rawStartY = fromRect.top + fromRect.height / 2 - stageRect.top;
-    const rawEndX = toRect.left + toRect.width / 2 - stageRect.left;
-    const rawEndY = toRect.top + toRect.height / 2 - stageRect.top;
-    const halfWidth = Math.min(stageRect.width / 2 - 4, token.offsetWidth / 2 + 8);
-    const halfHeight = Math.min(stageRect.height / 2 - 4, token.offsetHeight / 2 + 8);
-    const clampX = (value: number) => Math.max(halfWidth, Math.min(stageRect.width - halfWidth, value));
-    const clampY = (value: number) => Math.max(halfHeight, Math.min(stageRect.height - halfHeight, value));
-    const startX = clampX(rawStartX);
-    const startY = clampY(rawStartY);
-    const endX = clampX(rawEndX);
-    const endY = clampY(rawEndY);
+    const fromPoint = anchorPoints[activeEvent.from];
+    const toPoint = anchorPoints[activeEvent.to];
+    const halfWidth = Math.min(stage.clientWidth / 2 - 4, token.offsetWidth / 2 + 8);
+    const halfHeight = Math.min(stage.clientHeight / 2 - 4, token.offsetHeight / 2 + 8);
+    const clampX = (value: number) => Math.max(halfWidth, Math.min(stage.clientWidth - halfWidth, value));
+    const clampY = (value: number) => Math.max(halfHeight, Math.min(stage.clientHeight - halfHeight, value));
+    const startX = clampX(fromPoint.x);
+    const startY = clampY(fromPoint.y);
+    const endX = clampX(toPoint.x);
+    const endY = clampY(toPoint.y);
 
     if (reduceMotion) {
       token.style.left = `${endX}px`;
@@ -118,7 +163,7 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
       ease: 'inOutSine',
     });
     return () => { animation.cancel(); };
-  }, [activeEvent.id, reduceMotion]);
+  }, [activeEvent.id, anchorPoints, reduceMotion]);
 
   const chooseMode = (nextMode: DnsMode) => {
     setMode(nextMode);
@@ -196,8 +241,20 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
     <div ref={rootRef} className={`protocol-cinematic-stage dns-cinematic-stage mode-${mode}`}>
       <div className="protocol-scene-kicker"><span>DNS / NAMESPACE</span><strong>{activeEvent.from.toUpperCase()} → {activeEvent.to.toUpperCase()}</strong></div>
       <div className="dns-map dns-workspace-map">
-        <div className="dns-link stub-recursive" aria-hidden="true"/><div className="dns-link recursive-root" aria-hidden="true"/><div className="dns-link recursive-tld" aria-hidden="true"/><div className="dns-link recursive-auth" aria-hidden="true"/><div className="dns-link recursive-cache" aria-hidden="true"/>
-        {(['stub', 'recursive', 'root', 'tld', 'authoritative', 'cache'] as const).map((actor) => { const idleUpstream = upstreamDimmed && (actor === 'root' || actor === 'tld' || actor === 'authoritative'); return <div key={actor} data-dns-actor={actor} className={`dns-actor actor-${actor}${idleUpstream ? ' is-idle-upstream' : ''}${activeEvent.from === actor || activeEvent.to === actor ? ' is-current' : ''}`}><span>{actorLabels[actor].label}</span><strong>{actorLabels[actor].sub}</strong>{actor === 'cache' && <small>{state.cacheState === 'empty' ? 'EMPTY' : `${DNS_ANSWER} · ${state.cacheTtlSeconds ?? 0}s`}</small>}</div>; })}
+        <svg className="dns-link-layer" aria-hidden="true" focusable="false">
+          {anchorPoints && dnsLinks.map(([from, to]) => <line key={`${from}-${to}`} data-dns-link={`${from}-${to}`} x1={anchorPoints[from].x} y1={anchorPoints[from].y} x2={anchorPoints[to].x} y2={anchorPoints[to].y}/>) }
+        </svg>
+        {dnsActors.map((actor) => {
+          const idleUpstream = upstreamDimmed && (actor === 'root' || actor === 'tld' || actor === 'authoritative');
+          return <div key={actor} className={`dns-actor-slot actor-${actor}`}>
+            <i className="dns-actor-anchor" data-dns-anchor={actor} aria-hidden="true"/>
+            <div data-dns-actor={actor} className={`dns-actor${idleUpstream ? ' is-idle-upstream' : ''}${activeEvent.from === actor || activeEvent.to === actor ? ' is-current' : ''}`}>
+              <span>{actorLabels[actor].label}</span>
+              <strong>{actorLabels[actor].sub}</strong>
+              {actor === 'cache' && <small>{state.cacheState === 'empty' ? 'EMPTY' : `${DNS_ANSWER} · ${state.cacheTtlSeconds ?? 0}s`}</small>}
+            </div>
+          </div>;
+        })}
         <div className={`dns-message-token severity-${activeEvent.severity}`}><span>{activeEvent.kind.replace('.', ' ')}</span><strong>{messageLabel(activeEvent)}</strong></div>
         <div className="dns-namespace-ladder" aria-label="DNS namespace delegation"><span>NAMESPACE</span>{namespace.map((label, index) => <motion.div key={label} className={`${index <= activeNamespaceIndex ? 'resolved' : ''}${index === activeNamespaceIndex ? ' current' : ''}`} animate={reduceMotion ? undefined : { x: index === activeNamespaceIndex ? 5 : 0 }}><i/><strong>{label}</strong></motion.div>)}</div>
         <div className="dns-path-readout"><span>{mode === 'miss' ? 'MISS PATH' : 'HIT PATH'}</span><strong>{mode === 'miss' ? 'STUB → RECURSIVE → AUTHORITY' : 'STUB → RECURSIVE CACHE'}</strong></div>
