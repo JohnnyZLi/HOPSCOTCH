@@ -128,69 +128,69 @@ async function measureDns(cdp, origin, width, height) {
   const query = new URLSearchParams({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', impairment: 'clean', t: '850' });
   await cdp.call('Page.navigate', { url: `${origin}/journey?${query.toString()}` });
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`);
-  await waitForExpression(cdp, `Boolean(document.querySelector('.journey-cinematic-stage .dns-chain'))`, 20000);
-  await waitForExpression(cdp, `document.querySelectorAll('.journey-cinematic-stage .dns-chain > div.active').length >= 2`);
+  await waitForExpression(cdp, `Boolean(document.querySelector('[data-journey-causal-world="true"]'))`, 20000);
+  await waitForExpression(cdp, `document.querySelectorAll('[data-dns-authority]').length === 4`);
+  await waitForExpression(cdp, `Boolean(document.querySelector('[data-dns-query="dns-recursive"]'))`);
   await waitForExpression(cdp, `!document.querySelector('.visual-entrance')`, 5000);
-  await sleep(120);
+  // Measure the query at the deterministic end of its travel. The separate
+  // choreography review proves the in-between motion; this review owns final
+  // connector alignment and must not sample a 930ms animation mid-flight.
+  await sleep(1050);
 
   const geometry = await cdp.evaluate(`(()=>{
-    const chain=document.querySelector('.journey-cinematic-stage .dns-chain');
-    if(!chain)return null;
-    const chainRect=chain.getBoundingClientRect();
-    const anchorCenterY=chainRect.top+(chainRect.height/2);
-    const pseudo=getComputedStyle(chain,'::before');
-    const rings=[...chain.querySelectorAll(':scope > div > i')].map((ring,index)=>{
-      const rect=ring.getBoundingClientRect();
-      const centerY=rect.top+(rect.height/2);
-      const node=ring.parentElement;
-      const nodeRect=node?.getBoundingClientRect();
-      const label=node?.querySelector('span');
-      const labelRect=label?.getBoundingClientRect();
+    const stage=document.querySelector('.journey-causal-world');
+    const thread=document.querySelector('.causal-dns-thread');
+    const query=document.querySelector('[data-dns-query="dns-recursive"]');
+    const cache=document.querySelector('.causal-cache');
+    const lid=document.querySelector('.causal-cache__lid');
+    const object=document.querySelector('[data-causal-object="request-01"]');
+    if(!stage||!thread||!query||!cache||!lid||!object)return null;
+    const rect=(element)=>{const value=element.getBoundingClientRect();return {left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height,centerX:value.left+value.width/2,centerY:value.top+value.height/2}};
+    const stageRect=rect(stage);
+    const queryRect=rect(query);
+    const authorities=[...document.querySelectorAll('[data-dns-authority]')].map((actor,index)=>{
+      const actorRect=rect(actor);
+      const anchor=actor.querySelector(':scope > i');
+      const anchorRect=anchor?rect(anchor):null;
       return {
         index,
-        active:node?.classList.contains('active')??false,
-        top:rect.top,
-        height:rect.height,
-        centerY,
-        delta:Math.abs(centerY-anchorCenterY),
-        nodeHeight:nodeRect?.height??null,
-        nodeCenterY:nodeRect?nodeRect.top+nodeRect.height/2:null,
-        labelTop:labelRect?.top??null,
-        labelCenterY:labelRect?labelRect.top+labelRect.height/2:null,
+        id:actor.getAttribute('data-dns-authority'),
+        reached:actor.classList.contains('is-reached'),
+        rect:actorRect,
+        anchor:anchorRect,
+        inside:actorRect.left>=stageRect.left-2&&actorRect.right<=stageRect.right+2&&actorRect.top>=stageRect.top-2&&actorRect.bottom<=stageRect.bottom+2,
       };
     });
+    const recursive=authorities.find((actor)=>actor.id==='recursive');
+    const queryToRecursive=recursive?.anchor?Math.hypot(queryRect.centerX-recursive.anchor.centerX,queryRect.centerY-recursive.anchor.centerY):Infinity;
+    const objectRect=rect(object);
+    const overlapX=Math.max(0,Math.min(queryRect.right,objectRect.right)-Math.max(queryRect.left,objectRect.left));
+    const overlapY=Math.max(0,Math.min(queryRect.bottom,objectRect.bottom)-Math.max(queryRect.top,objectRect.top));
+    const path=thread.querySelector('.dns-thread-base');
     return {
       viewport:{innerWidth,innerHeight,devicePixelRatio},
-      chain:{top:chainRect.top,height:chainRect.height,centerY:anchorCenterY},
-      pseudo:{
-        top:pseudo.top,
-        bottom:pseudo.bottom,
-        height:pseudo.height,
-        marginTop:pseudo.marginTop,
-        marginBottom:pseudo.marginBottom,
-        transform:pseudo.transform,
-        content:pseudo.content,
-      },
-      rings,
-      activeCount:rings.filter((ring)=>ring.active).length,
-      maxDelta:Math.max(...rings.map((ring)=>ring.delta)),
-      maxNodeDelta:Math.max(...rings.map((ring)=>Math.abs((ring.nodeCenterY??Infinity)-anchorCenterY))),
-      labelsBelowAnchors:rings.every((ring)=>ring.labelTop===null||ring.labelTop>anchorCenterY),
+      stage:stageRect,
+      thread:rect(thread),
+      pathLength:path?.getTotalLength()??0,
+      authorities,
+      reachedCount:authorities.filter((actor)=>actor.reached).length,
+      query:queryRect,
+      queryToRecursive,
+      queryObjectOverlap:overlapX*overlapY,
+      cache:rect(cache),
+      cacheLidTransform:getComputedStyle(lid).transform,
       scrollWidth:document.documentElement.scrollWidth,
     };
   })()`);
 
-  assert.ok(geometry, `${width}x${height}: DNS chain was not measurable.`);
-  assert.equal(geometry.rings.length, 5, `${width}x${height}: expected five DNS node rings.`);
-  assert.ok(geometry.activeCount >= 2, `${width}x${height}: expected the recursive DNS state to include active rings.`);
-  assert.notEqual(geometry.pseudo.content, 'none', `${width}x${height}: DNS connector pseudo-element is missing.`);
-  assert.equal(geometry.pseudo.top, '0px', `${width}x${height}: connector must be pinned to both edges for intrinsic centering.`);
-  assert.equal(geometry.pseudo.bottom, '0px', `${width}x${height}: connector must be pinned to both edges for intrinsic centering.`);
-  assert.equal(geometry.pseudo.transform, 'none', `${width}x${height}: connector must not use a translateY compensation.`);
-  assert.ok(Math.abs(parseFloat(geometry.pseudo.height) - 1) <= 0.01, `${width}x${height}: expected a one-pixel connector.`);
-  assert.ok(geometry.maxNodeDelta <= 0.25, `${width}x${height}: DNS actor anchor rows drift by ${geometry.maxNodeDelta.toFixed(3)}px.`);
-  assert.ok(geometry.maxDelta <= 0.25, `${width}x${height}: DNS rings miss the scene anchor row by ${geometry.maxDelta.toFixed(3)}px.`);
-  assert.equal(geometry.labelsBelowAnchors, true, `${width}x${height}: DNS labels must not participate in anchor geometry.`);
+  assert.ok(geometry, `${width}x${height}: causal DNS world was not measurable.`);
+  assert.equal(geometry.authorities.length, 4, `${width}x${height}: expected recursive, root, TLD, and authoritative anchors.`);
+  assert.ok(geometry.reachedCount >= 1, `${width}x${height}: recursive query must visibly reach its first upstream actor.`);
+  assert.ok(geometry.authorities.every((actor) => actor.inside), `${width}x${height}: a namespace actor escaped the stage.`);
+  assert.ok(geometry.pathLength > 400, `${width}x${height}: namespace traversal thread is too short to communicate travel.`);
+  assert.ok(geometry.queryToRecursive <= (width <= 680 ? 105 : 165), `${width}x${height}: query is ${geometry.queryToRecursive.toFixed(1)}px from the recursive anchor.`);
+  assert.equal(geometry.queryObjectOverlap, 0, `${width}x${height}: traveling query overlaps the persistent request object.`);
+  assert.notEqual(geometry.cacheLidTransform, 'none', `${width}x${height}: cache lid did not physically open.`);
   assert.ok(geometry.scrollWidth <= width + 1, `${width}x${height}: Journey horizontally overflows.`);
 
   await screenshot(cdp, `journey-dns-recursive-${width}x${height}.png`);

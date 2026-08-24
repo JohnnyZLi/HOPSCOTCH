@@ -232,6 +232,138 @@ async function animationEvidence(cdp, spec, report) {
   report.animations.push({ id: spec.id, event: spec.event, selector: spec.selector, early, mid, end });
 }
 
+async function navigateJourney(cdp, origin, dns = 'cache-miss') {
+  const query = new URLSearchParams({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns, impairment: 'clean', t: '0' });
+  await cdp.call('Page.navigate', { url: `${origin}/journey?${query.toString()}` });
+  await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`);
+  await waitForExpression(cdp, `document.querySelectorAll('.visual-time-rail__events button').length > 15`);
+  await waitForExpression(cdp, `Boolean(document.querySelector('[data-journey-causal-world="true"]'))`);
+}
+
+async function assertOpeningCausalWorld(cdp, origin, report) {
+  const firstFrame = await cdp.evaluate(`(()=>{
+    const world=document.querySelector('[data-journey-causal-world="true"]');
+    const object=document.querySelector('[data-causal-object="request-01"]');
+    const opacity=(selector)=>{const el=document.querySelector(selector);return el?Number(getComputedStyle(el).opacity):null};
+    if(world)world.dataset.persistenceProbe='opening-world';
+    const style=object?getComputedStyle(object):null;
+    return {
+      event:world?.getAttribute('data-causal-event')??null,
+      entrance:Boolean(document.querySelector('.visual-entrance')),
+      objectAnimation:style?.animationName??null,
+      objectDuration:style?.animationDuration??null,
+      toolbar:opacity('.visual-workspace__toolbar'),
+      hud:opacity('.visual-workspace__hud'),
+      callout:opacity('.journey-callout-overlay'),
+      timeline:opacity('.visual-time-rail'),
+    };
+  })()`);
+  assert.equal(firstFrame.event, 'intent', `Journey did not begin with the intent object: ${JSON.stringify(firstFrame)}`);
+  assert.equal(firstFrame.entrance, false, 'A full-stage title interstitial still obscures time-zero choreography.');
+  assert.equal(firstFrame.objectAnimation, 'causal-object-enter', `The first causal object has no time-zero entrance animation: ${JSON.stringify(firstFrame)}`);
+  assert.ok(firstFrame.toolbar !== null && firstFrame.toolbar <= .08, `Opening toolbar does not recede: ${JSON.stringify(firstFrame)}`);
+  assert.ok(firstFrame.hud !== null && firstFrame.hud <= .08, `Opening HUD does not recede: ${JSON.stringify(firstFrame)}`);
+  assert.ok(firstFrame.callout !== null && firstFrame.callout <= .08, `Opening narration still dominates: ${JSON.stringify(firstFrame)}`);
+  assert.ok(firstFrame.timeline !== null && firstFrame.timeline <= .35, `Opening timeline does not recede: ${JSON.stringify(firstFrame)}`);
+  await screenshot(cdp, '00-opening-intent.png');
+
+  await transitionEvidence(cdp, {
+    id: '00a-cache-opens',
+    from: 'Navigate to example.test',
+    to: 'DNS cache miss',
+    selector: '.causal-cache__lid',
+    settleBefore: 80,
+    earlyMs: 80,
+    midMs: 520,
+    endMs: 1180,
+  }, report);
+  await animationEvidence(cdp, {
+    id: '00b-query-travels',
+    event: 'Stub asks recursive resolver',
+    selector: '.causal-dns-query',
+    earlyMs: 70,
+    midMs: 460,
+    endMs: 1040,
+  }, report);
+  await animationEvidence(cdp, {
+    id: '00c-answer-returns',
+    event: 'example.test → 203.0.113.42',
+    selector: '.causal-dns-answer',
+    earlyMs: 70,
+    midMs: 560,
+    endMs: 1240,
+  }, report);
+  await transitionEvidence(cdp, {
+    id: '00d-route-locks',
+    from: 'Destination enters the routing table',
+    to: 'Default gateway selected',
+    selector: '.route-selected',
+    settleBefore: 160,
+    earlyMs: 70,
+    midMs: 560,
+    endMs: 1240,
+  }, report);
+  await animationEvidence(cdp, {
+    id: '00e-syn-travels',
+    event: 'SYN leaves the client',
+    selector: '.causal-tcp-flight',
+    earlyMs: 70,
+    midMs: 460,
+    endMs: 1040,
+  }, report);
+  await transitionEvidence(cdp, {
+    id: '00f-clienthello-unfolds',
+    from: 'TCP connection established',
+    to: 'ClientHello',
+    selector: '.causal-client-hello',
+    settleBefore: 120,
+    earlyMs: 70,
+    midMs: 520,
+    endMs: 1120,
+  }, report);
+  await transitionEvidence(cdp, {
+    id: '00g-payload-becomes-opaque',
+    from: 'Certificate identity validated',
+    to: 'Application traffic keys ready',
+    selector: '.payload-cipher',
+    settleBefore: 120,
+    earlyMs: 70,
+    midMs: 500,
+    endMs: 1080,
+  }, report);
+  await seekEvent(cdp, 'Application data isolated');
+  await waitForHero(cdp, 'assembly', 180);
+  const handoff = await cdp.evaluate(`(()=>{
+    const world=document.querySelector('[data-journey-causal-world="true"]');
+    return {
+      persistent:world?.dataset.persistenceProbe==='opening-world',
+      event:world?.getAttribute('data-causal-event')??null,
+      packetHero:Boolean(world?.querySelector('[data-phase5c-hero="assembly"]')),
+    };
+  })()`);
+  assert.deepEqual(handoff, { persistent: true, event: 'packet-assembly-application', packetHero: true }, `Packet choreography is not a seamless handoff inside the persistent world: ${JSON.stringify(handoff)}`);
+  await screenshot(cdp, '00h-seamless-packet-handoff.png');
+
+  await navigateJourney(cdp, origin, 'cache-hit');
+  await seekEvent(cdp, 'DNS cache hit');
+  await sleep(120);
+  const cacheHit = await cdp.evaluate(`(()=>{
+    const answer=document.querySelector('.causal-dns-answer');
+    return {
+      cache:document.querySelector('.causal-cache')?.getAttribute('data-causal-cache')??null,
+      query:Boolean(document.querySelector('.causal-dns-query')),
+      skip:Boolean(document.querySelector('.causal-dns-skip')),
+      answerAnimation:answer?getComputedStyle(answer).animationName:null,
+      upstreamEvents:[...document.querySelectorAll('.visual-time-rail__events button')].filter((button)=>/recursive resolver|Root referral|TLD referral/.test(button.getAttribute('aria-label')||'')).length,
+    };
+  })()`);
+  assert.deepEqual(cacheHit, { cache: 'hit', query: false, skip: true, answerAnimation: 'dns-answer-hit', upstreamEvents: 0 }, `Cache-hit choreography did not visibly skip upstream resolution: ${JSON.stringify(cacheHit)}`);
+  await screenshot(cdp, '00i-cache-hit-skip.png');
+  report.opening = { firstFrame, handoff, cacheHit };
+
+  await navigateJourney(cdp, origin, 'cache-miss');
+}
+
 async function assertCinematicChrome(cdp, report) {
   await seekEvent(cdp, 'TCP segment assembles');
   await waitForHero(cdp, 'assembly', 420);
@@ -258,7 +390,7 @@ async function assertCinematicChrome(cdp, report) {
 
 async function auditReducedMotion(cdp, origin, report) {
   await cdp.call('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
-  const query = new URLSearchParams({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', impairment: 'clean' });
+  const query = new URLSearchParams({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', impairment: 'clean', t: '0' });
   await cdp.call('Page.navigate', { url: `${origin}/journey?${query.toString()}` });
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`);
   await sleep(180);
@@ -279,7 +411,7 @@ async function main() {
   const { server, origin } = await serveProductionArtifact(distDir);
   const launched = await launchChrome(findChrome());
   let cdp;
-  const report = { generatedAt: new Date().toISOString(), transitions: [], animations: [], chrome: null, reducedMotion: null, failures: [] };
+  const report = { generatedAt: new Date().toISOString(), opening: null, transitions: [], animations: [], chrome: null, reducedMotion: null, failures: [] };
 
   try {
     const pages = await fetchJson(`http://127.0.0.1:${launched.port}/json/list`);
@@ -290,12 +422,9 @@ async function main() {
     await cdp.call('Runtime.enable');
     await cdp.call('Emulation.setDeviceMetricsOverride', { width: 1600, height: 950, deviceScaleFactor: 1, mobile: false });
     await cdp.call('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
-    const query = new URLSearchParams({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', impairment: 'clean' });
-    await cdp.call('Page.navigate', { url: `${origin}/journey?${query.toString()}` });
-    await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`);
-    await waitForExpression(cdp, `document.querySelectorAll('.visual-time-rail__events button').length > 20`);
-    await waitForExpression(cdp, `!document.querySelector('.visual-entrance')`, 5000);
+    await navigateJourney(cdp, origin);
 
+    await assertOpeningCausalWorld(cdp, origin, report);
     await assertCinematicChrome(cdp, report);
 
     const transitions = [
@@ -343,7 +472,7 @@ async function main() {
   }
 
   if (report.failures.length > 0) throw new Error(`Phase 5 choreography review failed:\n${report.failures.join('\n')}`);
-  process.stdout.write(`${JSON.stringify({ transitions: report.transitions.length, animations: report.animations.length, chrome: report.chrome, reducedMotion: report.reducedMotion }, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify({ opening: report.opening, transitions: report.transitions.length, animations: report.animations.length, chrome: report.chrome, reducedMotion: report.reducedMotion }, null, 2)}\n`);
 }
 
 await main();
