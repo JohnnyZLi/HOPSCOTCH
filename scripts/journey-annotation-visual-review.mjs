@@ -17,6 +17,7 @@ const viewports = [
   { id: 'reduced', width: 1180, height: 800, reducedMotion: true },
 ];
 const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
+const rectsIntersect = (a, b) => Boolean(a && b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top);
 
 function executableFromPath(command) {
   const result = spawnSync(process.platform === 'win32' ? 'where' : 'which', [command], { encoding: 'utf8' });
@@ -416,14 +417,14 @@ async function auditViewport(cdp, origin, viewport) {
       assert.ok(state.physical.signature.length > 40, `${viewport.id}/${labels[index]}: deterministic physical signature missing.`);
       assert.ok(state.physical.dataUnit && state.physical.dataUnit.width >= 44 && state.physical.dataUnit.height >= 44 && state.physical.dataUnitTabIndex === 0, `${viewport.id}/${labels[index]}: physical data unit is not keyboard/touch inspectable.`);
       assert.equal(state.physical.activeDevices.length + state.physical.activePaths.length, 1, `${viewport.id}/${labels[index]}: expected exactly one active physical locus.`);
-      if (state.physical.stage === 'link-transmit' || state.physical.stage === 'next-link') assert.equal(intersects(state.physical.dataUnit, state.physical.serialization), false, `${viewport.id}/${labels[index]}: serialized symbols collide with the structured data unit.`);
+      if (state.physical.stage === 'link-transmit' || state.physical.stage === 'next-link') assert.equal(rectsIntersect(state.physical.dataUnit, state.physical.serialization), false, `${viewport.id}/${labels[index]}: serialized symbols collide with the structured data unit.`);
       if (state.physical.stage === 'switch-inspect' || state.physical.stage === 'switch-forward') {
         assert.equal(state.physical.macOpacity, '1', `${viewport.id}/${labels[index]}: switch MAC projection is not visible.`);
-        assert.equal(intersects(state.physical.instrument, state.physical.macProjection), false, `${viewport.id}/${labels[index]}: MAC projection collides with the physical instrument.`);
+        assert.equal(rectsIntersect(state.physical.instrument, state.physical.macProjection), false, `${viewport.id}/${labels[index]}: MAC projection collides with the physical instrument.`);
       }
       if (state.physical.stage === 'router-route' || state.physical.stage === 'router-reencapsulate') {
         assert.equal(state.physical.routeOpacity, '1', `${viewport.id}/${labels[index]}: router route projection is not visible.`);
-        assert.equal(intersects(state.physical.instrument, state.physical.routeProjection), false, `${viewport.id}/${labels[index]}: route projection collides with the physical instrument.`);
+        assert.equal(rectsIntersect(state.physical.instrument, state.physical.routeProjection), false, `${viewport.id}/${labels[index]}: route projection collides with the physical instrument.`);
       }
       if (viewport.reducedMotion) {
         assert.equal(state.physical.reduceMotion, true, `${viewport.id}/${labels[index]}: reduced-motion physical state was not rendered.`);
