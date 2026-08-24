@@ -1,15 +1,7 @@
 import { useReducedMotion } from 'motion/react';
 import type { CSSProperties } from 'react';
-import type { JourneyPacketVisualProjection, JourneyPacketLayerId } from './journey/packet-visual.ts';
-import './JourneyPacketObject.css';
-
-const stageLabels = [
-  ['application', 'APPLICATION'],
-  ['security', 'PROTECTION'],
-  ['transport', 'TRANSPORT'],
-  ['network', 'NETWORK'],
-  ['link', 'LINK'],
-] as const;
+import type { JourneyPacketVisualProjection, JourneyPacketLayerId, JourneyPacketVisualLayer } from './journey/packet-visual.ts';
+import './JourneyHeroChoreography.css';
 
 function byteRange(start: number | null, length: number): string {
   if (start === null || length === 0) return 'SEMANTIC';
@@ -21,80 +13,103 @@ export function JourneyPacketObject({ projection, onSelectLayer }: {
   onSelectLayer: (layerId: JourneyPacketLayerId) => void;
 }) {
   const reduceMotion = useReducedMotion();
-  const transportLayer = projection.layers.find((layer) => layer.id === 'transport')!;
-  const cameraStyle = {
-    '--packet-camera-scale': projection.camera.scale,
-    '--packet-camera-rx': `${projection.camera.rotateX}deg`,
-    '--packet-camera-ry': `${projection.camera.rotateY}deg`,
-    '--packet-camera-x': `${projection.camera.translateX}px`,
-    '--packet-camera-y': `${projection.camera.translateY}px`,
-  } as CSSProperties;
+  const layer = (id: JourneyPacketLayerId) => projection.layers.find((candidate) => candidate.id === id)!;
+  const applicationLayer = layer('application');
+  const securityLayer = layer('security');
+  const transportLayer = layer('transport');
+  const networkLayer = layer('network');
+  const linkLayer = layer('link');
+  const ttl = networkLayer.fields.find((field) => field.label.toLowerCase() === 'ttl')?.value ?? '64';
+
+  const layerProps = (current: JourneyPacketVisualLayer) => ({
+    className: `phase5c-layer phase5c-${current.id} phase5-packet-shell shell-${current.id} ${current.visible ? 'is-visible' : ''} ${current.active ? 'is-active' : ''}`,
+    'data-phase5-layer': current.id,
+    'data-visible': current.visible ? 'true' : 'false',
+    tabIndex: current.visible ? 0 : -1,
+    onClick: () => onSelectLayer(current.id),
+  });
 
   return <section
-    className={`phase5-packet-object phase5-stage-${projection.stage} ${projection.collapsed ? 'is-collapsed' : ''} ${projection.exploded ? 'is-exploded' : ''} ${reduceMotion ? 'reduce-motion' : ''}`}
+    className={`phase5-packet-object phase5c-assembly phase5-stage-${projection.stage} ${projection.collapsed ? 'is-collapsed' : ''} ${projection.exploded ? 'is-exploded' : ''} ${reduceMotion ? 'reduce-motion' : ''}`}
     data-phase5-packet-object="true"
+    data-phase5c-hero="assembly"
     data-phase5-stage={projection.stage}
     data-phase5-signature={projection.semanticSignature}
     aria-label={`Packet assembly, ${projection.title}`}
   >
-    <header className="phase5-packet-instrument">
-      <div><span>DATA UNIT / 01</span><strong>{projection.title}</strong></div>
-      <div className="phase5-packet-vector"><span>DIRECTION</span><strong>{projection.direction}</strong></div>
-      <div><span>INSPECTION SNAPSHOT</span><strong>{projection.frameBytes} B <small>+ 4 B NIC FCS</small></strong></div>
-    </header>
+    <div className="phase5c-void" aria-hidden="true"><i/><i/><i/></div>
+    <div className="phase5c-camera phase5-packet-camera">
+      <div className="phase5c-packet-shadow" aria-hidden="true"/>
 
-    <div className="phase5-packet-scene">
-      <div className="phase5-packet-coordinate" aria-hidden="true"><i/><i/><i/><span>X / LINK</span><span>Y / STACK</span></div>
-      <div className="phase5-packet-camera" style={cameraStyle}>
-        <div className="phase5-packet-shadow" aria-hidden="true"/>
-        <div className="phase5-packet-core" aria-hidden="true"><i/><span>REQUEST / 01</span><b>GET /</b></div>
-        <div className="phase5-packet-shells">
-          {projection.layers.map((layer) => {
-            const layerStyle = { '--phase5-layer-order': layer.order } as CSSProperties;
-            return <button
-              type="button"
-              key={layer.id}
-              className={`phase5-packet-shell shell-${layer.id} ${layer.visible ? 'is-visible' : ''} ${layer.active ? 'is-active' : ''}`}
-              style={layerStyle}
-              data-phase5-layer={layer.id}
-              data-visible={layer.visible ? 'true' : 'false'}
-              aria-pressed={projection.selectedLayerId === layer.id}
-              aria-label={`${layer.protocol}, ${layer.role}, ${byteRange(layer.byteStart, layer.byteLength)}`}
-              tabIndex={layer.visible ? 0 : -1}
-              onClick={() => onSelectLayer(layer.id)}
-            >
-              <span className="phase5-shell-index">0{layer.order + 1}</span>
-              <span className="phase5-shell-copy"><small>{layer.role}</small><strong>{layer.protocol}</strong><b>{layer.headline}</b></span>
-              <span className="phase5-shell-bytes"><small>{byteRange(layer.byteStart, layer.byteLength)}</small><code>{layer.bytePreview}</code></span>
-              {layer.id === 'link' && <span className="phase5-fcs-tab"><small>TRAILER</small><b>FCS</b><em>NIC</em></span>}
-            </button>;
-          })}
-        </div>
-        <div className="phase5-frame-spine" aria-hidden="true">
-          <b className="spine-link"><small>ETH</small><strong>14 B</strong></b>
-          <b className="spine-network"><small>IPv4</small><strong>20 B</strong></b>
-          <b className="spine-transport"><small>{transportLayer.protocol === 'TCP' ? 'TCP' : 'UDP'}</small><strong>{transportLayer.byteLength} B</strong></b>
-          <b className="spine-payload"><small>PROTECTED PAYLOAD</small><strong>{projection.payloadBytes} B</strong></b>
-          <b className="spine-fcs"><small>NIC APPENDS</small><strong>FCS · 4 B</strong></b>
+      <div className="phase5c-protagonist" data-phase5c-protagonist="true">
+        <button type="button" {...layerProps(applicationLayer)} aria-label="Inspect application layer">
+          <span className="phase5c-app-mark">HTTP</span>
+          <strong>GET /</strong>
+          <small>REQUEST 01</small>
+          <i/><i/><i/>
+        </button>
+
+        <button type="button" {...layerProps(securityLayer)} aria-label="Inspect protection layer">
+          <span className="phase5c-security-orbit orbit-a"/><span className="phase5c-security-orbit orbit-b"/>
+          <strong>{securityLayer.protocol}</strong>
+          <small>PROTECTED</small>
+        </button>
+
+        <button type="button" {...layerProps(transportLayer)} aria-label={`Inspect ${transportLayer.protocol} layer`}>
+          <span className="phase5c-transport-head">
+            <small>SRC</small><b>52133</b><i/>
+            <small>DST</small><b>443</b>
+          </span>
+          <span className="phase5c-transport-flags"><i/><i/><i/><i/><i/><i/></span>
+          <strong>{transportLayer.protocol === 'TCP' ? 'TCP' : 'UDP / QUIC'}</strong>
+        </button>
+
+        <button type="button" {...layerProps(networkLayer)} aria-label="Inspect IPv4 layer">
+          <span className="phase5c-network-wing wing-left"><i/><i/><i/></span>
+          <span className="phase5c-network-wing wing-right"><i/><i/><i/></span>
+          <span className="phase5c-ip-identity"><small>IPv4</small><strong>{networkLayer.headline}</strong></span>
+          <span className="phase5c-ttl"><small>TTL</small><b>{ttl}</b></span>
+        </button>
+
+        <button type="button" {...layerProps(linkLayer)} aria-label="Inspect Ethernet layer">
+          <span className="phase5c-ether-clamp clamp-header">
+            <small>ETHERNET II</small><strong>{linkLayer.headline}</strong>
+            <i/><i/><i/><i/><i/><i/>
+          </span>
+          <span className="phase5c-ether-clamp clamp-trailer"><small>NIC</small><strong>FCS</strong><i/><i/><i/></span>
+          <span className="phase5c-ether-rails rail-top"/><span className="phase5c-ether-rails rail-bottom"/>
+        </button>
+
+        <div className="phase5c-collapse-spine phase5-frame-spine" data-fcs-note="NIC APPENDS" aria-hidden="true">
+          <span>ETH</span><span>IP</span><span>{transportLayer.protocol === 'TCP' ? 'TCP' : 'UDP'}</span><span>DATA</span><span>FCS</span>
         </div>
       </div>
 
-      <ol className="phase5-packet-sequence" aria-label="Encapsulation sequence">
-        {stageLabels.map(([id, label], index) => {
-          const layer = projection.layers.find((candidate) => candidate.id === id)!;
-          return <li key={id} className={`${layer.visible ? 'is-visible' : ''} ${layer.active ? 'is-active' : ''}`}>
-            <button type="button" disabled={!layer.visible} onClick={() => onSelectLayer(id)} aria-label={`Inspect ${label.toLowerCase()} layer`}>
-              <span>0{index + 1}</span><i/><strong>{label}</strong>
-            </button>
-          </li>;
-        })}
-      </ol>
+      <div className="phase5c-nic" aria-hidden="true">
+        <span>NIC</span><i/><i/><i/><i/><i/><i/><b>TX</b>
+      </div>
     </div>
 
-    <footer className="phase5-packet-caption">
-      <div><span>CONTINUITY OBJECT</span><strong>{projection.stage === 'link' || projection.collapsed || projection.exploded ? 'IPv4 packet inside a hop-local frame' : 'One request changing representation'}</strong></div>
-      <p>{projection.layers.find((layer) => layer.active)?.detail}</p>
-      <div className="phase5-packet-truth"><i/><span>DETERMINISTIC STATE</span><strong>ANIMATION = RENDERER</strong></div>
-    </footer>
+    <div className="phase5c-beat" aria-hidden="true">
+      <span>REQUEST / 01</span>
+      <strong>{projection.stage === 'collapsed' ? 'FRAME READY' : projection.layers.find((candidate) => candidate.active)?.protocol ?? projection.title}</strong>
+      <i/>
+    </div>
+
+    <div className="phase5c-layer-access" aria-label="Packet layers">
+      {projection.layers.map((current) => (
+        <button
+          type="button"
+          key={current.id}
+          style={{ '--phase5c-order': current.order } as CSSProperties}
+          className={current.visible ? 'is-visible' : ''}
+          tabIndex={current.visible ? 0 : -1}
+          onClick={() => onSelectLayer(current.id)}
+          aria-label={`${current.protocol}, ${byteRange(current.byteStart, current.byteLength)}`}
+        >
+          <i/><span>{current.protocol}</span>
+        </button>
+      ))}
+    </div>
   </section>;
 }
