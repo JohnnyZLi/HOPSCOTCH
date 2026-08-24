@@ -248,6 +248,7 @@ async function inspectState(cdp) {
       dataUnit:pick(physicalObject.querySelector('.phase5b-data-unit')),
       dataUnitTabIndex:physicalObject.querySelector('.phase5b-data-unit')?.tabIndex??-1,
       activeDevices:[...physicalObject.querySelectorAll('.phase5b-device.is-active')].map((device)=>device.getAttribute('data-device')||''),
+      activePaths:[...physicalObject.querySelectorAll('.phase5b-path.is-active')].map((path)=>path.getAttribute('data-locus')||''),
       macOpacity:getComputedStyle(physicalObject.querySelector('.phase5b-mac-projection')).opacity,
       routeOpacity:getComputedStyle(physicalObject.querySelector('.phase5b-route-projection')).opacity,
     }:null;
@@ -410,7 +411,7 @@ async function auditViewport(cdp, origin, viewport) {
       assert.ok(['nic-serialize', 'link-transmit', 'switch-inspect', 'switch-forward', 'router-decapsulate', 'router-ttl', 'router-route', 'router-reencapsulate', 'next-link'].includes(state.physical.stage), `${viewport.id}/${labels[index]}: invalid Phase 5B stage ${state.physical.stage}.`);
       assert.ok(state.physical.signature.length > 40, `${viewport.id}/${labels[index]}: deterministic physical signature missing.`);
       assert.ok(state.physical.dataUnit && state.physical.dataUnit.width >= 44 && state.physical.dataUnit.height >= 44 && state.physical.dataUnitTabIndex === 0, `${viewport.id}/${labels[index]}: physical data unit is not keyboard/touch inspectable.`);
-      assert.equal(state.physical.activeDevices.length, 1, `${viewport.id}/${labels[index]}: expected exactly one active physical device.`);
+      assert.equal(state.physical.activeDevices.length + state.physical.activePaths.length, 1, `${viewport.id}/${labels[index]}: expected exactly one active physical locus.`);
       if (state.physical.stage === 'switch-inspect' || state.physical.stage === 'switch-forward') assert.equal(state.physical.macOpacity, '1', `${viewport.id}/${labels[index]}: switch MAC projection is not visible.`);
       if (state.physical.stage === 'router-route' || state.physical.stage === 'router-reencapsulate') assert.equal(state.physical.routeOpacity, '1', `${viewport.id}/${labels[index]}: router route projection is not visible.`);
       if (viewport.reducedMotion) {

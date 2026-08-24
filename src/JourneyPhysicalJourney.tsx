@@ -51,8 +51,8 @@ export function JourneyPhysicalJourney({ projection, onSelectLayer }: {
     <div className="phase5b-world">
       <div className="phase5b-camera">
         <div className="phase5b-axis" aria-hidden="true"><i/><i/><i/><span>LAN / HOP 01</span><span>WAN / HOP 02</span></div>
-        <div className="phase5b-path path-a" aria-hidden="true"><i/><i/><i/><i/><i/><i/></div>
-        <div className="phase5b-path path-b" aria-hidden="true"><i/><i/><i/><i/><i/><i/></div>
+        <div className={`phase5b-path path-a ${projection.activeDevice === 'link-a' ? 'is-active' : ''}`} data-locus="link-a" aria-hidden="true"><i/><i/><i/><i/><i/><i/></div>
+        <div className={`phase5b-path path-b ${projection.activeDevice === 'link-b' ? 'is-active' : ''}`} data-locus="link-b" aria-hidden="true"><i/><i/><i/><i/><i/><i/></div>
 
         <Device id="client" eyebrow="HOST / ORIGIN" label="CLIENT NIC" port="eth0 · 1 Gb/s" active={projection.activeDevice === 'client'}>
           <span className="phase5b-nic-queue">TX QUEUE <b>01</b></span>
@@ -63,7 +63,7 @@ export function JourneyPhysicalJourney({ projection, onSelectLayer }: {
         <Device id="router" eyebrow="LAYER 3" label="EDGE ROUTER" port="lan0 → wan0" active={routerActive}>
           <span className="phase5b-router-ring" aria-hidden="true"><b/><b/><b/></span>
         </Device>
-        <Device id="next" eyebrow="NEXT HOP" label="198.51.100.2" port="WAN adjacency" active={projection.activeDevice === 'link-b'} />
+        <Device id="next" eyebrow="NEXT HOP" label="198.51.100.2" port="WAN adjacency" active={false} />
 
         <div className="phase5b-serialization" aria-hidden="true">
           {signalCells.map((index) => <i key={index} style={{ '--signal-index': index } as CSSProperties}>{index % 3 === 0 ? '1' : '0'}</i>)}

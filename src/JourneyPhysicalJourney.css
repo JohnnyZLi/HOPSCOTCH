@@ -298,15 +298,27 @@
   .phase5b-instrument > div:nth-child(2) { grid-column: 1 / -1; text-align: center; }
   .phase5b-instrument > div:last-child { grid-column: 1 / -1; text-align: center; }
   .phase5b-world { inset: 64px 0 96px; }
-  .phase5b-device { top: 56%; opacity: .46; }
+  .phase5b-axis span { display: none; }
+  .phase5b-device { top: 56%; width: 70px; height: 60px; opacity: .46; }
   .phase5b-device.is-active { opacity: 1; }
-  .phase5b-device.device-client { left: -2%; }
-  .phase5b-device.device-switch { left: 31%; }
-  .phase5b-device.device-router { left: 68%; }
-  .phase5b-device.device-next { left: 103%; }
+  .phase5b-device.device-client { left: 12%; transform: translate(-50%,-50%); }
+  .phase5b-device.device-switch { left: 36%; width: 84px; height: 64px; }
+  .phase5b-device.device-router { left: 65%; width: 82px; height: 70px; }
+  .phase5b-device.device-next { left: 88%; width: 70px; transform: translate(-50%,-50%); }
   .phase5b-device > span:first-child,
   .phase5b-nic-queue { display: none; }
   .phase5b-data-unit { width: 170px; height: 62px; }
+  .phase5b-stage-nic-serialize .phase5b-data-unit { --unit-x: 22%; --unit-y: 78%; }
+  .phase5b-stage-link-transmit .phase5b-data-unit { --unit-x: 28%; --unit-y: 72%; }
+  .phase5b-stage-switch-inspect .phase5b-data-unit { --unit-x: 36%; --unit-y: 77%; }
+  .phase5b-stage-switch-forward .phase5b-data-unit { --unit-x: 49%; --unit-y: 70%; }
+  .phase5b-stage-router-decapsulate .phase5b-data-unit,
+  .phase5b-stage-router-ttl .phase5b-data-unit,
+  .phase5b-stage-router-route .phase5b-data-unit { --unit-x: 65%; --unit-y: 76%; }
+  .phase5b-stage-router-reencapsulate .phase5b-data-unit { --unit-x: 70%; --unit-y: 76%; }
+  .phase5b-stage-next-link .phase5b-data-unit { --unit-x: 78%; --unit-y: 72%; }
+  .phase5b-path.path-a { left: 12%; width: 53%; }
+  .phase5b-path.path-b { left: 70%; width: 18%; }
   .phase5b-data-unit .phase5b-transport-core { display: none; }
   .phase5b-old-envelope b,
   .phase5b-new-envelope b { max-width: 112px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

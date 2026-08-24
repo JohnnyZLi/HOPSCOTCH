@@ -33,6 +33,11 @@ for (const profile of ['tcp-h2', 'quic-h3']) {
   });
 
   const byStage = Object.fromEntries(projections.map((projection) => [projection.stage, projection]));
+  assert.deepEqual(
+    JOURNEY_PHYSICAL_STAGES.map((stage) => byStage[stage].activeDevice),
+    ['client', 'link-a', 'switch', 'switch', 'router', 'router', 'router', 'router', 'link-b'],
+    'each deterministic stage must name exactly one active device or link locus',
+  );
   assert.equal(byStage['switch-inspect'].selectedField, 'DESTINATION MAC');
   assert.match(byStage['switch-inspect'].decision, /02:48:4F:50:00:02/);
   assert.equal(byStage['switch-forward'].incoming.semanticSignature, byStage['switch-inspect'].incoming.semanticSignature, 'switch forwarding must retain the same Ethernet header semantics');
@@ -80,6 +85,8 @@ assert.match(component, /useReducedMotion/);
 assert.match(component, /data-phase5b-signature/);
 assert.match(component, /data-phase5b-incoming-frame/);
 assert.match(component, /data-phase5b-outgoing-frame/);
+assert.match(component, /data-locus="link-a"/);
+assert.match(component, /data-locus="link-b"/);
 assert.match(component, /type="button"/);
 assert.match(component, /aria-label="Switch MAC table projection"/);
 assert.match(component, /aria-label="Router forwarding projection"/);
