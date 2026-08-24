@@ -131,7 +131,6 @@ function RouteWorld({ state, address }: { state: JourneyState; address: string }
       <path className="route-candidate route-candidate--default" d="M100 210 C246 300 410 332 650 334"/>
       <path className="route-selected" d="M100 210 C246 300 410 332 650 334"/>
     </svg>
-    <div className="causal-route-origin"><small>destination</small><strong>{address}</strong><i/></div>
     <div className="causal-route-choice choice-specific"><i/><span>{address}/32</span><small>no local host route</small></div>
     <div className="causal-route-choice choice-network"><i/><span>203.0.113.0/24</span><small>remote network</small></div>
     <div className="causal-route-choice choice-default"><i/><span>0.0.0.0/0</span><small>via 192.0.2.1</small></div>

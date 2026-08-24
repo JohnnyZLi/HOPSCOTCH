@@ -132,7 +132,10 @@ async function measureDns(cdp, origin, width, height) {
   await waitForExpression(cdp, `document.querySelectorAll('[data-dns-authority]').length === 4`);
   await waitForExpression(cdp, `Boolean(document.querySelector('[data-dns-query="dns-recursive"]'))`);
   await waitForExpression(cdp, `!document.querySelector('.visual-entrance')`, 5000);
-  await sleep(120);
+  // Measure the query at the deterministic end of its travel. The separate
+  // choreography review proves the in-between motion; this review owns final
+  // connector alignment and must not sample a 930ms animation mid-flight.
+  await sleep(1050);
 
   const geometry = await cdp.evaluate(`(()=>{
     const stage=document.querySelector('.journey-causal-world');
