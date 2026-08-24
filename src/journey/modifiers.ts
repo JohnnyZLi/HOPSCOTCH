@@ -474,13 +474,14 @@ function serverMetrics(input: Partial<JourneyServerMetrics> = {}): JourneyServer
   };
 }
 
-function serverFailureEvents(requestAtMs: number, transportProfile: JourneyTransportProfile): JourneyEvent[] {
+function serverFailureEvents(requestAtMs: number, frameReadyAtMs: number, transportProfile: JourneyTransportProfile): JourneyEvent[] {
   const protocol = transportProfile === 'quic-h3' ? 'HTTP/3' : 'HTTP/2';
   const detailLab = 'http' as const;
+  const responseBaseMs = Math.max(requestAtMs, frameReadyAtMs);
   return [
     modifierEvent({
       id: 'server-service-unavailable',
-      atMs: requestAtMs + 180,
+      atMs: responseBaseMs + 180,
       kind: 'server.unavailable',
       scale: 'application',
       zoom: 'hold',
@@ -496,7 +497,7 @@ function serverFailureEvents(requestAtMs: number, transportProfile: JourneyTrans
     }),
     modifierEvent({
       id: 'server-http-503',
-      atMs: requestAtMs + 340,
+      atMs: responseBaseMs + 340,
       kind: 'http.service-unavailable',
       scale: 'application',
       zoom: 'hold',
@@ -512,7 +513,7 @@ function serverFailureEvents(requestAtMs: number, transportProfile: JourneyTrans
     }),
     modifierEvent({
       id: 'server-retry-wait',
-      atMs: requestAtMs + 520,
+      atMs: responseBaseMs + 520,
       kind: 'http.retry-wait',
       scale: 'application',
       zoom: 'hold',
@@ -528,7 +529,7 @@ function serverFailureEvents(requestAtMs: number, transportProfile: JourneyTrans
     }),
     modifierEvent({
       id: 'server-service-ready',
-      atMs: requestAtMs + 1240,
+      atMs: responseBaseMs + 1240,
       kind: 'server.recovered',
       scale: 'application',
       zoom: 'hold',
@@ -544,7 +545,7 @@ function serverFailureEvents(requestAtMs: number, transportProfile: JourneyTrans
     }),
     modifierEvent({
       id: 'server-get-retry',
-      atMs: requestAtMs + 1340,
+      atMs: responseBaseMs + 1340,
       kind: 'http.retry',
       scale: 'application',
       zoom: 'hold',
@@ -736,11 +737,12 @@ const serverFailureModifier: JourneyModifier = {
   order: 95,
   apply(events, context) {
     const request = events.find((current) => current.kind === 'http.request');
+    const frameReady = events.find((current) => current.id === 'packet-assembly-collapsed');
     const response = events.find((current) => current.kind === 'http.response');
-    if (!request || !response || request.atMs >= response.atMs) throw new Error('server-failure requires an HTTP request before the successful response.');
+    if (!request || !frameReady || !response || request.atMs >= frameReady.atMs || frameReady.atMs >= response.atMs) throw new Error('server-failure requires an assembled HTTP request before the successful response.');
     const addedDurationMs = 1700;
     const shifted = shiftPostAnchor(events, response.atMs, addedDurationMs);
-    const injected = serverFailureEvents(request.atMs, context.config.transportProfile);
+    const injected = serverFailureEvents(request.atMs, frameReady.atMs, context.config.transportProfile);
     const retry = injected.find((current) => current.kind === 'http.retry');
     if (!retry || retry.atMs >= response.atMs + addedDurationMs) throw new Error('server-failure retry must finish before successful response headers.');
     return {

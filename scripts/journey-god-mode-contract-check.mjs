@@ -42,22 +42,22 @@ for (const transportProfile of transports) {
 }
 
 const expected = {
-  'tcp-h2:cache-miss:clean': [30, 15000],
-  'quic-h3:cache-miss:clean': [28, 15000],
-  'tcp-h2:cache-hit:clean': [25, 12800],
-  'quic-h3:cache-hit:clean': [23, 12800],
-  'tcp-h2:cache-miss:single-loss': [34, 16600],
-  'quic-h3:cache-miss:single-loss': [32, 16600],
-  'tcp-h2:cache-hit:single-loss': [29, 14400],
-  'quic-h3:cache-hit:single-loss': [27, 14400],
-  'tcp-h2:cache-miss:latency-spike': [33, 16200],
-  'quic-h3:cache-miss:latency-spike': [31, 16200],
-  'tcp-h2:cache-hit:latency-spike': [28, 14000],
-  'quic-h3:cache-hit:latency-spike': [26, 14000],
-  'tcp-h2:cache-miss:route-failure': [34, 16400],
-  'quic-h3:cache-miss:route-failure': [32, 16400],
-  'tcp-h2:cache-hit:route-failure': [29, 14200],
-  'quic-h3:cache-hit:route-failure': [27, 14200],
+  'tcp-h2:cache-miss:clean': [36, 18500],
+  'quic-h3:cache-miss:clean': [34, 18500],
+  'tcp-h2:cache-hit:clean': [31, 16300],
+  'quic-h3:cache-hit:clean': [29, 16300],
+  'tcp-h2:cache-miss:single-loss': [40, 20100],
+  'quic-h3:cache-miss:single-loss': [38, 20100],
+  'tcp-h2:cache-hit:single-loss': [35, 17900],
+  'quic-h3:cache-hit:single-loss': [33, 17900],
+  'tcp-h2:cache-miss:latency-spike': [39, 19700],
+  'quic-h3:cache-miss:latency-spike': [37, 19700],
+  'tcp-h2:cache-hit:latency-spike': [34, 17500],
+  'quic-h3:cache-hit:latency-spike': [32, 17500],
+  'tcp-h2:cache-miss:route-failure': [40, 19900],
+  'quic-h3:cache-miss:route-failure': [38, 19900],
+  'tcp-h2:cache-hit:route-failure': [35, 17700],
+  'quic-h3:cache-hit:route-failure': [33, 17700],
 };
 for (const [scenarioKey, [eventCount, durationMs]] of Object.entries(expected)) {
   const scenario = scenarios.get(scenarioKey);
@@ -69,19 +69,19 @@ for (const [scenarioKey, [eventCount, durationMs]] of Object.entries(expected)) 
 const tcpMissLoss = scenarios.get(key('tcp-h2', 'cache-miss', 'single-loss'));
 assert.deepEqual(
   ['tcp-loss', 'tcp-gap', 'tcp-retransmit', 'tcp-recovered'].map((id) => tcpMissLoss.events.find((event) => event.id === id).atMs),
-  [9710, 9950, 10250, 10600],
+  [12520, 12760, 13060, 13410],
 );
 const quicHitLoss = scenarios.get(key('quic-h3', 'cache-hit', 'single-loss'));
 assert.deepEqual(
   ['quic-loss', 'quic-gap', 'quic-retransmit', 'quic-recovered'].map((id) => quicHitLoss.events.find((event) => event.id === id).atMs),
-  [7410, 7650, 7950, 8300],
+  [10060, 10300, 10600, 10950],
 );
 assert.match(quicHitLoss.events.find((event) => event.id === 'quic-retransmit').title, /4113/);
 
 // Lab 07A latency regression is now permanently covered.
 const tcpLatency = scenarios.get(key('tcp-h2', 'cache-miss', 'latency-spike'));
 const tcpRtt = tcpLatency.events.find((event) => event.id === 'tcp-rtt-update');
-assert.equal(tcpRtt.atMs, 10050);
+assert.equal(tcpRtt.atMs, 12860);
 assert.deepEqual(tcpRtt.transportMetrics, {
   baselineRttMs: 32,
   latestRttMs: 220,
@@ -94,7 +94,7 @@ assert.deepEqual(tcpRtt.transportMetrics, {
 assert.ok(!tcpLatency.events.some((event) => event.kind === 'transport.loss' || event.kind === 'transport.retransmit'));
 const quicLatency = scenarios.get(key('quic-h3', 'cache-hit', 'latency-spike'));
 const quicRtt = quicLatency.events.find((event) => event.id === 'quic-rtt-update');
-assert.equal(quicRtt.atMs, 7750);
+assert.equal(quicRtt.atMs, 10400);
 assert.equal(quicRtt.transportMetrics.adjustedRttMs, 195);
 assert.equal(quicRtt.transportMetrics.smoothedRttMs, 52.4);
 assert.equal(quicRtt.transportMetrics.rttVarMs, 46.8);

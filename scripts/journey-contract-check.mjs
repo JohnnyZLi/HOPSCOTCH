@@ -62,17 +62,26 @@ const tcpHitLoss = scenarios.get('tcp-h2:cache-hit:single-loss');
 const quicHitLoss = scenarios.get('quic-h3:cache-hit:single-loss');
 
 // Lab 06C clean branches are regression fixtures.
-assert.equal(tcpMiss.events.length, 30);
-assert.equal(quicMiss.events.length, 28);
-assert.equal(tcpHit.events.length, 25);
-assert.equal(quicHit.events.length, 23);
-assert.equal(tcpMiss.durationMs, 15000);
-assert.equal(quicMiss.durationMs, 15000);
-assert.equal(tcpHit.durationMs, 12800);
-assert.equal(quicHit.durationMs, 12800);
+assert.equal(tcpMiss.events.length, 36);
+assert.equal(quicMiss.events.length, 34);
+assert.equal(tcpHit.events.length, 31);
+assert.equal(quicHit.events.length, 29);
+assert.equal(tcpMiss.durationMs, 18500);
+assert.equal(quicMiss.durationMs, 18500);
+assert.equal(tcpHit.durationMs, 16300);
+assert.equal(quicHit.durationMs, 16300);
 assert.deepEqual(tcpMiss.events.map(({ id, atMs }) => ({ id, atMs })), [
-  ['intent',0],['dns-cache',420],['dns-recursive',850],['dns-root',1320],['dns-tld',1810],['dns-answer',2310],['dns-store',2700],['route-lookup',3140],['gateway',3560],['as-path',4050],['physical-context',4520],['tcp-syn',5000],['tcp-synack',5320],['tcp-ack',5620],['tls-clienthello',6070],['tls-serverhello',6470],['tls-encrypted',6840],['tls-certificate',7210],['tls-finished',7610],['h2-settings',8070],['h2-request',8540],['h2-headers',9030],['h2-data',9550],['packet-frame',10120],['packet-headers',10680],['transfer-complete',11300],['response-ready',12020],['pullback-route',12750],['pullback-internet',13500],['complete',14500],
+  ['intent',0],['dns-cache',420],['dns-recursive',850],['dns-root',1320],['dns-tld',1810],['dns-answer',2310],['dns-store',2700],['route-lookup',3140],['gateway',3560],['as-path',4050],['physical-context',4520],['tcp-syn',5000],['tcp-synack',5320],['tcp-ack',5620],['tls-clienthello',6070],['tls-serverhello',6470],['tls-encrypted',6840],['tls-certificate',7210],['tls-finished',7610],['h2-settings',8070],['h2-request',8540],['packet-assembly-application',8840],['packet-assembly-security',9300],['packet-assembly-transport',9760],['packet-assembly-network',10220],['packet-assembly-link',10680],['packet-assembly-collapsed',11140],['h2-headers',11820],['h2-data',12360],['packet-frame',13080],['packet-headers',13760],['transfer-complete',14560],['response-ready',15380],['pullback-route',16200],['pullback-internet',17050],['complete',18050],
 ].map(([id,atMs])=>({id,atMs})));
+
+for (const clean of [tcpMiss, quicMiss, tcpHit, quicHit]) {
+  const assembly = clean.events.filter((event) => event.kind === 'packet.assembly');
+  assert.deepEqual(assembly.map((event) => event.phase), ['application', 'security', 'transport', 'network', 'link', 'collapsed']);
+  assert.ok(assembly.every((event) => event.provenance === 'SIMULATED'));
+  assert.ok(assembly[0].atMs > clean.events.find((event) => event.kind === 'http.request').atMs);
+  assert.ok(assembly.at(-1).atMs < clean.events.find((event) => event.kind === 'http.response').atMs);
+  assert.equal(journeyStateAt(clean, assembly.at(-1).atMs).packetAssemblyStage, 'collapsed');
+}
 
 for (const miss of [tcpMiss, quicMiss, tcpMissLoss, quicMissLoss]) {
   const ids = miss.events.map((event) => event.id);
@@ -131,14 +140,14 @@ for (const dnsProfile of dnsProfiles) {
   }
 }
 
-assert.equal(tcpMissLoss.events.length, 34);
-assert.equal(quicMissLoss.events.length, 32);
-assert.equal(tcpHitLoss.events.length, 29);
-assert.equal(quicHitLoss.events.length, 27);
-assert.equal(tcpMissLoss.durationMs, 16600);
-assert.equal(quicMissLoss.durationMs, 16600);
-assert.equal(tcpHitLoss.durationMs, 14400);
-assert.equal(quicHitLoss.durationMs, 14400);
+assert.equal(tcpMissLoss.events.length, 40);
+assert.equal(quicMissLoss.events.length, 38);
+assert.equal(tcpHitLoss.events.length, 35);
+assert.equal(quicHitLoss.events.length, 33);
+assert.equal(tcpMissLoss.durationMs, 20100);
+assert.equal(quicMissLoss.durationMs, 20100);
+assert.equal(tcpHitLoss.durationMs, 17900);
+assert.equal(quicHitLoss.durationMs, 17900);
 
 // TCP loss semantics are TCP-only and deterministic.
 for (const tcpLoss of [tcpMissLoss, tcpHitLoss]) {
