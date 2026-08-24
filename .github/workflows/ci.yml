@@ -20,6 +20,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - name: Verify DNS actor-anchor geometry
+        run: node scripts/dns-workspace-geometry-review.mjs
+      - name: Upload DNS geometry review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-dns-workspace-geometry-review
+          path: artifacts/dns-workspace-geometry-review
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload production build
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
