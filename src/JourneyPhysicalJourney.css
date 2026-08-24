@@ -189,7 +189,7 @@
 .phase5b-serialization::before { content: 'FRAME → BYTES → BITS → SYMBOLS'; position: absolute; left: 0; top: -13px; color: rgba(119,245,232,.45); font: 6px/1 var(--mono); letter-spacing: .16em; }
 .phase5b-serialization i { flex: 1; height: 12px; display: grid; place-items: center; color: rgba(119,245,232,.55); border-bottom: 1px solid rgba(119,245,232,.34); font: 5px/1 var(--mono); font-style: normal; transform: translateY(calc((var(--signal-index) % 3) * -3px)); }
 .phase5b-stage-link-transmit .phase5b-serialization { opacity: 1; transform: none; }
-.phase5b-stage-next-link .phase5b-serialization { left: 70%; top: 75%; width: 22%; opacity: 1; transform: none; }
+.phase5b-stage-next-link .phase5b-serialization { left: 70%; top: 82%; width: 22%; opacity: 1; transform: none; }
 
 .phase5b-mac-projection,
 .phase5b-route-projection { position: absolute; z-index: 9; top: 3%; width: clamp(255px, 27vw, 350px); padding: 10px; opacity: 0; pointer-events: none; transform: translateY(-8px) rotateX(3deg); border: 1px solid rgba(255,191,105,.26); background: rgba(7,13,15,.96); box-shadow: 0 18px 50px rgba(0,0,0,.32); font-family: var(--mono); text-transform: uppercase; transition: opacity 300ms ease, transform 480ms cubic-bezier(.16,1,.3,1); }
