@@ -14,13 +14,29 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
   opacity: .54;
   transform: translateY(3px);
 }
+
+/* Phase 5's older cinematic stylesheet intentionally hid the toolbar/HUD with
+   !important. The persistent Journey now owns the whole story, so those
+   controls must remain quiet but discoverable while packet choreography runs. */
+html body .journey-visual-workspace:has(.journey-causal-world .phase5-packet-object) .visual-workspace__toolbar,
+html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical) .visual-workspace__toolbar {
+  opacity: .44 !important;
+  transform: translateY(-2px) !important;
+  pointer-events: auto !important;
+}
+html body .journey-visual-workspace:has(.journey-causal-world .phase5-packet-object) .visual-workspace__hud,
+html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical) .visual-workspace__hud {
+  opacity: .32 !important;
+  transform: translateY(-2px) !important;
+  pointer-events: auto !important;
+}
 html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar:hover,
 html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar:focus-within,
 html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud:hover,
 html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail:hover,
 html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail:focus-within {
-  opacity: 1;
-  transform: translateY(0);
+  opacity: 1 !important;
+  transform: translateY(0) !important;
 }
 
 /* The mechanism nodes are the visible identity. Suppress the older duplicate
@@ -209,6 +225,10 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
   html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar { opacity: .66; }
   html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud { opacity: .5; }
   html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail { opacity: .68; }
+  html body .journey-visual-workspace:has(.journey-causal-world .phase5-packet-object) .visual-workspace__toolbar,
+  html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical) .visual-workspace__toolbar { opacity: .66 !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world .phase5-packet-object) .visual-workspace__hud,
+  html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical) .visual-workspace__hud { opacity: .5 !important; }
   .journey-causal-world .causal-authority span,
   .journey-causal-world .causal-authority small { left: 8px; }
   .journey-causal-world .causal-authority--recursive span,
