@@ -39,8 +39,12 @@
   opacity: .12;
 }
 
-/* The WAN lane must own enough geometry for its label at desktop/reduced-motion
-   widths instead of relying on clipped typography. */
-.phase5b-stage-next-link .phase5b-serialization {
-  width: 17%;
+/* Desktop WAN serialization runs on the upstream portion of the path while the
+   compact structured frame recedes at the next-hop endpoint. Keep the lane wide
+   enough for its label without allowing the two representations to overlap. */
+@media (min-width: 761px) {
+  .phase5b-stage-next-link .phase5b-serialization {
+    left: 68%;
+    width: 15.5%;
+  }
 }
