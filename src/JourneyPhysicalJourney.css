@@ -309,21 +309,27 @@
   .phase5b-nic-queue { display: none; }
   .phase5b-data-unit { width: 170px; height: 62px; }
   .phase5b-stage-nic-serialize .phase5b-data-unit { --unit-x: 22%; --unit-y: 78%; }
-  .phase5b-stage-link-transmit .phase5b-data-unit { --unit-x: 28%; --unit-y: 72%; }
+  .phase5b-stage-link-transmit .phase5b-data-unit { --unit-x: 28%; --unit-y: 60%; }
   .phase5b-stage-switch-inspect .phase5b-data-unit { --unit-x: 36%; --unit-y: 77%; }
   .phase5b-stage-switch-forward .phase5b-data-unit { --unit-x: 49%; --unit-y: 70%; }
   .phase5b-stage-router-decapsulate .phase5b-data-unit,
   .phase5b-stage-router-ttl .phase5b-data-unit,
   .phase5b-stage-router-route .phase5b-data-unit { --unit-x: 65%; --unit-y: 76%; }
   .phase5b-stage-router-reencapsulate .phase5b-data-unit { --unit-x: 70%; --unit-y: 76%; }
-  .phase5b-stage-next-link .phase5b-data-unit { --unit-x: 78%; --unit-y: 72%; }
+  .phase5b-stage-next-link .phase5b-data-unit { --unit-x: 78%; --unit-y: 60%; }
   .phase5b-path.path-a { left: 12%; width: 53%; }
   .phase5b-path.path-b { left: 70%; width: 18%; }
   .phase5b-data-unit .phase5b-transport-core { display: none; }
   .phase5b-old-envelope b,
   .phase5b-new-envelope b { max-width: 112px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .phase5b-mac-projection,
-  .phase5b-route-projection { width: calc(100vw - 32px); padding: 8px; }
+  .phase5b-route-projection { top: 20px; width: calc(100vw - 32px); padding: 8px; }
+  .phase5b-serialization { top: 86%; gap: 1px; }
+  .phase5b-serialization::before { white-space: nowrap; letter-spacing: .09em; }
+  .phase5b-serialization i { min-width: 0; font-size: 4px; }
+  .phase5b-stage-next-link .phase5b-serialization { top: 86%; left: 64%; width: 27%; gap: 0; }
+  .phase5b-stage-next-link .phase5b-serialization::before { content: 'WAN / SYMBOL STREAM'; }
+  .phase5b-stage-next-link .phase5b-serialization i { font-size: 3px; }
   .phase5b-route-match { grid-template-columns: auto 1fr; }
   .phase5b-continuity { left: 10px; right: 10px; grid-template-columns: 1fr 8px 1fr 8px 1fr; gap: 4px; }
   .phase5b-continuity span { font-size: 5px; }

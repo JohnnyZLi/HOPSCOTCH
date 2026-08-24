@@ -245,12 +245,16 @@ async function inspectState(cdp) {
       rect:pick(physicalObject),
       reduceMotion:physicalObject.classList.contains('reduce-motion'),
       cameraTransition:getComputedStyle(physicalObject.querySelector('.phase5b-camera')).transitionDuration,
+      instrument:pick(physicalObject.querySelector('.phase5b-instrument')),
       dataUnit:pick(physicalObject.querySelector('.phase5b-data-unit')),
       dataUnitTabIndex:physicalObject.querySelector('.phase5b-data-unit')?.tabIndex??-1,
+      serialization:pick(physicalObject.querySelector('.phase5b-serialization')),
       activeDevices:[...physicalObject.querySelectorAll('.phase5b-device.is-active')].map((device)=>device.getAttribute('data-device')||''),
       activePaths:[...physicalObject.querySelectorAll('.phase5b-path.is-active')].map((path)=>path.getAttribute('data-locus')||''),
       macOpacity:getComputedStyle(physicalObject.querySelector('.phase5b-mac-projection')).opacity,
+      macProjection:pick(physicalObject.querySelector('.phase5b-mac-projection')),
       routeOpacity:getComputedStyle(physicalObject.querySelector('.phase5b-route-projection')).opacity,
+      routeProjection:pick(physicalObject.querySelector('.phase5b-route-projection')),
     }:null;
     return {
       title:callout?.querySelector('h2')?.textContent?.trim()||'',
@@ -412,8 +416,15 @@ async function auditViewport(cdp, origin, viewport) {
       assert.ok(state.physical.signature.length > 40, `${viewport.id}/${labels[index]}: deterministic physical signature missing.`);
       assert.ok(state.physical.dataUnit && state.physical.dataUnit.width >= 44 && state.physical.dataUnit.height >= 44 && state.physical.dataUnitTabIndex === 0, `${viewport.id}/${labels[index]}: physical data unit is not keyboard/touch inspectable.`);
       assert.equal(state.physical.activeDevices.length + state.physical.activePaths.length, 1, `${viewport.id}/${labels[index]}: expected exactly one active physical locus.`);
-      if (state.physical.stage === 'switch-inspect' || state.physical.stage === 'switch-forward') assert.equal(state.physical.macOpacity, '1', `${viewport.id}/${labels[index]}: switch MAC projection is not visible.`);
-      if (state.physical.stage === 'router-route' || state.physical.stage === 'router-reencapsulate') assert.equal(state.physical.routeOpacity, '1', `${viewport.id}/${labels[index]}: router route projection is not visible.`);
+      if (state.physical.stage === 'link-transmit' || state.physical.stage === 'next-link') assert.equal(intersects(state.physical.dataUnit, state.physical.serialization), false, `${viewport.id}/${labels[index]}: serialized symbols collide with the structured data unit.`);
+      if (state.physical.stage === 'switch-inspect' || state.physical.stage === 'switch-forward') {
+        assert.equal(state.physical.macOpacity, '1', `${viewport.id}/${labels[index]}: switch MAC projection is not visible.`);
+        assert.equal(intersects(state.physical.instrument, state.physical.macProjection), false, `${viewport.id}/${labels[index]}: MAC projection collides with the physical instrument.`);
+      }
+      if (state.physical.stage === 'router-route' || state.physical.stage === 'router-reencapsulate') {
+        assert.equal(state.physical.routeOpacity, '1', `${viewport.id}/${labels[index]}: router route projection is not visible.`);
+        assert.equal(intersects(state.physical.instrument, state.physical.routeProjection), false, `${viewport.id}/${labels[index]}: route projection collides with the physical instrument.`);
+      }
       if (viewport.reducedMotion) {
         assert.equal(state.physical.reduceMotion, true, `${viewport.id}/${labels[index]}: reduced-motion physical state was not rendered.`);
         assert.ok(state.physical.cameraTransition === '1e-05s' || state.physical.cameraTransition === '0s', `${viewport.id}/${labels[index]}: physical camera still has a long reduced-motion transition: ${state.physical.cameraTransition}`);
