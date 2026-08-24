@@ -7,6 +7,7 @@ import { MeasuredEvidenceSidecar } from './MeasuredEvidenceSidecar';
 import type { MeasuredSnapshotState } from './measurement/state.ts';
 import { JourneyLatencyPanel } from './JourneyLatencyPanel';
 import { JourneyPacketObject } from './JourneyPacketObject';
+import { JourneyPhysicalJourney } from './JourneyPhysicalJourney';
 import { JourneyPolicyLeakPanel } from './JourneyPolicyLeakPanel';
 import {
   VisualDrawerTabs,
@@ -33,6 +34,7 @@ import {
 } from './journey/model';
 import { impairmentProfileForModifiers, resolveJourneyModifierIds } from './journey/modifiers.ts';
 import { projectJourneyPacketVisual, type JourneyPacketLayerId, type JourneyPacketVisualProjection } from './journey/packet-visual.ts';
+import { projectJourneyPhysicalState, type JourneyPhysicalProjection } from './journey/physical-journey.ts';
 import './JourneyTheater.css';
 import './journey-branch.css';
 import './journey-god-mode.css';
@@ -255,6 +257,13 @@ function PacketAssemblyScene({ projection, onSelectLayer }: {
   return <div className="journey-scene phase5-packet-scene-wrap"><JourneyPacketObject projection={projection} onSelectLayer={onSelectLayer}/></div>;
 }
 
+function PhysicalJourneyScene({ projection, onSelectLayer }: {
+  projection: JourneyPhysicalProjection;
+  onSelectLayer: (layerId: JourneyPacketLayerId) => void;
+}) {
+  return <div className="journey-scene phase5-physical-scene-wrap"><JourneyPhysicalJourney projection={projection} onSelectLayer={onSelectLayer}/></div>;
+}
+
 function IntentScene({ hostname }: { hostname: string }) {
   return <div className="journey-scene response-scene intent-scene"><div className="browser-frame"><div><i/><i/><i/><span>{hostname}</span></div><section><b>URL</b><strong>APPLICATION INTENT</strong><p>The browser has a hostname and an intent. DNS, routing, transport, encryption, and HTTP state do not exist yet.</p></section></div></div>;
 }
@@ -276,16 +285,18 @@ function ApplicationScene({ state, hostname, address }: { state: JourneyState; h
   return <IntentScene hostname={hostname}/>;
 }
 
-function SemanticScene({ state, hostname, address, packetProjection, onSelectPacketLayer }: {
+function SemanticScene({ state, hostname, address, packetProjection, physicalProjection, onSelectPacketLayer }: {
   state: JourneyState;
   hostname: string;
   address: string;
   packetProjection: JourneyPacketVisualProjection;
+  physicalProjection: JourneyPhysicalProjection;
   onSelectPacketLayer: (layerId: JourneyPacketLayerId) => void;
 }) {
   if (state.scale === 'internet') return <InternetScene state={state}/>;
   if (state.scale === 'routing') return <RoutingScene state={state} address={address}/>;
   if (state.scale === 'transport') return <TransportScene state={state}/>;
+  if (state.scale === 'packet' && state.activeEvent.kind === 'packet.transit') return <PhysicalJourneyScene projection={physicalProjection} onSelectLayer={onSelectPacketLayer}/>;
   if (state.scale === 'packet' && (state.activeEvent.kind === 'packet.assembly' || state.activeEvent.kind === 'packet.inspect')) return <PacketAssemblyScene projection={packetProjection} onSelectLayer={onSelectPacketLayer}/>;
   if (state.scale === 'packet') return <PacketEventScene state={state}/>;
   return <ApplicationScene state={state} hostname={hostname} address={address}/>;
@@ -319,13 +330,21 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, measu
   const impairmentProfile = impairmentProfileForModifiers(modifierIds);
   const scenario = useMemo(() => buildJourneyScenario(hostname, { transportProfile: profile, dnsProfile, impairmentProfile, modifierIds }), [hostname, profile, dnsProfile, impairmentProfile, modifierIds]);
   const state = useMemo(() => journeyStateAt(scenario, timeMs), [scenario, timeMs]);
+  const physicalProjection = useMemo(() => projectJourneyPhysicalState({
+    profile,
+    destinationAddress: scenario.destinationAddress,
+    stage: state.packetTransitStage,
+  }), [profile, scenario.destinationAddress, state.packetTransitStage]);
   const packetProjection = useMemo(() => projectJourneyPacketVisual({
     hostname: scenario.hostname,
     destinationAddress: scenario.destinationAddress,
     profile,
     stage: state.packetAssemblyStage,
     selectedLayerId: selectedPacketLayer,
-  }), [profile, scenario.destinationAddress, scenario.hostname, selectedPacketLayer, state.packetAssemblyStage]);
+    ttl: state.activeEvent.kind === 'packet.transit' ? physicalProjection.currentTtl : undefined,
+    sourceMac: state.activeEvent.kind === 'packet.transit' && physicalProjection.l2Envelope === 'wan' ? physicalProjection.outgoing.sourceMac : undefined,
+    destinationMac: state.activeEvent.kind === 'packet.transit' && physicalProjection.l2Envelope === 'wan' ? physicalProjection.outgoing.destinationMac : undefined,
+  }), [physicalProjection, profile, scenario.destinationAddress, scenario.hostname, selectedPacketLayer, state.activeEvent.kind, state.packetAssemblyStage]);
   const mode = sceneMode(state);
   const selectedModifiers = scenario.modifierIds;
   const timelineEvents: VisualTimelineEvent[] = scenario.events.map((current) => ({
@@ -459,12 +478,19 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, measu
   </form>;
 
   const selectedPacketProjectionLayer = packetProjection.layers.find((layer) => layer.id === selectedPacketLayer) ?? packetProjection.layers[0];
-  const packetObjectActive = state.activeEvent.kind === 'packet.assembly' || state.activeEvent.kind === 'packet.inspect';
+  const packetObjectActive = state.activeEvent.kind === 'packet.assembly' || state.activeEvent.kind === 'packet.inspect' || state.activeEvent.kind === 'packet.transit';
+  const physicalJourneyActive = state.activeEvent.kind === 'packet.transit';
   const inspectContent = <div className="journey-inspect-drawer">
     {packetObjectActive && selectedPacketProjectionLayer && <section className="journey-packet-inspector" data-phase5-inspector="true">
       <div className="rail-title"><span>PACKET OBJECT</span><strong>0{selectedPacketProjectionLayer.order + 1} / 05</strong></div>
       <div className="journey-packet-inspector__identity"><span>{selectedPacketProjectionLayer.role}</span><h3>{selectedPacketProjectionLayer.protocol}</h3><p>{selectedPacketProjectionLayer.detail}</p><small>{selectedPacketProjectionLayer.byteStart === null ? 'SEMANTIC VIEW · NO FALSE BYTE CLAIM' : `FRAME BYTES ${selectedPacketProjectionLayer.byteStart}–${selectedPacketProjectionLayer.byteStart + selectedPacketProjectionLayer.byteLength - 1}`}</small></div>
       <div className="journey-packet-inspector__fields">{selectedPacketProjectionLayer.fields.map((field)=><div key={field.id}><span>{field.label}</span><strong>{field.value}</strong><small>{field.byteStart === null ? field.derived ? 'DERIVED' : 'SEMANTIC' : `B${field.byteStart}${field.byteLength > 1 ? `–${field.byteStart + field.byteLength - 1}` : ''}`}</small></div>)}</div>
+    </section>}
+    {physicalJourneyActive && <section className="journey-physical-inspector" data-phase5b-inspector="true">
+      <div className="rail-title"><span>FORWARDING OBJECT</span><strong>{String(physicalProjection.stageIndex + 1).padStart(2, '0')} / 09</strong></div>
+      <div><span>DEVICE READS</span><strong>{physicalProjection.selectedField}</strong><small>{physicalProjection.decision}</small></div>
+      <div><span>IP CONTINUITY</span><strong>{physicalProjection.continuityId}</strong><small>TTL {physicalProjection.currentTtl} · CHECKSUM {physicalProjection.currentChecksum}</small></div>
+      <div><span>ACTIVE L2</span><strong>{physicalProjection.l2Envelope.toUpperCase()}</strong><small>{physicalProjection.l2Envelope === 'none' ? 'ETHERNET TERMINATED AT ROUTER' : `${physicalProjection.l2Envelope === 'lan' ? physicalProjection.incoming.sourceMac : physicalProjection.outgoing.sourceMac} → ${physicalProjection.l2Envelope === 'lan' ? physicalProjection.incoming.destinationMac : physicalProjection.outgoing.destinationMac}`}</small></div>
     </section>}
     <article className={`journey-inspect-event ${calloutClass}`}><div><span>{formatTime(state.activeEvent.atMs)}</span><b className={provenanceClass(state.activeEvent.provenance)}>{state.activeEvent.provenance}</b></div><h3>{state.activeEvent.title}</h3><p>{state.activeEvent.summary}</p><small>{state.activeEvent.detail}</small>{detail&&<button type="button" onClick={()=>onOpenDetail(detail,timeMs)}>OPEN {detail.toUpperCase()} DETAIL ↗</button>}</article>
     <section><div className="rail-title"><span>PROTOCOL STATE</span><strong>{state.scale.toUpperCase()}</strong></div><div className="journey-state-strip"><div><span>DNS</span><strong className={dnsFailureSelected?toneClass:''}>{dnsStateLabel}</strong></div><div><span>ROUTE</span><strong className={routeSelected?toneClass:''}>{state.route.toUpperCase()}</strong></div><div><span>{profile==='quic-h3'?'QUIC':'TCP'}</span><strong className={lossSelected||latencySelected||outageSelected||congestionSelected||partitionSelected?toneClass:''}>{transportStateLabel}</strong></div><div><span>TLS</span><strong>{state.tls.toUpperCase()}</strong></div><div><span>{profile==='quic-h3'?'H3':'H2'}</span><strong>{state.http.toUpperCase()}</strong></div><div><span>PACKET</span><strong>{state.packet.toUpperCase()}</strong></div></div></section>
@@ -490,12 +516,12 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, measu
     drawers={drawers}
     onCloseDrawer={()=>setActiveDrawer(null)}
     toolbar={<><div className="visual-identity"><i/><span>URL JOURNEY</span><strong>{hostname} · {profileLabel} · {dnsLabel}</strong></div><div className="journey-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{id:'inspect',label:'INSPECT'},{id:'config',label:'CONFIG'},{id:'events',label:'EVENTS',badge:String(scenario.events.length)},{id:'evidence',label:'EVIDENCE',badge:evidence?'ON':undefined}]} onSelect={openDrawer}/><button type="button" className="visual-tool-button" onClick={onExit}>EXIT</button></div></>}
-    hud={<><div><span>SCALE</span><strong>{state.scale.toUpperCase()}</strong></div><div><span>PROTOCOL</span><strong>{state.protocol}</strong></div><div><span>{packetObjectActive ? 'ASSEMBLY' : 'ACTIVE STATE'}</span><strong className={toneClass}>{packetObjectActive ? state.packetAssemblyStage.toUpperCase() : state.impairmentState.toUpperCase()}</strong></div><div><span>PROVENANCE</span><strong className={provenanceClass(state.provenance)}>{state.provenance}</strong></div></>}
+    hud={<><div><span>SCALE</span><strong>{state.scale.toUpperCase()}</strong></div><div><span>PROTOCOL</span><strong>{state.protocol}</strong></div><div><span>{physicalJourneyActive ? 'FORWARDING' : packetObjectActive ? 'ASSEMBLY' : 'ACTIVE STATE'}</span><strong className={toneClass}>{physicalJourneyActive ? state.packetTransitStage.toUpperCase() : packetObjectActive ? state.packetAssemblyStage.toUpperCase() : state.impairmentState.toUpperCase()}</strong></div><div><span>PROVENANCE</span><strong className={provenanceClass(state.provenance)}>{state.provenance}</strong></div></>}
     timeline={<VisualTimeRail timeMs={timeMs} durationMs={scenario.durationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="GLOBAL TIME MACHINE" context={`${profileLabel} · ${dnsLabel} · ${godModeLabel}`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={()=>seek(0)} onSeek={seek}/>}
   >
-    <div className={`journey-cinematic-stage ${packetObjectActive ? 'phase5-object-active' : ''} ${toneClass}`} data-profile={profile} data-dns-profile={dnsProfile} data-impairment={impairmentProfile} data-modifiers={selectedModifiers.join(' ')}>
+    <div className={`journey-cinematic-stage ${packetObjectActive ? 'phase5-object-active' : ''} ${physicalJourneyActive ? 'phase5-physical-active' : ''} ${toneClass}`} data-profile={profile} data-dns-profile={dnsProfile} data-impairment={impairmentProfile} data-modifiers={selectedModifiers.join(' ')}>
       <nav className="journey-depth journey-depth-overlay" aria-label="Active Journey scale">{scaleOrder.map((scale)=><div key={scale} className={`${scale===state.scale?'active':''} ${JOURNEY_SCALE_DEPTH[scale] < state.scaleDepth?'behind':''}`}><i/><span>{scale.toUpperCase()}</span><small>0{JOURNEY_SCALE_DEPTH[scale]+1}</small></div>)}</nav>
-      <div className={`journey-scene-shell ${packetObjectActive ? 'phase5-packet-active' : ''} ${measuredState && measuredScene ? 'measured-evidence-active' : ''}`}><div className="depth-rings" aria-hidden="true"><i/><i/><i/><i/></div><AnimatePresence mode="wait" initial={false}><motion.div key={`${state.scale}:${mode}`} className="journey-scene-transition" initial={reduceMotion ? {opacity:1}:{opacity:0,scale:enteringScale,filter:'blur(12px)'}} animate={{opacity:1,scale:1,filter:'blur(0px)'}} exit={reduceMotion ? {opacity:0}:{opacity:0,scale:state.zoom==='out'?.72:1.24,filter:'blur(10px)'}} transition={reduceMotion ? {duration:0} : {duration:.46,ease:[.16,1,.3,1]}}><SemanticScene state={state} hostname={scenario.hostname} address={scenario.destinationAddress} packetProjection={packetProjection} onSelectPacketLayer={inspectPacketLayer}/></motion.div></AnimatePresence><MeasuredEvidenceSidecar measuredState={measuredState} scene={measuredScene} hostname={scenario.hostname} destinationAddress={scenario.destinationAddress}/></div>
+      <div className={`journey-scene-shell ${packetObjectActive ? 'phase5-packet-active' : ''} ${physicalJourneyActive ? 'phase5-physical-active' : ''} ${measuredState && measuredScene ? 'measured-evidence-active' : ''}`}><div className="depth-rings" aria-hidden="true"><i/><i/><i/><i/></div><AnimatePresence mode="wait" initial={false}><motion.div key={`${state.scale}:${mode}`} className="journey-scene-transition" initial={reduceMotion ? {opacity:1}:{opacity:0,scale:enteringScale,filter:'blur(12px)'}} animate={{opacity:1,scale:1,filter:'blur(0px)'}} exit={reduceMotion ? {opacity:0}:{opacity:0,scale:state.zoom==='out'?.72:1.24,filter:'blur(10px)'}} transition={reduceMotion ? {duration:0} : {duration:.46,ease:[.16,1,.3,1]}}><SemanticScene state={state} hostname={scenario.hostname} address={scenario.destinationAddress} packetProjection={packetProjection} physicalProjection={physicalProjection} onSelectPacketLayer={inspectPacketLayer}/></motion.div></AnimatePresence><MeasuredEvidenceSidecar measuredState={measuredState} scene={measuredScene} hostname={scenario.hostname} destinationAddress={scenario.destinationAddress}/></div>
       <AnimatePresence mode="wait" initial={false}><motion.article key={state.activeEvent.id} className={`journey-callout journey-callout-overlay ${calloutClass}`} initial={reduceMotion?{opacity:1}:{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={reduceMotion ? {duration:0} : {duration:.24}}><div><span>{formatTime(state.activeEvent.atMs)}</span><b className={provenanceClass(state.activeEvent.provenance)}>{state.activeEvent.provenance}</b></div><h2>{state.activeEvent.title}</h2><p>{state.activeEvent.summary}</p><small>{state.activeEvent.detail}</small>{detail&&<button type="button" onClick={()=>{setPlaying(false);onOpenDetail(detail,timeMs)}}>OPEN {detail.toUpperCase()} DETAIL ↗</button>}</motion.article></AnimatePresence>
     </div>
   </VisualWorkspaceShell>;

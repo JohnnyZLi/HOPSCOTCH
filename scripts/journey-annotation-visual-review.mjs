@@ -215,6 +215,7 @@ async function inspectState(cdp) {
     const rail=document.querySelector('.visual-time-rail');
     const depth=document.querySelector('.journey-depth-overlay');
     const packetObject=document.querySelector('[data-phase5-packet-object="true"]');
+    const physicalObject=document.querySelector('[data-phase5b-physical="true"]');
     const boxes={callout:pick(callout),scene:pick(scene),stage:pick(stage),hud:pick(hud),toolbar:pick(toolbar),rail:pick(rail),depth:pick(depth)};
     const markers=[...document.querySelectorAll('.visual-time-rail__events button')].map((button)=>{const r=button.getBoundingClientRect();return {label:button.getAttribute('aria-label')||'',width:r.width,height:r.height}});
     const hudValues=[...document.querySelectorAll('.visual-workspace__hud strong')].map((value)=>({text:value.textContent?.trim()||'',clientWidth:value.clientWidth,scrollWidth:value.scrollWidth,whiteSpace:getComputedStyle(value).whiteSpace}));
@@ -232,6 +233,24 @@ async function inspectState(cdp) {
         tabIndex:layer.tabIndex,
       })),
     }:null;
+    const physical=physicalObject?{
+      stage:physicalObject.getAttribute('data-phase5b-stage')||'',
+      signature:physicalObject.getAttribute('data-phase5b-signature')||'',
+      l2:physicalObject.getAttribute('data-phase5b-l2')||'',
+      ttl:physicalObject.getAttribute('data-phase5b-ttl')||'',
+      checksum:physicalObject.getAttribute('data-phase5b-checksum')||'',
+      selectedField:physicalObject.getAttribute('data-phase5b-selected-field')||'',
+      incomingFrame:physicalObject.getAttribute('data-phase5b-incoming-frame')||'',
+      outgoingFrame:physicalObject.getAttribute('data-phase5b-outgoing-frame')||'',
+      rect:pick(physicalObject),
+      reduceMotion:physicalObject.classList.contains('reduce-motion'),
+      cameraTransition:getComputedStyle(physicalObject.querySelector('.phase5b-camera')).transitionDuration,
+      dataUnit:pick(physicalObject.querySelector('.phase5b-data-unit')),
+      dataUnitTabIndex:physicalObject.querySelector('.phase5b-data-unit')?.tabIndex??-1,
+      activeDevices:[...physicalObject.querySelectorAll('.phase5b-device.is-active')].map((device)=>device.getAttribute('data-device')||''),
+      macOpacity:getComputedStyle(physicalObject.querySelector('.phase5b-mac-projection')).opacity,
+      routeOpacity:getComputedStyle(physicalObject.querySelector('.phase5b-route-projection')).opacity,
+    }:null;
     return {
       title:callout?.querySelector('h2')?.textContent?.trim()||'',
       boxes,
@@ -243,12 +262,51 @@ async function inspectState(cdp) {
       markers,
       hudValues,
       packet,
+      physical,
       innerWidth,
       innerHeight,
       scrollWidth:document.documentElement.scrollWidth,
       scrollHeight:document.documentElement.scrollHeight,
     };
   })()`);
+}
+
+async function auditPhysicalInspector(cdp, viewport, events) {
+  const ttlIndex = events.find((event) => event.physical?.stage === 'router-ttl')?.index;
+  assert.ok(Number.isInteger(ttlIndex), `${viewport.id}: router TTL event is missing.`);
+  const sought = await cdp.evaluate(`(()=>{const marker=document.querySelectorAll('.visual-time-rail__events button')[${ttlIndex}];if(!marker)return false;marker.click();return true})()`);
+  assert.equal(sought, true, `${viewport.id}: could not seek to the router TTL mutation.`);
+  await waitForExpression(cdp, `document.querySelector('[data-phase5b-physical="true"]')?.getAttribute('data-phase5b-stage')==='router-ttl'`);
+  const opened = await cdp.evaluate(`(()=>{const unit=document.querySelector('.phase5b-data-unit');if(!unit)return false;unit.click();return true})()`);
+  assert.equal(opened, true, `${viewport.id}: could not inspect the routed IPv4 object.`);
+  await waitForExpression(cdp, `Boolean(document.querySelector('[data-phase5b-inspector="true"]'))`);
+  await sleep(260);
+  const inspector = await cdp.evaluate(`(()=>{
+    const physical=document.querySelector('[data-phase5b-inspector="true"]');
+    const packet=document.querySelector('[data-phase5-inspector="true"]');
+    if(!physical||!packet)return null;
+    return {
+      physicalText:physical.textContent||'',
+      protocol:packet.querySelector('h3')?.textContent?.trim()||'',
+      fields:[...packet.querySelectorAll('.journey-packet-inspector__fields > div')].map((field)=>({
+        label:field.querySelector('span')?.textContent?.trim()||'',
+        value:field.querySelector('strong')?.textContent?.trim()||'',
+        range:field.querySelector('small')?.textContent?.trim()||'',
+      })),
+      playbackLabel:document.querySelector('.visual-time-rail__transport button')?.getAttribute('aria-label')||'',
+    };
+  })()`);
+  assert.ok(inspector, `${viewport.id}: physical forwarding inspector did not render.`);
+  assert.match(inspector.physicalText, /DEVICE READS\s*TTL/i, `${viewport.id}: TTL decision field is missing from physical inspector.`);
+  assert.match(inspector.physicalText, /ETHERNET TERMINATED AT ROUTER/i, `${viewport.id}: router L2 termination is missing from inspector.`);
+  assert.equal(inspector.protocol, 'IPv4', `${viewport.id}: router object inspection did not select IPv4.`);
+  assert.ok(inspector.fields.some((field) => field.label === 'TTL' && field.value === '63' && field.range === 'B22'), `${viewport.id}: routed TTL byte lineage drifted: ${JSON.stringify(inspector.fields)}`);
+  assert.ok(inspector.fields.some((field) => field.label === 'Header Checksum' && field.value === '0xF323' && field.range === 'B24–25'), `${viewport.id}: routed checksum lineage drifted: ${JSON.stringify(inspector.fields)}`);
+  assert.equal(inspector.playbackLabel, 'Play scenario', `${viewport.id}: physical inspection did not pause playback.`);
+  await screenshot(cdp, join(outputDir, `${viewport.id}-physical-router-ttl-inspector.png`));
+  await cdp.evaluate(`document.querySelector('.visual-drawer__close')?.click()`);
+  await sleep(180);
+  return inspector;
 }
 
 async function auditDrawer(cdp, viewport) {
@@ -348,6 +406,18 @@ async function auditViewport(cdp, origin, viewport) {
         assert.ok(state.packet.cameraTransition === '1e-05s' || state.packet.cameraTransition === '0s', `${viewport.id}/${labels[index]}: camera still has a long reduced-motion transition: ${state.packet.cameraTransition}`);
       }
     }
+    if (state.physical) {
+      assert.ok(['nic-serialize', 'link-transmit', 'switch-inspect', 'switch-forward', 'router-decapsulate', 'router-ttl', 'router-route', 'router-reencapsulate', 'next-link'].includes(state.physical.stage), `${viewport.id}/${labels[index]}: invalid Phase 5B stage ${state.physical.stage}.`);
+      assert.ok(state.physical.signature.length > 40, `${viewport.id}/${labels[index]}: deterministic physical signature missing.`);
+      assert.ok(state.physical.dataUnit && state.physical.dataUnit.width >= 44 && state.physical.dataUnit.height >= 44 && state.physical.dataUnitTabIndex === 0, `${viewport.id}/${labels[index]}: physical data unit is not keyboard/touch inspectable.`);
+      assert.equal(state.physical.activeDevices.length, 1, `${viewport.id}/${labels[index]}: expected exactly one active physical device.`);
+      if (state.physical.stage === 'switch-inspect' || state.physical.stage === 'switch-forward') assert.equal(state.physical.macOpacity, '1', `${viewport.id}/${labels[index]}: switch MAC projection is not visible.`);
+      if (state.physical.stage === 'router-route' || state.physical.stage === 'router-reencapsulate') assert.equal(state.physical.routeOpacity, '1', `${viewport.id}/${labels[index]}: router route projection is not visible.`);
+      if (viewport.reducedMotion) {
+        assert.equal(state.physical.reduceMotion, true, `${viewport.id}/${labels[index]}: reduced-motion physical state was not rendered.`);
+        assert.ok(state.physical.cameraTransition === '1e-05s' || state.physical.cameraTransition === '0s', `${viewport.id}/${labels[index]}: physical camera still has a long reduced-motion transition: ${state.physical.cameraTransition}`);
+      }
+    }
     events.push({ index, label: labels[index], ...state });
     await screenshot(cdp, join(outputDir, `${viewport.id}-${String(index + 1).padStart(2, '0')}-${slug(state.title || labels[index])}.png`));
   }
@@ -355,9 +425,21 @@ async function auditViewport(cdp, origin, viewport) {
   const phase5Events = events.filter((event) => event.packet);
   assert.ok(phase5Events.length >= 8, `${viewport.id}: expected the complete Phase 5 assembly and inspection sequence, found ${phase5Events.length}.`);
   assert.deepEqual([...new Set(phase5Events.map((event) => event.packet.stage))], ['application', 'security', 'transport', 'network', 'link', 'collapsed', 'exploded'], `${viewport.id}: Phase 5 packet stages are incomplete.`);
+  const physicalEvents = events.filter((event) => event.physical);
+  assert.equal(physicalEvents.length, 9, `${viewport.id}: expected nine Phase 5B physical states.`);
+  assert.deepEqual(physicalEvents.map((event) => event.physical.stage), ['nic-serialize', 'link-transmit', 'switch-inspect', 'switch-forward', 'router-decapsulate', 'router-ttl', 'router-route', 'router-reencapsulate', 'next-link'], `${viewport.id}: Phase 5B forwarding stages are incomplete.`);
+  const physicalByStage = Object.fromEntries(physicalEvents.map((event) => [event.physical.stage, event.physical]));
+  assert.equal(physicalByStage['switch-inspect'].incomingFrame, physicalByStage['switch-forward'].incomingFrame, `${viewport.id}: switch forwarding changed the frame signature.`);
+  assert.equal(physicalByStage['router-decapsulate'].l2, 'none', `${viewport.id}: router did not terminate L2.`);
+  assert.equal(physicalByStage['router-decapsulate'].ttl, '64', `${viewport.id}: router mutated TTL before the explicit TTL state.`);
+  assert.equal(physicalByStage['router-ttl'].ttl, '63', `${viewport.id}: router TTL mutation did not render.`);
+  assert.equal(physicalByStage['router-ttl'].checksum, '0xF323', `${viewport.id}: routed checksum did not update.`);
+  assert.equal(physicalByStage['router-reencapsulate'].l2, 'wan', `${viewport.id}: router did not construct the next-hop L2 envelope.`);
+  assert.notEqual(physicalByStage['router-reencapsulate'].incomingFrame, physicalByStage['router-reencapsulate'].outgoingFrame, `${viewport.id}: next-hop Ethernet envelope did not change.`);
+  const physicalInspector = await auditPhysicalInspector(cdp, viewport, events);
   const packetInspector = await auditPacketInspector(cdp, viewport, events);
   const drawer = await auditDrawer(cdp, viewport);
-  return { viewport, eventCount: labels.length, phase5EventCount: phase5Events.length, packetInspector, drawer, events };
+  return { viewport, eventCount: labels.length, phase5EventCount: phase5Events.length, physicalEventCount: physicalEvents.length, physicalInspector, packetInspector, drawer, events };
 }
 
 async function main() {
@@ -391,7 +473,7 @@ async function main() {
   console.log(JSON.stringify({
     generatedAt: report.generatedAt,
     chromePath: report.chromePath,
-    profiles: report.profiles.map((profile) => ({ viewport: profile.viewport, eventCount: profile.eventCount, phase5EventCount: profile.phase5EventCount, packetInspector: profile.packetInspector })),
+    profiles: report.profiles.map((profile) => ({ viewport: profile.viewport, eventCount: profile.eventCount, phase5EventCount: profile.phase5EventCount, physicalEventCount: profile.physicalEventCount, physicalInspector: profile.physicalInspector, packetInspector: profile.packetInspector })),
     failures: report.failures,
     reportPath,
   }, null, 2));
