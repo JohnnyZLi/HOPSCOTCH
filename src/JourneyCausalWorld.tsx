@@ -7,6 +7,7 @@ import { JourneyPacketObject } from './JourneyPacketObject.tsx';
 import { JourneyPhysicalJourney } from './JourneyPhysicalJourney.tsx';
 import './JourneyCausalWorld.css';
 import './JourneyMechanismPolish.css';
+import './JourneyMechanismVisibility.css';
 
 type CausalPhase = 'intent' | 'dns' | 'route' | 'path' | 'tcp' | 'tls' | 'http' | 'packet' | 'response' | 'complete';
 
