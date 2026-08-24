@@ -571,7 +571,6 @@
 .phase5-stage-collapsed .phase5c-link {
   opacity: .08;
   transform: translate3d(-50%, -50%, 0) scale(.58);
-  pointer-events: none;
 }
 .phase5-stage-collapsed .phase5c-network-wing,
 .phase5-stage-collapsed .phase5c-ether-clamp,
@@ -1347,7 +1346,7 @@
     height: 52vh;
     transform: translate(-50%, -50%) rotateX(5deg) rotateY(-7deg) scale(.72);
   }
-  .phase5c-application { width: 178px; height: 92px; }
+  .phase5c-application { width: 190px; height: 110px; }
   .phase5c-security { width: 235px; height: 138px; }
   .phase5c-transport { width: 300px; height: 170px; }
   .phase5c-network { width: 365px; height: 216px; }
@@ -1357,6 +1356,11 @@
   .phase5c-collapse-spine { width: 350px; height: 58px; }
   .phase5c-collapse-spine span { font-size: 6px; }
   .phase5c-nic { right: 0; bottom: 12%; transform: scale(.68); }
+  .phase5-stage-collapsed .phase5c-application,
+  .phase5-stage-collapsed .phase5c-security,
+  .phase5-stage-collapsed .phase5c-transport,
+  .phase5-stage-collapsed .phase5c-network,
+  .phase5-stage-collapsed .phase5c-link { transform: translate3d(-50%, -50%, 0) scale(1); }
 
   .phase5b-device { width: 90px; }
   .phase5b-device > strong { font-size: 6px; }
