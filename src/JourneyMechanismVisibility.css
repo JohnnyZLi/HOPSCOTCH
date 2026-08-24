@@ -1,0 +1,27 @@
+/* This file intentionally uses greater specificity than JourneyTheater.css.
+   The controls should recede during playback without becoming undiscoverable. */
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar {
+  opacity: .44;
+  transform: translateY(-2px);
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud {
+  opacity: .32;
+  transform: translateY(-2px);
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail {
+  opacity: .54;
+  transform: translateY(3px);
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar:hover,
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar:focus-within,
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud:hover,
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail:hover,
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail:focus-within {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (max-width: 680px) {
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar { opacity: .66; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud { opacity: .5; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail { opacity: .68; }
+}
