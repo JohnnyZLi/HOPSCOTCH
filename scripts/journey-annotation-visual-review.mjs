@@ -11,9 +11,10 @@ const distDir = resolve(process.cwd(), 'dist');
 const outputDir = resolve(process.cwd(), process.env.HOPSCOTCH_JOURNEY_ANNOTATION_REVIEW_DIR?.trim() || 'artifacts/journey-annotation-visual-review');
 const reportPath = join(outputDir, 'report.json');
 const viewports = [
-  { id: 'wide', width: 1600, height: 950 },
-  { id: 'compact', width: 1180, height: 800 },
-  { id: 'mobile', width: 390, height: 844 },
+  { id: 'wide', width: 1600, height: 950, reducedMotion: false },
+  { id: 'compact', width: 1180, height: 800, reducedMotion: false },
+  { id: 'mobile', width: 390, height: 844, reducedMotion: false },
+  { id: 'reduced', width: 1180, height: 800, reducedMotion: true },
 ];
 const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 
@@ -25,15 +26,32 @@ function executableFromPath(command) {
 
 function findChrome() {
   const explicit = process.env.CHROME_PATH?.trim();
-  if (explicit && existsSync(explicit)) return explicit;
-  for (const command of ['google-chrome-stable', 'google-chrome', 'chromium', 'chromium-browser']) {
+  if (explicit) {
+    if (!existsSync(explicit)) throw new Error(`CHROME_PATH does not exist: ${explicit}`);
+    return explicit;
+  }
+  const commandCandidates = process.platform === 'win32'
+    ? ['chrome', 'msedge']
+    : ['google-chrome-stable', 'google-chrome', 'chromium', 'chromium-browser'];
+  for (const command of commandCandidates) {
     const candidate = executableFromPath(command);
     if (candidate) return candidate;
   }
-  for (const candidate of ['/usr/bin/google-chrome-stable', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser']) {
-    if (existsSync(candidate)) return candidate;
-  }
-  throw new Error('Chrome/Chromium not found.');
+  const pathCandidates = process.platform === 'darwin'
+    ? [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+        '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+      ]
+    : process.platform === 'win32'
+      ? [
+          'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+          'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+          'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+        ]
+      : ['/usr/bin/google-chrome-stable', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
+  for (const candidate of pathCandidates) if (existsSync(candidate)) return candidate;
+  throw new Error('Chrome/Chromium not found. Set CHROME_PATH to an installed Chrome-compatible browser.');
 }
 
 async function freePort() {
@@ -175,6 +193,10 @@ async function navigate(cdp, origin, viewport) {
     deviceScaleFactor: 1,
     mobile: viewport.width <= 480,
   });
+  await cdp.call('Emulation.setEmulatedMedia', {
+    media: 'screen',
+    features: [{ name: 'prefers-reduced-motion', value: viewport.reducedMotion ? 'reduce' : 'no-preference' }],
+  });
   await cdp.call('Page.navigate', { url: `${origin}/journey` });
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`);
   await waitForExpression(cdp, `document.querySelectorAll('.visual-time-rail__events button').length > 0`);
@@ -192,9 +214,24 @@ async function inspectState(cdp) {
     const toolbar=document.querySelector('.visual-workspace__toolbar');
     const rail=document.querySelector('.visual-time-rail');
     const depth=document.querySelector('.journey-depth-overlay');
+    const packetObject=document.querySelector('[data-phase5-packet-object="true"]');
     const boxes={callout:pick(callout),scene:pick(scene),stage:pick(stage),hud:pick(hud),toolbar:pick(toolbar),rail:pick(rail),depth:pick(depth)};
     const markers=[...document.querySelectorAll('.visual-time-rail__events button')].map((button)=>{const r=button.getBoundingClientRect();return {label:button.getAttribute('aria-label')||'',width:r.width,height:r.height}});
     const hudValues=[...document.querySelectorAll('.visual-workspace__hud strong')].map((value)=>({text:value.textContent?.trim()||'',clientWidth:value.clientWidth,scrollWidth:value.scrollWidth,whiteSpace:getComputedStyle(value).whiteSpace}));
+    const packet=packetObject?{
+      stage:packetObject.getAttribute('data-phase5-stage')||'',
+      signature:packetObject.getAttribute('data-phase5-signature')||'',
+      rect:pick(packetObject),
+      reduceMotion:packetObject.classList.contains('reduce-motion'),
+      cameraTransition:getComputedStyle(packetObject.querySelector('.phase5-packet-camera')).transitionDuration,
+      layers:[...packetObject.querySelectorAll('[data-phase5-layer]')].map((layer)=>({
+        id:layer.getAttribute('data-phase5-layer')||'',
+        visible:layer.getAttribute('data-visible')==='true',
+        active:layer.classList.contains('is-active'),
+        rect:pick(layer),
+        tabIndex:layer.tabIndex,
+      })),
+    }:null;
     return {
       title:callout?.querySelector('h2')?.textContent?.trim()||'',
       boxes,
@@ -205,6 +242,7 @@ async function inspectState(cdp) {
       sceneDepthOverlap:intersects(boxes.scene,boxes.depth),
       markers,
       hudValues,
+      packet,
       innerWidth,
       innerHeight,
       scrollWidth:document.documentElement.scrollWidth,
@@ -235,6 +273,46 @@ async function auditDrawer(cdp, viewport) {
   return drawer;
 }
 
+async function auditPacketInspector(cdp, viewport, events) {
+  const explodedIndex = events.find((event) => event.packet?.stage === 'exploded')?.index;
+  assert.ok(Number.isInteger(explodedIndex), `${viewport.id}: exploded packet event is missing.`);
+  const sought = await cdp.evaluate(`(()=>{
+    const marker=document.querySelectorAll('.visual-time-rail__events button')[${explodedIndex}];
+    if(!marker)return false;
+    marker.click();
+    return true;
+  })()`);
+  assert.equal(sought, true, `${viewport.id}: could not seek to the exploded packet.`);
+  await waitForExpression(cdp, `document.querySelector('[data-phase5-packet-object="true"]')?.getAttribute('data-phase5-stage')==='exploded'`);
+  const opened = await cdp.evaluate(`(()=>{const layer=document.querySelector('.phase5-packet-shell.shell-network');if(!layer)return false;layer.click();return true})()`);
+  assert.equal(opened, true, `${viewport.id}: could not select the IPv4 packet shell.`);
+  await waitForExpression(cdp, `Boolean(document.querySelector('[data-phase5-inspector="true"]'))`);
+  await sleep(260);
+  const inspector = await cdp.evaluate(`(()=>{
+    const panel=document.querySelector('[data-phase5-inspector="true"]');
+    if(!panel)return null;
+    return {
+      protocol:panel.querySelector('h3')?.textContent?.trim()||'',
+      identity:panel.querySelector('.journey-packet-inspector__identity small')?.textContent?.trim()||'',
+      fields:[...panel.querySelectorAll('.journey-packet-inspector__fields > div')].map((field)=>({
+        label:field.querySelector('span')?.textContent?.trim()||'',
+        value:field.querySelector('strong')?.textContent?.trim()||'',
+        range:field.querySelector('small')?.textContent?.trim()||'',
+      })),
+      playbackLabel:document.querySelector('.visual-time-rail__transport button')?.getAttribute('aria-label')||'',
+    };
+  })()`);
+  assert.ok(inspector, `${viewport.id}: packet inspector did not render.`);
+  assert.equal(inspector.protocol, 'IPv4', `${viewport.id}: selecting the network shell did not select IPv4.`);
+  assert.equal(inspector.identity, 'FRAME BYTES 14–33', `${viewport.id}: IPv4 layer byte range drifted.`);
+  assert.ok(inspector.fields.some((field) => field.label === 'TTL' && field.value === '64' && field.range === 'B22'), `${viewport.id}: TTL did not retain exact byte lineage: ${JSON.stringify(inspector.fields)}`);
+  assert.equal(inspector.playbackLabel, 'Play scenario', `${viewport.id}: packet inspection did not pause playback.`);
+  await screenshot(cdp, join(outputDir, `${viewport.id}-packet-network-inspector.png`));
+  await cdp.evaluate(`document.querySelector('.visual-drawer__close')?.click()`);
+  await sleep(180);
+  return inspector;
+}
+
 async function auditViewport(cdp, origin, viewport) {
   await navigate(cdp, origin, viewport);
   const labels = await cdp.evaluate(`[...document.querySelectorAll('.visual-time-rail__events button')].map((button)=>button.getAttribute('aria-label')||'')`);
@@ -258,12 +336,28 @@ async function auditViewport(cdp, origin, viewport) {
     if (viewport.id === 'mobile') {
       assert.ok(state.hudValues.every((value) => value.whiteSpace !== 'nowrap'), `${viewport.id}/${labels[index]}: HUD value is forced to nowrap.`);
     }
+    if (state.packet) {
+      const visibleLayers = state.packet.layers.filter((layer) => layer.visible);
+      assert.ok(['application', 'security', 'transport', 'network', 'link', 'collapsed', 'exploded'].includes(state.packet.stage), `${viewport.id}/${labels[index]}: invalid Phase 5 packet stage ${state.packet.stage}.`);
+      assert.ok(state.packet.signature.length > 20, `${viewport.id}/${labels[index]}: deterministic packet signature missing.`);
+      assert.equal(visibleLayers.filter((layer) => layer.active).length, 1, `${viewport.id}/${labels[index]}: packet object must expose exactly one active layer.`);
+      assert.ok(visibleLayers.every((layer) => layer.rect && layer.rect.width >= 44 && layer.rect.height >= 44 && layer.tabIndex === 0), `${viewport.id}/${labels[index]}: visible packet layer is not keyboard/touch inspectable: ${JSON.stringify(visibleLayers)}`);
+      assert.ok(state.packet.layers.filter((layer) => !layer.visible).every((layer) => layer.tabIndex === -1), `${viewport.id}/${labels[index]}: hidden packet layers entered the tab order.`);
+      if (viewport.reducedMotion) {
+        assert.equal(state.packet.reduceMotion, true, `${viewport.id}/${labels[index]}: reduced-motion state was not rendered.`);
+        assert.ok(state.packet.cameraTransition === '1e-05s' || state.packet.cameraTransition === '0s', `${viewport.id}/${labels[index]}: camera still has a long reduced-motion transition: ${state.packet.cameraTransition}`);
+      }
+    }
     events.push({ index, label: labels[index], ...state });
     await screenshot(cdp, join(outputDir, `${viewport.id}-${String(index + 1).padStart(2, '0')}-${slug(state.title || labels[index])}.png`));
   }
 
+  const phase5Events = events.filter((event) => event.packet);
+  assert.ok(phase5Events.length >= 8, `${viewport.id}: expected the complete Phase 5 assembly and inspection sequence, found ${phase5Events.length}.`);
+  assert.deepEqual([...new Set(phase5Events.map((event) => event.packet.stage))], ['application', 'security', 'transport', 'network', 'link', 'collapsed', 'exploded'], `${viewport.id}: Phase 5 packet stages are incomplete.`);
+  const packetInspector = await auditPacketInspector(cdp, viewport, events);
   const drawer = await auditDrawer(cdp, viewport);
-  return { viewport, eventCount: labels.length, drawer, events };
+  return { viewport, eventCount: labels.length, phase5EventCount: phase5Events.length, packetInspector, drawer, events };
 }
 
 async function main() {
@@ -294,7 +388,13 @@ async function main() {
     await new Promise((resolvePromise) => server.close(resolvePromise));
   }
   writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(JSON.stringify(report, null, 2));
+  console.log(JSON.stringify({
+    generatedAt: report.generatedAt,
+    chromePath: report.chromePath,
+    profiles: report.profiles.map((profile) => ({ viewport: profile.viewport, eventCount: profile.eventCount, phase5EventCount: profile.phase5EventCount, packetInspector: profile.packetInspector })),
+    failures: report.failures,
+    reportPath,
+  }, null, 2));
   assert.deepEqual(report.failures, [], `Journey annotation visual review failed: ${JSON.stringify(report.failures)}`);
 }
 
