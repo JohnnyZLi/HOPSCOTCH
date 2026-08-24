@@ -390,7 +390,7 @@ export function VisualWorkspaceShell({
   timeline,
 }: {
   className?: string;
-  entrance: { eyebrow: string; title: string; accentTitle: string; subtitle?: string };
+  entrance?: { eyebrow: string; title: string; accentTitle: string; subtitle?: string };
   toolbar?: ReactNode;
   hud?: ReactNode;
   stageLabel: string;
@@ -418,7 +418,7 @@ export function VisualWorkspaceShell({
         {hud && <div className="visual-workspace__hud">{hud}</div>}
         {toolbar && <div className="visual-workspace__toolbar">{toolbar}</div>}
         <VisualOverlayDrawer active={activeDrawer} drawers={drawers} onClose={onCloseDrawer} />
-        <VisualEntranceTransition entrance={entrance} />
+        {entrance && <VisualEntranceTransition entrance={entrance} />}
       </div>
       {timeline}
     </motion.section>
