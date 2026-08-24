@@ -285,8 +285,8 @@ async function main() {
     await assertCinematicChrome(cdp, report);
 
     const transitions = [
-      { id: '01-protection-closes', from: 'Application data isolated', to: 'TLS record closes', selector: '.phase5c-security' },
-      { id: '02-transport-drops-in', from: 'TLS record closes', to: 'TCP segment assembles', selector: '.phase5c-transport' },
+      { id: '01-protection-closes', from: 'Application data isolated', to: 'TLS 1.3 application data closes', selector: '.phase5c-security' },
+      { id: '02-transport-drops-in', from: 'TLS 1.3 application data closes', to: 'TCP segment assembles', selector: '.phase5c-transport' },
       { id: '03-ipv4-wings-close', from: 'TCP segment assembles', to: 'IPv4 envelope assembles', selector: '.phase5c-network-wing.wing-left', minCenterTravel: 45 },
       { id: '04-ethernet-clamps-close', from: 'IPv4 envelope assembles', to: 'Hop-local Ethernet envelope closes', selector: '.phase5c-ether-clamp.clamp-header', minCenterTravel: 45 },
       { id: '05-frame-collapses', from: 'Hop-local Ethernet envelope closes', to: 'Structured frame ready at the NIC', selector: '.phase5c-collapse-spine', minCenterTravel: 20 },
