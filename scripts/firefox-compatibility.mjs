@@ -25,6 +25,15 @@ function findExecutable(commands, fallbackPaths = []) {
   return fallbackPaths.find((candidate) => existsSync(candidate)) ?? null;
 }
 
+function configuredExecutable(environmentKey, commands, fallbackPaths = []) {
+  const explicit = process.env[environmentKey]?.trim();
+  if (explicit) {
+    if (!existsSync(explicit)) throw new Error(`${environmentKey} does not exist: ${explicit}`);
+    return explicit;
+  }
+  return findExecutable(commands, fallbackPaths);
+}
+
 function commandVersion(executable) {
   if (!executable) return null;
   const result = spawnSync(executable, ['--version'], { encoding: 'utf8', timeout: 10000 });
@@ -206,8 +215,13 @@ const profiles = [
 
 async function main() {
   if (typeof WebSocket === 'undefined') throw new Error('Node 24 WebSocket support is required.');
-  const firefox = findExecutable(['firefox', 'firefox-esr'], ['/usr/bin/firefox', '/usr/bin/firefox-esr']);
-  const geckodriver = findExecutable(['geckodriver'], ['/usr/bin/geckodriver']);
+  const firefox = configuredExecutable('FIREFOX_PATH', ['firefox', 'firefox-esr'], [
+    '/Applications/Firefox.app/Contents/MacOS/firefox',
+    '/Applications/Firefox Developer Edition.app/Contents/MacOS/firefox',
+    '/usr/bin/firefox',
+    '/usr/bin/firefox-esr',
+  ]);
+  const geckodriver = configuredExecutable('GECKODRIVER_PATH', ['geckodriver'], ['/usr/local/bin/geckodriver', '/opt/homebrew/bin/geckodriver', '/usr/bin/geckodriver']);
   if (!firefox) throw new Error('Firefox executable is not available.');
   if (!geckodriver) throw new Error('GeckoDriver executable is not available.');
 

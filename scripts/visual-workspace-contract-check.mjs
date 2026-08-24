@@ -5,6 +5,9 @@ const shared = readFileSync(new URL('../src/VisualWorkspace.tsx', import.meta.ur
 const sharedCss = readFileSync(new URL('../src/VisualWorkspace.css', import.meta.url), 'utf8');
 const journey = readFileSync(new URL('../src/JourneyTheaterV2.tsx', import.meta.url), 'utf8');
 const journeyCss = readFileSync(new URL('../src/JourneyTheater.css', import.meta.url), 'utf8');
+const journeyPacket = readFileSync(new URL('../src/JourneyPacketObject.tsx', import.meta.url), 'utf8');
+const journeyPacketCss = readFileSync(new URL('../src/JourneyPacketObject.css', import.meta.url), 'utf8');
+const journeyPacketProjection = readFileSync(new URL('../src/journey/packet-visual.ts', import.meta.url), 'utf8');
 const failure = readFileSync(new URL('../src/FailureStoryWorkspace.tsx', import.meta.url), 'utf8');
 const failureCss = readFileSync(new URL('../src/FailureStoryWorkspace.css', import.meta.url), 'utf8');
 const tcp = readFileSync(new URL('../src/TcpTheater.tsx', import.meta.url), 'utf8');
@@ -69,6 +72,8 @@ assert.match(journey, /id: 'evidence'/);
 assert.match(journey, /id: 'inspect'/);
 assert.match(journey, /PROVENANCE/);
 assert.match(journey, /timelineMilestones/);
+assert.match(journey, /<JourneyPacketObject/);
+assert.match(journey, /projectJourneyPacketVisual/);
 assert.ok(!journey.includes('className="journey-main"'), 'Journey must not render the legacy dashboard grid');
 assert.ok(!journey.includes('className="journey-heading"'), 'Journey title must be entrance choreography, not persistent document flow');
 assert.ok(!journey.includes('className="journey-rail"'), 'Journey must not reserve a permanent causal/evidence rail');
@@ -77,6 +82,16 @@ assert.ok(!journey.includes('className="journey-stage-meta"'), 'Journey must not
 assert.match(journeyCss, /\.journey-cinematic-stage \{[\s\S]*position: absolute;/);
 assert.match(journeyCss, /\.journey-depth-overlay \{[\s\S]*position: absolute;/);
 assert.match(journeyCss, /\.journey-callout-overlay \{[\s\S]*position: absolute;/);
+assert.match(journeyPacket, /data-phase5-packet-object/);
+assert.match(journeyPacket, /phase5-frame-spine/);
+assert.match(journeyPacket, /onSelectLayer/);
+assert.match(journeyPacket, /useReducedMotion/);
+assert.match(journeyPacketCss, /\.phase5-packet-camera/);
+assert.match(journeyPacketCss, /@media \(max-width: 760px\)/);
+assert.match(journeyPacketCss, /@media \(prefers-reduced-motion: reduce\)/);
+assert.match(journeyPacketProjection, /buildPacket/);
+assert.match(journeyPacketProjection, /semanticSignature/);
+assert.ok(!journeyPacket.includes('requestAnimationFrame'), 'Phase 5 packet object must render deterministic state without owning semantic time');
 
 assert.match(failure, /className="failure-visual-workspace"/);
 assert.match(failure, /failure-object-annotation/);

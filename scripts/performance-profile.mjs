@@ -1525,7 +1525,7 @@ async function main() {
       await cdp.close();
     }
     if (launch?.chrome && !launch.chrome.killed) launch.chrome.kill('SIGKILL');
-    if (launch?.userDataDir) rmSync(launch.userDataDir, { recursive: true, force: true });
+    if (launch?.userDataDir) rmSync(launch.userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     if (production) await new Promise((resolvePromise) => production.server.close(resolvePromise));
     report.browser.stderrTail = launch?.state.stderr || null;
     mkdirSync(dirname(reportPath), { recursive: true });

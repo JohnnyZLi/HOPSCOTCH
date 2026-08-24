@@ -510,6 +510,53 @@
 .journey-inspect-depth span { color: #87969d; font-size: 0.49rem; font-weight: 900; }
 .journey-inspect-depth small { color: #5d6c73; font-size: 0.45rem; }
 
+/* Phase 5 packet-object inspection stays inside the existing contextual drawer. */
+.journey-cinematic-stage .phase5-packet-scene-wrap {
+  width: 100%;
+  max-width: 1180px;
+  height: 100%;
+  min-height: min(58vh, 480px);
+}
+
+.journey-cinematic-stage.phase5-object-active .depth-rings { opacity: 0.08; }
+
+.journey-packet-inspector {
+  border-color: rgba(119, 245, 232, 0.16) !important;
+  background: linear-gradient(145deg, rgba(119, 245, 232, 0.035), rgba(255, 255, 255, 0.008)) !important;
+}
+
+.journey-packet-inspector__identity {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.journey-packet-inspector__identity > span,
+.journey-packet-inspector__identity > small {
+  color: #748a8b;
+  font: 700 0.45rem/1.4 var(--mono);
+  letter-spacing: 0.13em;
+}
+
+.journey-packet-inspector__identity h3 { margin: 0; color: #e6ffff; font-size: 1.08rem; letter-spacing: 0.04em; }
+.journey-packet-inspector__identity p { margin: 0; color: #8ca0a2; font-size: 0.61rem; line-height: 1.55; }
+
+.journey-packet-inspector__fields { display: grid; gap: 2px; }
+.journey-packet-inspector__fields > div {
+  display: grid;
+  grid-template-columns: minmax(86px, 0.7fr) minmax(0, 1.25fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 34px;
+  padding: 7px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+}
+.journey-packet-inspector__fields > div:last-child { border-bottom: 0; }
+.journey-packet-inspector__fields span { color: #708083; font-size: 0.47rem; font-weight: 800; }
+.journey-packet-inspector__fields strong { overflow: hidden; color: #cbdadb; font: 600 0.51rem/1.35 var(--mono); text-overflow: ellipsis; }
+.journey-packet-inspector__fields small { color: #79bcb6; font: 700 0.42rem/1 var(--mono); letter-spacing: 0.08em; }
+
 .journey-events-drawer {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
