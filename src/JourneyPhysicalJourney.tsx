@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import type { JourneyPacketLayerId } from './journey/packet-visual.ts';
 import type { JourneyPhysicalProjection } from './journey/physical-journey.ts';
 import './JourneyHeroChoreography.css';
+import './JourneyHeroOverrides.css';
 
 const signalCells = Array.from({ length: 18 }, (_, index) => index);
 const camCells = Array.from({ length: 8 }, (_, index) => index);
@@ -48,9 +49,9 @@ export function JourneyPhysicalJourney({ projection, onSelectLayer }: {
     <div className="phase5c-void" aria-hidden="true"><i/><i/><i/></div>
 
     <svg className="phase5c-link-map" viewBox="0 0 1000 520" preserveAspectRatio="none" aria-hidden="true">
-      <path className="phase5c-link access-link" d="M155 330 C270 285 365 290 455 300"/>
-      <path className="phase5c-link switch-router-link" d="M505 300 C610 292 680 290 745 285"/>
-      <path className="phase5c-link wan-link" d="M790 280 C870 245 925 205 982 165"/>
+      <path className="phase5c-wire-path access-link" d="M155 330 C270 285 365 290 455 300"/>
+      <path className="phase5c-wire-path switch-router-link" d="M505 300 C610 292 680 290 745 285"/>
+      <path className="phase5c-wire-path wan-link" d="M790 280 C870 245 925 205 982 165"/>
       <path className="phase5c-route-ghost route-one" d="M756 274 C820 216 884 208 944 234"/>
       <path className="phase5c-route-ghost route-two" d="M756 274 C828 274 884 274 954 274"/>
       <path className="phase5c-route-ghost route-three" d="M756 274 C820 332 884 338 944 310"/>
