@@ -229,6 +229,10 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
   html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical) .visual-workspace__toolbar { opacity: .66 !important; }
   html body .journey-visual-workspace:has(.journey-causal-world .phase5-packet-object) .visual-workspace__hud,
   html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical) .visual-workspace__hud { opacity: .5 !important; }
+  /* Restore the compact namespace footprint from the base mobile layout. The
+     desktop label treatment is deliberately wider and must not push AUTH past
+     the clipped 390px stage. */
+  .journey-causal-world .causal-authority { width: 60px; }
   .journey-causal-world .causal-authority span,
   .journey-causal-world .causal-authority small { left: 8px; }
   .journey-causal-world .causal-authority--recursive span,
