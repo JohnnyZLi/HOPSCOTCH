@@ -1,0 +1,32 @@
+.phase5-packet-object .phase5c-layer.phase5c-link {
+  transition:
+    transform 1550ms var(--phase5c-snap),
+    opacity 680ms ease,
+    filter 680ms ease;
+}
+
+.phase5c-wire-path {
+  fill: none;
+  stroke: rgba(114, 244, 227, .17);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+  transition: stroke .5s ease, stroke-width .5s ease, filter .5s ease;
+}
+
+.phase5c-route-ghost {
+  fill: none;
+  stroke: rgba(117, 170, 255, 0);
+  stroke-width: 1;
+  stroke-dasharray: 4 8;
+  vector-effect: non-scaling-stroke;
+  transition: stroke .6s ease, stroke-dashoffset 1.6s ease;
+}
+
+.phase5b-stage-link-transmit .phase5c-wire-path.access-link,
+.phase5b-stage-switch-inspect .phase5c-wire-path.access-link,
+.phase5b-stage-switch-forward .phase5c-wire-path.switch-router-link,
+.phase5b-stage-next-link .phase5c-wire-path.wan-link {
+  stroke: rgba(114, 244, 227, .7);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 7px rgba(114, 244, 227, .45));
+}
