@@ -233,7 +233,7 @@ async function animationEvidence(cdp, spec, report) {
 }
 
 async function navigateJourney(cdp, origin, dns = 'cache-miss') {
-  const query = new URLSearchParams({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns, impairment: 'clean' });
+  const query = new URLSearchParams({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns, impairment: 'clean', t: '0' });
   await cdp.call('Page.navigate', { url: `${origin}/journey?${query.toString()}` });
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`);
   await waitForExpression(cdp, `document.querySelectorAll('.visual-time-rail__events button').length > 15`);
@@ -390,7 +390,7 @@ async function assertCinematicChrome(cdp, report) {
 
 async function auditReducedMotion(cdp, origin, report) {
   await cdp.call('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
-  const query = new URLSearchParams({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', impairment: 'clean' });
+  const query = new URLSearchParams({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', impairment: 'clean', t: '0' });
   await cdp.call('Page.navigate', { url: `${origin}/journey?${query.toString()}` });
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`);
   await sleep(180);
