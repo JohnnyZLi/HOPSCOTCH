@@ -173,6 +173,32 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
 }
 .journey-causal-world .causal-tls-leaders { opacity: .7; }
 
+/* The generic packet-world scaffold is intentionally strongest at the first
+   packet stage. These stage selectors must outrank that generic rule so the
+   old request mechanism actually yields to the assembled packet instead of
+   lingering at 58% opacity through every layer. */
+.journey-causal-world.is-packet-world.packet-stage-security .causal-handoff-rail,
+.journey-causal-world.is-packet-world.packet-stage-security .causal-mechanism-core,
+.journey-causal-world.is-packet-world.packet-stage-security .causal-object__payload {
+  opacity: .32;
+}
+.journey-causal-world.is-packet-world.packet-stage-transport .causal-handoff-rail,
+.journey-causal-world.is-packet-world.packet-stage-transport .causal-mechanism-core,
+.journey-causal-world.is-packet-world.packet-stage-transport .causal-object__payload {
+  opacity: .14;
+}
+.journey-causal-world.is-packet-world.packet-stage-network .causal-handoff-rail,
+.journey-causal-world.is-packet-world.packet-stage-network .causal-mechanism-core,
+.journey-causal-world.is-packet-world.packet-stage-network .causal-object__payload,
+.journey-causal-world.is-packet-world.packet-stage-link .causal-handoff-rail,
+.journey-causal-world.is-packet-world.packet-stage-link .causal-mechanism-core,
+.journey-causal-world.is-packet-world.packet-stage-link .causal-object__payload,
+.journey-causal-world.is-packet-world.packet-stage-collapsed .causal-handoff-rail,
+.journey-causal-world.is-packet-world.packet-stage-collapsed .causal-mechanism-core,
+.journey-causal-world.is-packet-world.packet-stage-collapsed .causal-object__payload {
+  opacity: 0;
+}
+
 /* Annotations are secondary, but readable. */
 .journey-causal-world .causal-annotation { opacity: .8; }
 .journey-causal-world .causal-annotation strong { color: #c9c4bc; }
