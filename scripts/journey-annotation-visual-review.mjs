@@ -208,6 +208,7 @@ async function inspectState(cdp) {
   return cdp.evaluate(`(()=>{
     const pick=(element)=>{if(!element)return null;const r=element.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};
     const intersects=(a,b)=>Boolean(a&&b&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top);
+    const pseudoContentFits=(element)=>{if(!element)return false;const style=getComputedStyle(element,'::before');const content=style.content.replace(/^["']|["']$/g,'');const canvas=document.createElement('canvas');const context=canvas.getContext('2d');if(!context)return false;context.font=style.font;const spacing=Number.parseFloat(style.letterSpacing)||0;return context.measureText(content).width+Math.max(0,content.length-1)*spacing<=element.getBoundingClientRect().width+1};
     const callout=document.querySelector('.journey-callout-overlay');
     const scene=document.querySelector('.journey-scene-transition');
     const stage=document.querySelector('.visual-workspace__stage');
@@ -250,6 +251,7 @@ async function inspectState(cdp) {
       dataUnit:pick(physicalObject.querySelector('.phase5b-data-unit')),
       dataUnitTabIndex:physicalObject.querySelector('.phase5b-data-unit')?.tabIndex??-1,
       serialization:(()=>{const rect=pick(physicalObject.querySelector('.phase5b-serialization'));return rect?{...rect,top:rect.top-14,height:rect.height+14}:null})(),
+      serializationLabelFits:pseudoContentFits(physicalObject.querySelector('.phase5b-serialization')),
       activeDevices:[...physicalObject.querySelectorAll('.phase5b-device.is-active')].map((device)=>device.getAttribute('data-device')||''),
       activePaths:[...physicalObject.querySelectorAll('.phase5b-path.is-active')].map((path)=>path.getAttribute('data-locus')||''),
       macOpacity:getComputedStyle(physicalObject.querySelector('.phase5b-mac-projection')).opacity,
@@ -417,7 +419,10 @@ async function auditViewport(cdp, origin, viewport) {
       assert.ok(state.physical.signature.length > 40, `${viewport.id}/${labels[index]}: deterministic physical signature missing.`);
       assert.ok(state.physical.dataUnit && state.physical.dataUnit.width >= 44 && state.physical.dataUnit.height >= 44 && state.physical.dataUnitTabIndex === 0, `${viewport.id}/${labels[index]}: physical data unit is not keyboard/touch inspectable.`);
       assert.equal(state.physical.activeDevices.length + state.physical.activePaths.length, 1, `${viewport.id}/${labels[index]}: expected exactly one active physical locus.`);
-      if (state.physical.stage === 'link-transmit' || state.physical.stage === 'next-link') assert.equal(rectsIntersect(state.physical.dataUnit, state.physical.serialization), false, `${viewport.id}/${labels[index]}: serialized symbols collide with the structured data unit.`);
+      if (state.physical.stage === 'link-transmit' || state.physical.stage === 'next-link') {
+        assert.equal(rectsIntersect(state.physical.dataUnit, state.physical.serialization), false, `${viewport.id}/${labels[index]}: serialized symbols collide with the structured data unit.`);
+        assert.equal(state.physical.serializationLabelFits, true, `${viewport.id}/${labels[index]}: serialization label does not fit its visual lane.`);
+      }
       if (state.physical.stage === 'switch-inspect' || state.physical.stage === 'switch-forward') {
         assert.equal(state.physical.macOpacity, '1', `${viewport.id}/${labels[index]}: switch MAC projection is not visible.`);
         assert.equal(rectsIntersect(state.physical.instrument, state.physical.macProjection), false, `${viewport.id}/${labels[index]}: MAC projection collides with the physical instrument.`);
