@@ -266,10 +266,10 @@
 .causal-object__spine i { width: 2px; height: 9px; background: rgba(255, 255, 255, .16); }
 .causal-object__spine i:last-child { background: var(--causal-accent); }
 
-.causal-phase-dns .causal-object { left: 19%; top: 34%; width: min(28vw, 380px); height: 132px; transform: translate(-50%, -50%) scale(.9); }
+.causal-phase-dns .causal-object { left: 19%; top: 34%; width: min(28vw, 380px); height: 154px; transform: translate(-50%, -50%) scale(.9); }
 .causal-phase-route .causal-object,
-.causal-phase-path .causal-object { left: 16%; top: 34%; width: min(25vw, 340px); height: 128px; transform: translate(-50%, -50%) scale(.84); }
-.causal-phase-tcp .causal-object { left: 17%; top: 35%; width: min(22vw, 300px); height: 118px; transform: translate(-50%, -50%) scale(.82); }
+.causal-phase-path .causal-object { left: 18%; top: 34%; width: min(28vw, 380px); height: 154px; transform: translate(-50%, -50%) scale(.84); }
+.causal-phase-tcp .causal-object { left: 19%; top: 35%; width: min(26vw, 360px); height: 148px; transform: translate(-50%, -50%) scale(.82); }
 .causal-phase-tls .causal-object { left: 50%; top: 50%; width: 255px; height: 118px; border-radius: 22px; transform: translate(-50%, -50%) scale(.9); }
 .causal-phase-http .causal-object { left: 50%; top: 48%; width: 230px; height: 118px; border-radius: 26px; transform: translate(-50%, -50%); }
 .causal-phase-response .causal-object { left: 50%; top: 48%; width: 250px; height: 124px; transform: translate(-50%, -50%); }
@@ -509,9 +509,9 @@
 .causal-phase-path .causal-route-world { opacity: .38; transform: scale(.88) translateX(-7%); }
 .causal-route-fan {
   position: absolute;
-  left: 20%;
+  left: 22%;
   top: 18%;
-  width: 65%;
+  width: 63%;
   height: 58%;
   overflow: visible;
 }
@@ -521,7 +521,7 @@
 .causal-route-world.is-selected .route-selected { stroke-dashoffset: 0; opacity: .9; }
 .causal-route-origin {
   position: absolute;
-  left: 20%;
+  left: 31%;
   top: 45%;
   display: grid;
   gap: 4px;
@@ -905,9 +905,9 @@
   .causal-dns-skip { left: 42%; top: 68%; }
   .causal-route-world { transform: scale(.82); transform-origin: 50% 50%; }
   .causal-phase-route .causal-object,
-  .causal-phase-path .causal-object { left: 24%; top: 27%; width: 200px; height: 100px; }
+  .causal-phase-path .causal-object { left: 29%; top: 25%; width: 270px; height: 142px; transform: translate(-50%, -50%) scale(.82); }
   .causal-route-fan { left: 10%; top: 22%; width: 82%; }
-  .causal-route-origin { left: 18%; }
+  .causal-route-origin { display: none; }
   .causal-route-choice { min-width: 105px; }
   .choice-specific,
   .choice-network,
@@ -924,7 +924,8 @@
   .causal-tls-fields > div:nth-child(2),
   .causal-tls-fields > div:nth-child(4) { right: 2%; }
   .causal-client-hello { width: 240px; height: 140px; }
-  .causal-phase-tls .causal-object { width: 194px; height: 104px; }
+  .causal-phase-tls .causal-object { width: 220px; height: 110px; }
+  .causal-phase-tls .causal-object__payload { inset: 16px 14px 16px 54px; }
   .causal-tls-server { min-width: 210px; bottom: 4%; }
   .causal-key-boundary { left: 22%; right: 22%; }
   .causal-phase-http .causal-object { width: 210px; height: 108px; }
