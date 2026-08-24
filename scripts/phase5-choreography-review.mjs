@@ -70,6 +70,20 @@ async function launchChrome(chromePath) {
   return { chrome, port, userDataDir };
 }
 
+async function stopChrome(chrome) {
+  if (chrome.exitCode === null && chrome.signalCode === null) chrome.kill('SIGKILL');
+  if (chrome.exitCode === null) {
+    await new Promise((resolvePromise) => {
+      const finish = () => resolvePromise();
+      chrome.once('exit', finish);
+      if (chrome.exitCode !== null) {
+        chrome.removeListener('exit', finish);
+        resolvePromise();
+      }
+    });
+  }
+}
+
 class CdpClient {
   constructor(url) {
     this.nextId = 0;
@@ -322,8 +336,8 @@ async function main() {
     report.failures.push(error instanceof Error ? error.stack ?? error.message : String(error));
   } finally {
     cdp?.close();
-    if (!launched.chrome.killed) launched.chrome.kill('SIGKILL');
-    rmSync(launched.userDataDir, { recursive: true, force: true });
+    await stopChrome(launched.chrome);
+    rmSync(launched.userDataDir, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
     await new Promise((resolvePromise) => server.close(resolvePromise));
     writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   }
