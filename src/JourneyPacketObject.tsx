@@ -22,7 +22,7 @@ export function JourneyPacketObject({ projection, onSelectLayer }: {
   const ttl = networkLayer.fields.find((field) => field.label.toLowerCase() === 'ttl')?.value ?? '64';
 
   const layerProps = (current: JourneyPacketVisualLayer) => ({
-    className: `phase5c-layer phase5-packet-shell shell-${current.id} ${current.visible ? 'is-visible' : ''} ${current.active ? 'is-active' : ''}`,
+    className: `phase5c-layer phase5c-${current.id} phase5-packet-shell shell-${current.id} ${current.visible ? 'is-visible' : ''} ${current.active ? 'is-active' : ''}`,
     'data-phase5-layer': current.id,
     'data-visible': current.visible ? 'true' : 'false',
     tabIndex: current.visible ? 0 : -1,
