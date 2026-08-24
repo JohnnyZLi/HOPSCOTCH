@@ -117,6 +117,11 @@ async function waitForExpression(cdp, expression, timeoutMs = 10000) {
   throw new Error(`Timed out waiting for ${expression}`);
 }
 
+async function waitForHero(cdp, hero, settleMs = 0) {
+  await waitForExpression(cdp, `Boolean(document.querySelector('[data-phase5c-hero="${hero}"]'))`, 5000);
+  if (settleMs > 0) await sleep(settleMs);
+}
+
 async function screenshot(cdp, filename) {
   const result = await cdp.call('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });
   writeFileSync(join(outputDir, filename), Buffer.from(result.data, 'base64'));
@@ -215,10 +220,10 @@ async function animationEvidence(cdp, spec, report) {
 
 async function assertCinematicChrome(cdp, report) {
   await seekEvent(cdp, 'TCP segment assembles');
-  await sleep(300);
+  await waitForHero(cdp, 'assembly', 420);
   const chrome = await cdp.evaluate(`(()=>{
     const opacity=(selector)=>{const el=document.querySelector(selector);return el?Number(getComputedStyle(el).opacity):null};
-    const hero=document.querySelector('[data-phase5c-hero]');
+    const hero=document.querySelector('[data-phase5c-hero="assembly"]');
     const r=hero?.getBoundingClientRect();
     return {
       hero:r?{width:r.width,height:r.height}:null,
@@ -244,7 +249,7 @@ async function auditReducedMotion(cdp, origin, report) {
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`);
   await sleep(180);
   await seekEvent(cdp, 'IPv4 envelope assembles');
-  await sleep(100);
+  await waitForHero(cdp, 'assembly', 80);
   const reduced = await cdp.evaluate(`(()=>{
     const hero=document.querySelector('[data-phase5-packet-object="true"]');
     const target=document.querySelector('.phase5c-network-wing.wing-left');
