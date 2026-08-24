@@ -329,8 +329,8 @@
   .phase5b-serialization::before { white-space: nowrap; letter-spacing: .09em; }
   .phase5b-serialization i { min-width: 0; font-size: 4px; }
   .phase5b-stage-link-transmit .phase5b-serialization::before { content: 'FRAME → SYMBOLS'; }
-  .phase5b-stage-next-link .phase5b-serialization { top: 86%; left: 64%; width: 27%; gap: 0; }
-  .phase5b-stage-next-link .phase5b-serialization::before { content: 'WAN SYMBOLS'; }
+  .phase5b-stage-next-link .phase5b-serialization { top: 86%; left: 58%; width: 34%; gap: 0; }
+  .phase5b-stage-next-link .phase5b-serialization::before { content: 'WAN SYMBOLS'; font-size: 5px; }
   .phase5b-stage-next-link .phase5b-serialization i { font-size: 3px; }
   .phase5b-route-match { grid-template-columns: auto 1fr; }
   .phase5b-continuity { left: 10px; right: 10px; grid-template-columns: 1fr 8px 1fr 8px 1fr; gap: 4px; }
