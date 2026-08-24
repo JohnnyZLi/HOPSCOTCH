@@ -94,19 +94,20 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
   useLayoutEffect(() => {
     const root = rootRef.current;
     const stage = root?.querySelector<HTMLElement>('.dns-map');
-    if (!root || !stage) return;
+    const linkLayer = root?.querySelector<SVGSVGElement>('.dns-link-layer');
+    if (!root || !stage || !linkLayer) return;
 
     const anchorElements = dnsActors.map((actor) => root.querySelector<HTMLElement>(`[data-dns-anchor="${actor}"]`));
     if (anchorElements.some((anchor) => !anchor)) return;
     const anchors = anchorElements as HTMLElement[];
 
     const measure = () => {
-      const stageRect = stage.getBoundingClientRect();
+      const coordinateRect = linkLayer.getBoundingClientRect();
       const next = Object.fromEntries(dnsActors.map((actor, index) => {
         const rect = anchors[index].getBoundingClientRect();
         return [actor, {
-          x: rect.left + rect.width / 2 - stageRect.left,
-          y: rect.top + rect.height / 2 - stageRect.top,
+          x: rect.left + rect.width / 2 - coordinateRect.left,
+          y: rect.top + rect.height / 2 - coordinateRect.top,
         }];
       })) as DnsAnchorPoints;
       setAnchorPoints((current) => sameAnchorPoints(current, next) ? current : next);
@@ -131,13 +132,12 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
     const stage = root.querySelector<HTMLElement>('.dns-map');
     if (!token || !stage) return;
 
-    const stageRect = stage.getBoundingClientRect();
     const fromPoint = anchorPoints[activeEvent.from];
     const toPoint = anchorPoints[activeEvent.to];
-    const halfWidth = Math.min(stageRect.width / 2 - 4, token.offsetWidth / 2 + 8);
-    const halfHeight = Math.min(stageRect.height / 2 - 4, token.offsetHeight / 2 + 8);
-    const clampX = (value: number) => Math.max(halfWidth, Math.min(stageRect.width - halfWidth, value));
-    const clampY = (value: number) => Math.max(halfHeight, Math.min(stageRect.height - halfHeight, value));
+    const halfWidth = Math.min(stage.clientWidth / 2 - 4, token.offsetWidth / 2 + 8);
+    const halfHeight = Math.min(stage.clientHeight / 2 - 4, token.offsetHeight / 2 + 8);
+    const clampX = (value: number) => Math.max(halfWidth, Math.min(stage.clientWidth - halfWidth, value));
+    const clampY = (value: number) => Math.max(halfHeight, Math.min(stage.clientHeight - halfHeight, value));
     const startX = clampX(fromPoint.x);
     const startY = clampY(fromPoint.y);
     const endX = clampX(toPoint.x);
