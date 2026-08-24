@@ -30,3 +30,17 @@
   stroke-width: 2;
   filter: drop-shadow(0 0 7px rgba(114, 244, 227, .45));
 }
+
+/* Keep the structured frame clear of the active symbol lane. The frame is already
+   semantically serialized at this stage; the renderer should show the two
+   representations as sequential rather than geometrically colliding. */
+.phase5b-stage-link-transmit .phase5b-data-unit {
+  left: 52%;
+  opacity: .12;
+}
+
+/* The WAN lane must own enough geometry for its label at desktop/reduced-motion
+   widths instead of relying on clipped typography. */
+.phase5b-stage-next-link .phase5b-serialization {
+  width: 17%;
+}
