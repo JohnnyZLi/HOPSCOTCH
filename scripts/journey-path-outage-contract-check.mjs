@@ -38,10 +38,10 @@ assert.throws(() => normalizeJourneyModifierIds(['route-failure', 'path-outage']
 const tcp = buildJourneyScenario('example.test', config('tcp-h2', 'cache-hit', ['path-outage']));
 assert.deepEqual(tcp.modifierIds, ['path-outage']);
 assert.equal(tcp.impairmentProfile, 'path-outage');
-assert.equal(tcp.durationMs, 18500);
+assert.equal(tcp.durationMs, 23100);
 assert.deepEqual(
   ['path-outage-primary-fails', 'path-outage-route-invalidated', 'path-outage-spf-recompute', 'path-outage-alternate-installed', 'tcp-outage-rto', 'tcp-outage-retransmit', 'tcp-outage-recovered'].map((id) => event(tcp, id).atMs),
-  [10320, 10520, 10780, 11060, 11320, 11540, 11900],
+  [14920, 15120, 15380, 15660, 15920, 16140, 16500],
 );
 assert.equal(event(tcp, 'tcp-outage-rto').transportMetrics.timerLabel, 'RTO');
 assert.equal(event(tcp, 'tcp-outage-rto').transportMetrics.timerMs, 1000);
@@ -52,10 +52,10 @@ assertStrict(tcp);
 
 const quic = buildJourneyScenario('example.test', config('quic-h3', 'cache-hit', ['path-outage']));
 assert.deepEqual(quic.modifierIds, ['path-outage']);
-assert.equal(quic.durationMs, 18500);
+assert.equal(quic.durationMs, 23100);
 assert.deepEqual(
   ['path-outage-primary-fails', 'quic-outage-pto1', 'quic-outage-probe', 'path-outage-spf-recompute', 'quic-outage-pto2', 'path-outage-alternate-installed', 'quic-outage-retransmit', 'quic-outage-recovered'].map((id) => event(quic, id).atMs),
-  [10060, 10200, 10370, 10520, 10660, 10800, 10980, 11220],
+  [14660, 14800, 14970, 15120, 15260, 15400, 15580, 15820],
 );
 assert.equal(event(quic, 'quic-outage-pto1').transportMetrics.timerLabel, 'PTO');
 assert.equal(event(quic, 'quic-outage-pto1').transportMetrics.timerMs, 89);

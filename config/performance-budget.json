@@ -49,7 +49,7 @@
     },
     "highDensitySeek": {
       "cycles": 12,
-      "eventsPerCycle": 60,
+      "eventsPerCycle": 69,
       "baselineHeapGrowthBytes": 2306867,
       "maxHeapGrowthBytes": 4194304
     }

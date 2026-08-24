@@ -68,7 +68,7 @@ const quicLossConfig = {
   impairmentProfile: 'single-loss',
 };
 const quicLoss = buildJourneyScenario('example.test', quicLossConfig);
-assert.equal(quicLoss.durationMs, 17900);
+assert.equal(quicLoss.durationMs, 22500);
 
 const clampedV1 = normalizePortableJourneyScenario({
   schema: JOURNEY_SCENARIO_SCHEMA,
@@ -79,12 +79,12 @@ const clampedV1 = normalizePortableJourneyScenario({
   timeMs: 999999,
 });
 assert.equal(clampedV1.version, 1);
-assert.equal(clampedV1.timeMs, 17900);
+assert.equal(clampedV1.timeMs, 22500);
 
 const recovery = createPortableJourneyScenario({
   hostname: 'example.test',
   config: quicLossConfig,
-  timeMs: 10950,
+  timeMs: 15550,
 });
 assert.equal(recovery.version, 1);
 assert.equal(journeyStateAt(quicLoss, recovery.timeMs).activeEvent.id, 'quic-recovered');
@@ -99,7 +99,7 @@ assert.equal(legacyParsedUrl.searchParams.get('host'), 'example.test');
 assert.equal(legacyParsedUrl.searchParams.get('transport'), 'quic-h3');
 assert.equal(legacyParsedUrl.searchParams.get('dns'), 'cache-hit');
 assert.equal(legacyParsedUrl.searchParams.get('impairment'), 'single-loss');
-assert.equal(legacyParsedUrl.searchParams.get('t'), '10950');
+assert.equal(legacyParsedUrl.searchParams.get('t'), '15550');
 assert.deepEqual(decodeJourneyQuery(legacyParsedUrl.search), recovery);
 
 // Composed scenarios use schema v2 and canonical modifier order regardless of input order.
@@ -110,7 +110,7 @@ const composedConfig = {
   modifierIds: ['latency-spike', 'route-failure', 'single-loss'],
 };
 const composedGenerated = buildJourneyScenario('example.test', composedConfig);
-assert.equal(composedGenerated.durationMs, 20500);
+assert.equal(composedGenerated.durationMs, 25100);
 assert.deepEqual(composedGenerated.modifierIds, ['route-failure', 'single-loss', 'latency-spike']);
 
 const composed = createPortableJourneyScenario({
@@ -170,7 +170,7 @@ const clampedV2 = normalizePortableJourneyScenario({
 });
 assert.equal(clampedV2.version, 2);
 assert.deepEqual(clampedV2.modifiers, ['route-failure', 'single-loss']);
-assert.equal(clampedV2.timeMs, 19300);
+assert.equal(clampedV2.timeMs, 23900);
 
 assert.equal(decodeJourneyQuery('?foo=bar'), null);
 assert.equal(decodeJourneyQuery('?journey=0&host=example.test'), null);
