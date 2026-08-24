@@ -6,6 +6,8 @@ import type { JourneyState } from './journey/model.ts';
 import { JourneyPacketObject } from './JourneyPacketObject.tsx';
 import { JourneyPhysicalJourney } from './JourneyPhysicalJourney.tsx';
 import './JourneyCausalWorld.css';
+import './JourneyMechanismPolish.css';
+import './JourneyMechanismVisibility.css';
 
 type CausalPhase = 'intent' | 'dns' | 'route' | 'path' | 'tcp' | 'tls' | 'http' | 'packet' | 'response' | 'complete';
 
@@ -17,6 +19,7 @@ const dnsActors = [
 ] as const;
 
 const cipherCells = Array.from({ length: 24 }, (_, index) => index);
+const routeBits = Array.from({ length: 16 }, (_, index) => index);
 
 function phaseFor(state: JourneyState): CausalPhase {
   const kind = state.activeEvent.kind;
@@ -82,7 +85,7 @@ function annotationFor(state: JourneyState): { index: string; label: string; not
   if (phase === 'tcp') return { index: '04', label: 'Transport reacts on arrival', note: 'SYN, SYN-ACK, and ACK alter endpoint state.' };
   if (phase === 'tls') return { index: '05', label: 'Protection assembles', note: 'Negotiated parameters lock before the payload turns opaque.' };
   if (phase === 'http') return { index: '06', label: 'Request ready', note: 'HTTP meaning flows directly into packet assembly.' };
-  if (phase === 'packet') return { index: '07', label: 'One object, deeper scale', note: 'Deterministic packet truth now drives the existing choreography.' };
+  if (phase === 'packet') return { index: '07', label: 'One object, deeper scale', note: 'The causal mechanism becomes the packet assembly scaffold.' };
   if (phase === 'response') return { index: '08', label: 'Response returns', note: 'The established world carries application data back.' };
   return { index: '09', label: 'Intent satisfied', note: 'The same timeline can reconstruct every causal boundary.' };
 }
@@ -124,6 +127,7 @@ function DnsWorld({ state, hostname }: { state: JourneyState; hostname: string }
 function RouteWorld({ state, address }: { state: JourneyState; address: string }) {
   const selected = state.route === 'gateway-ready' || state.route === 'internet-path-ready' || state.transport !== 'closed';
   const phase = phaseFor(state);
+  const octets = address.split('.');
   return <div className={`causal-route-world ${selected ? 'is-selected' : ''}`} data-causal-route={state.route} aria-hidden={phase !== 'route' && phase !== 'path'}>
     <svg className="causal-route-fan" viewBox="0 0 760 420" preserveAspectRatio="none" aria-hidden="true">
       <path className="route-candidate route-candidate--specific" d="M100 210 C240 118 374 94 650 86"/>
@@ -131,6 +135,11 @@ function RouteWorld({ state, address }: { state: JourneyState; address: string }
       <path className="route-candidate route-candidate--default" d="M100 210 C246 300 410 332 650 334"/>
       <path className="route-selected" d="M100 210 C246 300 410 332 650 334"/>
     </svg>
+    <div className="causal-route-target" data-route-target="true">
+      <small>destination</small>
+      <strong>{octets.map((octet, index) => <span key={`${octet}-${index}`}>{octet}{index < octets.length - 1 ? '.' : ''}</span>)}</strong>
+      <div className="causal-route-bits">{routeBits.map((bit) => <i key={bit} style={{ '--route-bit': bit } as CSSProperties}/>)}</div>
+    </div>
     <div className="causal-route-choice choice-specific"><i/><span>{address}/32</span><small>no local host route</small></div>
     <div className="causal-route-choice choice-network"><i/><span>203.0.113.0/24</span><small>remote network</small></div>
     <div className="causal-route-choice choice-default"><i/><span>0.0.0.0/0</span><small>via 192.0.2.1</small></div>
@@ -203,12 +212,18 @@ export function JourneyCausalWorld({ state, hostname, address, packetProjection,
   const packetActive = state.activeEvent.kind === 'packet.assembly' || state.activeEvent.kind === 'packet.inspect';
   const transitActive = state.activeEvent.kind === 'packet.transit';
   const pathVisible = phase === 'path' || phase === 'tcp' || phase === 'tls' || phase === 'http' || phase === 'response' || phase === 'complete';
+  const hasAddress = state.resolvedAddress !== null;
+  const hasRoute = state.route === 'gateway-ready' || state.route === 'internet-path-ready' || state.transport !== 'closed' || packetActive || transitActive;
+  const hasConnection = state.transport === 'established' || state.transport === 'complete' || packetActive || transitActive;
+  const hasProtection = encrypted || packetActive || transitActive;
+  const requestReady = phase === 'http' || phase === 'packet' || phase === 'response' || phase === 'complete';
 
   return <section
-    className={`journey-scene journey-causal-world causal-phase-${phase} causal-event-${eventToken(state)} ${encrypted ? 'is-encrypted' : ''} ${applicationProtected ? 'is-application-protected' : ''} ${packetActive || transitActive ? 'is-packet-world' : ''} ${reduceMotion ? 'reduce-motion' : ''}`}
+    className={`journey-scene journey-causal-world causal-phase-${phase} causal-event-${eventToken(state)} packet-stage-${packetProjection.stage} ${encrypted ? 'is-encrypted' : ''} ${applicationProtected ? 'is-application-protected' : ''} ${hasAddress ? 'has-address' : ''} ${hasRoute ? 'has-route' : ''} ${hasConnection ? 'has-connection' : ''} ${hasProtection ? 'has-protection' : ''} ${requestReady ? 'is-request-ready' : ''} ${packetActive || transitActive ? 'is-packet-world' : ''} ${reduceMotion ? 'reduce-motion' : ''}`}
     data-journey-causal-world="true"
     data-causal-phase={phase}
     data-causal-event={state.activeEvent.id}
+    data-packet-stage={packetProjection.stage}
     aria-label={`Continuous Journey world, ${state.activeEvent.title}`}
   >
     <div className="causal-field" aria-hidden="true"><i/><i/><i/><span/></div>
@@ -216,6 +231,16 @@ export function JourneyCausalWorld({ state, hostname, address, packetProjection,
 
     <div className="causal-camera">
       <div className="causal-object" data-causal-object="request-01">
+        <div className="causal-object__mechanism" aria-hidden="true">
+          <i className="causal-mechanism-axis"/>
+          <span className="causal-mechanism-node node-name" data-label="name" data-value={hostname}/>
+          <span className="causal-mechanism-node node-address" data-label="address" data-value={state.resolvedAddress ?? address}/>
+          <span className="causal-mechanism-node node-route" data-label="next hop" data-value="192.0.2.1"/>
+          <span className="causal-mechanism-node node-session" data-label={state.transportProfile === 'quic-h3' ? 'quic' : 'tcp'} data-value="443"/>
+          <span className="causal-mechanism-node node-protection" data-label="protection" data-value="TLS 1.3"/>
+          <span className="causal-mechanism-core"><i/><i/><i/><i/></span>
+          <span className="causal-handoff-rail rail-a"/><span className="causal-handoff-rail rail-b"/>
+        </div>
         <div className="causal-object__index"><span>request</span><b>01</b></div>
         <div className="causal-object__intent"><small>intent / hostname</small><strong>{hostname}</strong><i/></div>
         <div className={`causal-object__address ${state.resolvedAddress ? 'is-docked' : ''}`}><small>destination IPv4</small><strong>{state.resolvedAddress ?? address}</strong><i/></div>

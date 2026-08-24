@@ -1,0 +1,244 @@
+/* Final visual-composition layer for the causal Journey.
+   These selectors intentionally outrank legacy workspace chrome while keeping
+   deterministic Journey state and the underlying semantic DOM unchanged. */
+
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar {
+  opacity: .44;
+  transform: translateY(-2px);
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud {
+  opacity: .32;
+  transform: translateY(-2px);
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail {
+  opacity: .54;
+  transform: translateY(3px);
+}
+
+/* Phase 5's older cinematic stylesheet intentionally hid the toolbar/HUD with
+   !important. The persistent Journey now owns the whole story, so those
+   controls must remain quiet but discoverable while packet choreography runs. */
+html body .journey-visual-workspace:has(.journey-causal-world .phase5-packet-object) .visual-workspace__toolbar,
+html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical) .visual-workspace__toolbar {
+  opacity: .44 !important;
+  transform: translateY(-2px) !important;
+  pointer-events: auto !important;
+}
+html body .journey-visual-workspace:has(.journey-causal-world .phase5-packet-object) .visual-workspace__hud,
+html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical) .visual-workspace__hud {
+  opacity: .32 !important;
+  transform: translateY(-2px) !important;
+  pointer-events: auto !important;
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar:hover,
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar:focus-within,
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud:hover,
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail:hover,
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail:focus-within {
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+}
+
+/* The mechanism nodes are the visible identity. Suppress the older duplicate
+   hostname/address text that was useful when the protagonist was a card. */
+.journey-causal-world .causal-object__intent,
+.journey-causal-world .causal-object__address {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+.journey-causal-world .causal-mechanism-node {
+  border-color: rgba(244, 241, 234, .36);
+  background:
+    radial-gradient(circle at 43% 37%, rgba(255,255,255,.13), rgba(255,255,255,.018) 34%, transparent 58%),
+    rgba(24,24,25,.9);
+  box-shadow:
+    inset 0 0 0 9px rgba(255,255,255,.024),
+    0 18px 42px rgba(0,0,0,.2);
+}
+.journey-causal-world .causal-mechanism-node.node-name { border-color: rgba(244, 241, 234, .58); }
+.journey-causal-world.has-address .node-address { border-color: rgba(255,90,85,.65); }
+.journey-causal-world .causal-mechanism-axis { background: linear-gradient(90deg, transparent, rgba(244,241,234,.44) 16%, rgba(244,241,234,.44) 84%, transparent); }
+.journey-causal-world .causal-mechanism-node::before { color: #a7a29a; }
+.journey-causal-world .causal-mechanism-node::after { color: #d3cfc7; }
+
+/* Before HTTP exists, do not imply that GET / has already become application
+   data. At application-key time only the cipher core becomes visible. */
+.journey-causal-world.causal-phase-tls:not(.is-application-protected) .causal-object__payload {
+  opacity: 0 !important;
+}
+.journey-causal-world.causal-phase-tls.is-application-protected .causal-object__payload {
+  opacity: .72 !important;
+  width: 94px;
+  height: 42px;
+}
+.journey-causal-world.causal-phase-tls .payload-clear { opacity: 0 !important; }
+.journey-causal-world.causal-phase-http .causal-object__payload,
+.journey-causal-world.causal-phase-response .causal-object__payload,
+.journey-causal-world.is-packet-world .causal-object__payload { opacity: 1; }
+
+/* Once the phase-specific mechanism owns the explanation, keep persistent
+   identity geometry but stop repeating tiny labels around every acquired part. */
+.journey-causal-world.causal-phase-route .causal-mechanism-node::before,
+.journey-causal-world.causal-phase-route .causal-mechanism-node::after,
+.journey-causal-world.causal-phase-path .causal-mechanism-node::before,
+.journey-causal-world.causal-phase-path .causal-mechanism-node::after,
+.journey-causal-world.causal-phase-tcp .causal-mechanism-node::before,
+.journey-causal-world.causal-phase-tcp .causal-mechanism-node::after,
+.journey-causal-world.causal-phase-tls .causal-mechanism-node::before,
+.journey-causal-world.causal-phase-tls .causal-mechanism-node::after {
+  opacity: 0;
+}
+
+/* DNS: hierarchy labels should sit clear of the moving question tokens. */
+.journey-causal-world .causal-authority {
+  width: 124px;
+  color: #969189;
+}
+.journey-causal-world .causal-authority span,
+.journey-causal-world .causal-authority small {
+  position: relative;
+  left: 17px;
+}
+.journey-causal-world .causal-authority span { color: #b9b4ac; font-size: 9px; }
+.journey-causal-world .causal-authority small { color: #858078; }
+.journey-causal-world .causal-authority.is-reached span { color: #f0ede6; }
+.journey-causal-world .causal-authority--recursive { transform-origin: 0 50%; }
+.journey-causal-world .causal-authority--recursive span,
+.journey-causal-world .causal-authority--recursive small { left: -22px; top: -36px; }
+.journey-causal-world .causal-authority--root span,
+.journey-causal-world .causal-authority--root small,
+.journey-causal-world .causal-authority--authority span,
+.journey-causal-world .causal-authority--authority small { top: -22px; }
+.journey-causal-world .causal-authority--tld span,
+.journey-causal-world .causal-authority--tld small { top: 16px; }
+.journey-causal-world .causal-authority::before { border-color: rgba(244,241,234,.16); }
+.journey-causal-world .causal-authority.is-reached::before { border-color: rgba(244,241,234,.42); }
+.journey-causal-world .causal-dns-query small,
+.journey-causal-world .causal-dns-query span,
+.journey-causal-world .causal-dns-query b {
+  border-color: rgba(244,241,234,.26);
+  background: rgba(27,27,28,.94);
+}
+
+/* Route lookup: make the destination the visual focus, while candidate routes
+   are clean technical annotations rather than tiny floating cards. */
+.journey-causal-world .causal-route-target {
+  color: #f4f1ea;
+}
+.journey-causal-world .causal-route-target strong { font-size: 21px; }
+.journey-causal-world .causal-route-bits i { border-color: rgba(244,241,234,.2); }
+.journey-causal-world .causal-route-world.is-selected .causal-route-bits i:nth-child(-n+8) { background: rgba(244,241,234,.3); }
+.journey-causal-world .causal-route-world.is-selected .causal-route-bits i:nth-child(n+9) { background: rgba(255,90,85,.34); }
+.journey-causal-world .causal-route-choice span { color: #b7b2aa; font-size: 8px; }
+.journey-causal-world .causal-route-choice small { color: #7f7a73; }
+.journey-causal-world .causal-route-choice > i { border-color: rgba(244,241,234,.28); }
+.journey-causal-world .choice-default > i { border-color: rgba(255,90,85,.55); background: rgba(255,90,85,.1); }
+.journey-causal-world .causal-gateway strong { color: #e5e1d9; }
+
+/* TCP/QUIC: enlarge endpoints and the moving segment so the connection reads
+   as a state machine at normal viewing distance. */
+.journey-causal-world .causal-network-path span {
+  color: #89847d;
+  font-size: 9px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.journey-causal-world .causal-endpoint > i { width: 86px; height: 86px; border-color: rgba(244,241,234,.32); }
+.journey-causal-world .causal-endpoint > b { width: 112px; height: 112px; border-color: rgba(244,241,234,.14); }
+.journey-causal-world .causal-endpoint span { color: #aaa59d; font-size: 8px; }
+.journey-causal-world .causal-endpoint strong { color: #e5e1d9; font-size: 9px; }
+.journey-causal-world .causal-tcp-flight {
+  min-width: 152px;
+  height: 48px;
+  border-color: rgba(244,241,234,.42);
+  background: rgba(27,27,28,.96);
+}
+.journey-causal-world .causal-tcp-flight strong { color: #f3efe8; font-size: 9px; }
+.journey-causal-world .causal-tcp-flight small { color: #9c978f; font-size: 7px; }
+
+/* TLS: preserve the exploded leader-line composition, but remove the remaining
+   central/card framing so the mechanism itself stays the hero object. */
+.journey-causal-world .causal-client-hello {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+.journey-causal-world .causal-client-hello::before,
+.journey-causal-world .causal-client-hello::after { display: none; }
+.journey-causal-world .causal-client-hello > span { color: #d2cec6; font-size: 8px; letter-spacing: .11em; }
+.journey-causal-world .causal-client-hello > strong { color: #8e8981; }
+.journey-causal-world .causal-tls-fields > div {
+  border: 0;
+  border-top: 1px solid rgba(244,241,234,.2);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding-top: 9px;
+}
+.journey-causal-world .causal-tls-fields > div span { color: #918c84; }
+.journey-causal-world .causal-tls-fields > div strong { color: #e3dfd7; }
+.journey-causal-world .causal-tls-fields > div.is-selected { border-color: rgba(244,241,234,.46); }
+.journey-causal-world .causal-tls-server {
+  border: 0;
+  border-bottom: 1px solid rgba(244,241,234,.2);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.journey-causal-world .causal-tls-leaders { opacity: .7; }
+
+/* The generic packet-world scaffold is intentionally strongest at the first
+   packet stage. These stage selectors must outrank that generic rule so the
+   old request mechanism actually yields to the assembled packet instead of
+   lingering at 58% opacity through every layer. */
+.journey-causal-world.is-packet-world.packet-stage-security .causal-handoff-rail,
+.journey-causal-world.is-packet-world.packet-stage-security .causal-mechanism-core,
+.journey-causal-world.is-packet-world.packet-stage-security .causal-object__payload {
+  opacity: .32;
+}
+.journey-causal-world.is-packet-world.packet-stage-transport .causal-handoff-rail,
+.journey-causal-world.is-packet-world.packet-stage-transport .causal-mechanism-core,
+.journey-causal-world.is-packet-world.packet-stage-transport .causal-object__payload {
+  opacity: .14;
+}
+.journey-causal-world.is-packet-world.packet-stage-network .causal-handoff-rail,
+.journey-causal-world.is-packet-world.packet-stage-network .causal-mechanism-core,
+.journey-causal-world.is-packet-world.packet-stage-network .causal-object__payload,
+.journey-causal-world.is-packet-world.packet-stage-link .causal-handoff-rail,
+.journey-causal-world.is-packet-world.packet-stage-link .causal-mechanism-core,
+.journey-causal-world.is-packet-world.packet-stage-link .causal-object__payload,
+.journey-causal-world.is-packet-world.packet-stage-collapsed .causal-handoff-rail,
+.journey-causal-world.is-packet-world.packet-stage-collapsed .causal-mechanism-core,
+.journey-causal-world.is-packet-world.packet-stage-collapsed .causal-object__payload {
+  opacity: 0;
+}
+
+/* Annotations are secondary, but readable. */
+.journey-causal-world .causal-annotation { opacity: .8; }
+.journey-causal-world .causal-annotation strong { color: #c9c4bc; }
+.journey-causal-world .causal-annotation small { color: #8f8a82; }
+.journey-causal-world .causal-continuity { color: #8f8a82; opacity: .68; }
+
+@media (max-width: 680px) {
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar { opacity: .66; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud { opacity: .5; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail { opacity: .68; }
+  html body .journey-visual-workspace:has(.journey-causal-world .phase5-packet-object) .visual-workspace__toolbar,
+  html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical) .visual-workspace__toolbar { opacity: .66 !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world .phase5-packet-object) .visual-workspace__hud,
+  html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical) .visual-workspace__hud { opacity: .5 !important; }
+  /* Restore the compact namespace footprint from the base mobile layout. The
+     desktop label treatment is deliberately wider and must not push AUTH past
+     the clipped 390px stage. */
+  .journey-causal-world .causal-authority { width: 60px; }
+  .journey-causal-world .causal-authority span,
+  .journey-causal-world .causal-authority small { left: 8px; }
+  .journey-causal-world .causal-authority--recursive span,
+  .journey-causal-world .causal-authority--recursive small { left: -10px; top: -24px; }
+  .journey-causal-world .causal-route-target strong { font-size: 16px; }
+  .journey-causal-world .causal-endpoint > i { width: 66px; height: 66px; }
+  .journey-causal-world .causal-endpoint > b { width: 84px; height: 84px; }
+  .journey-causal-world .causal-tcp-flight { min-width: 108px; height: 40px; }
+}

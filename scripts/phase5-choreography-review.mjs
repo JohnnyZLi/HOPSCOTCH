@@ -58,16 +58,30 @@ async function waitForDevTools(port, timeoutMs = 10000) {
 }
 
 async function launchChrome(chromePath) {
-  const port = await freePort();
-  const userDataDir = mkdtempSync(join(tmpdir(), 'hopscotch-phase5-choreo-'));
-  const chrome = spawn(chromePath, [
-    '--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check',
-    '--disable-background-networking', '--disable-default-apps', '--disable-extensions', '--disable-sync', '--mute-audio',
-    '--remote-debugging-address=127.0.0.1', `--remote-debugging-port=${port}`, '--remote-allow-origins=*',
-    `--user-data-dir=${userDataDir}`, 'about:blank',
-  ], { stdio: ['ignore', 'ignore', 'pipe'] });
-  await waitForDevTools(port);
-  return { chrome, port, userDataDir };
+  const attempts = [];
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const port = await freePort();
+    const userDataDir = mkdtempSync(join(tmpdir(), `hopscotch-phase5-choreo-${attempt}-`));
+    const state = { stderr: '', exitCode: null };
+    const chrome = spawn(chromePath, [
+      '--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check',
+      '--disable-background-networking', '--disable-default-apps', '--disable-extensions', '--disable-sync', '--mute-audio',
+      '--remote-debugging-address=127.0.0.1', `--remote-debugging-port=${port}`, '--remote-allow-origins=*',
+      `--user-data-dir=${userDataDir}`, 'about:blank',
+    ], { stdio: ['ignore', 'ignore', 'pipe'] });
+    chrome.stderr.setEncoding('utf8');
+    chrome.stderr.on('data', (chunk) => { state.stderr = `${state.stderr}${chunk}`.slice(-12000); });
+    chrome.once('exit', (code) => { state.exitCode = code; });
+    try {
+      await waitForDevTools(port);
+      return { chrome, port, userDataDir, attempts };
+    } catch (error) {
+      if (!chrome.killed) chrome.kill('SIGKILL');
+      attempts.push({ attempt, error: error instanceof Error ? error.message : String(error), exitCode: state.exitCode, stderrTail: state.stderr || null });
+      rmSync(userDataDir, { recursive: true, force: true, maxRetries: 4, retryDelay: 100 });
+    }
+  }
+  throw new Error(`Chrome failed to launch after 3 attempts: ${JSON.stringify(attempts)}`);
 }
 
 async function stopChrome(chrome) {
@@ -167,7 +181,7 @@ async function metric(cdp, selector) {
       selector:${JSON.stringify(selector)},
       left:r.left,top:r.top,width:r.width,height:r.height,
       centerX:r.left+r.width/2,centerY:r.top+r.height/2,
-      transform:s.transform,opacity:s.opacity,
+      transform:s.transform,opacity:s.opacity,filter:s.filter,
       transitionDuration:s.transitionDuration,
       animationName:s.animationName,
       animationDuration:s.animationDuration,
@@ -178,6 +192,11 @@ async function metric(cdp, selector) {
 function numericDistance(a, b) {
   if (!a || !b) return Infinity;
   return Math.hypot(a.centerX - b.centerX, a.centerY - b.centerY) + Math.abs(a.width - b.width) + Math.abs(a.height - b.height);
+}
+
+function centerDistance(a, b) {
+  if (!a || !b) return Infinity;
+  return Math.hypot(a.centerX - b.centerX, a.centerY - b.centerY);
 }
 
 function changed(a, b) {
@@ -232,12 +251,66 @@ async function animationEvidence(cdp, spec, report) {
   report.animations.push({ id: spec.id, event: spec.event, selector: spec.selector, early, mid, end });
 }
 
-async function navigateJourney(cdp, origin, dns = 'cache-miss') {
-  const query = new URLSearchParams({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns, impairment: 'clean', t: '0' });
+async function navigateJourney(cdp, origin, dns = 'cache-miss', transport = 'tcp-h2') {
+  const query = new URLSearchParams({ journey: '1', host: 'example.test', transport, dns, impairment: 'clean', t: '0' });
   await cdp.call('Page.navigate', { url: `${origin}/journey?${query.toString()}` });
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`);
   await waitForExpression(cdp, `document.querySelectorAll('.visual-time-rail__events button').length > 15`);
   await waitForExpression(cdp, `Boolean(document.querySelector('[data-journey-causal-world="true"]'))`);
+}
+
+function assertChromeRange(frame, context) {
+  assert.ok(frame.toolbar !== null && frame.toolbar >= .24 && frame.toolbar <= .66, `${context}: toolbar should be quiet but discoverable: ${JSON.stringify(frame)}`);
+  assert.ok(frame.hud !== null && frame.hud >= .14 && frame.hud <= .52, `${context}: HUD should be quiet but legible: ${JSON.stringify(frame)}`);
+  assert.ok(frame.callout !== null && frame.callout <= .08, `${context}: narration card still substitutes for animation: ${JSON.stringify(frame)}`);
+  assert.ok(frame.timeline !== null && frame.timeline >= .38 && frame.timeline <= .74, `${context}: timeline should recede without disappearing: ${JSON.stringify(frame)}`);
+}
+
+async function assertVisualHandoff(cdp, report) {
+  await seekEvent(cdp, 'GET / on example.test');
+  await sleep(1100);
+  const beforeObject = await metric(cdp, '.causal-object');
+  const beforeCore = await metric(cdp, '.causal-object__payload');
+  assert.ok(beforeObject && beforeCore, 'HTTP request mechanism is missing before packet handoff.');
+
+  await seekEvent(cdp, 'Application data isolated');
+  await sleep(100);
+  const earlyObject = await metric(cdp, '.causal-object');
+  const earlyCore = await metric(cdp, '.causal-mechanism-core');
+  const earlyPacket = await metric(cdp, '.phase5c-application');
+  const earlyCamera = await metric(cdp, '.causal-camera');
+  await screenshot(cdp, '00h-handoff-early.png');
+
+  await sleep(430);
+  const midObject = await metric(cdp, '.causal-object');
+  const midCore = await metric(cdp, '.causal-mechanism-core');
+  const midPacket = await metric(cdp, '.phase5c-application');
+  const midCamera = await metric(cdp, '.causal-camera');
+  await screenshot(cdp, '00h-handoff-mid.png');
+
+  await sleep(760);
+  const settledObject = await metric(cdp, '.causal-object');
+  const settledPacket = await metric(cdp, '.phase5c-application');
+  const settledCamera = await metric(cdp, '.causal-camera');
+  await screenshot(cdp, '00h-handoff-settled.png');
+
+  for (const [label, camera] of [['early', earlyCamera], ['mid', midCamera], ['settled', settledCamera]]) {
+    assert.ok(camera, `Handoff ${label}: causal camera disappeared.`);
+    assert.ok(Number(camera.opacity) >= .95, `Handoff ${label}: causal camera faded instead of remaining visible: ${JSON.stringify(camera)}`);
+    assert.ok(camera.filter === 'none' || camera.filter === 'blur(0px)', `Handoff ${label}: causal camera blurred instead of morphing: ${JSON.stringify(camera)}`);
+  }
+  assert.ok(earlyObject && midObject && settledObject && earlyPacket && midPacket && settledPacket, 'Handoff lost either the causal object or the Phase 5 application object.');
+  assert.ok(Number(earlyObject.opacity) >= .75 && Number(midObject.opacity) >= .75, 'Persistent causal mechanism became visually absent during handoff.');
+  assert.ok(earlyCore && midCore && Number(midCore.opacity) >= .2, `Mechanical scaffold is not visible during the packet handoff: ${JSON.stringify({ earlyCore, midCore })}`);
+  assert.ok(centerDistance(midCore, midPacket) <= 280, `Packet hero appears disconnected from the causal core instead of growing from it: ${centerDistance(midCore, midPacket).toFixed(1)}px.`);
+  assert.ok(changed(beforeObject, midObject), 'Causal object did not physically reshape into the packet-stage scaffold.');
+
+  await seekEvent(cdp, 'TCP segment assembles');
+  await sleep(1050);
+  const transportScaffold = await metric(cdp, '.causal-mechanism-core');
+  assert.ok(transportScaffold && Number(transportScaffold.opacity) <= .2, `Handoff scaffold should dissolve as packet assembly takes over: ${JSON.stringify(transportScaffold)}`);
+
+  report.handoff = { beforeObject, beforeCore, earlyObject, earlyCore, earlyPacket, midObject, midCore, midPacket, settledObject, settledPacket, transportScaffold };
 }
 
 async function assertOpeningCausalWorld(cdp, origin, report) {
@@ -261,10 +334,9 @@ async function assertOpeningCausalWorld(cdp, origin, report) {
   assert.equal(firstFrame.event, 'intent', `Journey did not begin with the intent object: ${JSON.stringify(firstFrame)}`);
   assert.equal(firstFrame.entrance, false, 'A full-stage title interstitial still obscures time-zero choreography.');
   assert.equal(firstFrame.objectAnimation, 'causal-object-enter', `The first causal object has no time-zero entrance animation: ${JSON.stringify(firstFrame)}`);
-  assert.ok(firstFrame.toolbar !== null && firstFrame.toolbar <= .08, `Opening toolbar does not recede: ${JSON.stringify(firstFrame)}`);
-  assert.ok(firstFrame.hud !== null && firstFrame.hud <= .08, `Opening HUD does not recede: ${JSON.stringify(firstFrame)}`);
-  assert.ok(firstFrame.callout !== null && firstFrame.callout <= .08, `Opening narration still dominates: ${JSON.stringify(firstFrame)}`);
-  assert.ok(firstFrame.timeline !== null && firstFrame.timeline <= .35, `Opening timeline does not recede: ${JSON.stringify(firstFrame)}`);
+  assertChromeRange(firstFrame, 'Opening');
+  const firstMechanism = await metric(cdp, '.causal-mechanism-node.node-name');
+  assert.ok(firstMechanism && Number(firstMechanism.opacity) >= .9 && firstMechanism.width >= 70, `Opening is not object-first: ${JSON.stringify(firstMechanism)}`);
   await screenshot(cdp, '00-opening-intent.png');
 
   await transitionEvidence(cdp, {
@@ -293,6 +365,12 @@ async function assertOpeningCausalWorld(cdp, origin, report) {
     midMs: 560,
     endMs: 1240,
   }, report);
+  await seekEvent(cdp, 'example.test → 203.0.113.42');
+  await sleep(1200);
+  const addressNode = await metric(cdp, '.causal-mechanism-node.node-address');
+  assert.ok(addressNode && Number(addressNode.opacity) >= .8, `DNS answer did not visibly dock into the persistent mechanism: ${JSON.stringify(addressNode)}`);
+  await screenshot(cdp, '00c2-address-docked.png');
+
   await transitionEvidence(cdp, {
     id: '00d-route-locks',
     from: 'Destination enters the routing table',
@@ -303,6 +381,13 @@ async function assertOpeningCausalWorld(cdp, origin, report) {
     midMs: 560,
     endMs: 1240,
   }, report);
+  await seekEvent(cdp, 'Default gateway selected');
+  await sleep(850);
+  const routeNode = await metric(cdp, '.causal-mechanism-node.node-route');
+  const routeTarget = await metric(cdp, '.causal-route-target');
+  assert.ok(routeNode && Number(routeNode.opacity) >= .8 && routeTarget, `Routing did not add a mechanical next-hop stage: ${JSON.stringify({ routeNode, routeTarget })}`);
+  await screenshot(cdp, '00d2-route-mechanism.png');
+
   await animationEvidence(cdp, {
     id: '00e-syn-travels',
     event: 'SYN leaves the client',
@@ -311,6 +396,11 @@ async function assertOpeningCausalWorld(cdp, origin, report) {
     midMs: 460,
     endMs: 1040,
   }, report);
+  await seekEvent(cdp, 'TCP connection established');
+  await sleep(700);
+  const sessionNode = await metric(cdp, '.causal-mechanism-node.node-session');
+  assert.ok(sessionNode && Number(sessionNode.opacity) >= .8, `Established connection did not become part of the persistent mechanism: ${JSON.stringify(sessionNode)}`);
+
   await transitionEvidence(cdp, {
     id: '00f-clienthello-unfolds',
     from: 'TCP connection established',
@@ -331,9 +421,11 @@ async function assertOpeningCausalWorld(cdp, origin, report) {
     midMs: 500,
     endMs: 1080,
   }, report);
-  await seekEvent(cdp, 'Application data isolated');
-  await waitForHero(cdp, 'assembly', 180);
-  const handoff = await cdp.evaluate(`(()=>{
+  const protectionNode = await metric(cdp, '.causal-mechanism-node.node-protection');
+  assert.ok(protectionNode && Number(protectionNode.opacity) >= .8, `TLS protection did not physically enclose the persistent mechanism: ${JSON.stringify(protectionNode)}`);
+
+  await assertVisualHandoff(cdp, report);
+  const handoffState = await cdp.evaluate(`(()=>{
     const world=document.querySelector('[data-journey-causal-world="true"]');
     return {
       persistent:world?.dataset.persistenceProbe==='opening-world',
@@ -341,8 +433,7 @@ async function assertOpeningCausalWorld(cdp, origin, report) {
       packetHero:Boolean(world?.querySelector('[data-phase5c-hero="assembly"]')),
     };
   })()`);
-  assert.deepEqual(handoff, { persistent: true, event: 'packet-assembly-application', packetHero: true }, `Packet choreography is not a seamless handoff inside the persistent world: ${JSON.stringify(handoff)}`);
-  await screenshot(cdp, '00h-seamless-packet-handoff.png');
+  assert.equal(handoffState.persistent, true, `Causal world remounted before packet choreography: ${JSON.stringify(handoffState)}`);
 
   await navigateJourney(cdp, origin, 'cache-hit');
   await seekEvent(cdp, 'DNS cache hit');
@@ -359,9 +450,55 @@ async function assertOpeningCausalWorld(cdp, origin, report) {
   })()`);
   assert.deepEqual(cacheHit, { cache: 'hit', query: false, skip: true, answerAnimation: 'dns-answer-hit', upstreamEvents: 0 }, `Cache-hit choreography did not visibly skip upstream resolution: ${JSON.stringify(cacheHit)}`);
   await screenshot(cdp, '00i-cache-hit-skip.png');
-  report.opening = { firstFrame, handoff, cacheHit };
+  report.opening = { firstFrame, cacheHit, firstMechanism, addressNode, routeNode, routeTarget, sessionNode, protectionNode };
 
   await navigateJourney(cdp, origin, 'cache-miss');
+}
+
+async function assertQuicCausalWorld(cdp, origin, report) {
+  await navigateJourney(cdp, origin, 'cache-miss', 'quic-h3');
+  await seekEvent(cdp, 'QUIC Initial leaves the client');
+  await sleep(160);
+  const initial = await metric(cdp, '.causal-tcp-flight');
+  const quicWorld = await cdp.evaluate(`Boolean(document.querySelector('.causal-tcp-world.is-quic'))`);
+  assert.equal(quicWorld, true, 'QUIC opening did not use the causal transport mechanism.');
+  assert.ok(initial && initial.animationName !== 'none', `QUIC Initial is not visibly traveling: ${JSON.stringify(initial)}`);
+  await screenshot(cdp, '00q1-quic-initial.png');
+
+  await seekEvent(cdp, 'Server Initial + Handshake arrive');
+  await sleep(520);
+  await screenshot(cdp, '00q2-quic-server-initial.png');
+
+  await seekEvent(cdp, '1-RTT keys ready');
+  await sleep(720);
+  const cipher = await metric(cdp, '.payload-cipher');
+  const protection = await metric(cdp, '.causal-mechanism-node.node-protection');
+  assert.ok(cipher && Number(cipher.opacity) >= .7, `QUIC 1-RTT keys did not make the payload visibly protected: ${JSON.stringify(cipher)}`);
+  assert.ok(protection && Number(protection.opacity) >= .7, `QUIC protection did not become part of the mechanism: ${JSON.stringify(protection)}`);
+  await screenshot(cdp, '00q3-quic-1rtt.png');
+
+  await seekEvent(cdp, 'GET / on example.test');
+  await sleep(750);
+  await screenshot(cdp, '00q4-http3-request.png');
+
+  await seekEvent(cdp, 'Application data isolated');
+  await waitForHero(cdp, 'assembly', 350);
+  const applicationLayer = await cdp.evaluate(`(()=>{
+    const el=document.querySelector('[data-phase5-layer="application"]');
+    return el?{text:el.textContent,visible:el.getAttribute('data-visible')}:null;
+  })()`);
+  assert.ok(applicationLayer && /HTTP\/3|GET/.test(applicationLayer.text ?? ''), `QUIC handoff did not preserve HTTP/3 application meaning: ${JSON.stringify(applicationLayer)}`);
+  await screenshot(cdp, '00q5-quic-packet-handoff.png');
+
+  await navigateJourney(cdp, origin, 'cache-hit', 'quic-h3');
+  await seekEvent(cdp, 'DNS cache hit');
+  await sleep(250);
+  const quicCacheHit = await cdp.evaluate(`({query:Boolean(document.querySelector('.causal-dns-query')),skip:Boolean(document.querySelector('.causal-dns-skip'))})`);
+  assert.deepEqual(quicCacheHit, { query: false, skip: true }, `QUIC cache-hit path did not visibly skip upstream DNS: ${JSON.stringify(quicCacheHit)}`);
+  await screenshot(cdp, '00q6-quic-cache-hit.png');
+
+  report.quic = { initial, cipher, protection, applicationLayer, quicCacheHit };
+  await navigateJourney(cdp, origin, 'cache-miss', 'tcp-h2');
 }
 
 async function assertCinematicChrome(cdp, report) {
@@ -381,10 +518,7 @@ async function assertCinematicChrome(cdp, report) {
     };
   })()`);
   assert.ok(chrome.hero && chrome.hero.width > chrome.viewport.width * .55 && chrome.hero.height > chrome.viewport.height * .45, `Hero does not dominate the stage: ${JSON.stringify(chrome)}`);
-  assert.ok(chrome.toolbar !== null && chrome.toolbar <= .08, `Toolbar still visually dominates hero playback: ${JSON.stringify(chrome)}`);
-  assert.ok(chrome.hud !== null && chrome.hud <= .08, `HUD still visually dominates hero playback: ${JSON.stringify(chrome)}`);
-  assert.ok(chrome.callout !== null && chrome.callout <= .08, `Narration card still substitutes for animation: ${JSON.stringify(chrome)}`);
-  assert.ok(chrome.timeline !== null && chrome.timeline <= .35, `Timeline did not recede during hero playback: ${JSON.stringify(chrome)}`);
+  assertChromeRange(chrome, 'Phase 5');
   report.chrome = chrome;
 }
 
@@ -399,10 +533,12 @@ async function auditReducedMotion(cdp, origin, report) {
   const reduced = await cdp.evaluate(`(()=>{
     const hero=document.querySelector('[data-phase5-packet-object="true"]');
     const target=document.querySelector('.phase5c-network-wing.wing-left');
-    return hero&&target?{reduceMotion:hero.classList.contains('reduce-motion'),transition:getComputedStyle(target).transitionDuration,animation:getComputedStyle(target).animationDuration}:null;
+    const mechanism=document.querySelector('.causal-mechanism-node');
+    return hero&&target&&mechanism?{reduceMotion:hero.classList.contains('reduce-motion'),transition:getComputedStyle(target).transitionDuration,animation:getComputedStyle(target).animationDuration,mechanismTransition:getComputedStyle(mechanism).transitionDuration}:null;
   })()`);
   assert.ok(reduced?.reduceMotion, 'Reduced-motion hero class was not applied.');
   assert.ok(reduced.transition === '0s' || reduced.transition === '1e-05s', `Reduced-motion layer still has transition ${reduced.transition}.`);
+  assert.ok(reduced.mechanismTransition.split(',').every((value) => value.trim() === '0s' || value.trim() === '1e-05s'), `Reduced-motion mechanism still transitions: ${reduced.mechanismTransition}.`);
   report.reducedMotion = reduced;
 }
 
@@ -411,7 +547,7 @@ async function main() {
   const { server, origin } = await serveProductionArtifact(distDir);
   const launched = await launchChrome(findChrome());
   let cdp;
-  const report = { generatedAt: new Date().toISOString(), opening: null, transitions: [], animations: [], chrome: null, reducedMotion: null, failures: [] };
+  const report = { generatedAt: new Date().toISOString(), opening: null, handoff: null, quic: null, transitions: [], animations: [], chrome: null, reducedMotion: null, failures: [], chromeLaunchAttempts: launched.attempts };
 
   try {
     const pages = await fetchJson(`http://127.0.0.1:${launched.port}/json/list`);
@@ -425,6 +561,7 @@ async function main() {
     await navigateJourney(cdp, origin);
 
     await assertOpeningCausalWorld(cdp, origin, report);
+    await assertQuicCausalWorld(cdp, origin, report);
     await assertCinematicChrome(cdp, report);
 
     const transitions = [
@@ -472,7 +609,7 @@ async function main() {
   }
 
   if (report.failures.length > 0) throw new Error(`Phase 5 choreography review failed:\n${report.failures.join('\n')}`);
-  process.stdout.write(`${JSON.stringify({ opening: report.opening, transitions: report.transitions.length, animations: report.animations.length, chrome: report.chrome, reducedMotion: report.reducedMotion }, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify({ opening: report.opening, handoff: report.handoff, quic: report.quic, transitions: report.transitions.length, animations: report.animations.length, chrome: report.chrome, reducedMotion: report.reducedMotion, chromeLaunchAttempts: report.chromeLaunchAttempts }, null, 2)}\n`);
 }
 
 await main();
