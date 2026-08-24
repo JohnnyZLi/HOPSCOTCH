@@ -125,7 +125,7 @@ async function screenshot(cdp, filename) {
 
 async function measureDns(cdp, origin, width, height) {
   await cdp.call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width <= 680 });
-  const query = new URLSearchParams({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', t: '850' });
+  const query = new URLSearchParams({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', impairment: 'clean', t: '850' });
   await cdp.call('Page.navigate', { url: `${origin}/journey?${query.toString()}` });
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`);
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-cinematic-stage .dns-chain'))`, 20000);
