@@ -1,0 +1,563 @@
+/* Phase 5D visual refinement.
+   Deterministic Journey state remains authoritative; this file only changes projection. */
+
+.journey-causal-world {
+  --causal-ink: #101011;
+  --causal-surface: #181819;
+  --causal-surface-raised: #202021;
+  --causal-line: rgba(244, 241, 234, .25);
+  --causal-line-soft: rgba(244, 241, 234, .11);
+  --causal-text: #f3f0e9;
+  --causal-muted: #b0aca4;
+  --causal-faint: #8f8a82;
+  --causal-accent: #e8e4dc;
+  --causal-focus: #ff5a55;
+  --causal-success: #80a48f;
+  background:
+    radial-gradient(circle at 50% 46%, rgba(255,255,255,.045), transparent 31%),
+    radial-gradient(circle at 28% 30%, rgba(255,255,255,.018), transparent 23%),
+    linear-gradient(150deg, #161617, #0f0f10 66%);
+}
+
+.journey-causal-world .causal-field { opacity: .46; }
+.journey-causal-world .causal-world-thread { opacity: .2; }
+.journey-causal-world .causal-world-thread path { stroke: rgba(244,241,234,.62); stroke-width: .68; }
+
+/* Playback chrome should recede, not disappear. */
+.journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar { opacity: .44; transform: translateY(-2px); }
+.journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud { opacity: .32; transform: translateY(-2px); }
+.journey-visual-workspace:has(.journey-causal-world) .visual-time-rail { opacity: .54; transform: translateY(3px); }
+.journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar:hover,
+.journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar:focus-within,
+.journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud:hover,
+.journey-visual-workspace:has(.journey-causal-world) .visual-time-rail:hover,
+.journey-visual-workspace:has(.journey-causal-world) .visual-time-rail:focus-within { opacity: 1; transform: translateY(0); }
+
+/* The request is a mechanism, not a card. */
+.journey-causal-world .causal-object {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  perspective: 900px;
+}
+.journey-causal-world .causal-object::before,
+.journey-causal-world .causal-object::after {
+  top: 50%;
+  bottom: auto;
+  left: 50%;
+  right: auto;
+  width: 174px;
+  height: 174px;
+  border: 1px solid rgba(244,241,234,.08);
+  border-radius: 50%;
+  background: none;
+  transform: translate(-50%,-50%) rotateX(67deg);
+  transition: width 1.2s var(--causal-ease), height 1.2s var(--causal-ease), transform 1.2s var(--causal-ease), opacity .6s ease;
+}
+.journey-causal-world .causal-object::after {
+  width: 224px;
+  height: 224px;
+  opacity: .45;
+  border-style: dashed;
+  transform: translate(-50%,-50%) rotateX(67deg) rotateZ(21deg);
+}
+
+.causal-object__mechanism {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  pointer-events: none;
+}
+.causal-mechanism-axis {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(244,241,234,.3) 16%, rgba(244,241,234,.3) 84%, transparent);
+  transform: scaleX(.18);
+  transition: transform 1.15s var(--causal-ease), opacity .55s ease;
+}
+.has-address .causal-mechanism-axis { transform: scaleX(.72); }
+.has-route .causal-mechanism-axis,
+.has-connection .causal-mechanism-axis { transform: scaleX(1); }
+
+.causal-mechanism-node {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: block;
+  width: 74px;
+  height: 74px;
+  border: 1px solid rgba(244,241,234,.26);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 46% 38%, rgba(255,255,255,.075), transparent 31%),
+    rgba(18,18,19,.84);
+  box-shadow: inset 0 0 0 8px rgba(255,255,255,.018);
+  opacity: 0;
+  transform: translate(-50%,-50%) scale(.45) rotate(-18deg);
+  transition: left 1.05s var(--causal-ease), top 1.05s var(--causal-ease), width 1.05s var(--causal-ease), height 1.05s var(--causal-ease), opacity .5s ease, transform 1.05s var(--causal-snap), border-color .45s ease;
+}
+.causal-mechanism-node::before,
+.causal-mechanism-node::after {
+  position: absolute;
+  left: 50%;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  pointer-events: none;
+}
+.causal-mechanism-node::before {
+  content: attr(data-label);
+  top: calc(100% + 10px);
+  color: var(--causal-faint);
+  font-size: 7px;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+.causal-mechanism-node::after {
+  content: attr(data-value);
+  top: calc(100% + 23px);
+  color: var(--causal-muted);
+  font-size: 8px;
+  letter-spacing: -.015em;
+}
+.causal-mechanism-node.node-name {
+  width: 112px;
+  height: 112px;
+  opacity: 1;
+  transform: translate(-50%,-50%) scale(1) rotate(0);
+  border-color: rgba(244,241,234,.48);
+}
+.causal-mechanism-node.node-name::after { color: var(--causal-text); font-size: 12px; }
+
+.has-address .node-name { left: 35%; width: 88px; height: 88px; }
+.has-address .node-address { left: 65%; opacity: 1; transform: translate(-50%,-50%) scale(1) rotate(0); border-color: rgba(255,90,85,.52); }
+.has-route .node-name { left: 28%; top: 43%; width: 68px; height: 68px; }
+.has-route .node-address { left: 50%; top: 43%; width: 72px; height: 72px; }
+.has-route .node-route { left: 72%; top: 43%; opacity: 1; transform: translate(-50%,-50%) scale(1) rotate(0); }
+.has-connection .node-name { left: 25%; top: 38%; width: 58px; height: 58px; }
+.has-connection .node-address { left: 42%; top: 38%; width: 60px; height: 60px; }
+.has-connection .node-route { left: 59%; top: 38%; width: 60px; height: 60px; }
+.has-connection .node-session { left: 76%; top: 38%; opacity: 1; transform: translate(-50%,-50%) scale(1) rotate(0); border-color: rgba(244,241,234,.44); }
+.has-protection .node-protection {
+  left: 50%;
+  top: 59%;
+  width: 192px;
+  height: 92px;
+  opacity: 1;
+  border-radius: 50%;
+  border-color: rgba(244,241,234,.36);
+  background: radial-gradient(ellipse at center, rgba(244,241,234,.035), transparent 64%);
+  transform: translate(-50%,-50%) rotateX(68deg) rotateZ(-7deg) scale(1);
+}
+.has-protection .node-protection::before { top: 107%; }
+.has-protection .node-protection::after { top: 119%; }
+
+.causal-mechanism-core {
+  position: absolute;
+  left: 50%;
+  top: 59%;
+  width: 132px;
+  height: 54px;
+  border: 1px solid rgba(244,241,234,.22);
+  border-radius: 50%;
+  opacity: 0;
+  transform: translate(-50%,-50%) rotateX(68deg) scale(.55);
+  transition: width 1.05s var(--causal-ease), height 1.05s var(--causal-ease), border-radius 1.05s var(--causal-ease), opacity .55s ease, transform 1.05s var(--causal-snap);
+}
+.causal-mechanism-core i {
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  height: 1px;
+  background: rgba(244,241,234,.22);
+}
+.causal-mechanism-core i:nth-child(1) { top: 24%; }
+.causal-mechanism-core i:nth-child(2) { top: 42%; }
+.causal-mechanism-core i:nth-child(3) { top: 60%; }
+.causal-mechanism-core i:nth-child(4) { top: 78%; background: var(--causal-focus); }
+.is-request-ready .causal-mechanism-core { opacity: 1; transform: translate(-50%,-50%) rotateX(68deg) scale(1); }
+
+/* Existing semantic labels become sparse technical annotations around the mechanism. */
+.journey-causal-world .causal-object__index {
+  left: 50%;
+  top: 4px;
+  transform: translateX(-50%);
+  grid-auto-flow: column;
+  align-items: baseline;
+  gap: 7px;
+  opacity: .6;
+}
+.journey-causal-world .causal-object__index b { font-size: 11px; }
+.journey-causal-world .causal-object__intent,
+.journey-causal-world .causal-object__address {
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: -8px;
+  width: max-content;
+  max-width: 90%;
+  gap: 3px;
+  text-align: center;
+  transform: translateX(-50%);
+}
+.journey-causal-world .causal-object__intent small,
+.journey-causal-world .causal-object__address small { color: var(--causal-faint); font-size: 7px; }
+.journey-causal-world .causal-object__intent strong,
+.journey-causal-world .causal-object__address strong { font-size: 10px; color: var(--causal-muted); }
+.journey-causal-world .causal-object__intent i,
+.journey-causal-world .causal-object__address i,
+.journey-causal-world .causal-object__spine { display: none; }
+.journey-causal-world .causal-object__address { bottom: -31px; }
+.journey-causal-world .causal-object__address.is-docked { transform: translateX(-50%); }
+.has-address .causal-object__intent,
+.has-address .causal-object__address { opacity: .28; }
+.is-request-ready .causal-object__intent,
+.is-request-ready .causal-object__address { opacity: 0; }
+
+/* Payload becomes the inner mechanical core instead of a card filling the object. */
+.journey-causal-world .causal-object__payload {
+  left: 50%;
+  right: auto;
+  top: 59%;
+  bottom: auto;
+  width: 122px;
+  height: 46px;
+  padding: 0;
+  border-radius: 8px;
+  transform: translate(-50%,-50%) scale(.72);
+  background: rgba(20,20,21,.92);
+  border: 1px solid rgba(244,241,234,.16);
+}
+.is-request-ready .causal-object__payload { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+.journey-causal-world .payload-clear { gap: 2px; }
+.journey-causal-world .payload-clear small { font-size: 6px; }
+.journey-causal-world .payload-clear strong { font-size: 15px; }
+.journey-causal-world .payload-clear b { font-size: 6px; }
+.journey-causal-world .payload-cipher { inset: 10px 11px; grid-template-columns: repeat(12,1fr); gap: 2px; }
+.journey-causal-world .payload-cipher i { height: calc(4px + (var(--cipher-index) % 4) * 2px); }
+
+/* DNS reads as a hierarchy opening around the question rather than five labels on a wire. */
+.journey-causal-world .causal-authority {
+  opacity: .36;
+  transition: opacity .5s ease, transform .8s var(--causal-ease), color .5s ease;
+}
+.journey-causal-world .causal-authority::before,
+.journey-causal-world .causal-authority::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border: 1px solid rgba(244,241,234,.1);
+  border-radius: 50%;
+  transform: translate(-50%,-50%) scale(.68);
+  transition: transform .9s var(--causal-ease), border-color .5s ease, opacity .5s ease;
+}
+.journey-causal-world .causal-authority::before { width: 72px; height: 72px; }
+.journey-causal-world .causal-authority::after { width: 102px; height: 102px; border-style: dashed; opacity: .45; }
+.journey-causal-world .causal-authority.is-reached { opacity: 1; transform: scale(1.05); }
+.journey-causal-world .causal-authority.is-reached::before { transform: translate(-50%,-50%) scale(1); border-color: rgba(244,241,234,.33); }
+.journey-causal-world .causal-authority.is-reached::after { transform: translate(-50%,-50%) scale(1) rotate(20deg); }
+.journey-causal-world .causal-authority.is-reached > i { background: var(--causal-focus); border-color: var(--causal-focus); box-shadow: none; }
+
+.journey-causal-world .causal-dns-query {
+  min-width: 0;
+  padding: 0;
+  gap: 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.journey-causal-world .causal-dns-query small,
+.journey-causal-world .causal-dns-query span,
+.journey-causal-world .causal-dns-query b {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid rgba(244,241,234,.18);
+  border-radius: 999px;
+  background: rgba(19,19,20,.9);
+  color: var(--causal-text);
+  font-family: var(--mono);
+  font-size: 8px;
+  transition: transform .7s var(--causal-ease), border-color .4s ease, opacity .4s ease;
+}
+.journey-causal-world .causal-dns-query small { color: var(--causal-faint); }
+.journey-causal-world .causal-dns-query .namespace-focus { border-color: rgba(255,90,85,.55); color: #ffd2ce; }
+.query-dns-root span:first-of-type { transform: translateY(-8px); }
+.query-dns-tld span:last-of-type { transform: translateY(-8px) scale(1.08); }
+.query-dns-answer span { transform: translateY(5px) scale(.92); }
+
+.journey-causal-world .dns-thread-base { stroke: rgba(244,241,234,.17); }
+.journey-causal-world .dns-thread-progress { stroke: rgba(244,241,234,.62); filter: none; }
+.journey-causal-world .dns-answer-thread { stroke: rgba(255,90,85,.5); filter: none; }
+
+/* Routing becomes a mask-selection mechanism around the destination. */
+.causal-route-target {
+  position: absolute;
+  left: 35%;
+  top: 50%;
+  display: grid;
+  gap: 8px;
+  width: 210px;
+  transform: translate(-50%,-50%);
+  color: var(--causal-text);
+  font-family: var(--mono);
+}
+.causal-route-target small { color: var(--causal-faint); font-size: 7px; letter-spacing: .14em; text-transform: uppercase; }
+.causal-route-target strong { display: flex; gap: 1px; font-size: 18px; font-weight: 520; letter-spacing: -.05em; }
+.causal-route-target strong span { transition: color .45s ease, transform .7s var(--causal-ease); }
+.causal-route-world.is-selected .causal-route-target strong span { color: var(--causal-muted); transform: translateY(-2px); }
+.causal-route-bits { display: grid; grid-template-columns: repeat(16,1fr); gap: 3px; }
+.causal-route-bits i {
+  height: 18px;
+  border: 1px solid rgba(244,241,234,.12);
+  background: rgba(255,255,255,.018);
+  transform: scaleY(.45);
+  transform-origin: bottom;
+  transition: transform .7s var(--causal-ease), background .45s ease;
+  transition-delay: calc(var(--route-bit) * 18ms);
+}
+.causal-route-world.is-selected .causal-route-bits i { transform: scaleY(1); }
+.causal-route-world.is-selected .causal-route-bits i:nth-child(-n+8) { background: rgba(244,241,234,.22); }
+.causal-route-world.is-selected .causal-route-bits i:nth-child(n+9) { background: rgba(255,90,85,.24); border-color: rgba(255,90,85,.34); }
+
+.journey-causal-world .causal-route-choice {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+.journey-causal-world .causal-route-choice > i {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(244,241,234,.18);
+  background: rgba(18,18,19,.76);
+}
+.journey-causal-world .causal-route-choice span { color: var(--causal-muted); }
+.journey-causal-world .route-selected { stroke: var(--causal-focus); filter: none; stroke-width: 1.4; }
+.journey-causal-world .causal-gateway .gateway-ring { border-color: rgba(255,90,85,.44); box-shadow: none; }
+
+/* TCP/QUIC endpoints read as state machines; the flight is a moving shard, not a pill. */
+.journey-causal-world .causal-endpoint {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+.journey-causal-world .causal-endpoint > i {
+  width: 72px;
+  height: 72px;
+  border: 1px solid rgba(244,241,234,.2);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(244,241,234,.045), transparent 62%);
+  box-shadow: inset 0 0 0 10px rgba(255,255,255,.018);
+}
+.journey-causal-world .causal-endpoint > b {
+  width: 98px;
+  height: 98px;
+  border: 1px dashed rgba(244,241,234,.1);
+  border-radius: 50%;
+  background: transparent;
+}
+.journey-causal-world .causal-endpoint.is-awake > i { border-color: rgba(244,241,234,.48); }
+.journey-causal-world .causal-endpoint.is-established > i { border-color: rgba(128,164,143,.72); }
+.journey-causal-world .causal-endpoint.is-established > b { border-color: rgba(128,164,143,.28); }
+.journey-causal-world .causal-tcp-flight {
+  min-width: 112px;
+  height: 40px;
+  padding: 0 24px 0 18px;
+  border: 1px solid rgba(244,241,234,.28);
+  border-radius: 0;
+  background: rgba(22,22,23,.92);
+  clip-path: polygon(0 12%, 78% 12%, 100% 50%, 78% 88%, 0 88%, 9% 50%);
+  box-shadow: none;
+}
+.journey-causal-world .causal-tcp-flight > i { background: var(--causal-focus); box-shadow: none; }
+
+/* TLS keeps the exploded technical composition but improves hierarchy and contrast. */
+.journey-causal-world .causal-tls-leaders { opacity: .54; }
+.journey-causal-world .causal-tls-fields > div {
+  background: rgba(22,22,23,.86);
+  border-color: rgba(244,241,234,.17);
+  box-shadow: none;
+}
+.journey-causal-world .causal-tls-fields > div.is-selected { border-color: rgba(244,241,234,.42); }
+.journey-causal-world .causal-client-hello,
+.journey-causal-world .causal-tls-server { background: rgba(22,22,23,.88); box-shadow: none; }
+.journey-causal-world .causal-key-boundary > i { background: rgba(244,241,234,.25); }
+
+/* Make the HTTP -> packet transition a visible morph scaffold instead of a crossfade. */
+.journey-causal-world.is-packet-world > .causal-camera {
+  opacity: 1;
+  filter: none;
+  transform: scale(1);
+}
+.journey-causal-world.is-packet-world .causal-dns-world,
+.journey-causal-world.is-packet-world .causal-route-world,
+.journey-causal-world.is-packet-world .causal-tcp-world,
+.journey-causal-world.is-packet-world .causal-tls-world,
+.journey-causal-world.is-packet-world .causal-http-flight,
+.journey-causal-world.is-packet-world .causal-response-flight,
+.journey-causal-world.is-packet-world .causal-network-path { opacity: 0 !important; }
+.journey-causal-world.is-packet-world .causal-object {
+  left: 50%;
+  top: 50%;
+  width: 520px;
+  height: 286px;
+  transform: translate(-50%,-50%) rotateX(4deg) rotateY(-6deg) scale(.92);
+  opacity: 1;
+}
+.journey-causal-world.is-packet-world .causal-object::before { width: 360px; height: 172px; border-radius: 18px; transform: translate(-50%,-50%) rotateX(0); }
+.journey-causal-world.is-packet-world .causal-object::after { width: 430px; height: 208px; border-radius: 24px; transform: translate(-50%,-50%) rotateX(0); }
+.journey-causal-world.is-packet-world .causal-mechanism-axis,
+.journey-causal-world.is-packet-world .causal-mechanism-node { opacity: 0; transform: translate(-50%,-50%) scale(.25); }
+.journey-causal-world.is-packet-world .causal-object__payload {
+  top: 50%;
+  width: 204px;
+  height: 88px;
+  border-radius: 9px;
+  transform: translate(-50%,-50%) scale(1);
+  opacity: .5;
+}
+.journey-causal-world.is-packet-world .causal-mechanism-core {
+  top: 50%;
+  width: 242px;
+  height: 112px;
+  border-radius: 10px;
+  opacity: .58;
+  transform: translate(-50%,-50%) rotateX(0) scale(1);
+}
+.causal-handoff-rail {
+  position: absolute;
+  left: 50%;
+  width: 408px;
+  height: 10px;
+  border: 1px solid rgba(244,241,234,.24);
+  opacity: 0;
+  transform: translateX(-50%) scaleX(.4);
+  transition: top 1.1s var(--causal-ease), bottom 1.1s var(--causal-ease), transform 1.1s var(--causal-snap), opacity .5s ease;
+}
+.causal-handoff-rail.rail-a { top: 24px; }
+.causal-handoff-rail.rail-b { bottom: 24px; }
+.is-packet-world .causal-handoff-rail { opacity: .58; transform: translateX(-50%) scaleX(1); }
+.packet-stage-security .causal-handoff-rail,
+.packet-stage-security .causal-mechanism-core,
+.packet-stage-security .causal-object__payload { opacity: .32; }
+.packet-stage-transport .causal-handoff-rail,
+.packet-stage-transport .causal-mechanism-core,
+.packet-stage-transport .causal-object__payload { opacity: .14; }
+.packet-stage-network .causal-handoff-rail,
+.packet-stage-network .causal-mechanism-core,
+.packet-stage-network .causal-object__payload,
+.packet-stage-link .causal-handoff-rail,
+.packet-stage-link .causal-mechanism-core,
+.packet-stage-link .causal-object__payload,
+.packet-stage-collapsed .causal-handoff-rail,
+.packet-stage-collapsed .causal-mechanism-core,
+.packet-stage-collapsed .causal-object__payload { opacity: 0; }
+.journey-causal-world.is-packet-world .causal-phase5-layer {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity .72s ease, transform 1.15s var(--causal-ease);
+}
+.packet-stage-application .causal-phase5-layer--assembly { opacity: .82; transform: scale(.94); }
+.packet-stage-security .causal-phase5-layer--assembly { opacity: .94; transform: scale(.985); }
+.packet-stage-transport .causal-phase5-layer--assembly,
+.packet-stage-network .causal-phase5-layer--assembly,
+.packet-stage-link .causal-phase5-layer--assembly,
+.packet-stage-collapsed .causal-phase5-layer--assembly { opacity: 1; transform: scale(1); }
+
+/* Quieter annotations with readable contrast. */
+.journey-causal-world .causal-annotation { opacity: .68; }
+.journey-causal-world .causal-annotation small,
+.journey-causal-world .causal-continuity { color: #969189; }
+.journey-causal-world .causal-continuity { opacity: .58; }
+
+/* Legacy modifier/failure scenes keep their semantics but inherit the restrained material language. */
+.journey-visual-workspace:not(:has(.journey-causal-world)) .journey-cinematic-stage,
+.journey-visual-workspace:not(:has(.journey-causal-world)) .journey-scene {
+  --journey-success: #80a48f;
+  --journey-danger: #d56c69;
+  --journey-warning: #c6a56e;
+}
+.journey-visual-workspace:not(:has(.journey-causal-world)) .journey-cinematic-stage {
+  background: radial-gradient(circle at 50% 46%, rgba(255,255,255,.035), transparent 34%), linear-gradient(150deg,#161617,#101011 68%);
+}
+.journey-visual-workspace:not(:has(.journey-causal-world)) .route-god-node,
+.journey-visual-workspace:not(:has(.journey-causal-world)) .route-branch-row,
+.journey-visual-workspace:not(:has(.journey-causal-world)) .packet-impairment-card,
+.journey-visual-workspace:not(:has(.journey-causal-world)) .packet-congestion-card,
+.journey-visual-workspace:not(:has(.journey-causal-world)) .dns-failure-banner,
+.journey-visual-workspace:not(:has(.journey-causal-world)) .policy-leak-paths > div,
+.journey-visual-workspace:not(:has(.journey-causal-world)) .congestion-queue,
+.journey-visual-workspace:not(:has(.journey-causal-world)) .congestion-metrics > div {
+  border-color: rgba(244,241,234,.12);
+  border-radius: 10px;
+  background: rgba(24,24,25,.72);
+  box-shadow: none;
+}
+.journey-visual-workspace:not(:has(.journey-causal-world)) .route-god-metrics .success strong,
+.journey-visual-workspace:not(:has(.journey-causal-world)) .packet-repair-scene .packet-impairment-card span,
+.journey-visual-workspace:not(:has(.journey-causal-world)) .policy-leak-metrics strong.reachable,
+.journey-visual-workspace:not(:has(.journey-causal-world)) .journey-stage-meta strong.route-ready,
+.journey-visual-workspace:not(:has(.journey-causal-world)) .journey-state-strip strong.route-ready,
+.journey-visual-workspace:not(:has(.journey-causal-world)) .journey-stage-meta strong.policy-restored-active,
+.journey-visual-workspace:not(:has(.journey-causal-world)) .journey-state-strip strong.policy-restored-active { color: var(--journey-success) !important; }
+
+@media (max-width: 900px) {
+  .journey-causal-world .causal-mechanism-node::before { font-size: 6px; }
+  .journey-causal-world .causal-mechanism-node::after { font-size: 7px; }
+  .causal-route-target { left: 34%; width: 180px; }
+  .causal-route-target strong { font-size: 15px; }
+  .journey-causal-world.is-packet-world .causal-object { width: min(76vw, 500px); }
+}
+
+@media (max-width: 680px) {
+  .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar { opacity: .66; }
+  .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud { opacity: .5; }
+  .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail { opacity: .68; }
+  .journey-causal-world .causal-object::before { width: 136px; height: 136px; }
+  .journey-causal-world .causal-object::after { width: 174px; height: 174px; }
+  .causal-mechanism-node.node-name { width: 82px; height: 82px; }
+  .has-address .node-name { left: 34%; width: 62px; height: 62px; }
+  .has-address .node-address { left: 66%; width: 58px; height: 58px; }
+  .has-route .node-name { left: 24%; top: 40%; width: 48px; height: 48px; }
+  .has-route .node-address { left: 42%; top: 40%; width: 50px; height: 50px; }
+  .has-route .node-route { left: 62%; top: 40%; width: 50px; height: 50px; }
+  .has-connection .node-session { left: 80%; top: 40%; width: 50px; height: 50px; }
+  .has-protection .node-protection { width: 142px; height: 72px; top: 61%; }
+  .causal-mechanism-node::after { display: none; }
+  .journey-causal-world .causal-object__intent strong,
+  .journey-causal-world .causal-object__address strong { font-size: 8px; }
+  .causal-route-target { left: 50%; top: 27%; width: 200px; }
+  .causal-route-bits i { height: 12px; }
+  .journey-causal-world .causal-authority::before { width: 48px; height: 48px; }
+  .journey-causal-world .causal-authority::after { width: 66px; height: 66px; }
+  .journey-causal-world .causal-dns-query small,
+  .journey-causal-world .causal-dns-query span,
+  .journey-causal-world .causal-dns-query b { height: 24px; min-width: 24px; padding: 0 6px; font-size: 7px; }
+  .journey-causal-world.is-packet-world .causal-object { width: 86vw; height: 240px; transform: translate(-50%,-50%) scale(.82); }
+  .journey-causal-world.is-packet-world .causal-object::before { width: 270px; height: 136px; }
+  .journey-causal-world.is-packet-world .causal-object::after { width: 324px; height: 162px; }
+  .causal-handoff-rail { width: 310px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .causal-mechanism-axis,
+  .causal-mechanism-node,
+  .causal-mechanism-core,
+  .causal-handoff-rail,
+  .causal-route-bits i,
+  .journey-causal-world .causal-authority,
+  .journey-causal-world .causal-authority::before,
+  .journey-causal-world .causal-authority::after,
+  .journey-causal-world .causal-dns-query span { transition-duration: 0s !important; }
+}
