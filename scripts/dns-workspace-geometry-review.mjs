@@ -147,6 +147,7 @@ async function measureDns(cdp, origin, width, height, mode) {
   await waitForExpression(cdp, `Boolean(document.querySelector('.dns-visual-workspace .dns-workspace-map'))`);
   await waitForExpression(cdp, `document.querySelectorAll('.dns-workspace-map [data-dns-anchor]').length===6`);
   await waitForExpression(cdp, `document.querySelectorAll('.dns-link-layer line').length===5`);
+  await waitForExpression(cdp, `!document.querySelector('.visual-entrance')`, 5000);
   await chooseCacheMode(cdp, mode);
   await sleep(300);
 
