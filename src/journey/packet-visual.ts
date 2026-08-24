@@ -92,16 +92,16 @@ function projectFields(segment: PacketSegment): JourneyPacketVisualField[] {
   }));
 }
 
-function packetSnapshot(profile: JourneyTransportProfile, destinationAddress: string): PacketSnapshot {
+function packetSnapshot(profile: JourneyTransportProfile, destinationAddress: string, ttl = 64, sourceMac = '02:48:4f:50:00:01', destinationMac = '02:48:4f:50:00:02'): PacketSnapshot {
   return buildPacket({
     family: 'ipv4',
     transport: profile === 'quic-h3' ? 'udp' : 'tcp',
     payloadBytes: 96,
-    ttl: 64,
+    ttl,
     sourcePort: 52133,
     destinationPort: 443,
-    sourceMac: '02:48:4f:50:00:01',
-    destinationMac: '02:48:4f:50:00:02',
+    sourceMac,
+    destinationMac,
     sourceIpv4: '192.0.2.10',
     destinationIpv4: destinationAddress,
   });
@@ -113,8 +113,11 @@ export function projectJourneyPacketVisual(input: {
   profile: JourneyTransportProfile;
   stage: JourneyPacketAssemblyStage;
   selectedLayerId?: JourneyPacketLayerId | null;
+  ttl?: number;
+  sourceMac?: string;
+  destinationMac?: string;
 }): JourneyPacketVisualProjection {
-  const snapshot = packetSnapshot(input.profile, input.destinationAddress);
+  const snapshot = packetSnapshot(input.profile, input.destinationAddress, input.ttl, input.sourceMac, input.destinationMac);
   const ethernet = snapshot.segments.find((segment) => segment.id === 'ethernet')!;
   const network = snapshot.segments.find((segment) => segment.id === 'network')!;
   const transport = snapshot.segments.find((segment) => segment.id === 'transport')!;
@@ -162,7 +165,7 @@ export function projectJourneyPacketVisual(input: {
     },
     {
       id: 'link', order: 4, protocol: 'ETHERNET II', role: 'HOP-LOCAL ENVELOPE',
-      headline: '02:48:4F:50:00:01 → 02:48:4F:50:00:02',
+      headline: `${input.sourceMac ?? '02:48:4F:50:00:01'} → ${input.destinationMac ?? '02:48:4F:50:00:02'}`.toUpperCase(),
       detail: 'These MAC addresses are valid only for this local hop. A router will remove this envelope and construct another.',
       byteStart: ethernet.offset, byteLength: ethernet.length, bytePreview: hexPreview(ethernet), fields: projectFields(ethernet),
     },
@@ -193,7 +196,7 @@ export function projectJourneyPacketVisual(input: {
     selectedLayerId,
     layers,
     camera: cameraByStage[input.stage],
-    semanticSignature: [input.profile, input.hostname, input.destinationAddress, input.stage, selectedLayerId, snapshot.networkChecksum, snapshot.transportChecksum].join(':'),
+    semanticSignature: [input.profile, input.hostname, input.destinationAddress, input.stage, selectedLayerId, input.ttl ?? 64, input.sourceMac ?? '02:48:4f:50:00:01', input.destinationMac ?? '02:48:4f:50:00:02', snapshot.networkChecksum, snapshot.transportChecksum].join(':'),
     snapshot,
   };
 }

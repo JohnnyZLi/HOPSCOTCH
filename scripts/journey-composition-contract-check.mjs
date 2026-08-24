@@ -56,45 +56,45 @@ assert.throws(() => normalizeJourneyModifierIds(['unknown']), /unknown journey m
 
 const routeLossA = buildJourneyScenario('example.test', config('quic-h3', 'cache-hit', ['route-failure', 'single-loss']));
 const routeLossB = buildJourneyScenario('example.test', config('quic-h3', 'cache-hit', ['single-loss', 'route-failure']));
-validateCanonicalScenario(routeLossA, ['route-failure', 'single-loss'], 37, 19300);
+validateCanonicalScenario(routeLossA, ['route-failure', 'single-loss'], 46, 23900);
 assert.equal(routeLossA.id, routeLossB.id);
 assert.deepEqual(projection(routeLossA), projection(routeLossB));
 assert.deepEqual(eventTimes(routeLossA, ['route-primary-fails', 'route-primary-invalidated', 'route-spf-recompute', 'route-alternate-installed']), [1500, 1780, 2160, 2520]);
-assert.deepEqual(eventTimes(routeLossA, ['quic-loss', 'quic-gap', 'quic-retransmit', 'quic-recovered']), [11460, 11700, 12000, 12350]);
+assert.deepEqual(eventTimes(routeLossA, ['quic-loss', 'quic-gap', 'quic-retransmit', 'quic-recovered']), [16060, 16300, 16600, 16950]);
 assert.equal(routeLossA.events.find((event) => event.id === 'quic-initial').atMs, 4200);
 assert.match(routeLossA.events.find((event) => event.id === 'quic-retransmit').title, /4113/);
 
 const routeLatency = buildJourneyScenario('example.test', config('quic-h3', 'cache-hit', ['latency-spike', 'route-failure']));
-validateCanonicalScenario(routeLatency, ['route-failure', 'latency-spike'], 36, 18900);
+validateCanonicalScenario(routeLatency, ['route-failure', 'latency-spike'], 45, 23500);
 assert.deepEqual(eventTimes(routeLatency, ['route-primary-fails', 'route-primary-invalidated', 'route-spf-recompute', 'route-alternate-installed']), [1500, 1780, 2160, 2520]);
-assert.deepEqual(eventTimes(routeLatency, ['quic-latency-start', 'quic-rtt-update', 'quic-latency-clear']), [11460, 11800, 12200]);
+assert.deepEqual(eventTimes(routeLatency, ['quic-latency-start', 'quic-rtt-update', 'quic-latency-clear']), [16060, 16400, 16800]);
 assert.equal(routeLatency.events.find((event) => event.id === 'quic-rtt-update').transportMetrics.timerMs, 264.4);
 assert.ok(!routeLatency.events.some((event) => event.kind === 'transport.loss' || event.kind === 'transport.retransmit'));
 
 const lossLatency = buildJourneyScenario('example.test', config('quic-h3', 'cache-hit', ['latency-spike', 'single-loss']));
-validateCanonicalScenario(lossLatency, ['single-loss', 'latency-spike'], 36, 19100);
-assert.deepEqual(eventTimes(lossLatency, ['quic-loss', 'quic-gap', 'quic-retransmit', 'quic-recovered']), [10060, 10300, 10600, 10950]);
-assert.deepEqual(eventTimes(lossLatency, ['quic-latency-start', 'quic-rtt-update', 'quic-latency-clear']), [11110, 11450, 11850]);
+validateCanonicalScenario(lossLatency, ['single-loss', 'latency-spike'], 45, 23700);
+assert.deepEqual(eventTimes(lossLatency, ['quic-loss', 'quic-gap', 'quic-retransmit', 'quic-recovered']), [14660, 14900, 15200, 15550]);
+assert.deepEqual(eventTimes(lossLatency, ['quic-latency-start', 'quic-rtt-update', 'quic-latency-clear']), [15710, 16050, 16450]);
 assert.ok(lossLatency.events.find((event) => event.id === 'quic-recovered').atMs < lossLatency.events.find((event) => event.id === 'quic-latency-start').atMs);
 
 const triple = buildJourneyScenario('example.test', config('quic-h3', 'cache-hit', ['latency-spike', 'route-failure', 'single-loss']));
-validateCanonicalScenario(triple, ['route-failure', 'single-loss', 'latency-spike'], 40, 20500);
+validateCanonicalScenario(triple, ['route-failure', 'single-loss', 'latency-spike'], 49, 25100);
 assert.deepEqual(eventTimes(triple, ['route-primary-fails', 'route-primary-invalidated', 'route-spf-recompute', 'route-alternate-installed']), [1500, 1780, 2160, 2520]);
-assert.deepEqual(eventTimes(triple, ['quic-loss', 'quic-gap', 'quic-retransmit', 'quic-recovered']), [11460, 11700, 12000, 12350]);
-assert.deepEqual(eventTimes(triple, ['quic-latency-start', 'quic-rtt-update', 'quic-latency-clear']), [12510, 12850, 13250]);
-assert.equal(triple.events.find((event) => event.id === 'packet-frame').atMs, 15080);
+assert.deepEqual(eventTimes(triple, ['quic-loss', 'quic-gap', 'quic-retransmit', 'quic-recovered']), [16060, 16300, 16600, 16950]);
+assert.deepEqual(eventTimes(triple, ['quic-latency-start', 'quic-rtt-update', 'quic-latency-clear']), [17110, 17450, 17850]);
+assert.equal(triple.events.find((event) => event.id === 'packet-frame').atMs, 19680);
 
 const tcpTriple = buildJourneyScenario('example.test', config('tcp-h2', 'cache-miss', ['single-loss', 'latency-spike', 'route-failure']));
-validateCanonicalScenario(tcpTriple, ['route-failure', 'single-loss', 'latency-spike'], 47, 22700);
+validateCanonicalScenario(tcpTriple, ['route-failure', 'single-loss', 'latency-spike'], 56, 27300);
 assert.deepEqual(eventTimes(tcpTriple, ['route-primary-fails', 'route-primary-invalidated', 'route-spf-recompute', 'route-alternate-installed']), [3720, 4000, 4380, 4740]);
-assert.deepEqual(eventTimes(tcpTriple, ['tcp-loss', 'tcp-gap', 'tcp-retransmit', 'tcp-recovered']), [13920, 14160, 14460, 14810]);
-assert.deepEqual(eventTimes(tcpTriple, ['tcp-latency-start', 'tcp-rtt-update', 'tcp-latency-clear']), [14970, 15310, 15710]);
-assert.equal(tcpTriple.events.find((event) => event.id === 'packet-frame').atMs, 17280);
+assert.deepEqual(eventTimes(tcpTriple, ['tcp-loss', 'tcp-gap', 'tcp-retransmit', 'tcp-recovered']), [18520, 18760, 19060, 19410]);
+assert.deepEqual(eventTimes(tcpTriple, ['tcp-latency-start', 'tcp-rtt-update', 'tcp-latency-clear']), [19570, 19910, 20310]);
+assert.equal(tcpTriple.events.find((event) => event.id === 'packet-frame').atMs, 21880);
 
 // Legacy callers remain exact when modifierIds is omitted.
 const legacyLoss = buildJourneyScenario('example.test', { transportProfile: 'quic-h3', dnsProfile: 'cache-hit', impairmentProfile: 'single-loss' });
-validateCanonicalScenario(legacyLoss, ['single-loss'], 33, 17900);
-assert.deepEqual(eventTimes(legacyLoss, ['quic-loss', 'quic-gap', 'quic-retransmit', 'quic-recovered']), [10060, 10300, 10600, 10950]);
+validateCanonicalScenario(legacyLoss, ['single-loss'], 42, 22500);
+assert.deepEqual(eventTimes(legacyLoss, ['quic-loss', 'quic-gap', 'quic-retransmit', 'quic-recovered']), [14660, 14900, 15200, 15550]);
 
 // Browser persistence stores the canonical set and migrates the old single-profile key.
 const composedStorage = memoryStorage();

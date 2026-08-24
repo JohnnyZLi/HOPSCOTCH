@@ -21,7 +21,7 @@ assert.doesNotMatch(workspace, /setIngestion\(/, 'workspace must not retain a pa
 
 assert.match(wrapper, /MeasuredSnapshotState/, 'Journey wrapper may accept measured state only as a presentation prop type');
 assert.match(journey, /<MeasuredEvidenceSidecar measuredState=\{measuredState\}/, 'Journey must render a separate measured evidence sidecar');
-assert.match(journey, /<SemanticScene state=\{state\} hostname=\{scenario\.hostname\} address=\{scenario\.destinationAddress\} packetProjection=\{packetProjection\} onSelectPacketLayer=\{inspectPacketLayer\}\/>/, 'SemanticScene must remain driven only by simulated Journey state plus its deterministic packet projection');
+assert.match(journey, /<SemanticScene state=\{state\} hostname=\{scenario\.hostname\} address=\{scenario\.destinationAddress\} packetProjection=\{packetProjection\} physicalProjection=\{physicalProjection\} onSelectPacketLayer=\{inspectPacketLayer\}\/>/, 'SemanticScene must remain driven only by simulated Journey state plus its deterministic packet and physical projections');
 assert.doesNotMatch(journey, /<SemanticScene[^>]*measured(State|Evidence)/, 'measured values must never enter SemanticScene props');
 assert.match(journey, /state\.scale === 'routing'.*'routing'.*state\.scale === 'transport'.*'transport'.*state\.protocol === 'DNS'.*'dns'/s, 'measured sidecar must be limited to routing/DNS/transport phases');
 

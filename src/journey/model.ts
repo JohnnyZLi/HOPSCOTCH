@@ -62,6 +62,7 @@ export type JourneyEventKind =
   | 'http.response'
   | 'http.data'
   | 'packet.assembly'
+  | 'packet.transit'
   | 'packet.inspect'
   | 'transfer.complete'
   | 'response.ready'
@@ -188,8 +189,9 @@ export type TlsJourneyState = 'idle' | 'negotiating' | 'validating' | 'handshake
 export type HttpJourneyState = 'idle' | 'control' | 'request-sent' | 'service-unavailable' | 'retry-wait' | 'headers' | 'streaming' | 'stalled' | 'complete';
 export type ServerJourneyState = 'healthy' | 'unavailable' | 'waiting' | 'ready';
 export type PolicyJourneyState = 'normal' | 'leak-advertised' | 'leaked' | 'anomaly' | 'restored';
-export type PacketJourneyState = 'idle' | 'assembling' | 'frame' | 'headers';
+export type PacketJourneyState = 'idle' | 'assembling' | 'transit' | 'frame' | 'headers';
 export type JourneyPacketAssemblyStage = 'idle' | 'application' | 'security' | 'transport' | 'network' | 'link' | 'collapsed' | 'exploded';
+export type JourneyPacketTransitStage = 'idle' | 'nic-serialize' | 'link-transmit' | 'switch-inspect' | 'switch-forward' | 'router-decapsulate' | 'router-ttl' | 'router-route' | 'router-reencapsulate' | 'next-link';
 export type JourneyImpairmentState = 'clean' | 'armed' | 'dns-failed' | 'dns-retrying' | 'dns-masked' | 'server-unavailable' | 'server-waiting' | 'server-ready' | 'lost' | 'detected' | 'recovering' | 'recovered' | 'delayed' | 'estimating' | 'normalized' | 'queueing' | 'ecn-signaled' | 'congestion-responding' | 'route-failed' | 'route-recomputing' | 'route-ready' | 'policy-leak' | 'policy-anomaly' | 'policy-restored' | 'partitioned' | 'partition-recomputing' | 'unreachable';
 
 export interface JourneyState {
@@ -225,6 +227,7 @@ export interface JourneyState {
   policy: PolicyJourneyState;
   packet: PacketJourneyState;
   packetAssemblyStage: JourneyPacketAssemblyStage;
+  packetTransitStage: JourneyPacketTransitStage;
   responseReady: boolean;
   journeyComplete: boolean;
   journeyFailed: boolean;
@@ -334,11 +337,12 @@ function tcpH2Events(hostname: string): JourneyEvent[] {
     event('h2-settings', 8070, 'http.control', 'application', 'hold', 'HTTP/2', 'connection-control', 'HTTP/2 control state exchanged', 'SETTINGS establishes connection-level HTTP/2 parameters over the encrypted stream.', 'HTTP/2 multiplexing lives above TCP.', 'HTTP client', 'HTTP server', 'http'),
     event('h2-request', 8540, 'http.request', 'application', 'hold', 'HTTP/2', 'request', `GET / on ${hostname}`, 'Request headers become an encrypted HTTP/2 HEADERS frame carried by TLS over TCP.', 'Each representation is a different abstraction of the same bytes.', 'browser', 'origin', 'http'),
     ...packetAssemblyEvents(hostname, 'tcp-h2', 8840),
-    event('h2-headers', 11820, 'http.response', 'application', 'out', 'HTTP/2', 'response-headers', 'Response headers arrive', 'The origin begins the response with status and metadata before the body streams.', 'The first response bytes do not mean transfer is complete.', 'origin', 'browser', 'http'),
-    event('h2-data', 12360, 'http.data', 'application', 'hold', 'HTTP/2', 'streaming', 'Response DATA streams', 'Encrypted application data crosses the established TCP stream.', 'HOPSCOTCH can now zoom into one representative frame.', 'origin', 'browser', 'http'),
-    event('packet-frame', 13080, 'packet.inspect', 'packet', 'in', 'Ethernet / IPv4 / TCP / TLS', 'frame', 'Freeze one TCP frame', 'One delivery unit becomes the entire world: link, network, transport, and encrypted TLS payload bytes.', 'The packet microscope is a projection of the same Journey moment.', 'network interface', 'packet bytes', 'packet'),
-    event('packet-headers', 13760, 'packet.inspect', 'packet', 'hold', 'Ethernet / IPv4 / TCP', 'headers', 'Explode TCP/IP headers', 'The same frame opens into persistent link, network, transport, security, and application objects.', 'TLS-protected application bytes remain opaque at this packet-observation boundary.', 'packet bytes', 'header fields', 'packet'),
-    event('transfer-complete', 14560, 'transfer.complete', 'transport', 'out', 'TCP', 'complete', 'Transfer acknowledged', 'The representative response flight is cumulatively acknowledged and TCP delivery is complete.', 'The camera pulls back because byte delivery has finished.', 'client TCP', 'server TCP', 'tcp'),
+    ...packetTransitEvents('tcp-h2', 11600),
+    event('h2-headers', 16420, 'http.response', 'application', 'out', 'HTTP/2', 'response-headers', 'Response headers arrive', 'The origin begins the response with status and metadata before the body streams.', 'The first response bytes do not mean transfer is complete.', 'origin', 'browser', 'http'),
+    event('h2-data', 16960, 'http.data', 'application', 'hold', 'HTTP/2', 'streaming', 'Response DATA streams', 'Encrypted application data crosses the established TCP stream.', 'HOPSCOTCH can now zoom into one representative frame.', 'origin', 'browser', 'http'),
+    event('packet-frame', 17680, 'packet.inspect', 'packet', 'in', 'Ethernet / IPv4 / TCP / TLS', 'frame', 'Freeze one TCP frame', 'One delivery unit becomes the entire world: link, network, transport, and encrypted TLS payload bytes.', 'The packet microscope is a projection of the same Journey moment.', 'network interface', 'packet bytes', 'packet'),
+    event('packet-headers', 18360, 'packet.inspect', 'packet', 'hold', 'Ethernet / IPv4 / TCP', 'headers', 'Explode TCP/IP headers', 'The same frame opens into persistent link, network, transport, security, and application objects.', 'TLS-protected application bytes remain opaque at this packet-observation boundary.', 'packet bytes', 'header fields', 'packet'),
+    event('transfer-complete', 19160, 'transfer.complete', 'transport', 'out', 'TCP', 'complete', 'Transfer acknowledged', 'The representative response flight is cumulatively acknowledged and TCP delivery is complete.', 'The camera pulls back because byte delivery has finished.', 'client TCP', 'server TCP', 'tcp'),
   ];
 }
 
@@ -353,11 +357,12 @@ function quicH3Events(hostname: string): JourneyEvent[] {
     event('h3-control', 7500, 'http.control', 'application', 'in', 'HTTP/3', 'connection-control', 'HTTP/3 control streams open', 'HTTP/3 SETTINGS and QPACK control state use dedicated QUIC streams.', 'This curated trace avoids dynamic QPACK dependencies so transport behavior stays legible.', 'HTTP/3 client', 'HTTP/3 server', 'http'),
     event('h3-request', 8120, 'http.request', 'application', 'hold', 'HTTP/3', 'request', `GET / on ${hostname}`, 'Request fields are encoded for HTTP/3 and carried on a QUIC request stream.', 'There is no HTTP/2 framing or TCP stream in this branch.', 'browser', 'origin', 'http'),
     ...packetAssemblyEvents(hostname, 'quic-h3', 8420),
-    event('h3-headers', 11400, 'http.response', 'application', 'out', 'HTTP/3', 'response-headers', 'Response headers arrive', 'The response begins on the request’s QUIC stream.', 'Other QUIC streams are independently ordered.', 'origin', 'browser', 'http'),
-    event('h3-data', 12100, 'http.data', 'application', 'hold', 'HTTP/3', 'streaming', 'HTTP/3 DATA streams', 'Protected QUIC STREAM frames carry response data.', 'QUIC loss can still affect congestion control even though stream ordering is independent.', 'origin', 'browser', 'http'),
-    event('packet-frame', 13080, 'packet.inspect', 'packet', 'in', 'Ethernet / IPv4 / UDP / QUIC', 'frame', 'Freeze one QUIC packet', 'One datagram becomes the entire world: Ethernet, IP, UDP, QUIC header, and protected payload.', 'TLS-derived keys protect QUIC packet payloads; there is no visible TLS record envelope.', 'network interface', 'packet bytes', 'packet'),
-    event('packet-headers', 13760, 'packet.inspect', 'packet', 'hold', 'Ethernet / IPv4 / UDP / QUIC', 'headers', 'Explode UDP + QUIC headers', 'The same datagram opens into link, network, UDP, QUIC protection, and application objects.', 'Protected QUIC payload bytes remain opaque without key material.', 'packet bytes', 'header fields', 'packet'),
-    event('transfer-complete', 14560, 'transfer.complete', 'transport', 'out', 'QUIC', 'complete', 'QUIC transfer complete', 'The response stream reaches its final offset and delivery is acknowledged.', 'Completion belongs to QUIC stream/packet state, not TCP cumulative ACK space.', 'QUIC client', 'QUIC server', 'http'),
+    ...packetTransitEvents('quic-h3', 11180),
+    event('h3-headers', 16000, 'http.response', 'application', 'out', 'HTTP/3', 'response-headers', 'Response headers arrive', 'The response begins on the request’s QUIC stream.', 'Other QUIC streams are independently ordered.', 'origin', 'browser', 'http'),
+    event('h3-data', 16700, 'http.data', 'application', 'hold', 'HTTP/3', 'streaming', 'HTTP/3 DATA streams', 'Protected QUIC STREAM frames carry response data.', 'QUIC loss can still affect congestion control even though stream ordering is independent.', 'origin', 'browser', 'http'),
+    event('packet-frame', 17680, 'packet.inspect', 'packet', 'in', 'Ethernet / IPv4 / UDP / QUIC', 'frame', 'Freeze one QUIC packet', 'One datagram becomes the entire world: Ethernet, IP, UDP, QUIC header, and protected payload.', 'TLS-derived keys protect QUIC packet payloads; there is no visible TLS record envelope.', 'network interface', 'packet bytes', 'packet'),
+    event('packet-headers', 18360, 'packet.inspect', 'packet', 'hold', 'Ethernet / IPv4 / UDP / QUIC', 'headers', 'Explode UDP + QUIC headers', 'The same datagram opens into link, network, UDP, QUIC protection, and application objects.', 'Protected QUIC payload bytes remain opaque without key material.', 'packet bytes', 'header fields', 'packet'),
+    event('transfer-complete', 19160, 'transfer.complete', 'transport', 'out', 'QUIC', 'complete', 'QUIC transfer complete', 'The response stream reaches its final offset and delivery is acknowledged.', 'Completion belongs to QUIC stream/packet state, not TCP cumulative ACK space.', 'QUIC client', 'QUIC server', 'http'),
   ];
 }
 
@@ -379,13 +384,28 @@ function packetAssemblyEvents(hostname: string, profile: JourneyTransportProfile
   ];
 }
 
+function packetTransitEvents(profile: JourneyTransportProfile, startAtMs: number): JourneyEvent[] {
+  const transport = profile === 'quic-h3' ? 'UDP / QUIC' : 'TCP';
+  return [
+    event('packet-transit-nic', startAtMs, 'packet.transit', 'packet', 'hold', `Ethernet / IPv4 / ${transport}`, 'nic-serialize', 'NIC serializes the structured frame', 'The frame becomes an ordered link transmission without changing its packet semantics.', 'The renderer exposes bytes, bits, and link activity as representations of one deterministic frame. The NIC generates a per-transmission FCS; it is not fabricated as captured packet data.', 'client NIC', 'access link', 'packet'),
+    event('packet-transit-link', startAtMs + 480, 'packet.transit', 'packet', 'hold', 'Ethernet PHY', 'link-transmit', 'Symbols cross the access link', 'Structured bytes become physical link activity moving toward the switch.', 'Serialization is a rendering of the already-built frame. Browser scheduling cannot create, drop, or reorder semantic network state.', 'client NIC', 'access switch Gi0/3', 'physical'),
+    event('packet-transit-switch-inspect', startAtMs + 960, 'packet.transit', 'packet', 'hold', 'Ethernet II', 'switch-inspect', 'Switch isolates destination MAC', 'Only the destination MAC is projected for the forwarding decision; unrelated packet fields recede.', 'The switch may learn the source MAC on ingress, but this forwarding decision compares destination MAC 02:48:4F:50:00:02 with its MAC table.', 'access switch Gi0/3', 'MAC table', 'packet'),
+    event('packet-transit-switch-forward', startAtMs + 1440, 'packet.transit', 'packet', 'hold', 'Ethernet II', 'switch-forward', 'MAC table selects Gi0/24', 'The same Ethernet header and IPv4 payload leave the selected switch port.', 'A normal Layer 2 forward does not rewrite source or destination MAC. The egress transmitter generates link-local physical overhead such as a new FCS.', 'access switch', 'Gi0/24 → edge router', 'packet'),
+    event('packet-transit-router-decapsulate', startAtMs + 1920, 'packet.transit', 'packet', 'hold', 'Ethernet II → IPv4', 'router-decapsulate', 'Router terminates the incoming Ethernet envelope', 'The hop-local Layer 2 shell opens and ends; the routed IPv4 packet remains.', 'The router validates the incoming frame, removes the Ethernet header/trailer context, and makes an IP forwarding decision. Ethernet does not continue through the router.', 'edge router lan0', 'IPv4 forwarding plane', 'packet'),
+    event('packet-transit-router-ttl', startAtMs + 2400, 'packet.transit', 'packet', 'hold', 'IPv4', 'router-ttl', 'TTL decrements: 64 → 63', 'The router mutates the IPv4 TTL and updates the IPv4 header checksum.', 'Destination IP and transport payload remain logically continuous. TTL and its dependent header checksum are the exact routed-hop mutations shown here.', 'IPv4 forwarding plane', 'mutable header fields', 'packet'),
+    event('packet-transit-router-route', startAtMs + 2880, 'packet.transit', 'packet', 'hold', 'IPv4 routing', 'router-route', 'Destination IP selects the next hop', '203.0.113.42 matches 203.0.113.0/24 via 198.51.100.2 on wan0.', 'The destination IP—not either hop-local MAC address—selects the route. The chosen next hop will supply the next Ethernet destination.', 'edge router FIB', 'wan0 / 198.51.100.2', 'builder'),
+    event('packet-transit-router-reencapsulate', startAtMs + 3360, 'packet.transit', 'packet', 'hold', 'IPv4 → Ethernet II', 'router-reencapsulate', 'A new Ethernet envelope assembles', 'Router wan0 constructs new source and next-hop destination MAC fields around the forwarded IPv4 packet.', 'The outgoing frame is a new hop-local object. The IPv4 continuity identity survives with TTL 63 and an updated header checksum.', 'edge router wan0', 'next-hop Ethernet frame', 'packet'),
+    event('packet-transit-next-link', startAtMs + 3840, 'packet.transit', 'packet', 'hold', 'Ethernet PHY', 'next-link', 'The re-encapsulated packet continues', 'A second link transmission carries the new Ethernet frame toward 198.51.100.2.', 'The visual grammar repeats—frame, serialization, link—but the Layer 2 addresses now belong to the next hop while the IP destination remains 203.0.113.42.', 'edge router wan0', 'next hop 198.51.100.2', 'physical'),
+  ];
+}
+
 function sharedTail(hostname: string, profile: JourneyTransportProfile): JourneyEvent[] {
   const applicationProtocol = profile === 'tcp-h2' ? 'HTTP/2 + TLS' : 'HTTP/3 + QUIC';
   return [
-    event('response-ready', 15380, 'response.ready', 'application', 'out', applicationProtocol, 'response-ready', 'Response available to the application', 'Decrypted response bytes are delivered upward to the browser.', 'Network delivery ends by satisfying the application intent that began the story.', 'network stack', 'browser', 'http'),
-    event('pullback-route', 16200, 'camera.pullback', 'routing', 'out', 'IP', 'pullback-routing', 'Pull back through the route', 'The journey recedes from application state to the forwarding structures that carried it.', 'Nothing new is transmitted here. This is an explanatory camera move through already completed causal state.', 'camera', 'routing scale', 'builder'),
-    event('pullback-internet', 17050, 'camera.pullback', 'internet', 'out', 'Internet', 'pullback-internet', 'Return to Internet scale', 'Local routes, AS policy, and physical infrastructure collapse back into one global context.', 'Observed/public context can decorate this endpoint view without rewriting the simulated journey that just completed.', 'camera', 'Internet scale', 'physical', 'INFERRED'),
-    event('complete', 18050, 'journey.complete', 'application', 'in', 'URL', 'complete', `${hostname} journey complete`, 'A human hostname became DNS state, routing state, transport state, protected application traffic, packets, and finally a response.', 'The same global time machine can now be rewound to any causal boundary without changing the event log.', hostname, 'browser'),
+    event('response-ready', 19980, 'response.ready', 'application', 'out', applicationProtocol, 'response-ready', 'Response available to the application', 'Decrypted response bytes are delivered upward to the browser.', 'Network delivery ends by satisfying the application intent that began the story.', 'network stack', 'browser', 'http'),
+    event('pullback-route', 20800, 'camera.pullback', 'routing', 'out', 'IP', 'pullback-routing', 'Pull back through the route', 'The journey recedes from application state to the forwarding structures that carried it.', 'Nothing new is transmitted here. This is an explanatory camera move through already completed causal state.', 'camera', 'routing scale', 'builder'),
+    event('pullback-internet', 21650, 'camera.pullback', 'internet', 'out', 'Internet', 'pullback-internet', 'Return to Internet scale', 'Local routes, AS policy, and physical infrastructure collapse back into one global context.', 'Observed/public context can decorate this endpoint view without rewriting the simulated journey that just completed.', 'camera', 'Internet scale', 'physical', 'INFERRED'),
+    event('complete', 22650, 'journey.complete', 'application', 'in', 'URL', 'complete', `${hostname} journey complete`, 'A human hostname became DNS state, routing state, transport state, protected application traffic, packets, and finally a response.', 'The same global time machine can now be rewound to any causal boundary without changing the event log.', hostname, 'browser'),
   ];
 }
 
@@ -417,7 +437,7 @@ export function buildJourneyScenario(hostnameInput = 'example.test', config: Par
     impairmentProfile,
     modifierIds,
     appliedModifierIds: modifierIds,
-    durationMs: 18500 + dnsShiftMs + modifierResult.addedDurationMs,
+    durationMs: 23100 + dnsShiftMs + modifierResult.addedDurationMs,
     events,
   };
 }
@@ -450,6 +470,7 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
   let policy: PolicyJourneyState = 'normal';
   let packet: PacketJourneyState = 'idle';
   let packetAssemblyStage: JourneyPacketAssemblyStage = 'idle';
+  let packetTransitStage: JourneyPacketTransitStage = 'idle';
   let impairmentState: JourneyImpairmentState = scenario.modifierIds.length === 0 ? 'clean' : 'armed';
   let transportMetrics: JourneyTransportMetrics | null = null;
   let congestionMetrics: JourneyCongestionMetrics | null = null;
@@ -649,6 +670,10 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
         packet = 'assembling';
         packetAssemblyStage = current.phase as JourneyPacketAssemblyStage;
         break;
+      case 'packet.transit':
+        packet = 'transit';
+        packetTransitStage = current.phase as JourneyPacketTransitStage;
+        break;
       case 'packet.inspect':
         packet = current.phase === 'headers' ? 'headers' : 'frame';
         packetAssemblyStage = current.phase === 'headers' ? 'exploded' : 'collapsed';
@@ -708,6 +733,7 @@ export function journeyStateAt(scenario: JourneyScenario, requestedTimeMs: numbe
     policy,
     packet,
     packetAssemblyStage,
+    packetTransitStage,
     responseReady,
     journeyComplete,
     journeyFailed,

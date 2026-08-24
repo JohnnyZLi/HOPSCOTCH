@@ -511,9 +511,10 @@
 .journey-inspect-depth small { color: #5d6c73; font-size: 0.45rem; }
 
 /* Phase 5 packet-object inspection stays inside the existing contextual drawer. */
-.journey-cinematic-stage .phase5-packet-scene-wrap {
+.journey-cinematic-stage .phase5-packet-scene-wrap,
+.journey-cinematic-stage .phase5-physical-scene-wrap {
   width: 100%;
-  max-width: 1180px;
+  max-width: 1220px;
   height: 100%;
   min-height: min(58vh, 480px);
 }
@@ -556,6 +557,26 @@
 .journey-packet-inspector__fields span { color: #708083; font-size: 0.47rem; font-weight: 800; }
 .journey-packet-inspector__fields strong { overflow: hidden; color: #cbdadb; font: 600 0.51rem/1.35 var(--mono); text-overflow: ellipsis; }
 .journey-packet-inspector__fields small { color: #79bcb6; font: 700 0.42rem/1 var(--mono); letter-spacing: 0.08em; }
+
+.journey-physical-inspector {
+  display: grid;
+  gap: 8px;
+  border-color: rgba(255, 191, 105, 0.16) !important;
+  background: linear-gradient(145deg, rgba(255, 191, 105, 0.035), rgba(119, 245, 232, 0.015)) !important;
+}
+
+.journey-physical-inspector > div:not(.rail-title) {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border-left: 2px solid rgba(119, 245, 232, 0.32);
+  background: rgba(255, 255, 255, 0.012);
+}
+
+.journey-physical-inspector > div:not(.rail-title):first-of-type { border-left-color: rgba(255, 191, 105, 0.62); }
+.journey-physical-inspector span { color: #718285; font-size: 0.44rem; font-weight: 850; letter-spacing: 0.1em; }
+.journey-physical-inspector strong { overflow-wrap: anywhere; color: #d7e8e8; font: 650 0.52rem/1.35 var(--mono); }
+.journey-physical-inspector small { color: #718083; font-size: 0.48rem; line-height: 1.45; }
 
 .journey-events-drawer {
   display: grid;
