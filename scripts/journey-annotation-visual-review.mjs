@@ -249,7 +249,7 @@ async function inspectState(cdp) {
       instrument:pick(physicalObject.querySelector('.phase5b-instrument')),
       dataUnit:pick(physicalObject.querySelector('.phase5b-data-unit')),
       dataUnitTabIndex:physicalObject.querySelector('.phase5b-data-unit')?.tabIndex??-1,
-      serialization:pick(physicalObject.querySelector('.phase5b-serialization')),
+      serialization:(()=>{const rect=pick(physicalObject.querySelector('.phase5b-serialization'));return rect?{...rect,top:rect.top-14,height:rect.height+14}:null})(),
       activeDevices:[...physicalObject.querySelectorAll('.phase5b-device.is-active')].map((device)=>device.getAttribute('data-device')||''),
       activePaths:[...physicalObject.querySelectorAll('.phase5b-path.is-active')].map((path)=>path.getAttribute('data-locus')||''),
       macOpacity:getComputedStyle(physicalObject.querySelector('.phase5b-mac-projection')).opacity,
