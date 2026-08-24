@@ -33,6 +33,7 @@ assert.match(theater, /function usesCausalWorld\(state: JourneyState\)/);
 assert.match(theater, /if \(usesCausalWorld\(state\)\) return 'causal-world'/);
 assert.match(theater, /<JourneyCausalWorld state=\{state\}/);
 assert.match(theater, /journey-callout-anchor/, 'The causal stage must replace legacy narration cards with a non-visual geometry anchor.');
+assert.match(theater, /key=\{mode === 'causal-world' \? mode : `\$\{state\.scale\}:\$\{mode\}`\}/, 'Scale changes must not remount the persistent causal world.');
 assert.doesNotMatch(theater, /<VisualWorkspaceShell[\s\S]{0,120}entrance=/, 'The Journey must animate its causal object at time zero without a title interstitial.');
 assert.match(component, /data-journey-causal-world="true"/);
 assert.match(component, /data-causal-object="request-01"/);
