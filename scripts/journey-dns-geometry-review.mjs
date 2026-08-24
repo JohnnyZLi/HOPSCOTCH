@@ -125,42 +125,75 @@ async function screenshot(cdp, filename) {
 
 async function measureDns(cdp, origin, width, height) {
   await cdp.call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width <= 680 });
-  await cdp.call('Page.navigate', { url: `${origin}/journey` });
+  const query = new URLSearchParams({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', impairment: 'clean', t: '850' });
+  await cdp.call('Page.navigate', { url: `${origin}/journey?${query.toString()}` });
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`);
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-cinematic-stage .dns-chain'))`, 20000);
-  await sleep(260);
+  await waitForExpression(cdp, `document.querySelectorAll('.journey-cinematic-stage .dns-chain > div.active').length >= 2`);
+  await waitForExpression(cdp, `!document.querySelector('.visual-entrance')`, 5000);
+  await sleep(120);
 
   const geometry = await cdp.evaluate(`(()=>{
     const chain=document.querySelector('.journey-cinematic-stage .dns-chain');
     if(!chain)return null;
     const chainRect=chain.getBoundingClientRect();
+    const anchorCenterY=chainRect.top+(chainRect.height/2);
     const pseudo=getComputedStyle(chain,'::before');
-    const lineTop=parseFloat(pseudo.top);
-    const lineHeight=parseFloat(pseudo.height)||1;
-    const lineCenterY=chainRect.top+lineTop+(lineHeight/2);
     const rings=[...chain.querySelectorAll(':scope > div > i')].map((ring,index)=>{
       const rect=ring.getBoundingClientRect();
       const centerY=rect.top+(rect.height/2);
-      return {index,top:rect.top,height:rect.height,centerY,delta:Math.abs(centerY-lineCenterY)};
+      const node=ring.parentElement;
+      const nodeRect=node?.getBoundingClientRect();
+      const label=node?.querySelector('span');
+      const labelRect=label?.getBoundingClientRect();
+      return {
+        index,
+        active:node?.classList.contains('active')??false,
+        top:rect.top,
+        height:rect.height,
+        centerY,
+        delta:Math.abs(centerY-anchorCenterY),
+        nodeHeight:nodeRect?.height??null,
+        nodeCenterY:nodeRect?nodeRect.top+nodeRect.height/2:null,
+        labelTop:labelRect?.top??null,
+        labelCenterY:labelRect?labelRect.top+labelRect.height/2:null,
+      };
     });
     return {
       viewport:{innerWidth,innerHeight,devicePixelRatio},
-      chain:{top:chainRect.top,height:chainRect.height},
-      pseudo:{top:pseudo.top,height:pseudo.height,content:pseudo.content},
-      lineCenterY,
+      chain:{top:chainRect.top,height:chainRect.height,centerY:anchorCenterY},
+      pseudo:{
+        top:pseudo.top,
+        bottom:pseudo.bottom,
+        height:pseudo.height,
+        marginTop:pseudo.marginTop,
+        marginBottom:pseudo.marginBottom,
+        transform:pseudo.transform,
+        content:pseudo.content,
+      },
       rings,
+      activeCount:rings.filter((ring)=>ring.active).length,
       maxDelta:Math.max(...rings.map((ring)=>ring.delta)),
+      maxNodeDelta:Math.max(...rings.map((ring)=>Math.abs((ring.nodeCenterY??Infinity)-anchorCenterY))),
+      labelsBelowAnchors:rings.every((ring)=>ring.labelTop===null||ring.labelTop>anchorCenterY),
       scrollWidth:document.documentElement.scrollWidth,
     };
   })()`);
 
   assert.ok(geometry, `${width}x${height}: DNS chain was not measurable.`);
   assert.equal(geometry.rings.length, 5, `${width}x${height}: expected five DNS node rings.`);
+  assert.ok(geometry.activeCount >= 2, `${width}x${height}: expected the recursive DNS state to include active rings.`);
   assert.notEqual(geometry.pseudo.content, 'none', `${width}x${height}: DNS connector pseudo-element is missing.`);
-  assert.ok(geometry.maxDelta <= 2, `${width}x${height}: DNS connector misses node centers by ${geometry.maxDelta.toFixed(2)}px.`);
+  assert.equal(geometry.pseudo.top, '0px', `${width}x${height}: connector must be pinned to both edges for intrinsic centering.`);
+  assert.equal(geometry.pseudo.bottom, '0px', `${width}x${height}: connector must be pinned to both edges for intrinsic centering.`);
+  assert.equal(geometry.pseudo.transform, 'none', `${width}x${height}: connector must not use a translateY compensation.`);
+  assert.ok(Math.abs(parseFloat(geometry.pseudo.height) - 1) <= 0.01, `${width}x${height}: expected a one-pixel connector.`);
+  assert.ok(geometry.maxNodeDelta <= 0.25, `${width}x${height}: DNS actor anchor rows drift by ${geometry.maxNodeDelta.toFixed(3)}px.`);
+  assert.ok(geometry.maxDelta <= 0.25, `${width}x${height}: DNS rings miss the scene anchor row by ${geometry.maxDelta.toFixed(3)}px.`);
+  assert.equal(geometry.labelsBelowAnchors, true, `${width}x${height}: DNS labels must not participate in anchor geometry.`);
   assert.ok(geometry.scrollWidth <= width + 1, `${width}x${height}: Journey horizontally overflows.`);
 
-  await screenshot(cdp, `journey-dns-${width}x${height}.png`);
+  await screenshot(cdp, `journey-dns-recursive-${width}x${height}.png`);
   return geometry;
 }
 

@@ -1,0 +1,57 @@
+/* Journey DNS connector geometry: the ring is the anchor. Labels are deliberately
+   removed from anchor layout so typography cannot move the connector. */
+
+.journey-visual-workspace .journey-cinematic-stage .dns-chain {
+  --journey-dns-node-size: 42px;
+  --journey-dns-label-gap: 13px;
+  align-items: center;
+}
+
+.journey-visual-workspace .journey-cinematic-stage .dns-chain::before {
+  top: 0;
+  bottom: 0;
+  height: 1px;
+  margin-block: auto;
+  transform: none;
+}
+
+.journey-visual-workspace .journey-cinematic-stage .dns-chain > div {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: var(--journey-dns-node-size);
+  place-items: center;
+  gap: 0;
+  transform: none;
+  transition: opacity 220ms ease;
+}
+
+.journey-visual-workspace .journey-cinematic-stage .dns-chain > div.active {
+  transform: none;
+}
+
+.journey-visual-workspace .journey-cinematic-stage .dns-chain i {
+  width: var(--journey-dns-node-size);
+  height: var(--journey-dns-node-size);
+  transform-origin: center;
+  transition: transform 220ms ease;
+}
+
+.journey-visual-workspace .journey-cinematic-stage .dns-chain > div.active i {
+  transform: scale(1.08);
+}
+
+.journey-visual-workspace .journey-cinematic-stage .dns-chain span {
+  position: absolute;
+  top: calc(100% + var(--journey-dns-label-gap));
+  left: 50%;
+  line-height: 1;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 680px) {
+  .journey-visual-workspace .journey-cinematic-stage .dns-chain {
+    --journey-dns-node-size: 23px;
+  }
+}

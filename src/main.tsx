@@ -15,6 +15,7 @@ import './VisualPlayback.css';
 import './FullUiPolish.css';
 import './FullUiPolishFixups.css';
 import './dns-geometry.css';
+import './JourneyDnsGeometry.css';
 
 type StressProfile = 'as-density' | 'builder-density' | 'physical-density';
 
