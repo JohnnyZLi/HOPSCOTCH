@@ -2,9 +2,17 @@
 
 **See the Internet happen.**
 
+[Live app](https://hopscotch.johnnyli.dev) · [Portfolio case study](https://johnnyli.dev/projects/hopscotch.html) · [Architecture](docs/ARCHITECTURE.md) · [Roadmap](docs/ROADMAP.md)
+
 HOPSCOTCH is an interactive network-systems laboratory for making invisible behavior visible—from individual packet bytes and transport recovery to enterprise routing, overlays, public Internet evidence, troubleshooting, CLI operations, deterministic explanations, and a complete application request moving through a canonical network.
 
 It is not a Packet Tracer clone. HOPSCOTCH treats **time, causality, abstraction, and provenance** as first-class parts of the model. Animation and explanation are projections of canonical state; neither creates network truth.
+
+If you are evaluating the project, three places show the core engineering idea quickly:
+
+1. **Builder + Time Machine** — configure a network, run traffic, inject failures, and inspect the same canonical routing, forwarding, policy, queue, transport, and application state over time.
+2. **Captured evidence** — import PCAP/PCAPNG locally and follow immutable frame → field → byte lineage, conversations, semantic events, bounded TCP reconstruction, and capture-vs-simulation counterfactuals without inventing missing evidence.
+3. **Validation** — `npm run check` plus production profiling enforce deterministic behavior, real-capture replay, browser/render compatibility, and versioned bundle/DOM/heap/semantic budgets.
 
 ## Product model
 
@@ -44,7 +52,6 @@ Implemented depth includes:
 - an `EXPLAIN` workspace that projects structured cause/effect facts and exact evidence references for network, route, OSPF, policy, packet, application, and event outcomes
 
 The Builder does not maintain separate hidden simulators for application traffic, overlays, troubleshooting, CLI, explanation, or presentation. Those surfaces consume the same canonical state and existing protocol/data-plane engines.
-
 
 At the product-shell level, one canonical workspace catalog now owns workspace identity, deep links, scale placement, lab/track labels, status copy, Explore grouping, and browser titles. Navigation surfaces consume that catalog rather than maintaining independent copies that can drift. Explore is keyboard-contained and restores focus when closed, and permanent visual corrections live in their owning stylesheets rather than late `*-audit.css` patches.
 
