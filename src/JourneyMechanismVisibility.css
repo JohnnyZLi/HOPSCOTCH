@@ -446,7 +446,7 @@ html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical)
   .journey-causal-world .device-router { left: 68%; }
   .journey-causal-world .device-next { left: 86%; }
   .journey-causal-world .phase5b-stage-nic-serialize .phase5b-data-unit { left: 17%; }
-  .journey-causal-world .phase5b-stage-link-transmit .phase5b-data-unit,
+  .journey-causal-world .phase5b-stage-link-transmit .phase5b-data-unit { left: 62%; }
   .journey-causal-world .phase5b-stage-switch-inspect .phase5b-data-unit { left: 40%; }
   .journey-causal-world .phase5b-stage-switch-forward .phase5b-data-unit { left: 56%; }
   .journey-causal-world .phase5b-stage-router-decapsulate .phase5b-data-unit,
@@ -454,6 +454,7 @@ html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical)
   .journey-causal-world .phase5b-stage-router-route .phase5b-data-unit,
   .journey-causal-world .phase5b-stage-router-reencapsulate .phase5b-data-unit { left: 68%; }
   .journey-causal-world .phase5b-stage-next-link .phase5b-data-unit { left: 84%; top: 35%; }
+  .journey-causal-world .phase5b-stage-next-link .phase5b-serialization { left: 54%; width: 13%; }
   .journey-causal-world .phase5b-mac-projection { left: 41%; width: 176px; height: 108px; top: 25%; }
   .journey-causal-world .phase5b-route-projection { left: 66%; width: 176px; height: 118px; top: 24%; }
   .journey-causal-world .phase5b-mac-projection::after { height: 46px; }
