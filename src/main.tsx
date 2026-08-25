@@ -19,6 +19,7 @@ import './JourneyDnsGeometry.css';
 import './JourneyDefaultLight.css';
 import './JourneyDefaultLightShell.css';
 import './JourneyDefaultLightAuditFixes.css';
+import './JourneyDefaultLightPhase5.css';
 
 type StressProfile = 'as-density' | 'builder-density' | 'physical-density';
 
