@@ -242,3 +242,226 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
   .journey-causal-world .causal-endpoint > b { width: 84px; height: 84px; }
   .journey-causal-world .causal-tcp-flight { min-width: 108px; height: 40px; }
 }
+
+/* --------------------------------------------------------------------------
+   Phase 5E audit corrections: keep the mechanism readable at its densest
+   moments and give narrow viewports their own camera rather than scaling the
+   desktop composition until it clips. These remain projection-only rules. */
+
+/* Quiet is not invisible. The controls and annotation layer keep enough
+   luminance to be discoverable without taking the hero away from the motion. */
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar {
+  opacity: .62;
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud {
+  opacity: .48;
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail {
+  opacity: .46;
+}
+html body .journey-visual-workspace:has(.journey-causal-world .phase5-packet-object) .visual-workspace__toolbar,
+html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical) .visual-workspace__toolbar {
+  opacity: .62 !important;
+}
+html body .journey-visual-workspace:has(.journey-causal-world .phase5-packet-object) .visual-workspace__hud,
+html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical) .visual-workspace__hud {
+  opacity: .48 !important;
+}
+.journey-causal-world .causal-annotation { opacity: .92; }
+.journey-causal-world .causal-annotation strong { color: #ddd8cf; }
+.journey-causal-world .causal-annotation small { color: #aaa49b; }
+.journey-causal-world .causal-authority small,
+.journey-causal-world .causal-route-choice small,
+.journey-causal-world .causal-client-hello > strong,
+.journey-causal-world .causal-tls-fields > div span { color: #9f9990; }
+
+/* The acquired name/address/route/session values were still painting on top of
+   the HTTP core. Once application data exists the geometry stays, but those
+   labels yield completely to the payload. */
+.journey-causal-world.causal-phase-http .causal-mechanism-node::before,
+.journey-causal-world.causal-phase-http .causal-mechanism-node::after,
+.journey-causal-world.causal-phase-response .causal-mechanism-node::before,
+.journey-causal-world.causal-phase-response .causal-mechanism-node::after,
+.journey-causal-world.causal-phase-complete .causal-mechanism-node::before,
+.journey-causal-world.causal-phase-complete .causal-mechanism-node::after,
+.journey-causal-world.causal-phase-packet .causal-mechanism-node::before,
+.journey-causal-world.causal-phase-packet .causal-mechanism-node::after {
+  opacity: 0 !important;
+}
+.journey-causal-world.causal-phase-http .causal-object,
+.journey-causal-world.causal-phase-response .causal-object {
+  width: min(32vw, 390px);
+  height: 202px;
+}
+.journey-causal-world.causal-phase-http .causal-object__payload,
+.journey-causal-world.causal-phase-response .causal-object__payload {
+  width: 148px;
+  height: 58px;
+  border-color: rgba(244,241,234,.26);
+  background: rgba(24,24,25,.96);
+}
+.journey-causal-world.causal-phase-http .causal-mechanism-core,
+.journey-causal-world.causal-phase-response .causal-mechanism-core {
+  width: 174px;
+  height: 76px;
+}
+.journey-causal-world.causal-phase-http .node-name,
+.journey-causal-world.causal-phase-http .node-address,
+.journey-causal-world.causal-phase-http .node-route,
+.journey-causal-world.causal-phase-http .node-session,
+.journey-causal-world.causal-phase-response .node-name,
+.journey-causal-world.causal-phase-response .node-address,
+.journey-causal-world.causal-phase-response .node-route,
+.journey-causal-world.causal-phase-response .node-session {
+  opacity: .28;
+}
+
+/* Completion should resolve the story rather than look like the renderer reset.
+   Keep the final protected object large, centered and visibly satisfied. */
+.journey-causal-world.causal-phase-complete .causal-camera {
+  transform: scale(1.02) translate3d(0, -1%, 0);
+}
+.journey-causal-world.causal-phase-complete .causal-object {
+  width: min(38vw, 440px);
+  height: 230px;
+  top: 48%;
+}
+.journey-causal-world.causal-phase-complete .causal-object::before {
+  width: 260px;
+  height: 154px;
+  border-color: rgba(128,164,143,.28);
+}
+.journey-causal-world.causal-phase-complete .causal-object::after {
+  width: 338px;
+  height: 202px;
+  border-color: rgba(128,164,143,.16);
+}
+.journey-causal-world.causal-phase-complete .causal-object__payload {
+  opacity: 1;
+  width: 164px;
+  height: 64px;
+  border-color: rgba(128,164,143,.42);
+  background: rgba(128,164,143,.055);
+}
+.journey-causal-world.causal-phase-complete .payload-clear strong { color: #a8c6b4; }
+.journey-causal-world.causal-phase-complete .causal-mechanism-core {
+  opacity: .74;
+  width: 196px;
+  height: 84px;
+  border-color: rgba(128,164,143,.3);
+}
+.journey-causal-world.causal-phase-complete .node-name,
+.journey-causal-world.causal-phase-complete .node-address,
+.journey-causal-world.causal-phase-complete .node-route,
+.journey-causal-world.causal-phase-complete .node-session { opacity: .2; }
+
+/* The continuity rail now communicates current state instead of permanently
+   highlighting its final label. Earlier milestones remain completed but quiet. */
+.journey-causal-world .causal-continuity span {
+  color: #77736d !important;
+  transition: color .35s ease, opacity .35s ease;
+}
+.journey-causal-world .causal-continuity i { background: rgba(244,241,234,.15); }
+.journey-causal-world.has-address .causal-continuity span:nth-of-type(1),
+.journey-causal-world.has-address .causal-continuity span:nth-of-type(2),
+.journey-causal-world.has-route .causal-continuity span:nth-of-type(3),
+.journey-causal-world.has-connection .causal-continuity span:nth-of-type(4),
+.journey-causal-world.has-connection .causal-continuity span:nth-of-type(5),
+.journey-causal-world.has-protection .causal-continuity span:nth-of-type(6) {
+  color: #a7a29a !important;
+}
+.journey-causal-world.causal-phase-intent .causal-continuity span:nth-of-type(1),
+.journey-causal-world.causal-phase-dns .causal-continuity span:nth-of-type(2),
+.journey-causal-world.causal-phase-route .causal-continuity span:nth-of-type(3),
+.journey-causal-world.causal-phase-path .causal-continuity span:nth-of-type(4),
+.journey-causal-world.causal-phase-tcp .causal-continuity span:nth-of-type(5),
+.journey-causal-world.causal-phase-tls .causal-continuity span:nth-of-type(6),
+.journey-causal-world.causal-phase-http .causal-continuity span:nth-of-type(6),
+.journey-causal-world.causal-phase-packet .causal-continuity span:nth-of-type(6),
+.journey-causal-world.causal-phase-response .causal-continuity span:nth-of-type(6),
+.journey-causal-world.causal-phase-complete .causal-continuity span:nth-of-type(6) {
+  color: #f0ede6 !important;
+}
+
+/* The connection stages were visually too small on wide displays. Bring the
+   camera closer while leaving the packet stages unchanged. */
+@media (min-width: 1100px) {
+  .journey-causal-world.causal-phase-tcp .causal-camera { transform: scale(1.07) translate3d(0, 0, 0); }
+  .journey-causal-world.causal-phase-tls .causal-camera { transform: scale(.98) translate3d(0, 0, 0); }
+}
+
+/* The CAM bank is the switch's internal lookup, so physically tether it to the
+   switch instead of letting it read as an unrelated floating panel. */
+.journey-causal-world .phase5b-mac-projection::after {
+  content: '';
+  position: absolute;
+  left: 62%;
+  top: calc(100% + 2px);
+  width: 1px;
+  height: 74px;
+  background: linear-gradient(rgba(244,241,234,.34), transparent);
+  transform: rotate(-14deg);
+  transform-origin: top center;
+}
+
+@media (max-width: 680px) {
+  /* Mobile chrome stays available, while the time rail stops becoming one of
+     the largest/highest-contrast objects in the composition. */
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar { opacity: .62; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud { opacity: .44; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail {
+    opacity: .4;
+    transform: translateY(7px) scaleY(.76);
+    transform-origin: center bottom;
+  }
+  html body .journey-visual-workspace:has(.journey-causal-world .phase5-packet-object) .visual-workspace__toolbar,
+  html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical) .visual-workspace__toolbar { opacity: .62 !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world .phase5-packet-object) .visual-workspace__hud,
+  html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical) .visual-workspace__hud { opacity: .44 !important; }
+
+  .journey-causal-world.causal-phase-http .causal-object,
+  .journey-causal-world.causal-phase-response .causal-object,
+  .journey-causal-world.causal-phase-complete .causal-object {
+    width: 88vw;
+    max-width: 344px;
+    height: 196px;
+  }
+  .journey-causal-world.causal-phase-complete .causal-camera { transform: scale(.93) translate3d(0, -2%, 0); }
+  .journey-causal-world.causal-phase-complete .causal-object::before { width: 220px; height: 128px; }
+  .journey-causal-world.causal-phase-complete .causal-object::after { width: 278px; height: 164px; }
+
+  /* Exploded packet layers and the physical topology need independent mobile
+     framing. This keeps semantic objects inside the stage rather than clipping
+     the left HTTP and right Ethernet edges. */
+  .journey-causal-world .phase5-stage-exploded .phase5c-camera {
+    transform: scale(.58) translate3d(0, -5%, 0) rotateX(3deg) rotateY(-4deg);
+  }
+  .journey-causal-world .phase5-stage-exploded .phase5c-protagonist {
+    width: 92vw;
+    transform: translate(-50%, -50%) rotateX(3deg) rotateY(-4deg) scale(.66);
+  }
+  .journey-causal-world .device-client { left: 16%; }
+  .journey-causal-world .device-switch { left: 40%; }
+  .journey-causal-world .device-router { left: 68%; }
+  .journey-causal-world .device-next { left: 86%; }
+  .journey-causal-world .phase5b-stage-nic-serialize .phase5b-data-unit { left: 17%; }
+  .journey-causal-world .phase5b-stage-link-transmit .phase5b-data-unit,
+  .journey-causal-world .phase5b-stage-switch-inspect .phase5b-data-unit { left: 40%; }
+  .journey-causal-world .phase5b-stage-switch-forward .phase5b-data-unit { left: 56%; }
+  .journey-causal-world .phase5b-stage-router-decapsulate .phase5b-data-unit,
+  .journey-causal-world .phase5b-stage-router-ttl .phase5b-data-unit,
+  .journey-causal-world .phase5b-stage-router-route .phase5b-data-unit,
+  .journey-causal-world .phase5b-stage-router-reencapsulate .phase5b-data-unit { left: 68%; }
+  .journey-causal-world .phase5b-stage-next-link .phase5b-data-unit { left: 84%; top: 35%; }
+  .journey-causal-world .phase5b-mac-projection { left: 41%; width: 176px; height: 108px; top: 25%; }
+  .journey-causal-world .phase5b-route-projection { left: 66%; width: 176px; height: 118px; top: 24%; }
+  .journey-causal-world .phase5b-mac-projection::after { height: 46px; }
+  .journey-causal-world .phase5c-route-fan { left: 46px; width: 122px; transform: scale(.72); }
+  .journey-causal-world .phase5c-route-lock { left: 48px; }
+
+  .journey-causal-world .causal-continuity {
+    right: 16px;
+    bottom: 78px;
+    opacity: .76;
+  }
+}
