@@ -45,16 +45,16 @@ export interface VisualPresentationSegment {
   tone: NonNullable<VisualTimelineEvent['tone']>;
 }
 
-// 1× is the human-readable presentation baseline. Scaling every presentation
-// segment by two makes the new 1× exactly match the previous 0.5× pace while
-// leaving canonical model time, displayed timestamps, and exact scrubbing intact.
-const PRESENTATION_READABILITY_SCALE = 2;
+// 1× is paced for visual comprehension: each semantic beat has enough wall-clock
+// time for the renderer to move and briefly settle, without stretching warning or
+// danger states into multi-second pauses. Canonical model time and scrubbing stay exact.
+const PRESENTATION_READABILITY_SCALE = 1;
 const PRESENTATION_DWELL_MS: Record<NonNullable<VisualTimelineEvent['tone']>, number> = {
-  neutral: 1400 * PRESENTATION_READABILITY_SCALE,
-  evidence: 1600 * PRESENTATION_READABILITY_SCALE,
-  success: 1700 * PRESENTATION_READABILITY_SCALE,
-  warning: 2100 * PRESENTATION_READABILITY_SCALE,
-  danger: 2800 * PRESENTATION_READABILITY_SCALE,
+  neutral: 820 * PRESENTATION_READABILITY_SCALE,
+  evidence: 880 * PRESENTATION_READABILITY_SCALE,
+  success: 900 * PRESENTATION_READABILITY_SCALE,
+  warning: 980 * PRESENTATION_READABILITY_SCALE,
+  danger: 1100 * PRESENTATION_READABILITY_SCALE,
 };
 
 const TONE_PRIORITY: Record<NonNullable<VisualTimelineEvent['tone']>, number> = {
@@ -65,7 +65,7 @@ const TONE_PRIORITY: Record<NonNullable<VisualTimelineEvent['tone']>, number> = 
   danger: 4,
 };
 
-const PRESENTATION_BASE_SLOWDOWN = 1.35 * PRESENTATION_READABILITY_SCALE;
+const PRESENTATION_BASE_SLOWDOWN = 1.2 * PRESENTATION_READABILITY_SCALE;
 
 function strongerTone(
   left: NonNullable<VisualTimelineEvent['tone']>,

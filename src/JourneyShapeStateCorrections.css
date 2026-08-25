@@ -1,0 +1,115 @@
+/* State-driven shape corrections. Journey state flags live on the scene root,
+   so these selectors intentionally combine classes on the same element. */
+
+.journey-causal-world.has-address .node-address,
+.journey-causal-world.has-route .node-route,
+.journey-causal-world.has-connection .node-session {
+  border-width: 1px !important;
+}
+
+.journey-causal-world.has-protection .node-protection {
+  width: 210px !important;
+  height: 92px !important;
+  border: 1px solid rgba(48,45,43,.34) !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: translate(-50%,-50%) rotateX(0) rotateZ(0) scale(1) !important;
+  clip-path: polygon(8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px);
+}
+.journey-causal-world.has-protection .node-protection::before,
+.journey-causal-world.has-protection .node-protection::after {
+  top: calc(100% + 8px) !important;
+}
+.journey-causal-world.has-protection .node-protection::after {
+  top: calc(100% + 20px) !important;
+}
+.journey-causal-world.is-request-ready .causal-mechanism-core {
+  transform: translate(-50%,-50%) rotateX(0) scale(1) !important;
+}
+
+/* By HTTP, earlier dependency sockets have done their job. The protected
+   request becomes the hero and already uses the same material vocabulary as
+   the application plate it will become in packet assembly. */
+.journey-causal-world.causal-phase-http .node-name,
+.journey-causal-world.causal-phase-http .node-address,
+.journey-causal-world.causal-phase-http .node-route,
+.journey-causal-world.causal-phase-http .node-session {
+  opacity: .08 !important;
+  transform: translate(-50%,-50%) scale(.72) !important;
+}
+.journey-causal-world.causal-phase-http .causal-mechanism-axis {
+  opacity: .1 !important;
+}
+.journey-causal-world.causal-phase-http .causal-object {
+  width: 300px !important;
+  height: 150px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.journey-causal-world.causal-phase-http .causal-object__payload {
+  left: 50% !important;
+  top: 50% !important;
+  width: 188px !important;
+  height: 82px !important;
+  padding: 13px 16px !important;
+  transform: translate(-50%,-50%) !important;
+  border: 1px solid rgba(48,45,43,.4) !important;
+  border-radius: 2px !important;
+  background: rgba(232,228,223,.94) !important;
+  box-shadow: none !important;
+}
+.journey-causal-world.causal-phase-http .payload-clear {
+  color: #302d2b !important;
+}
+.journey-causal-world.causal-phase-http .payload-clear small,
+.journey-causal-world.causal-phase-http .payload-clear strong,
+.journey-causal-world.causal-phase-http .payload-clear b {
+  color: #302d2b !important;
+}
+.journey-causal-world.causal-phase-http .payload-cipher {
+  background: transparent !important;
+}
+.journey-causal-world.causal-phase-http .payload-cipher i {
+  background: rgba(48,45,43,.28) !important;
+}
+.journey-causal-world.causal-phase-http .node-protection {
+  width: 236px !important;
+  height: 116px !important;
+  border-radius: 4px !important;
+  opacity: 1 !important;
+}
+.journey-causal-world.causal-phase-http .causal-mechanism-core {
+  width: 206px !important;
+  height: 96px !important;
+  opacity: .3 !important;
+  background: transparent !important;
+  border-color: rgba(48,45,43,.18) !important;
+}
+
+/* Once packet choreography has taken ownership, the scaffold is a drafting
+   guide only; it should never compete with the assembled packet. */
+.journey-causal-world.is-packet-world .node-protection {
+  border-radius: 4px !important;
+}
+
+@media (max-width: 680px) {
+  .journey-causal-world.has-protection .node-protection {
+    width: 150px !important;
+    height: 68px !important;
+  }
+  .journey-causal-world.causal-phase-http .causal-object {
+    width: 224px !important;
+    height: 124px !important;
+  }
+  .journey-causal-world.causal-phase-http .causal-object__payload {
+    width: 150px !important;
+    height: 68px !important;
+    padding: 10px 12px !important;
+  }
+  .journey-causal-world.causal-phase-http .node-protection {
+    width: 184px !important;
+    height: 94px !important;
+  }
+}

@@ -1,0 +1,83 @@
+/* Keyframed motion that cannot be normalized by transition tokens alone. */
+
+.journey-causal-world .causal-world-thread { transition: opacity var(--journey-motion-standard) ease !important; }
+.journey-causal-world .causal-dns-world,
+.journey-causal-world .causal-route-world,
+.journey-causal-world .causal-tcp-world,
+.journey-causal-world .causal-tls-world,
+.journey-causal-world .causal-http-flight,
+.journey-causal-world .causal-response-flight {
+  transition: opacity var(--journey-motion-standard) ease, transform var(--journey-motion-spatial) var(--journey-ease-move) !important;
+}
+
+/* Opening: enter once, without the old overshoot. */
+.journey-causal-world.causal-phase-intent .causal-object {
+  animation: causal-object-enter var(--journey-motion-hero) var(--journey-ease-enter) both !important;
+}
+@keyframes causal-object-enter {
+  0% { opacity: 0; transform: translate(-50%,-45%) scale(.9); }
+  100% { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+}
+
+/* DNS actions complete inside one presentation beat. */
+.journey-causal-world .causal-cache__lid,
+.journey-causal-world .causal-cache__tray {
+  transition: transform var(--journey-motion-spatial) var(--journey-ease-move), opacity var(--journey-motion-micro) ease !important;
+}
+.journey-causal-world .causal-cache__record {
+  transition: opacity var(--journey-motion-micro) ease, transform var(--journey-motion-standard) var(--journey-ease-enter) !important;
+}
+.journey-causal-world .dns-thread-progress,
+.journey-causal-world .route-selected,
+.journey-causal-world .causal-tls-leaders path {
+  transition-duration: var(--journey-motion-spatial) !important;
+  transition-timing-function: var(--journey-ease-move) !important;
+}
+.journey-causal-world .query-dns-recursive { animation: dns-query-recursive 620ms var(--journey-ease-move) both !important; }
+.journey-causal-world .query-dns-root { animation: dns-query-root 620ms var(--journey-ease-move) both !important; }
+.journey-causal-world .query-dns-tld { animation: dns-query-tld 620ms var(--journey-ease-move) both !important; }
+.journey-causal-world.causal-event-dns-answer .causal-dns-answer { animation: dns-answer-return 680ms var(--journey-ease-move) both !important; }
+.journey-causal-world.causal-event-dns-store .causal-dns-answer { animation: dns-answer-store 520ms var(--journey-ease-move) both !important; }
+.journey-causal-world .causal-dns-world.is-hit .causal-dns-answer { animation: dns-answer-hit 520ms var(--journey-ease-move) both !important; }
+
+/* Transport flights use one straight, readable travel grammar. */
+.journey-causal-world .causal-endpoint.is-awake > b { animation: endpoint-react 520ms var(--journey-ease-settle) both !important; }
+.journey-causal-world .flight-syn,
+.journey-causal-world .flight-ack,
+.journey-causal-world .flight-initial { animation: tcp-flight-forward 700ms var(--journey-ease-move) both !important; }
+.journey-causal-world .flight-synack,
+.journey-causal-world .flight-server-initial { animation: tcp-flight-reverse 700ms var(--journey-ease-move) both !important; }
+@keyframes tcp-flight-forward {
+  0% { left: 18%; top: 50%; opacity: .12; transform: translate(-50%,-50%) scale(.9); }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { left: 82%; top: 50%; opacity: .72; transform: translate(-50%,-50%) scale(1); }
+}
+@keyframes tcp-flight-reverse {
+  0% { left: 82%; top: 50%; opacity: .12; transform: translate(-50%,-50%) scale(.9); }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { left: 18%; top: 50%; opacity: .72; transform: translate(-50%,-50%) scale(1); }
+}
+
+/* HTTP and response flights no longer take almost two presentation beats. */
+.journey-causal-world .causal-http-flight > b { animation: http-flow 720ms linear both !important; }
+.journey-causal-world .causal-response-flight > b { animation: response-return 720ms linear both !important; }
+
+/* Handoff should feel like one physical transfer, not a soft scene fade. */
+.journey-causal-world .causal-phase5-layer { animation: causal-phase5-enter var(--journey-motion-standard) var(--journey-ease-enter) both !important; }
+@keyframes causal-phase5-enter {
+  from { opacity: 0; transform: scale(1.025); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .journey-causal-world *,
+  .journey-causal-world *::before,
+  .journey-causal-world *::after {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+    animation-delay: 0s !important;
+    transition-delay: 0s !important;
+  }
+}
