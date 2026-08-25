@@ -13,6 +13,10 @@ const dnsSource = readFileSync(new URL('../src/DnsTheater.tsx', import.meta.url)
 const tlsSource = readFileSync(new URL('../src/TlsTheater.tsx', import.meta.url), 'utf8');
 const httpSource = readFileSync(new URL('../src/HttpComparisonTheater.tsx', import.meta.url), 'utf8');
 const protocolCss = readFileSync(new URL('../src/protocol-workspaces.css', import.meta.url), 'utf8');
+const editorialCss = readFileSync(new URL('../src/SiteEditorialLight.css', import.meta.url), 'utf8');
+const editorialAuditCss = readFileSync(new URL('../src/SiteEditorialWorkspaceAudit.css', import.meta.url), 'utf8');
+const entry = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
+const internetScale = readFileSync(new URL('../src/InternetScaleTheater.tsx', import.meta.url), 'utf8');
 
 // Keep the selected scale explanation structurally attached to the rail; production review covers all five rows.
 assert.ok(
@@ -129,4 +133,42 @@ assert.ok(
   'TLS and HTTP scene planes must own explicit full-stage and mobile geometry',
 );
 
-console.log('UI stability contract passed: overview scale motion and all visual workspace overlays preserve geometry, focus, reduced motion, and Time Rail stability.');
+// The Journey editorial surface is now the default product language. Keep the
+// paper/ink/coral system centralized and make dark surfaces explicit tools.
+for (const token of [
+  '--site-paper: #d9d4cf',
+  '--site-ink: #292827',
+  '--site-coral: #d84f49',
+  '--site-instrument: #302e2c',
+  'html body .app-shell',
+  'html body .explore-panel',
+  'html body .builder-stage',
+  'html body .measured-workspace',
+  'html body .capture-replay',
+]) assert.ok(editorialCss.includes(token), `Missing site editorial-light contract: ${token}`);
+
+for (const token of [
+  '.packet-visual-workspace .packet-stage',
+  '.capture-replay .capture-evidence-inspector.is-frame-stage',
+  '.observed-internet .evidence-card',
+  '.internet-scale .as-winner-readout',
+]) assert.ok(editorialAuditCss.includes(token), `Missing browser-audited editorial workspace correction: ${token}`);
+
+assert.ok(
+  entry.includes("./SiteEditorialLight.css") && entry.includes("./SiteEditorialWorkspaceAudit.css"),
+  'site editorial styles must be part of the application entry surface',
+);
+assert.ok(
+  entry.indexOf("./SiteEditorialWorkspaceAudit.css") > entry.indexOf("./SiteEditorialLight.css"),
+  'workspace audit corrections must load after the base editorial system',
+);
+assert.ok(
+  internetScale.includes("ctx.fillStyle = '#d9d4cf'") && internetScale.includes("ctx.fillStyle = '#d84f49'"),
+  'AS routing must draw on paper with the shared coral active path rather than a dark neon canvas',
+);
+assert.ok(
+  !internetScale.includes("ctx.fillStyle = '#070b10'") && !internetScale.includes("ctx.shadowColor = '#79f2da'"),
+  'AS routing must not regress to the old black/glowing canvas treatment',
+);
+
+console.log('UI stability contract passed: overview scale motion, editorial product surfaces, and all visual workspace overlays preserve geometry, focus, reduced motion, and Time Rail stability.');
