@@ -406,12 +406,13 @@ html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical)
 
 @media (max-width: 680px) {
   /* Mobile chrome stays available, while the time rail stops becoming one of
-     the largest/highest-contrast objects in the composition. */
+     the largest/highest-contrast objects in the composition. Keep the rail's
+     physical size untouched so every event retains its accessible hit target. */
   html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar { opacity: .62; }
   html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud { opacity: .44; }
   html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail {
     opacity: .4;
-    transform: translateY(7px) scaleY(.76);
+    transform: translateY(7px);
     transform-origin: center bottom;
   }
   html body .journey-visual-workspace:has(.journey-causal-world .phase5-packet-object) .visual-workspace__toolbar,
