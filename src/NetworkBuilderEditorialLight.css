@@ -1,1 +1,99 @@
 .builder-workspace{color:var(--site-ink)}.builder-heading h1{color:var(--site-ink-strong)!important}.builder-heading h1 span{color:transparent!important;-webkit-text-stroke:1px rgba(41,40,39,.68)!important;text-shadow:none!important}.builder-stage{border-color:var(--site-rule)!important;background:radial-gradient(circle at 50% 45%,rgba(255,255,255,.2),transparent 34%),linear-gradient(150deg,#ded9d4,#d5cfc9 72%)!important;box-shadow:0 24px 68px rgba(55,49,44,.065)!important}.builder-stage-meta{border-color:var(--site-rule-soft)!important;background:rgba(228,224,219,.48)!important}.builder-stage-meta span,.control-title span,.builder-route>span{color:var(--site-ink-faint)!important}.builder-stage-meta strong{color:var(--site-ink)!important}.builder-canvas{background-image:linear-gradient(rgba(41,40,39,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(41,40,39,.045) 1px,transparent 1px)!important}.builder-canvas::after{color:rgba(41,40,39,.38)!important}.builder-link line{stroke:rgba(41,40,39,.3)!important;filter:none!important}.builder-link text{fill:#6b655f!important;stroke:rgba(217,212,207,.94)!important}.builder-link.active line:not(.hit),.builder-link.active.l3-forwarding line:not(.hit){stroke:var(--site-coral)!important;filter:none!important}.builder-link.active text{fill:#8f3632!important}.builder-link.l3-forwarding line:not(.hit){stroke:var(--site-blue)!important;filter:none!important}.builder-node{border-color:rgba(41,40,39,.3)!important;color:var(--site-ink)!important;background:rgba(232,228,223,.78)!important;box-shadow:0 10px 24px rgba(55,49,44,.07)!important}.builder-node span{color:var(--site-ink-faint)!important}.builder-node strong{color:var(--site-ink-strong)!important}.builder-node.on-route{border-color:var(--site-coral)!important;box-shadow:0 0 0 2px rgba(216,79,73,.08)!important}.builder-node.selected{outline-color:rgba(41,40,39,.52)!important}.builder-node>button{border-color:var(--site-rule)!important;color:var(--site-ink-soft)!important;background:var(--site-paper-raised)!important}.builder-route,.builder-forwarding,.builder-ospf-summary,.builder-message{border-color:var(--site-rule-soft)!important;background:rgba(228,224,219,.38)!important}.builder-route strong,.builder-forwarding>strong,.builder-ospf-summary>strong{color:var(--site-ink)!important}.builder-route p,.builder-forwarding>p,.builder-message,.builder-routing-note,.builder-l3-note{color:var(--site-ink-soft)!important}.builder-controls section,.builder-interface-list>div,.builder-route-table>div,.builder-ospf-facts>div,.builder-ospf-neighbors>div,.builder-forwarding-hops>span{border-color:var(--site-rule-soft)!important;background:rgba(228,224,219,.48)!important;box-shadow:none!important}.control-title strong,.builder-interface-list strong,.builder-route-table strong,.builder-ospf-neighbors strong{color:var(--site-ink)!important}.builder-controls label,.builder-interface-list small,.builder-route-table small,.builder-ospf-neighbors small{color:var(--site-ink-soft)!important}.builder-controls input,.builder-controls select,.builder-controls textarea{border-color:var(--site-rule)!important;color:var(--site-ink)!important;background:rgba(238,235,231,.7)!important;box-shadow:none!important}.builder-controls input:focus,.builder-controls select:focus,.builder-controls textarea:focus{border-color:rgba(216,79,73,.62)!important}.builder-controls button,.file-button,.builder-heading-actions button{border-color:var(--site-rule-soft)!important;color:var(--site-ink-soft)!important;background:rgba(228,224,219,.58)!important;box-shadow:none!important}.builder-controls button:hover,.file-button:hover,.builder-heading-actions button:hover{border-color:rgba(41,40,39,.3)!important;color:var(--site-ink-strong)!important;background:rgba(238,235,231,.75)!important}.builder-time-machine,.builder-cli-terminal,.builder-cli-shell,.builder-terminal{border-color:rgba(41,40,39,.12)!important;color:#e9e3dc!important;background:var(--site-instrument)!important;box-shadow:0 16px 38px rgba(55,49,44,.12)!important}
+
+/* Phase 3 graph workspace: controls are drafting tools on paper, not a second
+   dark HUD. CLI/Time Machine remain intentional charcoal instruments. */
+.builder-workspace.builder-visual-workspace{
+  border-color:rgba(41,40,39,.28)!important;
+  background:var(--site-paper)!important;
+  box-shadow:0 22px 64px rgba(55,49,44,.08)!important;
+}
+.builder-world-toolbar .visual-identity,
+.builder-world-tools button,
+.builder-scene-switcher button,
+.builder-context-drawer__tabs button,
+.builder-world-toolbar .lab-mode{
+  border-color:rgba(41,40,39,.14)!important;
+  color:var(--site-ink-soft)!important;
+  background:rgba(232,228,223,.76)!important;
+  box-shadow:none!important;
+  backdrop-filter:blur(10px)!important;
+}
+.builder-world-toolbar .visual-identity>span{color:var(--site-ink-faint)!important}
+.builder-world-toolbar .visual-identity>strong{color:var(--site-ink)!important}
+.builder-world-toolbar .visual-identity>i{background:var(--site-coral)!important;box-shadow:none!important}
+.builder-world-tools button:hover,
+.builder-world-tools button.active,
+.builder-scene-switcher button:hover,
+.builder-scene-switcher button.active,
+.builder-context-drawer__tabs button:hover,
+.builder-context-drawer__tabs button.active,
+.builder-world-toolbar .lab-mode:hover{
+  border-color:rgba(216,79,73,.42)!important;
+  color:var(--site-ink-strong)!important;
+  background:rgba(216,79,73,.075)!important;
+}
+.builder-visual-workspace .builder-stage-meta>div{
+  border-color:rgba(41,40,39,.11)!important;
+  color:var(--site-ink)!important;
+  background:rgba(228,224,219,.62)!important;
+  box-shadow:none!important;
+}
+.builder-visual-workspace .builder-stage-meta>div span{color:var(--site-ink-faint)!important}
+.builder-visual-workspace .builder-stage-meta>div strong{color:var(--site-ink)!important}
+.builder-selection-card{
+  border-color:rgba(41,40,39,.14)!important;
+  background:rgba(238,235,231,.88)!important;
+  box-shadow:0 14px 34px rgba(55,49,44,.08)!important;
+  backdrop-filter:blur(12px)!important;
+}
+.builder-selection-card>span{color:var(--site-ink-faint)!important}
+.builder-selection-card>strong{color:var(--site-ink-strong)!important}
+.builder-selection-card>p{color:var(--site-ink-soft)!important}
+.builder-selection-card button{
+  border-color:rgba(216,79,73,.2)!important;
+  color:#8f3f3a!important;
+  background:rgba(216,79,73,.035)!important;
+}
+.builder-selection-card button:hover{
+  border-color:rgba(216,79,73,.44)!important;
+  background:rgba(216,79,73,.08)!important;
+}
+.builder-visual-workspace[data-scene-panel='path'] .builder-route,
+.builder-visual-workspace[data-scene-panel='path'] .builder-ospf-summary,
+.builder-visual-workspace[data-scene-panel='forwarding'] .builder-forwarding,
+.builder-visual-workspace[data-scene-panel='forwarding'] .builder-policy-panel,
+.builder-visual-workspace[data-scene-panel='probe'] .builder-probe-panel,
+.builder-visual-workspace[data-scene-panel='application'] .builder-application-surfaces,
+.builder-visual-workspace[data-scene-panel='lan'] .builder-ethernet-stage{
+  border-color:rgba(41,40,39,.15)!important;
+  color:var(--site-ink)!important;
+  background-color:rgba(235,232,228,.94)!important;
+  box-shadow:0 20px 54px rgba(55,49,44,.1)!important;
+}
+.builder-visual-workspace .builder-message{
+  border-color:rgba(41,40,39,.1)!important;
+  color:var(--site-ink-soft)!important;
+  background:rgba(232,228,223,.82)!important;
+  backdrop-filter:blur(10px)!important;
+}
+.builder-context-drawer{
+  border-color:rgba(41,40,39,.2)!important;
+  color:var(--site-ink)!important;
+  background:rgba(232,228,223,.985)!important;
+  box-shadow:-22px 0 60px rgba(55,49,44,.13)!important;
+}
+.builder-context-drawer__header,
+.builder-context-drawer__tabs{
+  border-color:rgba(41,40,39,.1)!important;
+  background:rgba(232,228,223,.97)!important;
+}
+.builder-context-drawer__header span{color:var(--site-ink-faint)!important}
+.builder-context-drawer__header strong{color:var(--site-ink-strong)!important}
+
+@media(max-width:760px){
+  .builder-world-toolbar{gap:6px!important}
+  .builder-world-tools button,
+  .builder-scene-switcher button,
+  .builder-world-toolbar .lab-mode{background:rgba(232,228,223,.9)!important}
+  .builder-selection-card{background:rgba(238,235,231,.96)!important}
+}
