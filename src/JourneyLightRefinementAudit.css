@@ -104,8 +104,8 @@
   }
 
   /* Replace the 2x2 metadata-card wall with one quiet technical readout strip.
-     Values are deliberately allowed to wrap so the mobile semantic audit keeps
-     its no-forced-nowrap contract. */
+     Keep the provenance/category captions visibly present as tiny drafting
+     labels so the epistemic boundary remains legible and semantic. */
   html body .journey-visual-workspace .visual-workspace__hud {
     top: 54px;
     right: 12px;
@@ -115,13 +115,15 @@
     align-items: start;
     gap: 8px;
     overflow: visible;
-    opacity: .34 !important;
+    opacity: .38 !important;
     transform: none !important;
   }
   html body .journey-visual-workspace .visual-workspace__hud > div,
   html body .journey-visual-workspace .visual-hud-chip {
+    display: grid !important;
     min-width: 0;
-    min-height: 22px;
+    min-height: 26px;
+    gap: 1px;
     padding: 0 !important;
     border: 0 !important;
     border-radius: 0 !important;
@@ -131,14 +133,19 @@
   }
   html body .journey-visual-workspace .visual-workspace__hud span,
   html body .journey-visual-workspace .visual-hud-chip span {
-    display: none;
+    display: block !important;
+    color: #7a746e !important;
+    font-size: .29rem;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: .08em;
   }
   html body .journey-visual-workspace .visual-workspace__hud strong,
   html body .journey-visual-workspace .visual-hud-chip strong {
     color: #49443f !important;
-    font-size: .47rem;
-    line-height: 1.2;
-    letter-spacing: .025em;
+    font-size: .46rem;
+    line-height: 1.15;
+    letter-spacing: .02em;
     white-space: normal !important;
     overflow-wrap: anywhere;
   }
