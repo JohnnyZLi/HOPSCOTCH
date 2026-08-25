@@ -1,0 +1,417 @@
+/* Journey motion + shape system.
+   This file is intentionally last in the global CSS stack. It normalizes the
+   renderer around a small motion vocabulary and replaces the remaining
+   ornamental shapes with network-mechanism primitives. Canonical Journey state
+   and event ordering remain authoritative. */
+
+:root {
+  --journey-motion-micro: 220ms;
+  --journey-motion-standard: 460ms;
+  --journey-motion-spatial: 640ms;
+  --journey-motion-hero: 760ms;
+  --journey-ease-enter: cubic-bezier(.22,.78,.26,1);
+  --journey-ease-move: cubic-bezier(.42,0,.22,1);
+  --journey-ease-settle: cubic-bezier(.2,.72,.22,1);
+  --journey-paper: #ded9d2;
+  --journey-paper-raised: #e8e4df;
+  --journey-draft: #302d2b;
+  --journey-draft-mid: rgba(48,45,43,.52);
+  --journey-draft-soft: rgba(48,45,43,.23);
+  --journey-coral: #d84f49;
+}
+
+/* ---------- One motion grammar ---------- */
+.journey-causal-world {
+  --causal-ease: var(--journey-ease-move);
+  --causal-snap: var(--journey-ease-enter);
+}
+.journey-causal-world .causal-camera {
+  transition: transform var(--journey-motion-spatial) var(--journey-ease-move), opacity var(--journey-motion-standard) ease, filter var(--journey-motion-standard) ease !important;
+}
+.journey-causal-world .causal-object {
+  transition:
+    left var(--journey-motion-spatial) var(--journey-ease-move),
+    top var(--journey-motion-spatial) var(--journey-ease-move),
+    width var(--journey-motion-spatial) var(--journey-ease-move),
+    height var(--journey-motion-spatial) var(--journey-ease-move),
+    transform var(--journey-motion-spatial) var(--journey-ease-move),
+    border-radius var(--journey-motion-standard) var(--journey-ease-settle),
+    opacity var(--journey-motion-micro) ease !important;
+}
+.journey-causal-world .causal-object::before,
+.journey-causal-world .causal-object::after,
+.journey-causal-world .causal-mechanism-axis,
+.journey-causal-world .causal-mechanism-node,
+.journey-causal-world .causal-mechanism-core,
+.journey-causal-world .causal-handoff-rail {
+  transition-duration: var(--journey-motion-spatial), var(--journey-motion-spatial), var(--journey-motion-spatial), var(--journey-motion-spatial), var(--journey-motion-micro), var(--journey-motion-spatial), var(--journey-motion-standard) !important;
+  transition-timing-function: var(--journey-ease-move) !important;
+}
+.journey-causal-world .causal-authority,
+.journey-causal-world .causal-authority::before,
+.journey-causal-world .causal-authority::after,
+.journey-causal-world .causal-dns-query,
+.journey-causal-world .causal-dns-answer,
+.journey-causal-world .causal-route-candidate,
+.journey-causal-world .causal-route-target,
+.journey-causal-world .causal-route-bits i,
+.journey-causal-world .causal-endpoint,
+.journey-causal-world .causal-tcp-flight,
+.journey-causal-world .causal-tls-fields > div,
+.journey-causal-world .causal-client-hello,
+.journey-causal-world .causal-tls-server,
+.journey-causal-world .causal-key-boundary,
+.journey-causal-world .causal-http-flight,
+.journey-causal-world .causal-response-flight {
+  transition-duration: var(--journey-motion-standard) !important;
+  transition-timing-function: var(--journey-ease-settle) !important;
+}
+
+/* Remove springy/rotating ornament from semantic mechanisms. Network objects
+   should close, slide, dock, and lock—not bounce. */
+.journey-causal-world .causal-authority.is-reached { transform: scale(1.02) !important; }
+.journey-causal-world .causal-authority.is-reached::after { transform: translate(-50%,-50%) scale(1) !important; }
+.phase5-stage-security .phase5c-security .orbit-a,
+.phase5-stage-security .phase5c-security .orbit-b { animation: none !important; }
+
+/* ---------- Persistent causal mechanism ---------- */
+.journey-causal-world .causal-mechanism-node {
+  background: rgba(232,228,223,.2) !important;
+  box-shadow: none !important;
+  border-color: rgba(48,45,43,.38) !important;
+}
+/* Crosshair ticks turn circles into ports/sockets rather than decorative bubbles. */
+.journey-causal-world .causal-mechanism-node:not(.node-protection) {
+  background:
+    linear-gradient(var(--journey-draft-soft),var(--journey-draft-soft)) center 5px/1px 7px no-repeat,
+    linear-gradient(var(--journey-draft-soft),var(--journey-draft-soft)) center calc(100% - 5px)/1px 7px no-repeat,
+    linear-gradient(90deg,var(--journey-draft-soft),var(--journey-draft-soft)) 5px center/7px 1px no-repeat,
+    linear-gradient(90deg,var(--journey-draft-soft),var(--journey-draft-soft)) calc(100% - 5px) center/7px 1px no-repeat,
+    rgba(232,228,223,.16) !important;
+}
+.journey-causal-world .causal-mechanism-node.node-name,
+.journey-causal-world .has-address .node-address,
+.journey-causal-world .has-route .node-route,
+.journey-causal-world .has-connection .node-session { border-width: 1px !important; }
+
+/* TLS protection is a sleeve around payload, not an elliptical UFO. */
+.journey-causal-world .has-protection .node-protection {
+  width: 210px !important;
+  height: 92px !important;
+  border-radius: 10px !important;
+  border-color: rgba(48,45,43,.34) !important;
+  background: transparent !important;
+  transform: translate(-50%,-50%) rotateX(0) rotateZ(0) scale(1) !important;
+  clip-path: polygon(8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px);
+}
+.journey-causal-world .has-protection .node-protection::before,
+.journey-causal-world .has-protection .node-protection::after { top: calc(100% + 8px) !important; }
+.journey-causal-world .has-protection .node-protection::after { top: calc(100% + 20px) !important; }
+.journey-causal-world .causal-mechanism-core {
+  border-radius: 4px !important;
+  background: rgba(232,228,223,.28) !important;
+  transform: translate(-50%,-50%) rotateX(0) scale(.55) !important;
+}
+.journey-causal-world .is-request-ready .causal-mechanism-core { transform: translate(-50%,-50%) rotateX(0) scale(1) !important; }
+
+/* ---------- DNS: namespace tokens + authority sockets ---------- */
+.journey-causal-world .causal-dns-query small,
+.journey-causal-world .causal-dns-query span,
+.journey-causal-world .causal-dns-query b {
+  min-width: 30px !important;
+  height: 24px !important;
+  padding: 0 7px !important;
+  border-radius: 2px !important;
+  border-color: rgba(48,45,43,.28) !important;
+  background: rgba(232,228,223,.72) !important;
+  color: #403b37 !important;
+  box-shadow: none !important;
+}
+.journey-causal-world .causal-dns-query .namespace-focus {
+  color: #9d3834 !important;
+  border-color: rgba(216,79,73,.62) !important;
+  background: rgba(216,79,73,.05) !important;
+}
+.journey-causal-world .causal-authority::before {
+  width: 58px !important;
+  height: 58px !important;
+  border-color: rgba(48,45,43,.3) !important;
+  background: transparent !important;
+}
+.journey-causal-world .causal-authority::after {
+  width: 72px !important;
+  height: 72px !important;
+  border-style: solid !important;
+  border-color: rgba(48,45,43,.1) !important;
+}
+.journey-causal-world .causal-authority.is-reached::before { border-color: rgba(216,79,73,.72) !important; }
+
+/* ---------- Routing: rails, not cards ---------- */
+.journey-causal-world .causal-route-target,
+.journey-causal-world .causal-route-candidate {
+  border-radius: 2px !important;
+  box-shadow: none !important;
+}
+.journey-causal-world .causal-route-candidate {
+  background: rgba(232,228,223,.3) !important;
+  border-color: rgba(48,45,43,.25) !important;
+}
+.journey-causal-world .causal-route-candidate.is-selected {
+  border-color: rgba(216,79,73,.72) !important;
+  background: rgba(216,79,73,.045) !important;
+}
+.journey-causal-world .causal-route-bits i {
+  border-radius: 0 !important;
+  background: rgba(48,45,43,.22) !important;
+}
+
+/* ---------- TCP/QUIC: endpoint sockets + framed transmission unit ---------- */
+.journey-causal-world .causal-endpoint > i,
+.journey-causal-world .causal-endpoint > b {
+  box-shadow: none !important;
+  background: transparent !important;
+}
+.journey-causal-world .causal-endpoint > b { border-style: solid !important; opacity: .38; }
+.journey-causal-world .causal-tcp-flight {
+  min-width: 104px !important;
+  height: 34px !important;
+  padding: 0 14px !important;
+  border-radius: 2px !important;
+  clip-path: polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,0 100%) !important;
+  border-color: rgba(48,45,43,.42) !important;
+  background: rgba(232,228,223,.88) !important;
+  color: #302d2b !important;
+}
+.journey-causal-world .causal-tcp-flight::after {
+  content: '';
+  position: absolute;
+  right: 7px;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  background: var(--journey-coral);
+}
+
+/* ---------- TLS: drafting annotations, no mini-card constellation ---------- */
+.journey-causal-world .causal-tls-fields > div,
+.journey-causal-world .causal-client-hello,
+.journey-causal-world .causal-tls-server {
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.journey-causal-world .causal-tls-fields > div {
+  border-width: 1px 0 0 !important;
+  border-color: rgba(48,45,43,.3) !important;
+}
+.journey-causal-world .causal-tls-fields > div.is-selected { border-color: rgba(216,79,73,.72) !important; }
+
+/* ---------- Encapsulation: nested drafting planes ---------- */
+.phase5-packet-object .phase5c-camera,
+.phase5b-physical .phase5b-camera {
+  transition: transform var(--journey-motion-hero) var(--journey-ease-move) !important;
+}
+.phase5-packet-object .phase5c-protagonist {
+  transition: transform var(--journey-motion-hero) var(--journey-ease-move), width var(--journey-motion-hero) var(--journey-ease-move), height var(--journey-motion-hero) var(--journey-ease-move) !important;
+}
+.phase5-packet-object .phase5c-layer {
+  transition: transform var(--journey-motion-hero) var(--journey-ease-enter), opacity var(--journey-motion-micro) ease, filter var(--journey-motion-standard) ease !important;
+}
+.phase5-stage-application .phase5c-application {
+  animation: phase5c-app-enter var(--journey-motion-hero) var(--journey-ease-enter) both !important;
+}
+@keyframes phase5c-app-enter {
+  0% { opacity: 0; transform: translate3d(-50%,-18%,190px) rotateX(12deg) scale(.82); }
+  100% { opacity: 1; transform: translate3d(-50%,-50%,190px) rotateX(0) scale(1); }
+}
+.phase5-packet-object .phase5c-application {
+  width: 224px !important;
+  height: 104px !important;
+  border-radius: 0 !important;
+  clip-path: polygon(7px 0,calc(100% - 7px) 0,100% 7px,100% calc(100% - 7px),calc(100% - 7px) 100%,7px 100%,0 calc(100% - 7px),0 7px) !important;
+  box-shadow: none !important;
+}
+.phase5-packet-object .phase5c-security {
+  width: 318px !important;
+  height: 166px !important;
+  border-radius: 3px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  clip-path: polygon(9px 0,calc(100% - 9px) 0,100% 9px,100% calc(100% - 9px),calc(100% - 9px) 100%,9px 100%,0 calc(100% - 9px),0 9px) !important;
+}
+.phase5-packet-object .phase5c-security-orbit {
+  inset: 13px !important;
+  border-radius: 1px !important;
+  border-style: solid !important;
+}
+.phase5-packet-object .phase5c-security-orbit.orbit-b { inset: 28px !important; opacity: .25 !important; }
+.phase5-packet-object .phase5c-transport {
+  width: 416px !important;
+  height: 210px !important;
+  border: 1px solid rgba(48,45,43,.42) !important;
+  border-top: 3px solid rgba(48,45,43,.64) !important;
+  clip-path: none !important;
+  background: rgba(232,228,223,.08) !important;
+}
+.phase5-packet-object .phase5c-network-wing {
+  width: 50.15% !important;
+  border-color: rgba(48,45,43,.42) !important;
+  background: rgba(232,228,223,.05) !important;
+  clip-path: none !important;
+  transition: transform var(--journey-motion-hero) var(--journey-ease-move), opacity var(--journey-motion-micro) ease !important;
+}
+.phase5-packet-object .phase5c-network-wing.wing-left { transform: translateX(-330px) rotateY(24deg) !important; }
+.phase5-packet-object .phase5c-network-wing.wing-right { transform: translateX(330px) rotateY(-24deg) !important; }
+.phase5-stage-network .phase5c-network-wing,
+.phase5-stage-link .phase5c-network-wing,
+.phase5-stage-collapsed .phase5c-network-wing,
+.phase5-stage-exploded .phase5c-network-wing { transform: translateX(0) rotateY(0) !important; }
+.phase5-packet-object .phase5c-ether-clamp,
+.phase5-packet-object .phase5c-ether-rails {
+  transition: transform var(--journey-motion-hero) var(--journey-ease-move), opacity var(--journey-motion-micro) ease !important;
+  box-shadow: none !important;
+}
+.phase5-packet-object .phase5c-ether-clamp {
+  clip-path: none !important;
+  background: rgba(216,79,73,.035) !important;
+}
+.phase5-packet-object .clamp-header { transform: translate(-260px,-50%) !important; }
+.phase5-packet-object .clamp-trailer { transform: translate(230px,-50%) !important; }
+.phase5-stage-link .clamp-header,
+.phase5-stage-collapsed .clamp-header,
+.phase5-stage-exploded .clamp-header,
+.phase5-stage-link .clamp-trailer,
+.phase5-stage-collapsed .clamp-trailer,
+.phase5-stage-exploded .clamp-trailer { transform: translate(0,-50%) !important; }
+.phase5-packet-object .phase5c-collapse-spine {
+  height: 66px !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+  transition: transform var(--journey-motion-hero) var(--journey-ease-move), opacity var(--journey-motion-micro) ease !important;
+}
+
+/* ---------- Physical forwarding: readable mechanical travel ---------- */
+.phase5b-physical .phase5b-device {
+  transition: opacity var(--journey-motion-standard) ease, filter var(--journey-motion-standard) ease, transform var(--journey-motion-spatial) var(--journey-ease-move) !important;
+}
+.phase5b-physical .phase5b-data-unit {
+  transition:
+    left var(--journey-motion-hero) var(--journey-ease-move),
+    top var(--journey-motion-hero) var(--journey-ease-move),
+    transform var(--journey-motion-hero) var(--journey-ease-move),
+    opacity var(--journey-motion-micro) ease,
+    filter var(--journey-motion-standard) ease !important;
+}
+.phase5b-physical .phase5c-mac-token,
+.phase5b-physical .phase5c-ip-token,
+.phase5b-physical .phase5b-mac-projection,
+.phase5b-physical .phase5b-route-projection {
+  transition-duration: var(--journey-motion-spatial) !important;
+  transition-timing-function: var(--journey-ease-move) !important;
+}
+.phase5b-physical .phase5c-cam-bank > i,
+.phase5b-physical .phase5c-route-fan .route-candidate,
+.phase5b-physical .phase5c-ttl-rotor > i {
+  transition-duration: var(--journey-motion-standard) !important;
+  transition-timing-function: var(--journey-ease-settle) !important;
+  transition-delay: 0ms !important;
+}
+.phase5b-physical .phase5c-port-lock { transition-delay: 0ms !important; }
+
+/* Byte/symbol choreography uses constant velocity on the wire and restrained
+   easing only while bytes fan out from the NIC. */
+.phase5b-stage-nic-serialize .phase5b-serialization > i {
+  animation: phase5c-byte-unspool 620ms var(--journey-ease-enter) both !important;
+  animation-delay: calc(var(--signal-index) * 18ms) !important;
+}
+@keyframes phase5c-byte-unspool {
+  0% { opacity: 0; transform: translateX(-16px) scaleY(.55); }
+  100% { opacity: .72; transform: translateX(0) scaleY(1); }
+}
+.phase5b-stage-link-transmit .phase5b-serialization > i {
+  animation: phase5c-symbol-run 720ms linear both !important;
+  animation-delay: calc(var(--signal-index) * 20ms) !important;
+  border-radius: 1px !important;
+  width: 6px !important;
+  height: 6px !important;
+  box-shadow: none !important;
+}
+@keyframes phase5c-symbol-run {
+  0% { opacity: 0; transform: translate(-10px,10px); }
+  10% { opacity: .85; }
+  90% { opacity: .85; }
+  100% { opacity: 0; transform: translate(310px,-8px); }
+}
+.phase5b-stage-next-link .phase5b-serialization > i {
+  animation: phase5c-wan-run 720ms linear both !important;
+  animation-delay: calc(var(--signal-index) * 18ms) !important;
+  border-radius: 1px !important;
+  box-shadow: none !important;
+}
+@keyframes phase5c-wan-run {
+  0% { opacity: 0; transform: translateX(-8px); }
+  10% { opacity: .85; }
+  90% { opacity: .85; }
+  100% { opacity: 0; transform: translateX(220px); }
+}
+
+/* Device silhouettes use distinct, semantically legible chassis rather than
+   generic sci-fi polygons. */
+.phase5b-physical .phase5c-device-body {
+  clip-path: none !important;
+  border-radius: 2px !important;
+}
+.phase5b-physical .device-switch .phase5c-device-body {
+  height: 60px !important;
+  border-radius: 2px !important;
+}
+.phase5b-physical .device-router .phase5c-device-body {
+  width: 94px !important;
+  height: 76px !important;
+  border-radius: 12px !important;
+}
+.phase5b-physical .device-router .phase5c-device-body::before {
+  inset: 18px 14px !important;
+  border-radius: 2px !important;
+  border-width: 1px 0 !important;
+}
+.phase5b-physical .device-router .phase5c-device-body::after {
+  inset: 13px 28px !important;
+  border-radius: 2px !important;
+  border-width: 0 1px !important;
+}
+.phase5b-physical .device-next .phase5c-device-body {
+  width: 66px !important;
+  height: 50px !important;
+  border-radius: 2px !important;
+}
+
+/* Finish as a resolved object rather than another animated flourish. */
+.journey-causal-world.causal-phase-complete .causal-object::before,
+.journey-causal-world.causal-phase-complete .causal-object::after {
+  transform: translate(-50%,-50%) rotateX(0) !important;
+  border-radius: 8px !important;
+}
+.journey-causal-world.causal-phase-complete .causal-object::after { transform: translate(-50%,-50%) !important; }
+
+@media (max-width: 680px) {
+  .journey-causal-world .has-protection .node-protection { width: 150px !important; height: 68px !important; }
+  .phase5b-physical .phase5b-data-unit { transition-duration: var(--journey-motion-spatial) !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .journey-causal-world *,
+  .journey-causal-world *::before,
+  .journey-causal-world *::after,
+  .phase5-packet-object *,
+  .phase5-packet-object *::before,
+  .phase5-packet-object *::after,
+  .phase5b-physical *,
+  .phase5b-physical *::before,
+  .phase5b-physical *::after {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+}
