@@ -1,1 +1,85 @@
 .measured-workspace{color:var(--site-ink)}.measured-heading h1{color:var(--site-ink-strong)!important}.measured-heading h1 span{color:transparent!important;-webkit-text-stroke:1px rgba(41,40,39,.68)!important}.measured-truth-chip,.provenance.measured,.measured-empty button{border-color:var(--site-rule)!important;color:var(--site-ink)!important;background:rgba(228,224,219,.5)!important}.measured-boundary,.measured-empty,.measured-categories,.measured-provenance-panel,.measured-scene,.measured-target-group,.measured-capture-strip,.measured-capture-strip>div{border-color:var(--site-rule-soft)!important;color:var(--site-ink)!important;background:rgba(228,224,219,.46)!important;box-shadow:none!important}.measured-boundary>div span,.measured-categories>header span,.measured-categories>button small,.measured-provenance-panel dt,.measured-provenance-panel>header span,.measured-target-group>header span{color:var(--site-ink-faint)!important}.measured-boundary>div strong,.measured-categories>button strong,.measured-scene-heading h2,.measured-fact>strong,.measured-provenance-panel>header strong,.measured-target-group>header strong{color:var(--site-ink)!important}.measured-boundary>p,.measured-empty p,.measured-scene-heading p,.measured-fact>p,.measured-provenance-panel p{color:var(--site-ink-soft)!important}.measured-boundary>i,.measured-glyph .glyph-line{background:repeating-linear-gradient(90deg,rgba(41,40,39,.3) 0 5px,transparent 5px 9px)!important}.measured-glyph i{border-color:rgba(41,40,39,.46)!important;background:var(--site-paper-raised)!important;box-shadow:none!important}.measured-categories>header,.measured-categories>button,.measured-categories>footer,.measured-scene-heading,.measured-target-group>header,.measured-fact,.measured-provenance-panel>header,.measured-provenance-panel dl,.measured-provenance-panel section,.measured-provenance-panel>footer{border-color:var(--site-rule-soft)!important}.measured-categories>button:hover{background:rgba(41,40,39,.025)!important}.measured-categories>button.active{background:linear-gradient(90deg,rgba(216,79,73,.09),transparent)!important;box-shadow:inset 2px 0 var(--site-coral)!important}.measured-categories>button.active strong{color:var(--site-ink-strong)!important}.measured-workspace input,.measured-workspace select{border-color:var(--site-rule)!important;color:var(--site-ink)!important;background:rgba(238,235,231,.72)!important}.measured-workspace button{box-shadow:none!important}
+
+/* Phase 4: keep the measurement boundary explicit without turning the entire
+   header and target selector into a dark dashboard. */
+.measured-heading{
+  border-color:rgba(41,40,39,.16)!important;
+  color:var(--site-ink)!important;
+  background:rgba(232,228,223,.88)!important;
+  box-shadow:none!important;
+  backdrop-filter:blur(10px);
+}
+.measured-heading .visual-identity,
+.measured-heading .measured-truth-chip,
+.measured-heading-actions .visual-drawer-tabs button,
+.measured-heading-actions .lab-mode{
+  border-color:rgba(41,40,39,.13)!important;
+  color:var(--site-ink-soft)!important;
+  background:rgba(217,212,207,.58)!important;
+  box-shadow:none!important;
+}
+.measured-heading .visual-identity>span{color:var(--site-ink-faint)!important}
+.measured-heading .visual-identity>strong{color:var(--site-ink-strong)!important}
+.measured-heading .visual-identity>i{background:var(--site-coral)!important;box-shadow:none!important}
+.measured-heading .measured-truth-chip{
+  color:#5a5550!important;
+  background:transparent!important;
+}
+.measured-heading-actions .visual-drawer-tabs button:hover,
+.measured-heading-actions .visual-drawer-tabs button.active,
+.measured-heading-actions .lab-mode:hover{
+  border-color:rgba(216,79,73,.36)!important;
+  color:var(--site-ink-strong)!important;
+  background:rgba(216,79,73,.065)!important;
+}
+.measured-heading-actions .measured-clear{
+  color:#994b47!important;
+  border-color:rgba(184,79,75,.2)!important;
+}
+.measured-target-selector{
+  display:flex!important;
+  gap:6px!important;
+  padding:8px 10px!important;
+  border-top:1px solid rgba(41,40,39,.1)!important;
+  border-bottom:1px solid rgba(41,40,39,.1)!important;
+  background:rgba(217,212,207,.42)!important;
+  box-shadow:none!important;
+  overflow-x:auto;
+}
+.measured-target-selector button{
+  min-height:34px!important;
+  border:1px solid rgba(41,40,39,.12)!important;
+  color:var(--site-ink-soft)!important;
+  background:rgba(232,228,223,.62)!important;
+  box-shadow:none!important;
+}
+.measured-target-selector button span{color:var(--site-ink-soft)!important}
+.measured-target-selector button b{
+  border-color:rgba(41,40,39,.12)!important;
+  color:var(--site-ink-faint)!important;
+  background:transparent!important;
+}
+.measured-target-selector button.active{
+  border-color:rgba(216,79,73,.38)!important;
+  color:var(--site-ink-strong)!important;
+  background:rgba(216,79,73,.06)!important;
+}
+.measured-target-selector button.active span{color:var(--site-ink-strong)!important}
+.measured-target-selector button.active b{color:#91413d!important;border-color:rgba(216,79,73,.2)!important}
+
+@media(max-width:760px){
+  .measured-heading{
+    background:rgba(232,228,223,.97)!important;
+    border-bottom-color:rgba(41,40,39,.15)!important;
+  }
+  .measured-heading-actions{
+    padding-top:2px;
+  }
+  .measured-heading-actions .visual-drawer-tabs button,
+  .measured-heading-actions .lab-mode{
+    background:rgba(217,212,207,.62)!important;
+  }
+  .measured-target-selector{
+    background:rgba(217,212,207,.7)!important;
+  }
+}
