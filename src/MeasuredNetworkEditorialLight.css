@@ -67,6 +67,36 @@
 .measured-target-selector button.active span{color:var(--site-ink-strong)!important}
 .measured-target-selector button.active b{color:#91413d!important;border-color:rgba(216,79,73,.2)!important}
 
+/* Overlay drawers are evidence sheets. They must remain opaque enough that the
+   underlying measurement report cannot become accidental foreground text. */
+.measured-context-drawer.visual-drawer{
+  border-color:rgba(41,40,39,.18)!important;
+  color:var(--site-ink)!important;
+  background:#e8e4df!important;
+  box-shadow:-20px 0 56px rgba(55,49,44,.13)!important;
+  backdrop-filter:none!important;
+}
+.measured-context-drawer .visual-drawer__header{
+  border-bottom-color:rgba(41,40,39,.11)!important;
+  background:#e8e4df!important;
+}
+.measured-context-drawer .visual-drawer__header span{color:#6b7777!important}
+.measured-context-drawer .visual-drawer__header h2{color:var(--site-ink-strong)!important}
+.measured-context-drawer .visual-drawer__close{
+  border-color:rgba(41,40,39,.14)!important;
+  color:var(--site-ink-soft)!important;
+  background:rgba(41,40,39,.025)!important;
+}
+.measured-context-drawer .visual-drawer__body{
+  background:#e8e4df!important;
+}
+.measured-context-drawer .measured-provenance-panel,
+.measured-context-drawer .measured-boundary,
+.measured-context-drawer .measured-bridge,
+.measured-context-drawer .measured-provenance-empty{
+  background:#e3ded8!important;
+}
+
 @media(max-width:760px){
   .measured-heading{
     background:rgba(232,228,223,.97)!important;
@@ -81,5 +111,10 @@
   }
   .measured-target-selector{
     background:rgba(217,212,207,.7)!important;
+  }
+  .measured-context-drawer.visual-drawer,
+  .measured-context-drawer .visual-drawer__header,
+  .measured-context-drawer .visual-drawer__body{
+    background:#e8e4df!important;
   }
 }
