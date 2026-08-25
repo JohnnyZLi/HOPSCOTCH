@@ -1,0 +1,26 @@
+/* Preserve the flat resolver-drawer design while making the cache lookup a
+   physical action. The lid lifts on one axis instead of reverting to the old
+   skewed 3D prop. */
+.journey-causal-world .causal-cache__lid {
+  transform: translateY(0) !important;
+  transform-origin: 50% 100% !important;
+  transition:
+    transform var(--journey-motion-standard) var(--journey-ease-move),
+    opacity var(--journey-motion-micro) ease !important;
+}
+
+.journey-causal-world.causal-phase-dns .causal-cache__lid {
+  transform: translateY(-10px) !important;
+}
+
+/* The tray stays fixed so the motion reads as opening a resolver drawer rather
+   than moving the whole cache object. */
+.journey-causal-world.causal-phase-dns .causal-cache__tray {
+  transform: none !important;
+}
+
+@media (max-width: 680px) {
+  .journey-causal-world.causal-phase-dns .causal-cache__lid {
+    transform: translateY(-7px) !important;
+  }
+}
