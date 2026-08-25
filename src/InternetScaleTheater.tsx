@@ -95,8 +95,12 @@ export function InternetScaleTheater({ onExit, onOpenObserved, graph: inputGraph
       if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) { canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio); }
       const ctx = canvas.getContext('2d'); if (!ctx) return;
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = '#070b10'; ctx.fillRect(0, 0, width, height);
-      ctx.strokeStyle = 'rgba(255,255,255,.025)'; ctx.lineWidth = 1;
+
+      /* AS scale now uses the same drafting surface as Journey. The canvas is
+         not a dark dashboard embedded inside a light shell: relationships,
+         policy selection, and the moving packet are drawn directly on paper. */
+      ctx.fillStyle = '#d9d4cf'; ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = 'rgba(41,40,39,.04)'; ctx.lineWidth = 1;
       for (let x = 24; x < width; x += 32) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
       for (let y = 24; y < height; y += 32) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
 
@@ -104,8 +108,8 @@ export function InternetScaleTheater({ onExit, onOpenObserved, graph: inputGraph
         const [aAsn, bAsn] = relationshipEndpoints(relationship); const a = pointFor(graph, aAsn, width, height, zoom); const b = pointFor(graph, bAsn, width, height, zoom);
         const isFailed = failed.has(relationship.id); const isActive = activeRelationships.has(relationship.id); const isSelected = relationship.id === selectedRelationshipId;
         ctx.save(); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-        ctx.lineWidth = isSelected ? 2.4 : isActive ? 2 : .8;
-        ctx.strokeStyle = isFailed ? 'rgba(236,104,104,.72)' : isActive ? 'rgba(121,242,218,.9)' : relationship.kind === 'peer' ? 'rgba(122,156,255,.29)' : 'rgba(145,159,168,.2)';
+        ctx.lineWidth = isSelected ? 2 : isActive ? 1.65 : .8;
+        ctx.strokeStyle = isFailed ? 'rgba(184,79,75,.78)' : isActive ? 'rgba(216,79,73,.92)' : relationship.kind === 'peer' ? 'rgba(89,111,130,.38)' : 'rgba(41,40,39,.2)';
         if (isFailed || relationship.kind === 'peer') ctx.setLineDash(isFailed ? [6, 5] : [2, 5]);
         ctx.stroke(); ctx.restore();
       }
@@ -114,16 +118,19 @@ export function InternetScaleTheater({ onExit, onOpenObserved, graph: inputGraph
         const segmentCount = winner.asns.length - 1; const phase = ((now / 1800) % 1) * segmentCount; const segment = Math.min(segmentCount - 1, Math.floor(phase)); const local = phase - segment;
         const a = pointFor(graph, winner.asns[segment], width, height, zoom); const b = pointFor(graph, winner.asns[segment + 1], width, height, zoom);
         const x = a.x + (b.x - a.x) * local; const y = a.y + (b.y - a.y) * local;
-        ctx.beginPath(); ctx.arc(x, y, 4.2, 0, Math.PI * 2); ctx.fillStyle = '#bffdf2'; ctx.shadowColor = '#79f2da'; ctx.shadowBlur = 16; ctx.fill(); ctx.shadowBlur = 0;
+        ctx.beginPath(); ctx.arc(x, y, 3.8, 0, Math.PI * 2); ctx.fillStyle = '#d84f49'; ctx.fill();
       }
 
       for (const node of graph.nodes) {
         const point = pointFor(graph, node.asn, width, height, zoom); const onPath = winner?.asns.includes(node.asn) ?? false; const endpoint = node.asn === source || node.asn === destination;
-        ctx.beginPath(); ctx.arc(point.x, point.y, endpoint ? 7.5 : onPath ? 6.2 : dense ? 3.2 : 4.2, 0, Math.PI * 2);
-        ctx.fillStyle = node.asn === source ? '#7a9cff' : node.asn === destination ? '#f2c879' : onPath ? '#79f2da' : '#33424c'; ctx.fill();
+        ctx.beginPath(); ctx.arc(point.x, point.y, endpoint ? 7.2 : onPath ? 5.8 : dense ? 3 : 4, 0, Math.PI * 2);
+        ctx.fillStyle = node.asn === source ? '#596f82' : node.asn === destination ? '#9a7441' : onPath ? '#d84f49' : '#77716b'; ctx.fill();
+        if (endpoint || onPath) {
+          ctx.beginPath(); ctx.arc(point.x, point.y, endpoint ? 10.5 : 8.4, 0, Math.PI * 2); ctx.strokeStyle = onPath ? 'rgba(216,79,73,.22)' : 'rgba(41,40,39,.16)'; ctx.lineWidth = 1; ctx.stroke();
+        }
         const showLabel = endpoint || onPath || (!dense && width >= 560);
         if (showLabel) {
-          ctx.font = `${endpoint ? 700 : 600} ${endpoint ? 11 : 9}px ui-monospace, SFMono-Regular, Menlo, monospace`; ctx.fillStyle = endpoint ? '#eaf2f6' : onPath ? '#bdfbf0' : '#64737d';
+          ctx.font = `${endpoint ? 700 : 600} ${endpoint ? 11 : 9}px ui-monospace, SFMono-Regular, Menlo, monospace`; ctx.fillStyle = endpoint ? '#292827' : onPath ? '#8f3632' : '#68615b';
           ctx.fillText(asLabel(node.asn), point.x + 8, point.y - 7);
         }
       }
