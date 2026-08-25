@@ -27,6 +27,7 @@ import './JourneyMotionTimingFixes.css';
 import './JourneyShapeRefinement.css';
 import './JourneyShapeStateCorrections.css';
 import './JourneyShapeTuning.css';
+import './JourneyDnsLidMotion.css';
 
 type StressProfile = 'as-density' | 'builder-density' | 'physical-density';
 
