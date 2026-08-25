@@ -1,0 +1,273 @@
+/* Second motion-design audit: give each protocol layer a different mechanical
+   role instead of reducing the whole Journey to nested rectangles. */
+
+/* Projection labels should be legible early while their object continues to
+   travel into place. This also avoids a 640ms fade masquerading as motion. */
+.phase5b-physical .phase5c-mac-token,
+.phase5b-physical .phase5c-ip-token,
+.phase5b-physical .phase5b-mac-projection,
+.phase5b-physical .phase5b-route-projection {
+  transition: transform var(--journey-motion-spatial) var(--journey-ease-move), opacity var(--journey-motion-micro) ease !important;
+}
+
+/* Routing candidates are endpoint markers on rails, not bubbles/cards. */
+.journey-causal-world .causal-route-choice {
+  grid-template-columns: 10px 1fr !important;
+  gap: 4px 8px !important;
+}
+.journey-causal-world .causal-route-choice i {
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 1px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.journey-causal-world .causal-route-world.is-selected .choice-default i {
+  background: var(--journey-coral) !important;
+}
+.journey-causal-world .causal-gateway > i { border-radius: 2px !important; }
+.journey-causal-world .gateway-ring { transform: rotate(45deg); }
+.journey-causal-world .gateway-core { transform: rotate(45deg); }
+
+/* The persistent request remains visible in routing/transport, but steps back
+   from hero scale once the dedicated mechanism owns the scene. */
+.journey-causal-world.causal-phase-route .causal-object,
+.journey-causal-world.causal-phase-path .causal-object,
+.journey-causal-world.causal-phase-tcp .causal-object {
+  opacity: .72;
+}
+.journey-causal-world.causal-phase-route .causal-mechanism-node,
+.journey-causal-world.causal-phase-path .causal-mechanism-node,
+.journey-causal-world.causal-phase-tcp .causal-mechanism-node {
+  width: 42px !important;
+  height: 42px !important;
+}
+.journey-causal-world.causal-phase-route .causal-mechanism-node::before,
+.journey-causal-world.causal-phase-route .causal-mechanism-node::after,
+.journey-causal-world.causal-phase-path .causal-mechanism-node::before,
+.journey-causal-world.causal-phase-path .causal-mechanism-node::after,
+.journey-causal-world.causal-phase-tcp .causal-mechanism-node::before,
+.journey-causal-world.causal-phase-tcp .causal-mechanism-node::after {
+  font-size: 6px !important;
+}
+
+/* ClientHello is one protocol record with four exploded annotations. Remove
+   the older ring cluster underneath it, which made the composition look like
+   unrelated bubbles. */
+.journey-causal-world.causal-phase-tls .causal-mechanism-axis,
+.journey-causal-world.causal-phase-tls .node-name,
+.journey-causal-world.causal-phase-tls .node-address,
+.journey-causal-world.causal-phase-tls .node-route,
+.journey-causal-world.causal-phase-tls .node-session,
+.journey-causal-world.causal-phase-tls .node-protection,
+.journey-causal-world.causal-phase-tls .causal-mechanism-core,
+.journey-causal-world.causal-phase-tls .causal-handoff-rail {
+  opacity: 0 !important;
+}
+.journey-causal-world.causal-phase-tls .causal-object {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.journey-causal-world .causal-client-hello {
+  width: 292px !important;
+  height: 128px !important;
+  border: 1px solid rgba(48,45,43,.38) !important;
+  background:
+    linear-gradient(90deg,rgba(48,45,43,.16),rgba(48,45,43,.16)) 13px 13px/26px 1px no-repeat,
+    linear-gradient(rgba(48,45,43,.16),rgba(48,45,43,.16)) 13px 13px/1px 22px no-repeat,
+    linear-gradient(270deg,rgba(48,45,43,.16),rgba(48,45,43,.16)) calc(100% - 13px) calc(100% - 13px)/26px 1px no-repeat,
+    linear-gradient(rgba(48,45,43,.16),rgba(48,45,43,.16)) calc(100% - 13px) calc(100% - 13px)/1px 22px no-repeat,
+    rgba(232,228,223,.18) !important;
+  clip-path: polygon(6px 0,calc(100% - 6px) 0,100% 6px,100% calc(100% - 6px),calc(100% - 6px) 100%,6px 100%,0 calc(100% - 6px),0 6px);
+}
+.journey-causal-world .causal-client-hello > span,
+.journey-causal-world .causal-client-hello > strong {
+  top: 12px !important;
+}
+.journey-causal-world .causal-client-hello > span { left: 16px !important; }
+.journey-causal-world .causal-client-hello > strong { right: 16px !important; }
+.journey-causal-world .causal-client-hello > i {
+  left: 50% !important;
+  bottom: -24px !important;
+  height: 24px !important;
+}
+.journey-causal-world .causal-tls-fields > div {
+  padding: 9px 0 0 !important;
+}
+.journey-causal-world .causal-tls-fields i {
+  width: 6px !important;
+  height: 6px !important;
+  left: -10px !important;
+  top: 10px !important;
+  border-radius: 1px !important;
+}
+
+/* Packet assembly hierarchy:
+   application = payload plate
+   TLS = protection sleeve
+   TCP/UDP = header cap
+   IPv4 = closing address brackets
+   Ethernet = outer frame/header/trailer
+   This avoids five increasingly large generic boxes. */
+.phase5-packet-object .phase5c-packet-shadow {
+  opacity: .28 !important;
+  filter: blur(12px) !important;
+}
+
+.phase5-packet-object .phase5c-security {
+  border: 0 !important;
+  background: transparent !important;
+}
+.phase5-packet-object .phase5c-security-orbit.orbit-a {
+  inset: 8px !important;
+  border: 1px solid rgba(48,45,43,.36) !important;
+  border-radius: 3px !important;
+}
+.phase5-packet-object .phase5c-security-orbit.orbit-b {
+  inset: 20px !important;
+  border: 1px solid rgba(48,45,43,.14) !important;
+  border-radius: 1px !important;
+}
+
+/* The transport button keeps its large semantic/touch target, while only a
+   compact header cap and lower flag rail are drawn. */
+.phase5-packet-object .phase5c-transport {
+  border: 0 !important;
+  border-top: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  clip-path: none !important;
+}
+.phase5-packet-object .phase5c-transport::before {
+  left: 22px !important;
+  right: 22px !important;
+  top: 0 !important;
+  bottom: auto !important;
+  width: auto !important;
+  height: 54px !important;
+  border: 1px solid rgba(48,45,43,.42) !important;
+  border-top: 3px solid rgba(48,45,43,.62) !important;
+  background: rgba(232,228,223,.4) !important;
+}
+.phase5-packet-object .phase5c-transport::after {
+  left: 42px !important;
+  right: 42px !important;
+  top: auto !important;
+  bottom: 14px !important;
+  width: auto !important;
+  height: 18px !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(48,45,43,.26) !important;
+  background: transparent !important;
+}
+.phase5-packet-object .phase5c-transport-head {
+  left: 38px !important;
+  right: 38px !important;
+  top: 12px !important;
+  z-index: 2;
+}
+.phase5-packet-object .phase5c-transport-flags {
+  left: 48px !important;
+  right: 48px !important;
+  bottom: 16px !important;
+}
+.phase5-packet-object .phase5c-transport-flags i {
+  width: 30px !important;
+  height: 3px !important;
+  background: rgba(48,45,43,.08) !important;
+  border-color: rgba(48,45,43,.16) !important;
+}
+.phase5-packet-object .phase5c-transport > strong {
+  top: auto !important;
+  bottom: 37px !important;
+  color: rgba(48,45,43,.34) !important;
+  font-size: 8px !important;
+  letter-spacing: .18em !important;
+  transform: translateX(-50%) !important;
+}
+
+/* IPv4 closes as two address brackets. The interior stays open so the TCP/TLS
+   mechanism remains visually identifiable underneath it. */
+.phase5-packet-object .phase5c-network-wing {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.phase5-packet-object .phase5c-network-wing.wing-left {
+  background:
+    linear-gradient(rgba(48,45,43,.4),rgba(48,45,43,.4)) left top/1px 100% no-repeat,
+    linear-gradient(90deg,rgba(48,45,43,.4),rgba(48,45,43,.4)) left top/100% 1px no-repeat,
+    linear-gradient(90deg,rgba(48,45,43,.24),rgba(48,45,43,.24)) left bottom/72% 1px no-repeat !important;
+}
+.phase5-packet-object .phase5c-network-wing.wing-right {
+  background:
+    linear-gradient(rgba(48,45,43,.4),rgba(48,45,43,.4)) right top/1px 100% no-repeat,
+    linear-gradient(90deg,rgba(48,45,43,.4),rgba(48,45,43,.4)) right top/100% 1px no-repeat,
+    linear-gradient(270deg,rgba(48,45,43,.24),rgba(48,45,43,.24)) right bottom/72% 1px no-repeat !important;
+}
+.phase5-packet-object .phase5c-network-wing > i {
+  height: 1px !important;
+  background: rgba(48,45,43,.09) !important;
+}
+.phase5-packet-object .phase5c-ip-identity {
+  top: 10px !important;
+}
+.phase5-packet-object .phase5c-ip-identity small,
+.phase5-packet-object .phase5c-ip-identity strong {
+  color: rgba(48,45,43,.48) !important;
+}
+.phase5-packet-object .phase5c-ttl {
+  right: 24px !important;
+  width: 42px !important;
+  height: 48px !important;
+  border-radius: 2px !important;
+  background: rgba(232,228,223,.7) !important;
+  box-shadow: none !important;
+}
+.phase5-packet-object .phase5c-ttl small { color: rgba(48,45,43,.42) !important; }
+.phase5-packet-object .phase5c-ttl b { color: #302d2b !important; }
+
+/* Ethernet is the only layer that gets a true full outer frame. */
+.phase5-packet-object .phase5c-ether-rails {
+  height: 2px !important;
+  background: rgba(216,79,73,.28) !important;
+  border-color: rgba(216,79,73,.42) !important;
+}
+.phase5-packet-object .phase5c-ether-clamp {
+  border-radius: 2px !important;
+  background: rgba(216,79,73,.035) !important;
+}
+.phase5-packet-object .phase5c-ether-clamp > i {
+  height: 2px !important;
+  background: rgba(216,79,73,.12) !important;
+}
+
+/* Collapse is a literal frame strip; remove the dark slab inherited from the
+   old cinematic theme. */
+.phase5-packet-object .phase5c-collapse-spine {
+  background: rgba(232,228,223,.92) !important;
+  border-color: rgba(48,45,43,.42) !important;
+  box-shadow: none !important;
+}
+.phase5-packet-object .phase5c-collapse-spine span {
+  color: rgba(48,45,43,.62) !important;
+  border-right-color: rgba(48,45,43,.12) !important;
+}
+.phase5-packet-object .phase5c-collapse-spine span:first-child,
+.phase5-packet-object .phase5c-collapse-spine span:last-child {
+  color: #9d3834 !important;
+}
+
+@media (max-width: 680px) {
+  .journey-causal-world.causal-phase-route .causal-mechanism-node,
+  .journey-causal-world.causal-phase-path .causal-mechanism-node,
+  .journey-causal-world.causal-phase-tcp .causal-mechanism-node {
+    width: 32px !important;
+    height: 32px !important;
+  }
+  .journey-causal-world .causal-client-hello {
+    width: 214px !important;
+    height: 104px !important;
+  }
+}
