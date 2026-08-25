@@ -67,9 +67,10 @@
 .measured-target-selector button.active span{color:var(--site-ink-strong)!important}
 .measured-target-selector button.active b{color:#91413d!important;border-color:rgba(216,79,73,.2)!important}
 
-/* Overlay drawers are evidence sheets. They must remain opaque enough that the
-   underlying measurement report cannot become accidental foreground text. */
+/* Overlay drawers are evidence sheets. They stay fully opaque while sliding so
+   underlying measurement text never crossfades through foreground evidence. */
 .measured-context-drawer.visual-drawer{
+  opacity:1!important;
   border-color:rgba(41,40,39,.18)!important;
   color:var(--site-ink)!important;
   background:#e8e4df!important;
