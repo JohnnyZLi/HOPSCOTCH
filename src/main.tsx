@@ -20,6 +20,8 @@ import './JourneyDefaultLight.css';
 import './JourneyDefaultLightShell.css';
 import './JourneyDefaultLightAuditFixes.css';
 import './JourneyDefaultLightPhase5.css';
+import './JourneyLightRefinement.css';
+import './JourneyLightRefinementAudit.css';
 
 type StressProfile = 'as-density' | 'builder-density' | 'physical-density';
 

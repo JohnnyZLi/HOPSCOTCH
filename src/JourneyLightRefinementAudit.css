@@ -1,0 +1,241 @@
+/* Manual visual-audit corrections for the light Journey refinement.
+   These selectors remove the last legacy dark-volume materials without
+   changing semantic state, geometry ownership, or choreography. */
+
+/* Physical devices should read like technical line drawings, not rendered
+   black hardware blocks. Keep their silhouettes and internal port geometry. */
+.journey-causal-world .phase5c-device-body,
+.journey-causal-world .device-switch .phase5c-device-body,
+.journey-causal-world .device-router .phase5c-device-body,
+.journey-causal-world .device-next .phase5c-device-body {
+  border-color: rgba(41,40,39,.48) !important;
+  background: rgba(232,228,223,.22) !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+.journey-causal-world .phase5b-device.is-active .phase5c-device-body {
+  border-color: rgba(216,79,73,.78) !important;
+  background: rgba(232,228,223,.38) !important;
+}
+.journey-causal-world .phase5c-device-body > i {
+  border-color: rgba(41,40,39,.34) !important;
+  background: rgba(41,40,39,.08) !important;
+}
+.journey-causal-world .phase5b-device.is-active .phase5c-device-body > i {
+  border-color: rgba(216,79,73,.42) !important;
+  background: rgba(216,79,73,.08) !important;
+}
+.journey-causal-world .device-router .phase5c-device-body::before,
+.journey-causal-world .device-router .phase5c-device-body::after {
+  border-color: rgba(41,40,39,.28) !important;
+  background: transparent !important;
+}
+.journey-causal-world .phase5b-device.is-active.device-router .phase5c-device-body::before,
+.journey-causal-world .phase5b-device.is-active.device-router .phase5c-device-body::after {
+  border-color: rgba(216,79,73,.38) !important;
+}
+
+/* The finished Journey should resolve into a crisp assembly. The legacy
+   perspective rings are useful as construction lines, but must never become
+   filled shadows on the light canvas. */
+.journey-causal-world.causal-phase-complete .causal-object {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+.journey-causal-world.causal-phase-complete .causal-object::before {
+  display: block !important;
+  width: 222px !important;
+  height: 118px !important;
+  border: 1px solid rgba(41,40,39,.22) !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  opacity: .72 !important;
+  transform: translate(-50%,-50%) rotateX(67deg) !important;
+}
+.journey-causal-world.causal-phase-complete .causal-object::after {
+  display: block !important;
+  width: 286px !important;
+  height: 152px !important;
+  border: 1px dashed rgba(41,40,39,.16) !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  opacity: .52 !important;
+  transform: translate(-50%,-50%) rotateX(67deg) rotateZ(18deg) !important;
+}
+.journey-causal-world.causal-phase-complete .causal-mechanism-core {
+  border-color: rgba(41,40,39,.42) !important;
+  background: rgba(232,228,223,.32) !important;
+  box-shadow: none !important;
+}
+.journey-causal-world.causal-phase-complete .causal-mechanism-core i {
+  background: rgba(41,40,39,.32) !important;
+}
+.journey-causal-world.causal-phase-complete .causal-mechanism-core i:last-child {
+  background: #d84f49 !important;
+}
+.journey-causal-world.causal-phase-complete .causal-object__payload {
+  border-color: rgba(41,40,39,.36) !important;
+  background: rgba(232,228,223,.76) !important;
+  box-shadow: none !important;
+}
+.journey-causal-world.causal-phase-complete .payload-clear strong,
+.journey-causal-world.causal-phase-complete .payload-clear b,
+.journey-causal-world.causal-phase-complete .payload-clear small {
+  color: #302d2b !important;
+}
+.journey-causal-world.causal-phase-complete .payload-cipher i {
+  background: rgba(41,40,39,.34) !important;
+}
+.journey-causal-world.causal-phase-complete .node-protection {
+  border-color: rgba(41,40,39,.34) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 680px) {
+  .journey-causal-world.causal-phase-complete .causal-object::before {
+    width: 178px !important;
+    height: 96px !important;
+  }
+  .journey-causal-world.causal-phase-complete .causal-object::after {
+    width: 228px !important;
+    height: 124px !important;
+  }
+
+  /* Replace the 2x2 metadata-card wall with one quiet technical readout strip.
+     Keep the provenance/category captions visibly present as tiny drafting
+     labels so the epistemic boundary remains legible and semantic. */
+  html body .journey-visual-workspace .visual-workspace__hud {
+    top: 54px;
+    right: 12px;
+    left: 12px;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: start;
+    gap: 8px;
+    overflow: visible;
+    opacity: .38 !important;
+    transform: none !important;
+  }
+  html body .journey-visual-workspace .visual-workspace__hud > div,
+  html body .journey-visual-workspace .visual-hud-chip {
+    display: grid !important;
+    min-width: 0;
+    min-height: 26px;
+    gap: 1px;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+  html body .journey-visual-workspace .visual-workspace__hud span,
+  html body .journey-visual-workspace .visual-hud-chip span {
+    display: block !important;
+    color: #7a746e !important;
+    font-size: .29rem;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: .08em;
+  }
+  html body .journey-visual-workspace .visual-workspace__hud strong,
+  html body .journey-visual-workspace .visual-hud-chip strong {
+    color: #49443f !important;
+    font-size: .46rem;
+    line-height: 1.15;
+    letter-spacing: .02em;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+
+  /* The Time Machine keeps its full interaction surface, but the rail itself
+     becomes transparent. Only transport/speed and the scrubber are dark
+     instruments, matching the compact anime.js playback treatment. */
+  html body .journey-visual-workspace .visual-time-rail {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 8px;
+    width: calc(100% - 18px);
+    min-height: 68px;
+    margin-inline: auto;
+    padding: 4px 0 5px;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    opacity: .72 !important;
+    transform: none !important;
+  }
+  html body .journey-visual-workspace .visual-time-rail__controls {
+    width: 96px;
+    gap: 3px;
+  }
+  html body .journey-visual-workspace .visual-time-rail__transport,
+  html body .journey-visual-workspace .visual-time-rail__speed-group {
+    box-sizing: border-box;
+    width: 96px;
+    min-height: 0;
+    border: 0 !important;
+    background: rgba(43,40,38,.94) !important;
+    box-shadow: none !important;
+  }
+  html body .journey-visual-workspace .visual-time-rail__transport {
+    height: 30px;
+    padding: 1px;
+  }
+  html body .journey-visual-workspace .visual-time-rail__controls .visual-time-rail__transport > button {
+    width: 30px;
+    height: 26px;
+    color: #ded9d2;
+  }
+  html body .journey-visual-workspace .visual-time-rail__speed-group {
+    height: 28px;
+    padding: 2px 3px;
+  }
+  html body .journey-visual-workspace .visual-time-rail__speed-options {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1px;
+    width: 100%;
+    padding: 0;
+    background: transparent;
+  }
+  html body .journey-visual-workspace .visual-time-rail__controls .visual-time-rail__speed-options button {
+    min-width: 0;
+    height: 24px;
+    padding: 0;
+    color: #aaa39b;
+    font-size: .38rem;
+  }
+  html body .journey-visual-workspace .visual-time-rail__controls .visual-time-rail__speed-options button.active,
+  html body .journey-visual-workspace .visual-time-rail__controls .visual-time-rail__speed-options button[aria-pressed='true'] {
+    color: #f3eee8;
+    background: rgba(216,79,73,.2);
+    box-shadow: inset 0 0 0 1px rgba(216,79,73,.42);
+  }
+  html body .journey-visual-workspace .visual-time-rail__track {
+    height: 58px;
+    align-self: center;
+    border-radius: 18px;
+    background: rgba(43,40,38,.94);
+    box-shadow: none;
+  }
+  html body .journey-visual-workspace .visual-time-rail__track input::-webkit-slider-runnable-track {
+    background: rgba(232,228,223,.28);
+  }
+  html body .journey-visual-workspace .visual-time-rail__track input::-webkit-slider-thumb {
+    border-color: #eee8e1;
+    background: #d84f49;
+    box-shadow: none;
+  }
+  html body .journey-visual-workspace .visual-time-rail__milestones span {
+    color: #a49d95 !important;
+  }
+  html body .journey-visual-workspace .visual-time-rail__events button {
+    background: rgba(232,228,223,.35);
+  }
+  html body .journey-visual-workspace .visual-time-rail__events button.passed {
+    background: #d84f49;
+  }
+}
