@@ -1,0 +1,267 @@
+/* Motion/shape audit tuning. Imported last so settled silhouettes match the
+   same restrained mechanism language seen in motion. */
+
+:root {
+  --journey-motion-hero: 700ms;
+}
+
+/* DNS cache: a flat resolver drawer instead of a skewed 3D prop. */
+.journey-causal-world .causal-cache {
+  width: 214px !important;
+  height: 92px !important;
+  perspective: none !important;
+  transform: translate(-50%, -50%) !important;
+}
+.journey-causal-world .causal-cache__tray {
+  inset: 0 !important;
+  padding: 38px 11px 10px !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 7px !important;
+  border-radius: 4px !important;
+  background: rgba(232,228,223,.18) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+.journey-causal-world .causal-cache__tray > i {
+  border-radius: 1px !important;
+  border-color: rgba(48,45,43,.13) !important;
+  background: rgba(232,228,223,.16) !important;
+}
+.journey-causal-world .causal-cache__lid,
+.journey-causal-world.causal-phase-dns .causal-cache__lid {
+  inset: 0 0 auto 0 !important;
+  height: 31px !important;
+  padding: 0 11px !important;
+  align-items: center !important;
+  border-radius: 4px 4px 0 0 !important;
+  border-color: rgba(48,45,43,.25) !important;
+  background: rgba(232,228,223,.62) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+.journey-causal-world .causal-cache__lid span {
+  color: rgba(48,45,43,.55) !important;
+  letter-spacing: .08em !important;
+}
+.journey-causal-world .causal-cache__lid i {
+  height: 8px !important;
+  background: rgba(48,45,43,.18) !important;
+}
+.journey-causal-world .causal-cache__record {
+  inset: 39px 10px 9px !important;
+  padding: 7px 9px !important;
+  grid-template-columns: 1fr auto !important;
+  grid-template-rows: auto auto !important;
+  align-content: center !important;
+  border-radius: 2px !important;
+  background: rgba(232,228,223,.88) !important;
+  border-color: rgba(216,79,73,.32) !important;
+  transform: translateY(7px) scale(.98) !important;
+  box-shadow: none !important;
+}
+.journey-causal-world .causal-cache__record b {
+  grid-column: 1 / 3;
+  color: rgba(48,45,43,.46) !important;
+}
+.journey-causal-world .causal-cache__record strong {
+  color: #302d2b !important;
+}
+.journey-causal-world .causal-cache__record small {
+  color: #9d3834 !important;
+  justify-self: end;
+}
+.journey-causal-world .causal-cache[data-causal-cache='hit'] .causal-cache__record,
+.journey-causal-world .causal-cache[data-causal-cache='stored'] .causal-cache__record {
+  transform: translateY(0) scale(1) !important;
+}
+.journey-causal-world .causal-cache__status {
+  bottom: -22px !important;
+}
+
+/* Name/address are compact datum plates during DNS. The previous giant circle
+   was visually heavier than the DNS walk it was supposed to motivate. */
+.journey-causal-world.causal-phase-intent .node-name,
+.journey-causal-world.causal-phase-dns .node-name {
+  width: 124px !important;
+  height: 76px !important;
+  border-radius: 6px !important;
+  clip-path: polygon(6px 0,calc(100% - 6px) 0,100% 6px,100% calc(100% - 6px),calc(100% - 6px) 100%,6px 100%,0 calc(100% - 6px),0 6px);
+}
+.journey-causal-world.causal-phase-dns.has-address .node-name,
+.journey-causal-world.causal-phase-dns.has-address .node-address {
+  width: 100px !important;
+  height: 64px !important;
+  border-radius: 5px !important;
+  clip-path: polygon(5px 0,calc(100% - 5px) 0,100% 5px,100% calc(100% - 5px),calc(100% - 5px) 100%,5px 100%,0 calc(100% - 5px),0 5px);
+}
+
+/* After DNS the persistent causal object becomes breadcrumb-scale. Dedicated
+   route/transport mechanisms should own the scene instead of a row of bubbles. */
+.journey-causal-world.causal-phase-route .causal-mechanism-node,
+.journey-causal-world.causal-phase-path .causal-mechanism-node,
+.journey-causal-world.causal-phase-tcp .causal-mechanism-node {
+  width: 16px !important;
+  height: 16px !important;
+  border-radius: 2px !important;
+  background: rgba(232,228,223,.28) !important;
+  box-shadow: none !important;
+}
+.journey-causal-world.causal-phase-route .node-address,
+.journey-causal-world.causal-phase-path .node-route,
+.journey-causal-world.causal-phase-tcp .node-session {
+  width: 24px !important;
+  height: 24px !important;
+  border-color: rgba(216,79,73,.5) !important;
+}
+.journey-causal-world.causal-phase-route .causal-mechanism-node::before,
+.journey-causal-world.causal-phase-route .causal-mechanism-node::after,
+.journey-causal-world.causal-phase-path .causal-mechanism-node::before,
+.journey-causal-world.causal-phase-path .causal-mechanism-node::after,
+.journey-causal-world.causal-phase-tcp .causal-mechanism-node::before,
+.journey-causal-world.causal-phase-tcp .causal-mechanism-node::after {
+  display: none !important;
+}
+.journey-causal-world.causal-phase-route .causal-mechanism-axis,
+.journey-causal-world.causal-phase-path .causal-mechanism-axis,
+.journey-causal-world.causal-phase-tcp .causal-mechanism-axis {
+  opacity: .28 !important;
+}
+
+/* TLS: keep a real protection boundary around the ClientHello record. Earlier
+   tuning hid this node completely; the result looked clean but lost the actual
+   enclosure action and broke the choreography contract. */
+.journey-causal-world.causal-phase-tls.has-protection .node-protection {
+  display: block !important;
+  left: 50% !important;
+  top: 50% !important;
+  width: 340px !important;
+  height: 170px !important;
+  opacity: .42 !important;
+  border: 1px solid rgba(48,45,43,.24) !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: translate(-50%,-50%) scale(1) !important;
+  clip-path: polygon(7px 0,calc(100% - 7px) 0,100% 7px,100% calc(100% - 7px),calc(100% - 7px) 100%,7px 100%,0 calc(100% - 7px),0 7px) !important;
+}
+.journey-causal-world.causal-phase-tls.has-protection .node-protection::before,
+.journey-causal-world.causal-phase-tls.has-protection .node-protection::after {
+  display: none !important;
+}
+
+/* Protected payload reads as a record rather than a featureless dark pill. */
+.journey-causal-world .payload-cipher {
+  border-radius: 2px !important;
+  background: rgba(48,45,43,.82) !important;
+  padding: 5px !important;
+}
+.journey-causal-world .payload-cipher i {
+  min-height: 2px !important;
+  border-radius: 0 !important;
+  background: rgba(232,228,223,.58) !important;
+}
+
+/* IPv4 closes around the packet as address brackets, but should not occupy half
+   the viewport. Keep the enclosure near the transport/TLS stack. */
+.phase5-packet-object .phase5c-network {
+  width: 500px !important;
+  height: 244px !important;
+}
+.phase5-packet-object .phase5c-network-wing {
+  top: 24px !important;
+  bottom: 24px !important;
+  width: 29% !important;
+}
+.phase5-packet-object .phase5c-network-wing.wing-left {
+  transform: translateX(-255px) rotateY(18deg) !important;
+}
+.phase5-packet-object .phase5c-network-wing.wing-right {
+  transform: translateX(255px) rotateY(-18deg) !important;
+}
+.phase5-stage-network .phase5c-network-wing,
+.phase5-stage-link .phase5c-network-wing,
+.phase5-stage-collapsed .phase5c-network-wing,
+.phase5-stage-exploded .phase5c-network-wing {
+  transform: translateX(0) rotateY(0) !important;
+}
+.phase5-packet-object .phase5c-ttl {
+  right: 12px !important;
+}
+
+/* Ethernet is the outer frame, but header/trailer should clamp onto the packet
+   rather than hovering far outside it. */
+.phase5-packet-object .phase5c-link {
+  width: 610px !important;
+  height: 292px !important;
+}
+.phase5-packet-object .phase5c-ether-clamp.clamp-header {
+  width: 132px !important;
+  height: 160px !important;
+  padding: 13px !important;
+}
+.phase5-packet-object .phase5c-ether-clamp.clamp-trailer {
+  width: 88px !important;
+  height: 112px !important;
+  padding: 12px !important;
+}
+.phase5-packet-object .phase5c-ether-rails {
+  left: 78px !important;
+  right: 56px !important;
+}
+.phase5-packet-object .phase5c-collapse-spine {
+  width: 560px !important;
+}
+
+@media (max-width: 680px) {
+  .journey-causal-world .causal-cache {
+    width: 154px !important;
+    height: 76px !important;
+  }
+  .journey-causal-world .causal-cache__lid {
+    height: 27px !important;
+  }
+  .journey-causal-world .causal-cache__tray {
+    padding: 33px 8px 8px !important;
+  }
+  .journey-causal-world .causal-cache__record {
+    inset: 32px 7px 7px !important;
+  }
+  .journey-causal-world.causal-phase-intent .node-name,
+  .journey-causal-world.causal-phase-dns .node-name {
+    width: 92px !important;
+    height: 60px !important;
+  }
+  .journey-causal-world.causal-phase-dns.has-address .node-name,
+  .journey-causal-world.causal-phase-dns.has-address .node-address {
+    width: 70px !important;
+    height: 48px !important;
+  }
+  .journey-causal-world.causal-phase-tls.has-protection .node-protection {
+    width: 246px !important;
+    height: 132px !important;
+  }
+  .phase5-packet-object .phase5c-network {
+    width: 390px !important;
+    height: 212px !important;
+  }
+  .phase5-packet-object .phase5c-network-wing {
+    top: 20px !important;
+    bottom: 20px !important;
+    width: 27% !important;
+  }
+  .phase5-packet-object .phase5c-link {
+    width: 430px !important;
+    height: 246px !important;
+  }
+  .phase5-packet-object .phase5c-ether-clamp.clamp-header {
+    width: 104px !important;
+    height: 132px !important;
+  }
+  .phase5-packet-object .phase5c-ether-clamp.clamp-trailer {
+    width: 72px !important;
+    height: 94px !important;
+  }
+  .phase5-packet-object .phase5c-collapse-spine {
+    width: 350px !important;
+  }
+}
