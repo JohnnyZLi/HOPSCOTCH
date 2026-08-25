@@ -1,0 +1,93 @@
+/* Browser-audit corrections for the default light Journey. The paper palette
+   should stay restrained without becoming washed out: primary mechanisms use
+   charcoal drafting lines, while chrome remains secondary but legible. */
+
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar {
+  opacity: .64 !important;
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud {
+  opacity: .50 !important;
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail {
+  opacity: .72 !important;
+}
+
+/* The DNS cache was one of the last opaque black objects from the dark theme.
+   Treat it like an exploded mechanical subassembly instead. */
+.journey-causal-world .causal-cache__lid,
+.journey-causal-world .causal-cache__tray {
+  border-color: rgba(41,40,39,.34) !important;
+  color: #302e2c !important;
+  background: rgba(226,222,217,.62) !important;
+  box-shadow: 0 15px 30px rgba(55,49,44,.045) !important;
+}
+.journey-causal-world .causal-cache__tray {
+  background: rgba(219,215,210,.42) !important;
+}
+.journey-causal-world .causal-cache__tray > i {
+  border-color: rgba(41,40,39,.16) !important;
+}
+.journey-causal-world .causal-cache__lid span,
+.journey-causal-world .causal-cache__status {
+  color: #6b6560 !important;
+}
+.journey-causal-world .causal-cache__lid i,
+.journey-causal-world .causal-cache__status i {
+  background: rgba(41,40,39,.28) !important;
+}
+.journey-causal-world .causal-cache__record {
+  border-color: rgba(216,79,73,.45) !important;
+  background: rgba(232,228,223,.9) !important;
+  box-shadow: none !important;
+}
+.journey-causal-world .causal-cache__record b { color: #716b65 !important; }
+.journey-causal-world .causal-cache__record strong { color: #292827 !important; }
+.journey-causal-world .causal-cache__record small { color: #b94742 !important; }
+
+/* Namespace and route threads need to read as technical drafting lines on a
+   light field rather than the former white-on-black traces. */
+.journey-causal-world .dns-thread-base {
+  stroke: rgba(41,40,39,.2) !important;
+}
+.journey-causal-world .dns-thread-progress {
+  stroke: rgba(41,40,39,.58) !important;
+}
+.journey-causal-world .dns-answer-thread {
+  stroke: #d84f49 !important;
+}
+.journey-causal-world .causal-world-thread {
+  opacity: .2 !important;
+}
+.journey-causal-world .causal-world-thread path {
+  stroke: rgba(41,40,39,.62) !important;
+}
+
+/* The completed Journey should resolve into a crisp technical object rather
+   than fading into the paper. */
+.journey-causal-world.causal-phase-complete .causal-mechanism-core,
+.journey-causal-world.causal-phase-complete .causal-handoff-rail,
+.journey-causal-world.causal-phase-complete .causal-object__payload {
+  opacity: .86 !important;
+}
+.journey-causal-world.causal-phase-complete .causal-mechanism-node {
+  border-color: rgba(41,40,39,.5) !important;
+}
+.journey-causal-world.causal-phase-complete .causal-mechanism-axis {
+  opacity: .9 !important;
+}
+
+@media (max-width: 680px) {
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-drawer {
+    background: #e8e4df !important;
+    backdrop-filter: none;
+  }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar {
+    opacity: .64 !important;
+  }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud {
+    opacity: .50 !important;
+  }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail {
+    opacity: .58 !important;
+  }
+}

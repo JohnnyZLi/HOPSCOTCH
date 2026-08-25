@@ -1,0 +1,98 @@
+/* The Journey is the default-light editorial experience, so the application
+   shell surrounding it should read as the same sheet of paper rather than a
+   black frame around a light canvas. */
+
+html body:has(.journey-causal-world) .app-shell {
+  --ink: #292827;
+  --muted: #6f6963;
+  --faint: #918b85;
+  --cyan: #d84f49;
+  color: #292827;
+  background:
+    radial-gradient(circle at 67% 33%, rgba(255,255,255,.18), transparent 30%),
+    #d9d4cf;
+}
+
+html body:has(.journey-causal-world) .app-shell > .grid-field {
+  opacity: .12;
+  background-image:
+    linear-gradient(rgba(41,40,39,.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(41,40,39,.055) 1px, transparent 1px);
+}
+
+html body:has(.journey-causal-world) .app-shell > .scene-vignette {
+  background:
+    linear-gradient(90deg, rgba(217,212,207,.78), transparent 30%, transparent 72%, rgba(217,212,207,.42)),
+    linear-gradient(0deg, rgba(217,212,207,.65), transparent 22%, transparent 78%, rgba(217,212,207,.42));
+}
+
+html body:has(.journey-causal-world) .topbar {
+  border-bottom-color: rgba(41,40,39,.16);
+  color: #292827;
+}
+
+html body:has(.journey-causal-world) .brand-button,
+html body:has(.journey-causal-world) .brand-lockup {
+  color: #292827;
+}
+html body:has(.journey-causal-world) .brand-mark i {
+  border-color: rgba(41,40,39,.68);
+}
+
+html body:has(.journey-causal-world) .build-state {
+  color: #6f6963;
+}
+html body:has(.journey-causal-world) .build-state > span:first-child {
+  color: #8a847e;
+}
+html body:has(.journey-causal-world) .build-state .status-dot {
+  color: #3c3936;
+}
+html body:has(.journey-causal-world) .status-dot::before {
+  background: #d84f49;
+  box-shadow: none;
+}
+html body:has(.journey-causal-world) .build-phase {
+  border-left-color: rgba(41,40,39,.15);
+  color: #746e68;
+}
+
+html body:has(.journey-causal-world) .explore-trigger,
+html body:has(.journey-causal-world) .topbar button {
+  border-color: rgba(41,40,39,.17);
+  color: #383532;
+  background: rgba(229,225,220,.54);
+  box-shadow: none;
+}
+html body:has(.journey-causal-world) .explore-trigger:hover,
+html body:has(.journey-causal-world) .topbar button:hover {
+  border-color: rgba(41,40,39,.34);
+  color: #242321;
+  background: rgba(238,234,229,.82);
+}
+html body:has(.journey-causal-world) .explore-trigger span {
+  color: #79736d;
+}
+
+/* Keep the causal protagonist a little darker than the drafting field. It
+   should resemble a technical outline, not disappear into the paper. */
+.journey-causal-world .causal-mechanism-node.node-name {
+  border-color: rgba(41,40,39,.72) !important;
+  background: rgba(228,224,219,.52) !important;
+}
+.journey-causal-world .causal-mechanism-node.node-name::after {
+  color: #292827 !important;
+  font-weight: 650;
+}
+.journey-causal-world .causal-mechanism-axis {
+  opacity: .82;
+}
+.journey-causal-world .causal-annotation {
+  opacity: .9;
+}
+
+@media (max-width: 680px) {
+  html body:has(.journey-causal-world) .topbar {
+    border-bottom-color: rgba(41,40,39,.12);
+  }
+}

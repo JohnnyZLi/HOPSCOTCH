@@ -1,0 +1,184 @@
+/* Phase 5 light-mode bridge. The choreography remains identical; only the
+   rendering materials change so packet assembly and physical forwarding do
+   not fall back to the legacy black stage. */
+
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail {
+  background: #302e2c !important;
+  border-color: rgba(41,40,39,.08) !important;
+  color: #ece7e1 !important;
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail__events button.passed {
+  background: #d84f49 !important;
+}
+
+.journey-causal-world .phase5-packet-object,
+.journey-causal-world .phase5b-physical {
+  --phase5c-cyan: #393633;
+  --phase5c-blue: #6f6963;
+  --phase5c-violet: #8b857f;
+  --phase5c-amber: #d84f49;
+  --phase5c-ink: #d9d4cf;
+  --phase5c-panel: rgba(229,225,220,.88);
+  --p5b-cyan: #4f4a46;
+  --p5b-blue: #6b6660;
+  --p5b-amber: #d84f49;
+  --p5b-violet: #817b75;
+  color: #292827 !important;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(255,255,255,.22), transparent 31%),
+    linear-gradient(145deg, #ded9d4, #d9d4cf 62%, #d0cac4) !important;
+}
+
+.journey-causal-world .phase5c-void {
+  background:
+    linear-gradient(rgba(41,40,39,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(41,40,39,.035) 1px, transparent 1px) !important;
+  opacity: .32 !important;
+}
+.journey-causal-world .phase5c-void > i {
+  border-color: rgba(41,40,39,.11) !important;
+}
+
+.journey-causal-world .phase5c-beat span,
+.journey-causal-world .phase5b-instrument span,
+.journey-causal-world .phase5b-continuity span {
+  color: rgba(41,40,39,.5) !important;
+}
+.journey-causal-world .phase5c-beat strong,
+.journey-causal-world .phase5b-instrument strong {
+  color: rgba(41,40,39,.86) !important;
+}
+.journey-causal-world .phase5c-beat > i {
+  background: linear-gradient(90deg, transparent, rgba(41,40,39,.55), transparent) !important;
+  box-shadow: none !important;
+}
+
+.journey-causal-world .phase5c-packet-shadow {
+  background: radial-gradient(ellipse, rgba(41,40,39,.1), transparent 68%) !important;
+  filter: blur(18px) !important;
+}
+
+/* Technical packet surfaces: pale drafting material, charcoal outline. */
+.journey-causal-world .phase5-packet-object .phase5c-layer,
+.journey-causal-world .phase5-packet-object .phase5c-application,
+.journey-causal-world .phase5-packet-object .phase5c-security,
+.journey-causal-world .phase5-packet-object .phase5c-transport,
+.journey-causal-world .phase5-packet-object .phase5c-network,
+.journey-causal-world .phase5-packet-object .phase5c-link {
+  color: #292827 !important;
+  border-color: rgba(41,40,39,.4) !important;
+  background: rgba(230,226,221,.78) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.18), 0 18px 34px rgba(55,49,44,.06) !important;
+  filter: none !important;
+}
+
+.journey-causal-world .phase5-packet-object .phase5c-layer strong,
+.journey-causal-world .phase5-packet-object .phase5c-layer b,
+.journey-causal-world .phase5-packet-object .phase5c-layer span {
+  color: #302e2c !important;
+  text-shadow: none !important;
+}
+.journey-causal-world .phase5-packet-object .phase5c-layer small {
+  color: #746e68 !important;
+  text-shadow: none !important;
+}
+
+/* Physical forwarding becomes a line-drawn topology on the same paper. */
+.journey-causal-world .phase5b-physical::before {
+  background:
+    radial-gradient(circle at 66% 48%, rgba(41,40,39,.035), transparent 25%),
+    radial-gradient(circle at 38% 48%, rgba(216,79,73,.035), transparent 22%),
+    linear-gradient(112deg, transparent 24%, rgba(41,40,39,.025) 50%, transparent 76%) !important;
+}
+.journey-causal-world .phase5b-instrument {
+  border-top-color: rgba(41,40,39,.26) !important;
+}
+.journey-causal-world .phase5b-axis::before,
+.journey-causal-world .phase5b-path::before {
+  background: rgba(41,40,39,.2) !important;
+}
+.journey-causal-world .phase5b-axis i {
+  background: linear-gradient(transparent, rgba(41,40,39,.1), transparent) !important;
+}
+.journey-causal-world .phase5b-axis span {
+  color: rgba(41,40,39,.34) !important;
+}
+.journey-causal-world .phase5b-path i {
+  border-color: rgba(41,40,39,.38) !important;
+  background: #d9d4cf !important;
+  box-shadow: none !important;
+}
+.journey-causal-world .phase5b-stage-link-transmit .path-a i,
+.journey-causal-world .phase5b-stage-next-link .path-b i {
+  border-color: #d84f49 !important;
+  background: #d84f49 !important;
+  box-shadow: none !important;
+}
+
+.journey-causal-world .phase5b-device {
+  border-color: rgba(41,40,39,.3) !important;
+  color: #292827 !important;
+  background: rgba(225,221,216,.6) !important;
+  box-shadow: 0 16px 28px rgba(55,49,44,.045), inset 0 0 0 1px rgba(255,255,255,.22) !important;
+}
+.journey-causal-world .phase5b-device > span:first-child,
+.journey-causal-world .phase5b-device > small {
+  color: rgba(41,40,39,.5) !important;
+}
+.journey-causal-world .phase5b-device > strong,
+.journey-causal-world .phase5b-device.is-active > strong {
+  color: #302e2c !important;
+}
+.journey-causal-world .phase5b-device > i {
+  background: rgba(41,40,39,.18) !important;
+  box-shadow: none !important;
+}
+.journey-causal-world .phase5b-device.is-active {
+  border-color: rgba(216,79,73,.72) !important;
+  box-shadow: 0 0 0 1px rgba(216,79,73,.06), 0 18px 34px rgba(55,49,44,.055) !important;
+}
+.journey-causal-world .phase5b-device.is-active > i {
+  background: #d84f49 !important;
+}
+
+.journey-causal-world .phase5b-nic-queue {
+  border-color: rgba(41,40,39,.24) !important;
+  color: #5f5a55 !important;
+  background: rgba(231,227,222,.92) !important;
+}
+.journey-causal-world .phase5b-nic-queue b { color: #d84f49 !important; }
+.journey-causal-world .phase5b-switch-ports b,
+.journey-causal-world .phase5b-router-ring,
+.journey-causal-world .phase5b-router-ring b {
+  border-color: rgba(41,40,39,.3) !important;
+}
+.journey-causal-world .phase5b-router-ring b { background: #d9d4cf !important; }
+
+.journey-causal-world .phase5b-old-envelope,
+.journey-causal-world .phase5b-new-envelope,
+.journey-causal-world .phase5c-frame-shell,
+.journey-causal-world .phase5b-ip-core,
+.journey-causal-world .phase5b-transport-core {
+  border-color: rgba(41,40,39,.38) !important;
+  color: #292827 !important;
+  background: rgba(230,226,221,.82) !important;
+  box-shadow: 0 12px 25px rgba(55,49,44,.05) !important;
+}
+.journey-causal-world .phase5b-old-envelope small,
+.journey-causal-world .phase5b-new-envelope small,
+.journey-causal-world .phase5b-old-envelope b,
+.journey-causal-world .phase5b-new-envelope b {
+  color: #5e5954 !important;
+}
+
+/* Remove legacy neon/drop-shadow language from SVG and active tokens. */
+.journey-causal-world .phase5b-physical svg *,
+.journey-causal-world .phase5-packet-object svg * {
+  filter: none !important;
+}
+
+@media (max-width: 680px) {
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail {
+    background: #302e2c !important;
+  }
+}
