@@ -16,6 +16,7 @@ import './FullUiPolish.css';
 import './FullUiPolishFixups.css';
 import './dns-geometry.css';
 import './JourneyDnsGeometry.css';
+import './JourneyDefaultLight.css';
 
 type StressProfile = 'as-density' | 'builder-density' | 'physical-density';
 
