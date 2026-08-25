@@ -65,7 +65,7 @@ const TONE_PRIORITY: Record<NonNullable<VisualTimelineEvent['tone']>, number> = 
   danger: 4,
 };
 
-const PRESENTATION_BASE_SLOWDOWN = 1 * PRESENTATION_READABILITY_SCALE;
+const PRESENTATION_BASE_SLOWDOWN = 1.2 * PRESENTATION_READABILITY_SCALE;
 
 function strongerTone(
   left: NonNullable<VisualTimelineEvent['tone']>,
