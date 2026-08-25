@@ -13,6 +13,13 @@ const dnsSource = readFileSync(new URL('../src/DnsTheater.tsx', import.meta.url)
 const tlsSource = readFileSync(new URL('../src/TlsTheater.tsx', import.meta.url), 'utf8');
 const httpSource = readFileSync(new URL('../src/HttpComparisonTheater.tsx', import.meta.url), 'utf8');
 const protocolCss = readFileSync(new URL('../src/protocol-workspaces.css', import.meta.url), 'utf8');
+const editorialCoreCss = readFileSync(new URL('../src/SiteEditorialCore.css', import.meta.url), 'utf8');
+const editorialCss = readFileSync(new URL('../src/SiteEditorialLight.css', import.meta.url), 'utf8');
+const editorialAuditCss = readFileSync(new URL('../src/SiteEditorialWorkspaceAudit.css', import.meta.url), 'utf8');
+const editorialWorkspaceSystem = readFileSync(new URL('../src/SiteEditorialWorkspaceSystem.css', import.meta.url), 'utf8');
+const editorialWorkspaceLoader = readFileSync(new URL('../src/SiteEditorialWorkspaceLoader.ts', import.meta.url), 'utf8');
+const entry = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
+const internetScale = readFileSync(new URL('../src/InternetScaleTheater.tsx', import.meta.url), 'utf8');
 
 // Keep the selected scale explanation structurally attached to the rail; production review covers all five rows.
 assert.ok(
@@ -129,4 +136,58 @@ assert.ok(
   'TLS and HTTP scene planes must own explicit full-stage and mobile geometry',
 );
 
-console.log('UI stability contract passed: overview scale motion and all visual workspace overlays preserve geometry, focus, reduced motion, and Time Rail stability.');
+// Journey's editorial surface is the default product language. The shell is
+// initial CSS; workspace-heavy rules must stay behind the lab lazy boundary.
+for (const token of [
+  '--site-paper: #d9d4cf',
+  '--site-ink: #292827',
+  '--site-coral: #d84f49',
+  '--site-instrument: #302e2c',
+  'html body .app-shell',
+  'html body .explore-panel',
+  'html body .visual-workspace:not(.journey-visual-workspace) .visual-workspace__stage',
+]) assert.ok(editorialCoreCss.includes(token), `Missing initial editorial core contract: ${token}`);
+
+for (const token of [
+  'html body .builder-stage',
+  'html body .measured-workspace',
+  'html body .capture-replay',
+]) assert.ok(editorialCss.includes(token), `Missing site editorial workspace contract: ${token}`);
+
+for (const token of [
+  '.packet-visual-workspace .packet-stage',
+  '.capture-replay .capture-evidence-inspector.is-frame-stage',
+  '.observed-internet .evidence-card',
+  '.internet-scale .as-winner-readout',
+]) assert.ok(editorialAuditCss.includes(token), `Missing browser-audited editorial workspace correction: ${token}`);
+
+assert.ok(
+  editorialWorkspaceSystem.includes("@import './SiteEditorialLight.css';")
+    && editorialWorkspaceSystem.includes("@import './SiteEditorialWorkspaceAudit.css';"),
+  'lazy workspace stylesheet must compose the complete base and audited workspace treatment',
+);
+assert.ok(
+  editorialWorkspaceLoader.includes("import('./SiteEditorialWorkspaceSystem.css')")
+    && editorialWorkspaceLoader.includes('.app-shell[data-lab="active"], .stress-harness')
+    && editorialWorkspaceLoader.includes("new URLSearchParams(window.location.search).has('stress')"),
+  'workspace editorial CSS must load on direct lab routes, overview-to-lab transitions, and stress fixtures',
+);
+assert.ok(
+  entry.includes("./SiteEditorialCore.css") && entry.includes("./SiteEditorialWorkspaceLoader"),
+  'application entry must load only the lightweight editorial core plus the async workspace loader',
+);
+assert.ok(
+  !entry.includes("./SiteEditorialLight.css") && !entry.includes("./SiteEditorialWorkspaceAudit.css") && !entry.includes("./SiteEditorialWorkspaceSystem.css"),
+  'workspace-heavy editorial CSS must not regress into the initial stylesheet bundle',
+);
+
+assert.ok(
+  internetScale.includes("ctx.fillStyle = '#d9d4cf'") && internetScale.includes("ctx.fillStyle = '#d84f49'"),
+  'AS routing must draw on paper with the shared coral active path rather than a dark neon canvas',
+);
+assert.ok(
+  !internetScale.includes("ctx.fillStyle = '#070b10'") && !internetScale.includes("ctx.shadowColor = '#79f2da'"),
+  'AS routing must not regress to the old black/glowing canvas treatment',
+);
+
+console.log('UI stability contract passed: overview scale motion, lazy editorial product surfaces, and all visual workspace overlays preserve geometry, focus, reduced motion, performance boundaries, and Time Rail stability.');
