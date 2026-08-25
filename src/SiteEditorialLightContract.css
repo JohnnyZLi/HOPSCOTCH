@@ -1,0 +1,3 @@
+/* This tiny contract marker stays in the initial bundle so the site-wide theme
+   remains explicit even though workspace-specific material loads lazily. */
+.site-editorial-light-contract{--editorial-paper:#d9d4cf;--editorial-ink:#292827;--editorial-coral:#d84f49}
