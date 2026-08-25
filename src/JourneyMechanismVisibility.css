@@ -467,3 +467,29 @@ html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical)
     opacity: .76;
   }
 }
+
+/* Transport belongs inside the composition rather than at its extreme edges.
+   Pulling both endpoints inward also gives the moving SYN/QUIC object enough
+   visual mass to read on a 1600px stage and prevents mobile endpoint labels
+   from grazing the viewport. */
+.journey-causal-world .endpoint-client { left: 22%; }
+.journey-causal-world .endpoint-server { left: 78%; }
+.journey-causal-world .sequence-client { left: 21%; }
+.journey-causal-world .sequence-server { right: 21%; }
+.journey-causal-world .causal-tcp-world svg {
+  inset-left: 12%;
+  width: 76%;
+}
+@keyframes tcp-flight-forward {
+  0% { left: 23%; top: 52%; opacity: .25; transform: translate(-50%, -50%) scale(.78); }
+  55% { top: 36%; opacity: 1; }
+  100% { left: 77%; top: 52%; opacity: .9; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes tcp-flight-reverse {
+  0% { left: 77%; top: 52%; opacity: .25; transform: translate(-50%, -50%) scale(.78); }
+  55% { top: 36%; opacity: 1; }
+  100% { left: 23%; top: 52%; opacity: .9; transform: translate(-50%, -50%) scale(1); }
+}
+@media (min-width: 1100px) {
+  .journey-causal-world.causal-phase-tcp .causal-camera { transform: scale(1.02) translate3d(0, 0, 0); }
+}
