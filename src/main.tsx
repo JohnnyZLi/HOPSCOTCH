@@ -29,6 +29,7 @@ import './JourneyShapeStateCorrections.css';
 import './JourneyShapeTuning.css';
 import './JourneyDnsLidMotion.css';
 import './SiteEditorialLight.css';
+import './SiteEditorialWorkspaceAudit.css';
 
 type StressProfile = 'as-density' | 'builder-density' | 'physical-density';
 
