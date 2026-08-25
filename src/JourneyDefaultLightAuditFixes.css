@@ -1,0 +1,8 @@
+/* Browser-audit corrections for the default light Journey. */
+
+@media (max-width: 680px) {
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-drawer {
+    background: #e8e4df !important;
+    backdrop-filter: none;
+  }
+}
