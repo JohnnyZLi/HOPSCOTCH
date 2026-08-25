@@ -30,6 +30,7 @@ import {
 } from './VisualWorkspace.tsx';
 import './MeasuredNetworkWorkspace.css';
 import './MeasuredNetworkWorkspace.phase4.css';
+import './MeasuredNetworkEditorialLight.css';
 
 const MAX_REPORT_BYTES = 10 * 1024 * 1024;
 

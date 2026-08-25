@@ -20,6 +20,7 @@ import {
 import type { BuilderBgpAsProjection } from './builder/bgp.ts';
 import './InternetScaleTheater.css';
 import './InternetScaleTheater.phase3.css';
+import './InternetScaleEditorialLight.css';
 
 function asLabel(asn: number): string { return `AS${asn}`; }
 

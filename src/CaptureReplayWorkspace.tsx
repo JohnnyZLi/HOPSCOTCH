@@ -9,6 +9,7 @@ import { CaptureTrackHPanel } from './CaptureTrackHPanel.tsx';
 import { useVisualDrawerFocus, VisualEntranceTransition } from './VisualWorkspace.tsx';
 import './CaptureReplayWorkspace.css';
 import './CaptureReplayWorkspace.phase4.css';
+import './CaptureReplayEditorialLight.css';
 
 const FLOW_RENDER_LIMIT = 80;
 const EVENT_WINDOW_RADIUS = 36;

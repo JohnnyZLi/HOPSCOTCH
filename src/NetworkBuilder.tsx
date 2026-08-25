@@ -79,6 +79,7 @@ import type { BuilderCliMutationRequest, BuilderCliProbeRequest } from './builde
 import { VisualEntranceTransition, useVisualDrawerFocus, type VisualDrawerId } from './VisualWorkspace';
 import './NetworkBuilder.css';
 import './NetworkBuilder.phase3.css';
+import './NetworkBuilderEditorialLight.css';
 
 const BuilderAuthoringPanel = lazy(() => import('./BuilderAuthoringPanel.tsx'));
 const BuilderChallengePanel = lazy(() => import('./BuilderChallengePanel.tsx'));

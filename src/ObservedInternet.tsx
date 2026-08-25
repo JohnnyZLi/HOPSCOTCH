@@ -9,6 +9,7 @@ import {
 import type { InternetEvidenceError, InternetEvidenceSnapshot } from './internet/evidence';
 import './ObservedInternet.css';
 import './ObservedInternet.phase4.css';
+import './ObservedInternetEditorialLight.css';
 
 function asLabel(asn: number | null): string {
   return asn === null ? 'UNAVAILABLE' : `AS${asn}`;

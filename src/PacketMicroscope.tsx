@@ -10,6 +10,7 @@ import {
 } from './VisualWorkspace';
 import './packet.css';
 import './packet.phase3.css';
+import './PacketMicroscopeEditorialLight.css';
 import {
   buildPacket,
   defaultPacketConfig,
