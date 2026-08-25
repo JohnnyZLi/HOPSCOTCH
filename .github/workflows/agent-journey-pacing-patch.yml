@@ -1,0 +1,38 @@
+name: Agent Journey Sparse Pacing Patch
+
+on:
+  push:
+    branches:
+      - agent/journey-motion-shape-overhaul
+
+permissions:
+  contents: write
+
+jobs:
+  patch-sparse-pacing:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/journey-motion-shape-overhaul
+          fetch-depth: 0
+      - name: Slow sparse presentation segments
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/VisualWorkspace.tsx')
+          source = path.read_text()
+          old = 'const PRESENTATION_BASE_SLOWDOWN = 1 * PRESENTATION_READABILITY_SCALE;'
+          new = 'const PRESENTATION_BASE_SLOWDOWN = 1.2 * PRESENTATION_READABILITY_SCALE;'
+          if source.count(old) != 1:
+              raise SystemExit('presentation slowdown constant not found exactly once')
+          path.write_text(source.replace(old, new))
+          PY
+          rm .github/workflows/agent-journey-pacing-patch.yml
+      - name: Commit sparse pacing correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/VisualWorkspace.tsx .github/workflows/agent-journey-pacing-patch.yml
+          git commit -m "Normalize sparse Journey presentation pacing"
+          git push origin HEAD:agent/journey-motion-shape-overhaul
