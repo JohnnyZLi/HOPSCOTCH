@@ -9,6 +9,7 @@ const motion = readFileSync(new URL('../src/JourneyMotionShape.css', import.meta
 const timing = readFileSync(new URL('../src/JourneyMotionTimingFixes.css', import.meta.url), 'utf8');
 const refinement = readFileSync(new URL('../src/JourneyShapeRefinement.css', import.meta.url), 'utf8');
 const tuning = readFileSync(new URL('../src/JourneyShapeTuning.css', import.meta.url), 'utf8');
+const dnsLidMotion = readFileSync(new URL('../src/JourneyDnsLidMotion.css', import.meta.url), 'utf8');
 const workspace = readFileSync(new URL('../src/VisualWorkspace.tsx', import.meta.url), 'utf8');
 const entry = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
 const theater = readFileSync(new URL('../src/JourneyTheaterV2.tsx', import.meta.url), 'utf8');
@@ -122,6 +123,10 @@ for (const token of [
   '.phase5-packet-object .phase5c-link',
 ]) assert.ok(tuning.includes(token), `Missing browser-audited Journey shape tuning: ${token}`);
 
+assert.match(dnsLidMotion, /\.journey-causal-world \.causal-cache__lid\s*\{[\s\S]*transform:\s*translateY\(0\)\s*!important;/, 'Flat resolver drawer must have a deterministic closed lid state.');
+assert.match(dnsLidMotion, /\.journey-causal-world\.causal-phase-dns \.causal-cache__lid\s*\{[\s\S]*transform:\s*translateY\(-10px\)\s*!important;/, 'DNS lookup must physically lift the flat cache lid.');
+assert.doesNotMatch(dnsLidMotion, /rotateX|rotateY|perspective/, 'Flat resolver drawer must not regress to the old skewed 3D prop.');
+
 assert.match(workspace, /const PRESENTATION_BASE_SLOWDOWN = 1\.2 \* PRESENTATION_READABILITY_SCALE;/, 'Sparse presentation segments must remain slower than raw model time.');
 for (const dwell of ['neutral: 820', 'evidence: 880', 'success: 900', 'warning: 980', 'danger: 1100']) {
   assert.ok(workspace.includes(dwell), `Missing semantic presentation dwell contract: ${dwell}`);
@@ -133,6 +138,7 @@ for (const importPath of [
   "./JourneyShapeRefinement.css",
   "./JourneyShapeStateCorrections.css",
   "./JourneyShapeTuning.css",
+  "./JourneyDnsLidMotion.css",
 ]) assert.ok(entry.includes(importPath), `Journey motion/shape layer is not loaded: ${importPath}`);
 
 assert.match(polish, /\.journey-causal-world\.is-packet-world > \.causal-camera\s*\{[^}]*opacity:\s*1;[^}]*filter:\s*none;/s, 'Packet handoff must retain the same visible causal camera instead of blur/fade replacement.');
@@ -140,4 +146,4 @@ assert.doesNotMatch(polish, /\.journey-causal-world\.is-packet-world > \.causal-
 assert.ok(css.includes('--causal-accent: #ff5a55'));
 assert.doesNotMatch(css, /#72f4e3|rgba\(114, 244, 227/);
 
-console.log('Journey causal-world contract passed: deterministic truth drives one transformable request mechanism through normalized semantic pacing, protocol-specific shapes, and a visually continuous Phase 5 handoff.');
+console.log('Journey causal-world contract passed: deterministic truth drives one transformable request mechanism through normalized semantic pacing, protocol-specific shapes, a flat physically opening DNS cache, and a visually continuous Phase 5 handoff.');
