@@ -1,0 +1,105 @@
+/* Manual visual-audit corrections for the light Journey refinement.
+   These selectors remove the last legacy dark-volume materials without
+   changing semantic state, geometry ownership, or choreography. */
+
+/* Physical devices should read like technical line drawings, not rendered
+   black hardware blocks. Keep their silhouettes and internal port geometry. */
+.journey-causal-world .phase5c-device-body,
+.journey-causal-world .device-switch .phase5c-device-body,
+.journey-causal-world .device-router .phase5c-device-body,
+.journey-causal-world .device-next .phase5c-device-body {
+  border-color: rgba(41,40,39,.48) !important;
+  background: rgba(232,228,223,.22) !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+.journey-causal-world .phase5b-device.is-active .phase5c-device-body {
+  border-color: rgba(216,79,73,.78) !important;
+  background: rgba(232,228,223,.38) !important;
+}
+.journey-causal-world .phase5c-device-body > i {
+  border-color: rgba(41,40,39,.34) !important;
+  background: rgba(41,40,39,.08) !important;
+}
+.journey-causal-world .phase5b-device.is-active .phase5c-device-body > i {
+  border-color: rgba(216,79,73,.42) !important;
+  background: rgba(216,79,73,.08) !important;
+}
+.journey-causal-world .device-router .phase5c-device-body::before,
+.journey-causal-world .device-router .phase5c-device-body::after {
+  border-color: rgba(41,40,39,.28) !important;
+  background: transparent !important;
+}
+.journey-causal-world .phase5b-device.is-active.device-router .phase5c-device-body::before,
+.journey-causal-world .phase5b-device.is-active.device-router .phase5c-device-body::after {
+  border-color: rgba(216,79,73,.38) !important;
+}
+
+/* The finished Journey should resolve into a crisp assembly. The legacy
+   perspective rings are useful as construction lines, but must never become
+   filled shadows on the light canvas. */
+.journey-causal-world.causal-phase-complete .causal-object {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+.journey-causal-world.causal-phase-complete .causal-object::before {
+  display: block !important;
+  width: 222px !important;
+  height: 118px !important;
+  border: 1px solid rgba(41,40,39,.22) !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  opacity: .72 !important;
+  transform: translate(-50%,-50%) rotateX(67deg) !important;
+}
+.journey-causal-world.causal-phase-complete .causal-object::after {
+  display: block !important;
+  width: 286px !important;
+  height: 152px !important;
+  border: 1px dashed rgba(41,40,39,.16) !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  opacity: .52 !important;
+  transform: translate(-50%,-50%) rotateX(67deg) rotateZ(18deg) !important;
+}
+.journey-causal-world.causal-phase-complete .causal-mechanism-core {
+  border-color: rgba(41,40,39,.42) !important;
+  background: rgba(232,228,223,.32) !important;
+  box-shadow: none !important;
+}
+.journey-causal-world.causal-phase-complete .causal-mechanism-core i {
+  background: rgba(41,40,39,.32) !important;
+}
+.journey-causal-world.causal-phase-complete .causal-mechanism-core i:last-child {
+  background: #d84f49 !important;
+}
+.journey-causal-world.causal-phase-complete .causal-object__payload {
+  border-color: rgba(41,40,39,.36) !important;
+  background: rgba(232,228,223,.76) !important;
+  box-shadow: none !important;
+}
+.journey-causal-world.causal-phase-complete .payload-clear strong,
+.journey-causal-world.causal-phase-complete .payload-clear b,
+.journey-causal-world.causal-phase-complete .payload-clear small {
+  color: #302d2b !important;
+}
+.journey-causal-world.causal-phase-complete .payload-cipher i {
+  background: rgba(41,40,39,.34) !important;
+}
+.journey-causal-world.causal-phase-complete .node-protection {
+  border-color: rgba(41,40,39,.34) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 680px) {
+  .journey-causal-world.causal-phase-complete .causal-object::before {
+    width: 178px !important;
+    height: 96px !important;
+  }
+  .journey-causal-world.causal-phase-complete .causal-object::after {
+    width: 228px !important;
+    height: 124px !important;
+  }
+}
