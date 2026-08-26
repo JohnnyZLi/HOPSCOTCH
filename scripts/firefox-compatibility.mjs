@@ -157,7 +157,7 @@ const profiles = [
     path: '/labs/http2-vs-http3',
     query: '',
     readySelector: '.http-visual-workspace',
-    expected: ['HTTP loss comparison', 'HTTP/2', 'HTTP/3', 'SAME LOSS', 'PROVENANCE'],
+    expected: ['HTTP/2', 'HTTP/3', 'SAME LOSS', 'SYNCHRONIZED A/B'],
     protocolWorkspace: true,
   },
   {

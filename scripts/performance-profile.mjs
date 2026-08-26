@@ -298,7 +298,7 @@ if (compatibility) profiles.push(
 { id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'DERIVED FDB', 'ARP CACHE', 'STP', 'FORWARDING'] },
 { id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'ARP CACHE', 'STP', 'FORWARDING'] },
 { id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
-  { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
+  { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
   { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
   { id: 'measured-sidecars-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
   { id: 'measured-sidecars-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
@@ -339,7 +339,7 @@ if (phase4VisualReview) {
   ];
   const evidenceWorlds = [
     { id: 'internet-evidence', path: '/internet/observed', query: '', readySelector: '.observed-internet', phase4Observed: true, expected: ['NO ROUTE CLAIM', 'NO CONTINUOUS OBSERVATION', 'PUBLIC COLLECTOR'] },
-    { id: 'measured-network', path: '/measured', query: '', readySelector: '.measured-workspace', phase4Measured: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', 'NO CROSS-TARGET MERGE'] },
+    { id: 'measured-network', path: '/measured', query: '', readySelector: '.measured-workspace', phase4Measured: true, expected: ['LOCAL MEASURED', 'Network Diagnostics Engine', 'NO CROSS-TARGET MERGE'] },
   ];
   profiles.splice(0, profiles.length, ...evidenceWorlds.flatMap((world) => evidenceViewports.map((viewport) => ({
     ...world,

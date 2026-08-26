@@ -310,7 +310,7 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
   if (microscope.provenance !== 'CAPTURED' || microscope.rangeControls !== 0 || microscope.highlighted <= 0 || !microscope.text.includes('CAPTURED · READ ONLY')) {
     throw new Error(`${profile.id} captured Packet Microscope crossed the read-only boundary.`);
   }
-  if (!microscope.text.includes('Packet evidence') || /TRACK T · PACKET EVIDENCE/.test(microscope.text)) throw new Error(`${profile.id} captured Packet Microscope exposed stale product-track identity.`);
+  if (!microscope.text.toLocaleUpperCase().includes('PACKET EVIDENCE') || /TRACK T · PACKET EVIDENCE/i.test(microscope.text)) throw new Error(`${profile.id} captured Packet Microscope exposed stale product-track identity.`);
 
   if (profile.visualReview) {
     await waitForExpression(cdp, `!document.querySelector('.packet-visual-workspace .visual-entrance')`, 5000);

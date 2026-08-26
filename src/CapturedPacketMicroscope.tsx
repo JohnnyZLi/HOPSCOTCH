@@ -176,7 +176,7 @@ export function CapturedPacketMicroscope({
       <div className="packet-stage">
         <div className="packet-origin-strip">
           <div>
-            <span>PACKET EVIDENCE · CAPTURE SOURCE</span>
+            <span>Packet evidence · capture source</span>
             <strong>{origin?.label ?? `FRAME ${frame.record.number}`}</strong>
           </div>
           <div>
