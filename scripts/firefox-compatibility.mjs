@@ -137,7 +137,7 @@ const profiles = [
     path: '/labs/dns',
     query: '',
     readySelector: '.dns-visual-workspace',
-    expected: ['DNS resolution', 'www.example.test', 'NAMESPACE', 'PROVENANCE'],
+    expected: ['CACHE MISS', 'www.example.test', 'NAMESPACE', 'PROVENANCE'],
     protocolWorkspace: true,
   },
   {

@@ -713,6 +713,7 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
   html body .protocol-scene-kicker { display: none !important; }
 
   html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail {
+    grid-template-columns: 174px minmax(0, 1fr) !important;
     width: calc(100% - 12px) !important;
     bottom: 6px !important;
     min-height: 58px !important;

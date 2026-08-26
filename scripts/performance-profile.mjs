@@ -292,7 +292,7 @@ profiles.push(
 
 if (compatibility) profiles.push(
 { id: 'protocol-tcp-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/tcp', query: '', readySelector: '.tcp-visual-workspace', protocolWorkspace: true, expected: ['TCP recovery', 'CLIENT SEQUENCE SPACE', 'CONGESTION WINDOW', 'PROVENANCE'] },
-{ id: 'protocol-dns-mobile', width: 390, height: 844, reducedMotion: false, path: '/labs/dns', query: '', readySelector: '.dns-visual-workspace', protocolWorkspace: true, expected: ['DNS resolution', 'www.example.test', 'NAMESPACE', 'PROVENANCE'] },
+{ id: 'protocol-dns-mobile', width: 390, height: 844, reducedMotion: false, path: '/labs/dns', query: '', readySelector: '.dns-visual-workspace', protocolWorkspace: true, expected: ['CACHE MISS', 'www.example.test', 'NAMESPACE', 'PROVENANCE'] },
 { id: 'protocol-tls-reduced-motion', width: 1280, height: 900, reducedMotion: true, path: '/labs/tls', query: '', readySelector: '.tls-visual-workspace', protocolWorkspace: true, expected: ['TLS 1.3 handshake', 'SYMBOLIC KEY SCHEDULE', 'WIRE VISIBILITY', 'PROVENANCE'] },
 { id: 'protocol-http-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/http2-vs-http3', query: '', readySelector: '.http-visual-workspace', protocolWorkspace: true, expected: ['HTTP loss comparison', 'HTTP/2', 'HTTP/3', 'SAME LOSS', 'PROVENANCE'] },
 { id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'DERIVED FDB', 'ARP CACHE', 'STP', 'FORWARDING'] },
