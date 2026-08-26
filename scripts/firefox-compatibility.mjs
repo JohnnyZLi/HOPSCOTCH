@@ -137,7 +137,7 @@ const profiles = [
     path: '/labs/dns',
     query: '',
     readySelector: '.dns-visual-workspace',
-    expected: ['www.example.test', 'NAMESPACE', 'PROVENANCE'],
+    expected: ['www.example.test', 'NAMESPACE', 'STUB'],
     protocolWorkspace: true,
   },
   {

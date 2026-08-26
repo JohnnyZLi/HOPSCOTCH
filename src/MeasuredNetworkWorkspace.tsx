@@ -371,7 +371,7 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
       <button type="button" onClick={() => inputRef.current?.click()}>CHOOSE JSON REPORT <span>↗</span></button>
     </section> : <>
       <section className="measured-capture-strip" aria-label="Imported measurement capture">
-        <div className="capture-source"><span className="provenance measured">LOCAL MEASURED</span><div><small>SOURCE</small><strong>{measuredState.snapshot.source.tool}</strong><span>{measuredState.snapshot.source.platform.toUpperCase()} · ADAPTER {measuredState.snapshot.source.adapterVersion}</span></div></div>
+        <div className="capture-source"><span className="provenance measured">LOCAL MEASURED</span><div><small>SOURCE</small><strong>{measuredState.snapshot.source.tool}</strong><span>{measuredState.snapshot.source.platform.toUpperCase()} · ADAPTER {measuredState.snapshot.source.adapterVersion}</span><small className="measured-source-report">{fileName ?? 'IMPORTED JSON'}</small></div></div>
         <div><span>REPORT</span><strong>{fileName ?? 'IMPORTED JSON'}</strong></div>
         <div><span>FACTS</span><strong>{measuredState.availability.total}</strong><small>{measuredState.availability.available} available · {measuredState.availability.partial} partial · {measuredState.availability.unavailable} unavailable</small></div>
         <div className={`capture-freshness state-${freshness?.classification ?? 'fresh'}`}><span>CAPTURE AGE</span><strong>{freshness ? freshnessLabel(freshness.classification) : '—'}</strong><small>{freshness ? captureAgeLabel(freshness.ageMs) : '—'}</small></div>

@@ -618,6 +618,7 @@ html body .measured-capture-strip strong { color: var(--site-ink-strong) !import
 html body .measured-capture-strip small { color: var(--site-ink-soft) !important; font-size: .39rem !important; }
 html body .measured-capture-strip .capture-source { display: flex !important; max-width: 290px !important; }
 html body .measured-capture-strip .provenance.measured { color: var(--site-coral) !important; border-color: rgba(216,79,73,.18) !important; background: transparent !important; }
+html body .measured-capture-strip .measured-source-report { color: var(--site-ink-faint) !important; letter-spacing: .045em !important; }
 
 html body .measured-main {
   position: absolute !important;
@@ -780,6 +781,7 @@ html body :is(.capture-replay, .observed-internet, .measured-workspace) .visual-
   html body .measured-capture-strip > div:nth-child(3) { display: none !important; }
 
   html body .evidence-flow { gap: 18px 30px !important; }
+  html body .observed-main { right: 26px !important; left: 26px !important; }
   html body .measured-main { grid-template-columns: 118px minmax(0,1fr) !important; gap: 24px !important; }
 }
 
@@ -815,6 +817,8 @@ html body :is(.capture-replay, .observed-internet, .measured-workspace) .visual-
 
   html body .capture-summary > div,
   html body .measured-capture-strip > div { max-width: 52vw !important; }
+
+  html body .measured-capture-strip > div:nth-child(n+2) { display: none !important; }
 
   html body .capture-cinematic-stage {
     grid-template-rows: auto minmax(180px,.88fr) auto minmax(160px,.72fr) !important;
