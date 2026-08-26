@@ -196,6 +196,10 @@ html body .capture-cinematic-stage {
   box-shadow: none !important;
 }
 
+html body .capture-replay[data-capture-mode="frame"] .capture-cinematic-stage {
+  display: none !important;
+}
+
 html body .capture-flow-heading {
   padding: 0 !important;
   border: 0 !important;
@@ -876,7 +880,7 @@ html body :is(.capture-replay, .observed-internet, .measured-workspace) .visual-
   html body .measured-categories > button b { display: none !important; }
   html body .measured-scene { overflow: visible !important; }
   html body .measured-scene-heading { display: grid !important; padding: 24px 4px 18px !important; }
-  html body .measured-scene-heading h2 { font-size: clamp(2.2rem,18vw,4.4rem) !important; }
+  html body .measured-scene-heading h2 { max-width: 100% !important; font-size: clamp(2.2rem,15vw,3.65rem) !important; }
   html body .measured-scene-heading-side { justify-items: start !important; }
   html body .measured-glyph { width: 100% !important; }
   html body .measured-fact-list { grid-template-columns: 1fr !important; }

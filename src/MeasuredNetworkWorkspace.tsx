@@ -163,6 +163,7 @@ function SemanticGlyph({ category }: { category: NativeMeasurementCategory }) {
 export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange, onExit }: { measuredState: MeasuredSnapshotState | null; onMeasuredStateChange: (state: MeasuredSnapshotState | null) => void; onExit: () => void }) {
   const reduceMotion = useReducedMotion();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const categoriesRef = useRef<HTMLElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<NativeMeasurementCategory>('interface');
@@ -195,6 +196,17 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
   const freshness = measuredState ? measuredFreshnessAt(measuredState, nowMs) : null;
   const categoryCopy = CATEGORY_COPY[selectedCategory];
   const skippedSections = measuredState?.snapshot.warnings.filter((warning) => warning.includes(':') || warning.startsWith('unknown root fields ignored:')) ?? [];
+
+  useEffect(() => {
+    const categories = categoriesRef.current;
+    if (!categories || !window.matchMedia('(max-width: 680px)').matches) return;
+    const active = categories.querySelector<HTMLButtonElement>('button.active');
+    if (!active) return;
+    const frame = window.requestAnimationFrame(() => {
+      categories.scrollTo({ left: Math.max(0, active.offsetLeft - ((categories.clientWidth - active.offsetWidth) / 2)), behavior: 'auto' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [measuredState, selectedCategory]);
 
   const chooseBestCategory = (next: MeasuredSnapshotState) => {
     const preferred: NativeMeasurementCategory[] = ['transport', 'route', 'interface', 'dns', 'icmp', 'traceroute', 'packet-capture'];
@@ -379,7 +391,7 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
       </section>
 
       <div className="measured-main">
-        <nav className="measured-categories" aria-label="Measured fact categories">
+        <nav ref={categoriesRef} className="measured-categories" aria-label="Measured fact categories">
           <header><span>MEASURED DOMAINS</span><small>SELECT ONE</small></header>
           {CATEGORY_ORDER.map((category) => {
             const count = categoryCounts.get(category) ?? 0;
