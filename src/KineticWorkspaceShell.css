@@ -599,7 +599,11 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
     overflow: hidden !important;
   }
 
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__hud > div:nth-child(n+3) {
+  /* Keep scale and the active semantic state visible on narrow screens. The
+     protocol is already named by the scene, while provenance remains
+     available in Inspect. */
+  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__hud > div:nth-child(2),
+  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__hud > div:nth-child(n+4) {
     display: none !important;
   }
 
