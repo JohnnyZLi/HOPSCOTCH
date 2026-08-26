@@ -304,8 +304,8 @@ html body .visual-workspace:not(.journey-visual-workspace) .visual-time-rail {
 
 @media (max-width: 760px) {
   html body .home-action-footer { border-left-color: var(--site-rule-soft) !important; }
-  html body .explore-overlay { padding: 10px !important; }
-  html body .explore-panel { border-radius: 7px !important; }
+  html body .explore-overlay { padding: 0 !important; }
+  html body .explore-panel { border-radius: 0 !important; }
   html body .visual-workspace:not(.journey-visual-workspace) .visual-drawer { background: #e8e4df !important; }
 }
 

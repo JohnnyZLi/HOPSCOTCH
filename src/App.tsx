@@ -1,9 +1,10 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { CornerNavigator } from './CornerNavigator';
 import { ExploreLauncher } from './ExploreLauncher';
-import { WORKSPACE_COUNT, workspaceDefinition, type ExploreDestination } from './workspace-catalog';
-import { HomeActionDeck } from './HomeActionDeck';
+import { workspaceDefinition, type ExploreDestination } from './workspace-catalog';
 import { JourneyScenarioMenu } from './JourneyScenarioMenu';
+import { KineticOverview } from './KineticOverview';
 import type { InternetEvidenceSnapshot } from './internet/evidence';
 import { bootstrapJourneyFromSearch, seedJourneyBrowserScenario } from './journey/browser.ts';
 import { scenarioForPreset } from './journey/presets.ts';
@@ -12,18 +13,16 @@ import { encodeJourneyQuery, type PortableJourneyScenario } from './journey/scen
 import type { BuilderProbePacketSeed } from './builder/probes.ts';
 import type { BuilderScenarioV8 } from './builder/scenario.ts';
 import type { BuilderBgpAsProjection } from './builder/bgp.ts';
-import { NetworkField } from './NetworkField';
 import { canonicalUrlForRoute, pathForDestination, resolveAppRoute } from './navigation';
 import type { MeasuredSnapshotState } from './measurement/state.ts';
 import type { CaptureReplayContext } from './CaptureReplayWorkspace.tsx';
 import type { CaptureSessionIndex } from './capture/session.ts';
 import type { CapturedFrameEvidence } from './capture/types.ts';
 import type { ScenarioPresetId } from './scenarios/catalog.ts';
-import { lab01Scenario, lab01StateAt } from './simulation/lab01';
+import { lab01Scenario } from './simulation/lab01';
 import type { NetworkLayer } from './simulation/model';
 import { useVisualPresentationPlayback, type VisualTimelineEvent } from './VisualWorkspace';
 
-type DisplayMode = 'overview' | 'xray';
 type ActiveLab = ExploreDestination | null;
 
 const CaptureReplayWorkspace = lazy(() => import('./CaptureReplayWorkspace.tsx').then((module) => ({ default: module.CaptureReplayWorkspace })));
@@ -39,14 +38,6 @@ const PacketMicroscope = lazy(() => import('./PacketMicroscope.tsx').then((modul
 const PhysicalInternetGlobe = lazy(() => import('./PhysicalInternetGlobe.tsx').then((module) => ({ default: module.PhysicalInternetGlobe })));
 const TcpTheater = lazy(() => import('./TcpTheater.tsx').then((module) => ({ default: module.TcpTheater })));
 const TlsTheater = lazy(() => import('./TlsTheater.tsx').then((module) => ({ default: module.TlsTheater })));
-
-const layers: Array<{ id: NetworkLayer; label: string; kicker: string; description: string }> = [
-  { id: 'internet', label: 'Internet', kicker: 'Scale 05', description: 'Physical interconnection infrastructure, autonomous systems, public routing evidence, and clearly labeled inference.' },
-  { id: 'routing', label: 'Routing', kicker: 'Scale 04', description: 'Build a weighted graph, change topology, inject failures, and watch route truth recompute.' },
-  { id: 'transport', label: 'Transport', kicker: 'Scale 03', description: 'Flows, congestion windows, retransmissions, loss, and multiplexing.' },
-  { id: 'application', label: 'Application', kicker: 'Scale 02', description: 'DNS, TLS, HTTP, QUIC, and the exchanges behind an application request.' },
-  { id: 'packet', label: 'Packet', kicker: 'Scale 01', description: 'Frames, headers, fields, encapsulation, and individual protocol messages.' },
-];
 
 const browserHistoryRoutingAvailable = typeof window !== 'undefined'
   && (window.location.protocol === 'http:' || window.location.protocol === 'https:');
@@ -69,8 +60,6 @@ function failureTimelineTone(severity: string): VisualTimelineEvent['tone'] {
 export default function App() {
   const initialSharedJourney = initialJourneyBootstrap.scenario;
   const [layer, setLayer] = useState<NetworkLayer>(initialAppRoute.destination ? workspaceDefinition(initialAppRoute.destination).layer : 'internet');
-  const [scaleDirection, setScaleDirection] = useState<'inward' | 'outward'>('inward');
-  const [mode, setMode] = useState<DisplayMode>('overview');
   const [exploreOpen, setExploreOpen] = useState(false);
   const [activeLab, setActiveLab] = useState<ActiveLab>(initialAppRoute.destination);
   const [labXray, setLabXray] = useState(true);
@@ -92,9 +81,6 @@ export default function App() {
   const [capturedMicroscopeFrame, setCapturedMicroscopeFrame] = useState<CapturedFrameEvidence | null>(null);
   const [captureReturnPending, setCaptureReturnPending] = useState(false);
   const reduceMotion = useReducedMotion();
-  const active = layers.find((item) => item.id === layer) ?? layers[0];
-  const activeLayerTop = 24.5 + Math.max(0, layers.findIndex((item) => item.id === layer)) * 52;
-  const labState = useMemo(() => lab01StateAt(timeMs), [timeMs]);
   const failureLabActive = activeLab === 'failure';
   const failurePresentationEvents = useMemo<VisualTimelineEvent[]>(() => lab01Scenario.events.map((event) => ({
     id: event.id,
@@ -307,84 +293,29 @@ export default function App() {
     setPlaying(true);
   };
   const seek = (nextTime: number) => { setPlaying(false); setTimeMs(nextTime); };
-  const selectOverviewLayer = (nextLayer: NetworkLayer) => {
-    if (nextLayer === layer) return;
-    const currentIndex = layers.findIndex((item) => item.id === layer);
-    const nextIndex = layers.findIndex((item) => item.id === nextLayer);
-    setScaleDirection(nextIndex > currentIndex ? 'inward' : 'outward');
-    setLayer(nextLayer);
-  };
-
   const activeWorkspace = activeLab ? workspaceDefinition(activeLab) : null;
-  const buildLabel = activeWorkspace?.lab ?? 'LAB 00';
-  const buildName = activeWorkspace?.name ?? 'FOUNDATION ONLINE';
-  const buildStatus = failureLabActive ? labState.statusLabel : activeWorkspace?.status ?? 'FOUNDATION ONLINE';
 
   return (
-    <main className="app-shell" data-layer={layer} data-scale-direction={scaleDirection} data-mode={mode} data-lab={activeLab ? 'active' : 'idle'}>
-      {!activeLab && <NetworkField mode={mode} layer={layer} />}
-      <div className="grid-field" aria-hidden="true" />
-      <div className="scene-vignette" aria-hidden="true" />
+    <main className="app-shell" data-layer={layer} data-lab={activeLab ? 'active' : 'idle'}>
+      {activeLab && <><div className="grid-field" aria-hidden="true" /><div className="scene-vignette" aria-hidden="true" /></>}
 
-      <motion.header className="topbar" initial={reduceMotion ? false : { opacity: 0, y: -18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}>
-        <button className="brand-lockup brand-button" type="button" onClick={exitLabs} aria-label="Return to HOPSCOTCH overview">
-          <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
-          <strong>HOPSCOTCH</strong>
-        </button>
-        <div className="topbar-meta">
-          <button className="explore-trigger" type="button" aria-expanded={exploreOpen} aria-controls="explore-dialog" onClick={() => setExploreOpen(true)}>EXPLORE <span>{WORKSPACE_COUNT} WORKSPACES</span></button>
-          <div className="build-state" aria-label={`${buildLabel} · ${buildStatus}`}>
-            <span>{buildLabel}</span>
-            <span className={`status-dot${failureLabActive ? ` phase-${labState.phase}` : ''}`}>{buildName}</span>
-            {failureLabActive && <span className="build-phase">{buildStatus}</span>}
-          </div>
-          {activeLab === 'journey' && <JourneyScenarioMenu hostname={journeyHostname} timeMs={journeyTimeMs} name={journeyScenarioName} onNameChange={setJourneyScenarioName} onImportScenario={importJourneyScenario} />}
-        </div>
-      </motion.header>
+      <CornerNavigator open={exploreOpen} current={activeWorkspace?.name ?? 'Request journey'} onOpen={() => setExploreOpen(true)} />
 
-      <ExploreLauncher open={exploreOpen} onClose={() => setExploreOpen(false)} onSelect={selectExploreDestination} onScenarioSelect={launchScenarioPreset} />
+      <ExploreLauncher
+        open={exploreOpen}
+        activeDestination={activeLab}
+        contextActions={activeLab === 'journey' ? <JourneyScenarioMenu hostname={journeyHostname} timeMs={journeyTimeMs} name={journeyScenarioName} onNameChange={setJourneyScenarioName} onImportScenario={importJourneyScenario} /> : undefined}
+        onClose={() => setExploreOpen(false)}
+        onHome={exitLabs}
+        onSelect={selectExploreDestination}
+        onScenarioSelect={launchScenarioPreset}
+      />
 
       <Suspense fallback={<section className="lab-loading" aria-live="polite">LOADING WORKSPACE…</section>}>
         <AnimatePresence mode="wait" initial={false}>
           {!activeLab ? (
-            <motion.div key="overview" className="overview-scene" initial={reduceMotion ? { opacity: 1 } : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.025, filter: 'blur(12px)' }} transition={{ duration: 0.45 }}>
-              <section className="hero-copy">
-                <motion.p className="eyebrow" initial={reduceMotion ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.7 }}>Interactive network systems laboratory</motion.p>
-                <motion.h1 initial={reduceMotion ? false : { opacity: 0, y: 34 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16, duration: 0.85, ease: [0.16, 1, 0.3, 1] }}>SEE THE<span>INTERNET</span>HAPPEN.</motion.h1>
-                <motion.p className="lede" initial={reduceMotion ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28, duration: 0.7 }}>Move from the global Internet to a single packet without losing the story in between. Routes, protocols, failures, and recovery become something you can watch, stop, rewind, build, and interrogate.</motion.p>
-                <HomeActionDeck
-                  onWatch={openJourney}
-                  onBreak={() => openFailureLab(0, true)}
-                  onBuild={openBuilderLab}
-                  onExplore={() => setExploreOpen(true)}
-                  onMeasured={openMeasuredNetwork}
-                  onToggleXray={() => setMode((current) => (current === 'overview' ? 'xray' : 'overview'))}
-                  xrayActive={mode === 'xray'}
-                />
-              </section>
-
-              <div className="scale-inspector" data-active-scale={layer} data-direction={scaleDirection}>
-                {!reduceMotion && <i key={`wave-${layer}`} className="scale-depth-wave" aria-hidden="true" />}
-                {!reduceMotion && <motion.i key={`ripple-${layer}`} className="scale-depth-ripple" aria-hidden="true" initial={{ opacity: 0.52, scale: 0.3 }} animate={{ opacity: 0, scale: 1.75 }} transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1] }} />}
-                <motion.aside className="layer-card" aria-label={`${active.label} scale details`} initial={false} animate={{ top: activeLayerTop }} transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 220, damping: 27, mass: 0.75 }}>
-                  <motion.i className="scale-connector" aria-hidden="true" initial={false} animate={{ opacity: 1, scaleX: 1 }} transition={{ duration: reduceMotion ? 0 : 0.18 }} />
-                  <AnimatePresence mode="wait" initial={false}>
-                    <motion.div key={active.id} className="layer-card-copy" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, x: 12, y: scaleDirection === 'inward' ? -5 : 5, filter: 'blur(6px)' }} animate={{ opacity: 1, x: 0, y: 0, filter: 'blur(0px)' }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -6, y: scaleDirection === 'inward' ? 3 : -3, filter: 'blur(4px)' }} transition={{ duration: reduceMotion ? 0 : 0.16, ease: [0.16, 1, 0.3, 1] }}>
-                      <motion.p initial={reduceMotion ? false : { opacity: 0, x: 7 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.02, duration: 0.16, ease: [0.16, 1, 0.3, 1] }}>{active.description}</motion.p>
-                      <motion.div className="card-rule" initial={reduceMotion ? false : { scaleX: 0, opacity: 0 }} animate={{ scaleX: 1, opacity: 1 }} transition={{ delay: 0.06, duration: 0.18, ease: [0.16, 1, 0.3, 1] }} />
-                      <motion.small initial={reduceMotion ? false : { opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.10, duration: 0.14, ease: [0.16, 1, 0.3, 1] }}>{layer === 'packet' ? 'PACKET MICROSCOPE READY' : layer === 'transport' ? 'TCP PROTOCOL THEATER READY' : layer === 'application' ? 'HTTP + TLS + DNS THEATER READY' : layer === 'routing' ? 'DYNAMIC NETWORK BUILDER READY' : 'PHYSICAL + SIMULATED + OBSERVED INTERNET MODES READY'}</motion.small>
-                    </motion.div>
-                  </AnimatePresence>
-                </motion.aside>
-                <nav className="scale-rail" aria-label="Network scale">
-                  {layers.map((item) => {
-                    const selected = layer === item.id;
-                    return <motion.button key={item.id} type="button" className={selected ? 'active' : ''} onClick={() => selectOverviewLayer(item.id)} animate={reduceMotion ? { opacity: selected ? 1 : 0.72 } : { x: selected ? -4 : 0, opacity: selected ? 1 : 0.68 }} whileHover={reduceMotion ? undefined : { x: selected ? -7 : 5, opacity: 1 }} transition={{ type: 'spring', stiffness: 360, damping: 28, mass: 0.65 }}>{selected && <motion.i className="scale-active-marker" layoutId="overview-scale-marker" aria-hidden="true" transition={{ type: 'spring', stiffness: 260, damping: 24, mass: 0.7 }} />}<span>{item.kicker}</span><strong>{item.label}</strong></motion.button>;
-                  })}
-                </nav>
-              </div>
-
-              <footer className="timeline-preview"><div className="timeline-labels"><span>TIME MACHINE</span><span>00:00.000</span></div><div className="timeline-track" aria-hidden="true"><i /><b /></div><span className="timeline-note">Lab 01 failure · Lab 02 packet · Lab 03 protocols · Lab 04 builder · Lab 05 Internet · Lab 07 Journey · Lab 09 measured</span></footer>
+            <motion.div key="overview" className="kinetic-overview-shell" initial={reduceMotion ? { opacity: 1 } : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.018, filter: 'blur(10px)' }} transition={{ duration: .45 }}>
+              <KineticOverview onRunJourney={openJourney} onOpenExplore={() => setExploreOpen(true)} />
             </motion.div>
           ) : activeLab === 'journey' ? (
             <JourneyTheater key={`lab06-${journeyRenderKey}`} hostname={journeyHostname} timeMs={journeyTimeMs} startPlaying={journeyStartPlaying} evidence={journeyEvidence} measuredState={measuredSession} onHostnameChange={setJourneyHostname} onTimeChange={setJourneyTimeMs} onEvidenceChange={setJourneyEvidence} onOpenDetail={openJourneyDetail} onExit={exitLabs} />

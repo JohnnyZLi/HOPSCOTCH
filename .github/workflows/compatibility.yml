@@ -190,7 +190,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  scale-inspector-visual-review:
+  kinetic-overview-visual-review:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -201,16 +201,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - name: Measure and capture overview scale detail card
+      - name: Measure and capture kinetic overview states
         run: node scripts/scale-inspector-visual-review.mjs
       - name: Verify desktop overview layout stability
         run: node scripts/overview-layout-stability-review.mjs
-      - name: Upload scale inspector visual review
+      - name: Upload kinetic overview visual review
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: hopscotch-scale-inspector-visual-review
-          path: artifacts/scale-inspector-visual-review
+          name: hopscotch-kinetic-overview-visual-review
+          path: artifacts/kinetic-overview-visual-review
           if-no-files-found: error
           retention-days: 7
       - name: Upload overview layout stability review

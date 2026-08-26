@@ -126,24 +126,29 @@ async function screenshot(cdp, filename) {
 async function measureViewport(cdp, origin, width, height) {
   await cdp.call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
   await cdp.call('Page.navigate', { url: `${origin}/` });
-  await waitForExpression(cdp, `Boolean(document.querySelector('.hero-copy h1') && document.querySelector('.scale-inspector'))`);
+  await waitForExpression(cdp, `Boolean(document.querySelector('.kinetic-copy h1') && document.querySelector('.kinetic-machine') && document.querySelector('.corner-navigator'))`);
   await sleep(900);
 
   const metrics = await cdp.evaluate(`(()=>{
     const box=(selector)=>{const element=document.querySelector(selector);if(!element)return null;const r=element.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};
-    const h1=document.querySelector('.hero-copy h1');
-    const lede=document.querySelector('.lede');
+    const boxes=(selector)=>[...document.querySelectorAll(selector)].map((element)=>{const r=element.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});
+    const h1=document.querySelector('.kinetic-copy h1');
     return {
       viewport:{innerWidth,innerHeight,devicePixelRatio},
-      hero:box('.hero-copy'),
-      heading:box('.hero-copy h1'),
+      shell:box('.kinetic-overview'),
+      copy:box('.kinetic-copy'),
+      heading:box('.kinetic-copy h1'),
       headingFontPx:h1?parseFloat(getComputedStyle(h1).fontSize):null,
-      lede:box('.lede'),
-      ledeFontPx:lede?parseFloat(getComputedStyle(lede).fontSize):null,
-      deck:box('.home-action-deck'),
-      inspector:box('.scale-inspector'),
-      rail:box('.scale-rail'),
-      timeline:box('.timeline-preview'),
+      primary:box('.kinetic-primary-action'),
+      scene:box('.kinetic-scene'),
+      machine:box('.kinetic-machine'),
+      readout:box('.kinetic-readout'),
+      instrument:box('.kinetic-instrument'),
+      corner:box('.corner-navigator'),
+      stageGroups:document.querySelectorAll('.kinetic-stage-group').length,
+      annotations:document.querySelectorAll('.kinetic-annotation').length,
+      annotationBoxes:boxes('.kinetic-annotation'),
+      animationCount:document.getAnimations().length,
       scrollHeight:document.documentElement.scrollHeight,
       scrollWidth:document.documentElement.scrollWidth,
     };
@@ -172,18 +177,29 @@ async function main() {
     for (const height of [700, 796, 823, 950]) {
       report.viewports[`1600x${height}`] = await measureViewport(cdp, origin, 1600, height);
     }
+    report.viewports['768x1024'] = await measureViewport(cdp, origin, 768, 1024);
+    report.viewports['390x844'] = await measureViewport(cdp, origin, 390, 844);
 
     const braveLike = report.viewports['1600x796'];
     const chromeLike = report.viewports['1600x823'];
-    assert.ok(delta(braveLike.hero.top, chromeLike.hero.top) <= 3, `Hero jumps across the old 820px boundary (${braveLike.hero.top} vs ${chromeLike.hero.top}).`);
+    // The copy uses a smooth 12vh offset here, so a 27px-taller viewport should
+    // move it by about 3.24px. Leave enough room for that expected interpolation
+    // while still catching the old breakpoint-sized jump.
+    assert.ok(delta(braveLike.copy.top, chromeLike.copy.top) <= 4, `Copy jumps across the old 820px boundary (${braveLike.copy.top} vs ${chromeLike.copy.top}).`);
     assert.ok(delta(braveLike.headingFontPx, chromeLike.headingFontPx) <= 2, `Heading size jumps across the old 820px boundary (${braveLike.headingFontPx} vs ${chromeLike.headingFontPx}).`);
-    assert.ok(delta(braveLike.deck.top, chromeLike.deck.top) <= 5, `Action deck jumps across the old 820px boundary (${braveLike.deck.top} vs ${chromeLike.deck.top}).`);
-    assert.ok(delta(braveLike.inspector.top, chromeLike.inspector.top) <= 10, `Scale inspector jumps across the old 820px boundary (${braveLike.inspector.top} vs ${chromeLike.inspector.top}).`);
 
     for (const [label, metrics] of Object.entries(report.viewports)) {
       assert.ok(metrics.scrollWidth <= metrics.viewport.innerWidth + 1, `${label} horizontally overflows.`);
-      assert.ok(metrics.deck && metrics.timeline && metrics.deck.bottom <= metrics.timeline.top - 8, `${label} action deck overlaps the time machine.`);
-      assert.ok(metrics.rail && metrics.timeline && metrics.rail.bottom <= metrics.timeline.top - 8, `${label} scale rail overlaps the time machine.`);
+      assert.ok(metrics.shell && metrics.shell.width >= metrics.viewport.innerWidth - 1 && metrics.shell.height >= metrics.viewport.innerHeight - 1, `${label} does not use the full viewport.`);
+      assert.ok(metrics.heading && metrics.heading.left >= 0 && metrics.heading.right <= metrics.viewport.innerWidth + 1, `${label} heading escapes the viewport.`);
+      assert.ok(metrics.primary && metrics.primary.left >= 0 && metrics.primary.right <= metrics.viewport.innerWidth + 1, `${label} primary action escapes the viewport.`);
+      assert.ok(metrics.instrument && metrics.instrument.left >= 0 && metrics.instrument.right <= metrics.viewport.innerWidth + 1 && metrics.instrument.bottom <= metrics.viewport.innerHeight + 1, `${label} instrument escapes the viewport.`);
+      assert.ok(metrics.corner && metrics.corner.left >= 0 && metrics.corner.top >= 0 && metrics.corner.right <= metrics.viewport.innerWidth + 1, `${label} corner navigator escapes the viewport.`);
+      assert.equal(metrics.stageGroups, 6, `${label} lost a semantic request stage.`);
+      assert.ok(metrics.annotations >= 5, `${label} lost peripheral annotations.`);
+      const annotationPositions = new Set(metrics.annotationBoxes.map((box) => `${Math.round(box.left / 4)}:${Math.round(box.top / 4)}`));
+      assert.equal(annotationPositions.size, metrics.annotationBoxes.length, `${label} stacks multiple SVG annotations at the same transformed origin.`);
+      assert.ok(metrics.animationCount >= 1, `${label} has no active choreography.`);
     }
   } catch (error) {
     report.failures.push(error instanceof Error ? error.stack ?? error.message : String(error));
