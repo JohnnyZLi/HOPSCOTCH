@@ -285,7 +285,7 @@ const profiles = [
 ];
 
 profiles.push(
-  { id: 'stress-as-canvas', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'as-density' }), readySelector: '.internet-scale', expected: ['POLICY MAKES', 'SIMULATED WINNER'], stressExpected: { profile: 'as-density', asNodes: 160, asRelationships: 220 } },
+  { id: 'stress-as-canvas', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'as-density' }), readySelector: '.internet-scale', expected: ['POLICY SELECTS', 'SIMULATED BEST PATH'], stressExpected: { profile: 'as-density', asNodes: 160, asRelationships: 220 } },
   { id: 'stress-builder-ceiling', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'builder-density' }), readySelector: '.builder-workspace', expected: ['32 NODES · 96 LINKS', 'PATH', 'YES · COST', 'FORWARDING', 'NO ROUTE'], stressExpected: { profile: 'builder-density', builderNodes: 32, builderLinks: 96 } },
   { id: 'stress-physical-webgl', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'physical-density' }), readySelector: '.physical-globe', expected: gpuMode === 'disabled' ? ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA', 'FALLBACK', 'WEBGL 2 UNAVAILABLE'] : ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA', 'WEBGL 2'], stressExpected: { profile: 'physical-density', physicalPoints: 2000, webgl: gpuMode !== 'disabled' }, allowExpectedWebglFailure: gpuMode === 'disabled' },
 );
@@ -314,10 +314,10 @@ if (phase3VisualReview) {
     { id: 'mobile', width: 390, height: 844 },
   ];
   const visualWorlds = [
-    { id: 'as-routing', path: '/internet/as-routing', query: '', readySelector: '.as-visual-workspace', expected: ['LAB 05A · AS ROUTING', 'SIMULATED WINNER', 'PROVENANCE'], workspaceSelector: '.as-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.internet-canvas-wrap', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.as-visual-workspace .visual-drawer-tabs button', drawerSelector: '.as-visual-workspace .visual-drawer' },
-    { id: 'physical-atlas', path: '/', query: query({ stress: 'physical-density' }), readySelector: '.physical-visual-workspace', expected: ['LAB 05C · PHYSICAL ATLAS', 'SIMULATED STRESS POINTS', 'PROVENANCE'], workspaceSelector: '.physical-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.globe-viewport', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.physical-visual-workspace .visual-drawer-tabs button', drawerSelector: '.physical-visual-workspace .visual-drawer' },
-    { id: 'packet-microscope', path: '/labs/packet', query: '', readySelector: '.packet-visual-workspace', expected: ['LAB 02 · PACKET MICROSCOPE', 'SIMULATED', 'PROVENANCE'], workspaceSelector: '.packet-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.packet-stage', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.packet-visual-workspace .visual-drawer-tabs button', drawerSelector: '.packet-visual-workspace .visual-drawer' },
-    { id: 'network-builder', path: '/labs/builder', query: '', readySelector: '.builder-visual-workspace', expected: ['LAB 04 · NETWORK BUILDER', 'PATH', 'FORWARDING', 'OSPF', 'GRAPH'], workspaceSelector: '.builder-visual-workspace', stageSelector: '.builder-stage', worldSelector: '.builder-canvas', semanticSelector: '.builder-node-anchor', semanticMinWidthRatio: 0.72, semanticMinHeightRatio: 0.34, toolbarSelector: '.builder-world-toolbar', hudSelector: '.builder-stage-meta', inspectButtonSelector: '.builder-tool-inspect', drawerSelector: '.builder-context-drawer.open' },
+    { id: 'as-routing', path: '/internet/as-routing', query: '', readySelector: '.as-visual-workspace', expected: ['AS routing', 'SIMULATED BEST PATH', 'PROVENANCE'], workspaceSelector: '.as-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.internet-canvas-wrap', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.as-visual-workspace .visual-drawer-tabs button', drawerSelector: '.as-visual-workspace .visual-drawer' },
+    { id: 'physical-atlas', path: '/', query: query({ stress: 'physical-density' }), readySelector: '.physical-visual-workspace', expected: ['Physical Internet', 'SIMULATED STRESS POINTS', 'PROVENANCE'], workspaceSelector: '.physical-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.globe-viewport', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.physical-visual-workspace .visual-drawer-tabs button', drawerSelector: '.physical-visual-workspace .visual-drawer' },
+    { id: 'packet-microscope', path: '/labs/packet', query: '', readySelector: '.packet-visual-workspace', expected: ['Packet microscope', 'SIMULATED', 'PROVENANCE'], workspaceSelector: '.packet-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.packet-stage', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.packet-visual-workspace .visual-drawer-tabs button', drawerSelector: '.packet-visual-workspace .visual-drawer' },
+    { id: 'network-builder', path: '/labs/builder', query: '', readySelector: '.builder-visual-workspace', expected: ['Network builder', 'PATH', 'FORWARDING', 'OSPF', 'GRAPH'], workspaceSelector: '.builder-visual-workspace', stageSelector: '.builder-stage', worldSelector: '.builder-canvas', semanticSelector: '.builder-node-anchor', semanticMinWidthRatio: 0.72, semanticMinHeightRatio: 0.34, toolbarSelector: '.builder-world-toolbar', hudSelector: '.builder-stage-meta', inspectButtonSelector: '.builder-tool-inspect', drawerSelector: '.builder-context-drawer.open' },
   ];
   profiles.splice(0, profiles.length, ...visualWorlds.flatMap((world) => visualViewports.map((viewport) => ({
     ...world,
@@ -481,7 +481,7 @@ async function exerciseBuilderOspf(cdp, profile) {
   await measuredClickButton(cdp, '.builder-probe-section button', 'OPEN ICMP PACKET');
   await waitForExpression(cdp, `Boolean(document.querySelector('.packet-microscope'))`, 8000);
   const packetText = await cdp.evaluate(`document.querySelector('.packet-microscope')?.innerText??''`);
-  if (!packetText.includes('LAB 11D · ICMP TRACE TTL') || !packetText.includes('ICMP') || !packetText.includes('TTL')) throw new Error(`${profile.id} probe packet did not seed Lab 02 ICMP state.`);
+  if (!packetText.includes('BUILDER IPV4 · ICMP TRACE TTL') || !packetText.includes('ICMP') || !packetText.includes('TTL')) throw new Error(`${profile.id} probe packet did not seed the Packet Microscope ICMP state.`);
   await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN TO BUILDER');
   await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
 
@@ -508,7 +508,7 @@ async function exerciseBuilderOspf(cdp, profile) {
   await measuredClickButton(cdp, '.builder-probe-section button', 'OPEN ICMP PACKET');
   await waitForExpression(cdp, `Boolean(document.querySelector('.packet-microscope'))`, 8000);
   const packet6Text = await cdp.evaluate(`document.querySelector('.packet-microscope')?.innerText??''`);
-  if (!packet6Text.includes('LAB 11N · ICMPV6 TRACE HOP LIMIT') || !packet6Text.includes('IPv6') || !packet6Text.includes('ICMPv6') || !packet6Text.toLowerCase().includes('2001:db8:')) throw new Error(`${profile.id} IPv6 probe packet did not seed actual Builder ICMPv6 state into Lab 02.`);
+  if (!packet6Text.includes('BUILDER IPV6 · ICMPV6 TRACE HOP LIMIT') || !packet6Text.includes('IPv6') || !packet6Text.includes('ICMPv6') || !packet6Text.toLowerCase().includes('2001:db8:')) throw new Error(`${profile.id} IPv6 probe packet did not seed actual Builder ICMPv6 state into the Packet Microscope.`);
   await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN TO BUILDER');
   await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
   const ipv4FamilyRestored = await cdp.evaluate(`(()=>{

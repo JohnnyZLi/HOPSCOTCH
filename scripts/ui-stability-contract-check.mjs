@@ -20,6 +20,7 @@ const editorialCss = readFileSync(new URL('../src/SiteEditorialLight.css', impor
 const editorialAuditCss = readFileSync(new URL('../src/SiteEditorialWorkspaceAudit.css', import.meta.url), 'utf8');
 const editorialWorkspaceSystem = readFileSync(new URL('../src/SiteEditorialWorkspaceSystem.css', import.meta.url), 'utf8');
 const kineticWorkspaceCss = readFileSync(new URL('../src/KineticWorkspaceShell.css', import.meta.url), 'utf8');
+const kineticDeepWorkspaceCss = readFileSync(new URL('../src/KineticDeepWorkspaceShell.css', import.meta.url), 'utf8');
 const editorialWorkspaceLoader = readFileSync(new URL('../src/SiteEditorialWorkspaceLoader.ts', import.meta.url), 'utf8');
 const entry = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
 
@@ -59,7 +60,7 @@ for (const token of ['--site-paper: #d9d4cf', '--site-ink: #292827', '--site-cor
 for (const token of ['html body .builder-stage', 'html body .measured-workspace', 'html body .capture-replay']) assert.ok(editorialCss.includes(token));
 for (const token of ['.packet-visual-workspace .packet-stage', '.capture-replay .capture-evidence-inspector.is-frame-stage', '.observed-internet .evidence-card', '.internet-scale .as-winner-readout']) assert.ok(editorialAuditCss.includes(token));
 assert.ok(editorialWorkspaceSystem.includes("@import './SiteEditorialLight.css';") && editorialWorkspaceSystem.includes("@import './SiteEditorialWorkspaceAudit.css';"));
-assert.ok(editorialWorkspaceSystem.trimEnd().endsWith("@import './KineticWorkspaceShell.css';"));
+assert.ok(editorialWorkspaceSystem.trimEnd().endsWith("@import './KineticDeepWorkspaceShell.css';"));
 for (const token of [
   '.app-shell[data-lab="active"]:has',
   'grid-template-rows: minmax(0, 1fr) !important',
@@ -71,6 +72,15 @@ for (const token of [
   '.tls-workspace-stage :is(.tls-endpoint',
   '.http-workspace-stage .http-lane',
 ]) assert.ok(kineticWorkspaceCss.includes(token), `Missing cinematic workspace contract ${token}`);
+for (const token of [
+  '.as-visual-workspace',
+  '.physical-visual-workspace',
+  '.packet-visual-workspace',
+  '.builder-visual-workspace',
+  'height: 100dvh !important',
+  '.packet-object-wrap',
+  '.globe-viewport',
+]) assert.ok(kineticDeepWorkspaceCss.includes(token), `Missing deep workspace contract ${token}`);
 assert.ok(editorialWorkspaceLoader.includes("import('./SiteEditorialWorkspaceSystem.css')"));
 assert.ok(entry.includes("./SiteEditorialCore.css") && entry.includes("./SiteEditorialWorkspaceLoader"));
 assert.ok(!entry.includes('./ScaleInspectorPolish.css') && !entry.includes('./OverviewLayoutStability.css'));

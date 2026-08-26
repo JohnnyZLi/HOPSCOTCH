@@ -80,7 +80,7 @@ export default function BuilderChallengePanel({
   };
 
   return <section className={`builder-challenge-panel ${score.solved ? 'is-solved' : ''}`} data-challenge-id={challenge.id} data-challenge-family={challenge.family} data-challenge-score={score.total}>
-    <div className="control-title"><span>TROUBLESHOOTING CHALLENGE</span><strong>TRACK J · {challenge.difficulty}</strong></div>
+    <div className="control-title"><span>TROUBLESHOOTING SCENARIO</span><strong>{challenge.difficulty}</strong></div>
     <div className="builder-challenge-heading">
       <span>SEED · {challenge.seed}</span>
       <strong>{challenge.title}</strong>

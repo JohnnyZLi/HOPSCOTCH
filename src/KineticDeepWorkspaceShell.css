@@ -1,0 +1,476 @@
+/* Phase 6: one coherent HOPSCOTCH instrument for the deep technical worlds.
+   These views already contain real motion systems. This layer removes the
+   persistent "lab dashboard" framing so the graph, globe, packet, or topology
+   becomes the page and controls recede to the edges. */
+
+html body .app-shell[data-lab="active"]:has(:is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace)) {
+  height: 100dvh !important;
+  min-height: 560px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: var(--site-paper) !important;
+}
+
+html body .app-shell[data-lab="active"]:has(:is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace)) > .corner-navigator {
+  z-index: 80 !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace).visual-workspace,
+html body .builder-workspace.builder-visual-workspace {
+  width: 100% !important;
+  height: 100dvh !important;
+  min-height: 560px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--site-paper) !important;
+  box-shadow: none !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace) .visual-workspace__stage,
+html body .builder-visual-workspace .builder-stage {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(255,255,255,.3), transparent 36%),
+    linear-gradient(145deg, #ddd8d3, var(--site-paper) 58%, #d2ccc6) !important;
+  box-shadow: none !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace) .visual-workspace__ambient,
+html body .builder-visual-workspace .builder-stage::before {
+  opacity: .3 !important;
+  background-image:
+    linear-gradient(rgba(41,40,39,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(41,40,39,.035) 1px, transparent 1px) !important;
+  background-size: 42px 42px !important;
+}
+
+/* Edge chrome: identity is a caption, the contextual tools are one floating
+   pill, and cross-workspace actions no longer form a full-width menu bar. */
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace) .visual-workspace__toolbar,
+html body .builder-world-toolbar {
+  top: 18px !important;
+  right: 18px !important;
+  left: 82px !important;
+  min-height: 36px !important;
+  gap: 12px !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-toolbar__identity {
+  display: flex !important;
+  min-width: 0 !important;
+  max-width: 280px !important;
+  align-items: baseline !important;
+  gap: 8px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-toolbar__identity span {
+  color: var(--site-ink-strong) !important;
+  font-size: .62rem !important;
+  letter-spacing: .03em !important;
+  text-transform: none !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-toolbar__identity strong {
+  color: var(--site-ink-faint) !important;
+  font-size: .48rem !important;
+  font-weight: 650 !important;
+  letter-spacing: .02em !important;
+  text-transform: none !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace) .visual-drawer-tabs,
+html body .builder-world-tools,
+html body .builder-scene-switcher {
+  gap: 2px !important;
+  padding: 3px !important;
+  border: 1px solid rgba(41,40,39,.09) !important;
+  border-radius: 999px !important;
+  background: rgba(232,228,223,.8) !important;
+  box-shadow: 0 12px 34px rgba(55,49,44,.08) !important;
+  backdrop-filter: blur(16px) !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace) .visual-drawer-tabs button,
+html body .builder-world-tools button,
+html body .builder-scene-switcher button {
+  min-height: 28px !important;
+  padding: 0 9px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  color: var(--site-ink-soft) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: .49rem !important;
+  font-weight: 700 !important;
+  letter-spacing: .015em !important;
+  text-transform: none !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace) .visual-drawer-tabs button:is(:hover, :focus-visible, .active),
+html body .builder-world-tools button:is(:hover, :focus-visible, .active),
+html body .builder-scene-switcher button:is(:hover, :focus-visible, .active) {
+  color: var(--site-ink-strong) !important;
+  background: rgba(255,255,255,.44) !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace) .visual-drawer-tabs button span {
+  color: var(--site-coral) !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-toolbar__actions {
+  min-width: 0 !important;
+  gap: 3px !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-toolbar__actions button {
+  min-height: 30px !important;
+  padding: 0 9px !important;
+  border-color: rgba(41,40,39,.08) !important;
+  border-radius: 999px !important;
+  color: var(--site-ink-faint) !important;
+  background: rgba(232,228,223,.68) !important;
+  box-shadow: none !important;
+  font-size: .45rem !important;
+  font-weight: 700 !important;
+  letter-spacing: .02em !important;
+  text-transform: none !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-toolbar__actions button:hover {
+  border-color: rgba(216,79,73,.28) !important;
+  color: var(--site-coral) !important;
+}
+
+/* HUD values become peripheral drafting annotations instead of a row of cards. */
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace) .visual-workspace__hud,
+html body .builder-visual-workspace .builder-stage-meta {
+  top: 66px !important;
+  left: 82px !important;
+  max-width: calc(100% - 164px) !important;
+  gap: 10px !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-hud > div,
+html body .builder-visual-workspace .builder-stage-meta > div {
+  min-width: 0 !important;
+  gap: 1px !important;
+  padding: 1px 10px 1px 0 !important;
+  border: 0 !important;
+  border-right: 1px solid rgba(41,40,39,.12) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-hud > div > span,
+html body .builder-visual-workspace .builder-stage-meta span {
+  color: var(--site-ink-faint) !important;
+  font-size: .36rem !important;
+  letter-spacing: .09em !important;
+}
+
+html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-hud > div > strong,
+html body .builder-visual-workspace .builder-stage-meta strong {
+  color: var(--site-ink-strong) !important;
+  font-size: .49rem !important;
+  letter-spacing: .025em !important;
+}
+
+/* AS routing stays a living policy field; readouts lose their card silhouette. */
+html body .as-cinematic-stage::after {
+  border: 0 !important;
+  box-shadow: inset 0 -100px 120px rgba(55,49,44,.05) !important;
+}
+
+html body .as-winner-readout,
+html body .as-selection-card,
+html body .builder-selection-card {
+  border: 0 !important;
+  border-left: 2px solid var(--site-coral) !important;
+  border-radius: 0 !important;
+  color: var(--site-ink) !important;
+  background: rgba(232,228,223,.68) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(14px) !important;
+}
+
+html body :is(.as-winner-readout, .as-selection-card, .builder-selection-card) > span { color: var(--site-ink-faint) !important; }
+html body :is(.as-winner-readout, .as-selection-card, .builder-selection-card) > strong { color: var(--site-ink-strong) !important; }
+html body :is(.as-winner-readout, .as-selection-card, .builder-selection-card) > p { color: var(--site-ink-soft) !important; }
+
+/* Packet: turn the four equal dashboard tiles into one exploded specimen. */
+html body .packet-visual-workspace .packet-stage {
+  grid-template-rows: auto minmax(180px, 1.15fr) auto minmax(170px, .85fr) !important;
+  gap: 6px !important;
+  padding: 102px 18px 18px !important;
+  background: transparent !important;
+}
+
+html body .packet-visual-workspace .packet-origin-strip {
+  padding: 5px 8px !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(41,40,39,.11) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+}
+
+html body .packet-visual-workspace .packet-object-wrap {
+  width: min(1240px, 90%) !important;
+  margin: 0 auto !important;
+  padding: 18px 0 8px !important;
+  transform: rotate(-1.25deg) !important;
+  transform-origin: center !important;
+  overflow: visible !important;
+}
+
+html body .packet-visual-workspace .packet-object {
+  gap: clamp(8px, 1.5vw, 24px) !important;
+  overflow: visible !important;
+}
+
+html body .packet-visual-workspace .packet-layer-shell {
+  min-height: 124px !important;
+  padding: 16px 16px 12px !important;
+  border: 0 !important;
+  border-top: 1px solid currentColor !important;
+  border-bottom: 1px solid rgba(41,40,39,.2) !important;
+  border-radius: 0 !important;
+  background: rgba(232,228,223,.22) !important;
+  box-shadow: none !important;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px)) !important;
+}
+
+html body .packet-visual-workspace .packet-layer-shell::before {
+  opacity: .12 !important;
+  background: repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 15px) !important;
+}
+
+html body .packet-visual-workspace .packet-layer-shell.active {
+  color: var(--site-coral) !important;
+  background: rgba(238,235,231,.66) !important;
+  box-shadow: 0 26px 55px rgba(55,49,44,.09) !important;
+}
+
+html body .packet-visual-workspace .packet-relations {
+  border: 0 !important;
+  background: transparent !important;
+}
+
+html body .packet-visual-workspace .packet-relations > div {
+  padding: 5px 11px !important;
+  border: 0 !important;
+  border-left: 1px solid rgba(41,40,39,.12) !important;
+  background: transparent !important;
+}
+
+html body .packet-visual-workspace .packet-hex-panel {
+  border: 0 !important;
+  border-radius: 4px !important;
+  background: var(--site-instrument) !important;
+  box-shadow: 0 18px 46px rgba(55,49,44,.12) !important;
+}
+
+html body .packet-visual-workspace .packet-field-lens {
+  border: 0 !important;
+  border-left: 2px solid var(--site-coral) !important;
+  border-radius: 0 !important;
+  color: var(--site-ink) !important;
+  background: rgba(232,228,223,.94) !important;
+  box-shadow: 0 14px 36px rgba(55,49,44,.1) !important;
+}
+
+html body .packet-visual-workspace .packet-field-lens > :is(span, strong, p) { color: var(--site-ink) !important; }
+html body .packet-visual-workspace .packet-field-lens > span { color: var(--site-coral) !important; }
+
+/* The physical atlas is the same paper world, rendered as a translucent
+   drafting globe instead of switching the whole product into a neon theme. */
+html body .physical-cinematic-stage > .globe-viewport {
+  background:
+    radial-gradient(circle at 50% 48%, rgba(255,255,255,.38), transparent 38%),
+    linear-gradient(145deg, #ddd8d3, var(--site-paper) 62%, #d2ccc6) !important;
+}
+
+html body .physical-cinematic-stage::after {
+  box-shadow: inset 0 -100px 120px rgba(55,49,44,.055) !important;
+}
+
+html body .globe-reticle { opacity: .32 !important; }
+html body .globe-reticle::before,
+html body .globe-reticle::after { border-color: rgba(41,40,39,.16) !important; }
+html body .globe-reticle i { background: rgba(216,79,73,.24) !important; }
+html body .globe-watermark strong { color: var(--site-ink-faint) !important; }
+html body .globe-watermark span { color: rgba(41,40,39,.42) !important; }
+
+html body :is(.physical-selection-card, .physical-corridor-card) {
+  border: 0 !important;
+  border-left: 2px solid var(--site-coral) !important;
+  border-radius: 0 !important;
+  color: var(--site-ink) !important;
+  background: rgba(232,228,223,.82) !important;
+  box-shadow: none !important;
+}
+
+html body :is(.physical-selection-card, .physical-corridor-card) > span { color: var(--site-ink-faint) !important; }
+html body :is(.physical-selection-card, .physical-corridor-card) > strong { color: var(--site-ink-strong) !important; }
+html body :is(.physical-selection-card, .physical-corridor-card) > p { color: var(--site-ink-soft) !important; }
+
+html body .physical-selection-card button {
+  border-color: rgba(41,40,39,.12) !important;
+  color: var(--site-ink-soft) !important;
+  background: rgba(255,255,255,.18) !important;
+}
+
+html body :is(.globe-loading, .globe-fallback) {
+  color: var(--site-ink) !important;
+  background: rgba(217,212,207,.94) !important;
+}
+
+html body :is(.globe-loading, .globe-fallback) strong { color: var(--site-ink-strong) !important; }
+html body :is(.globe-loading, .globe-fallback) span,
+html body .globe-fallback p { color: var(--site-ink-soft) !important; }
+
+/* Builder retains deep tools in drawers, while its live topology owns the page. */
+html body .builder-world-toolbar {
+  grid-template-columns: minmax(170px, 1fr) auto minmax(170px, 1fr) !important;
+}
+
+html body .builder-world-tools { justify-self: center !important; }
+html body .builder-world-toolbar .interactive-world-toolbar__actions { justify-self: end !important; }
+
+html body .builder-scene-switcher {
+  top: 66px !important;
+  right: 18px !important;
+}
+
+html body .builder-selection-card {
+  width: min(310px, 28vw) !important;
+  bottom: 34px !important;
+}
+
+@media (max-width: 900px) {
+  html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-toolbar__identity strong {
+    display: none !important;
+  }
+
+  html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-toolbar__actions button:not(:last-child) {
+    display: none !important;
+  }
+}
+
+@media (max-width: 680px) {
+  html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace) .visual-workspace__toolbar,
+  html body .builder-world-toolbar {
+    top: 12px !important;
+    right: 8px !important;
+    left: 66px !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    gap: 5px !important;
+  }
+
+  html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-toolbar__identity {
+    display: none !important;
+  }
+
+  html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace) .visual-drawer-tabs,
+  html body .builder-world-tools {
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+  }
+
+  html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace) .visual-drawer-tabs button,
+  html body .builder-world-tools button {
+    flex: 0 0 auto !important;
+    min-height: 28px !important;
+    padding-inline: 8px !important;
+  }
+
+  html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-toolbar__actions button {
+    display: grid !important;
+    width: 34px !important;
+    padding: 0 !important;
+    place-items: center !important;
+    font-size: 0 !important;
+  }
+
+  html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-toolbar__actions button:not(:last-child) {
+    display: none !important;
+  }
+
+  html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-toolbar__actions button:last-child::after {
+    content: '×';
+    font-size: .9rem;
+  }
+
+  html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace) .visual-workspace__hud,
+  html body .builder-visual-workspace .builder-stage-meta {
+    top: 58px !important;
+    right: 12px !important;
+    left: 12px !important;
+    max-width: none !important;
+    gap: 9px !important;
+  }
+
+  html body :is(.as-visual-workspace, .physical-visual-workspace) .interactive-world-hud > div:nth-child(2),
+  html body :is(.as-visual-workspace, .physical-visual-workspace) .interactive-world-hud > div:nth-child(n+4),
+  html body .packet-visual-workspace .interactive-world-hud > div:nth-child(2),
+  html body .packet-visual-workspace .interactive-world-hud > div:nth-child(3),
+  html body .packet-visual-workspace .interactive-world-hud > div:nth-child(n+5) {
+    display: none !important;
+  }
+
+  html body .packet-visual-workspace .packet-stage {
+    grid-template-rows: auto minmax(180px, .95fr) minmax(0, 1.05fr) !important;
+    padding: 98px 8px 8px !important;
+  }
+
+  html body .packet-visual-workspace .packet-origin-strip {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+  }
+
+  html body .packet-visual-workspace .packet-origin-strip > div:nth-child(2),
+  html body .packet-visual-workspace .packet-relations {
+    display: none !important;
+  }
+
+  html body .packet-visual-workspace .packet-object-wrap {
+    width: 100% !important;
+    padding: 11px 0 3px !important;
+    transform: none !important;
+  }
+
+  html body .packet-visual-workspace .packet-object { gap: 4px !important; }
+  html body .packet-visual-workspace .packet-layer-shell {
+    min-width: 0 !important;
+    min-height: 142px !important;
+    padding: 10px 7px 8px !important;
+  }
+
+  html body .packet-visual-workspace .packet-field-lens { display: none !important; }
+
+  html body .builder-world-toolbar { display: grid !important; grid-template-columns: minmax(0, 1fr) auto !important; }
+  html body .builder-world-tools { justify-self: stretch !important; }
+  html body .builder-scene-switcher { top: 95px !important; right: 8px !important; }
+
+  html body .builder-selection-card {
+    right: 8px !important;
+    bottom: 38px !important;
+    left: 8px !important;
+    width: auto !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body .packet-visual-workspace .packet-object-wrap { transform: none !important; }
+}
