@@ -190,7 +190,7 @@ const profiles = [
     height: 1000,
     query: query({ stress: 'as-density' }),
     readySelector: '.internet-scale',
-    expected: ['POLICY MAKES', 'SIMULATED WINNER'],
+    expected: ['AS routing', 'SIMULATED BEST PATH'],
     stress: { asNodes: 160, asRelationships: 220 },
   },
   {
