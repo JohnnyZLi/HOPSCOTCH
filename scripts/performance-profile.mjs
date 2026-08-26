@@ -910,7 +910,7 @@ async function closeJourneyDrawer(cdp) {
 }
 
 async function selectJourneyEvent(cdp, title) {
-  await openJourneyDrawer(cdp, 'EVENTS');
+  await openJourneyDrawer(cdp, 'Events');
   await measuredClickButton(cdp, '.journey-event', title);
   await waitForExpression(cdp, `document.querySelector('.journey-callout-overlay h2')?.textContent?.includes(${JSON.stringify(title)})`, 8000);
   await closeJourneyDrawer(cdp);
@@ -919,14 +919,14 @@ async function selectJourneyEvent(cdp, title) {
 async function inspectJourneyDrawerArchitecture(cdp, profile) {
   const before = await cdp.evaluate(`(()=>{
     const stage=document.querySelector('.journey-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
-    const exit=[...document.querySelectorAll('.journey-visual-tools .visual-tool-button')].find((button)=>button.textContent?.includes('EXIT'))?.getBoundingClientRect();
+    const exit=[...document.querySelectorAll('.journey-visual-tools .visual-tool-button')].find((button)=>button.textContent?.includes('Exit'))?.getBoundingClientRect();
     return {stage:stage?{x:stage.x,y:stage.y,width:stage.width,height:stage.height}:null,exit:exit?{x:exit.x,y:exit.y,width:exit.width,height:exit.height}:null};
   })()`);
   if (!before.stage) throw new Error(`${profile.id} is missing the Journey visual stage.`);
   if (!before.exit || before.exit.width <= 0 || before.exit.height <= 0) throw new Error(`${profile.id} does not expose a visible Journey Exit action.`);
   if (before.exit.x < before.stage.x || before.exit.x + before.exit.width > before.stage.x + before.stage.width + 1) throw new Error(`${profile.id} Journey Exit action is outside the visible stage.`);
 
-  await openJourneyDrawer(cdp, 'CONFIG');
+  await openJourneyDrawer(cdp, 'Configure');
   const opened = await cdp.evaluate(`(()=>{
     const stage=document.querySelector('.journey-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
     const drawer=document.querySelector('.journey-visual-workspace .visual-drawer')?.getBoundingClientRect();
@@ -1010,7 +1010,7 @@ async function exerciseMeasuredJourneySidecars(cdp, profile) {
   if (transport.sidecar.includes('500 Mbps')) throw new Error(`${profile.id} leaked other-target speed-test throughput into matched Journey transport evidence.`);
   if (!transport.sidecar.includes('OTHER-TARGET FACT')) throw new Error(`${profile.id} did not disclose that other-target transport facts were hidden.`);
 
-  await openJourneyDrawer(cdp, 'CONFIG');
+  await openJourneyDrawer(cdp, 'Configure');
   const changedHost = await cdp.evaluate(`(()=>{
     const input=document.querySelector('.journey-drawer-form input');
     const form=document.querySelector('.journey-drawer-form');
@@ -1031,7 +1031,7 @@ async function exerciseMeasuredJourneySidecars(cdp, profile) {
   if (!mismatch.sidecar?.includes('NO COMPATIBLE TRANSPORT TARGET') || !mismatch.sidecar.includes('OTHER TARGET')) throw new Error(`${profile.id} mismatched target did not fail closed visibly.`);
   if (mismatch.sidecar.includes('500 Mbps') || mismatch.sidecar.includes('24 ms') || mismatch.sidecar.includes('17 ms')) throw new Error(`${profile.id} rendered mismatched measured values as Journey evidence.`);
 
-  await measuredClickButton(cdp, '.journey-visual-tools .visual-tool-button', 'EXIT');
+  await measuredClickButton(cdp, '.journey-visual-tools .visual-tool-button', 'Exit');
   await waitForExpression(cdp, `Boolean(document.querySelector('.kinetic-overview'))`);
   await openOverviewWorkspace(cdp, 'measured');
   await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
