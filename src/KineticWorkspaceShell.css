@@ -288,9 +288,14 @@ html body .journey-causal-world {
    That treatment becomes illegible on paper and also weakens the floating
    timeline. The shell already keeps these controls peripheral, so they can be
    fully opaque without competing with the object. */
-html body .journey-visual-workspace:has(.journey-causal-world) :is(.visual-workspace__toolbar, .visual-workspace__hud, .visual-time-rail) {
+html body .journey-visual-workspace:has(.journey-causal-world) :is(.visual-workspace__toolbar, .visual-workspace__hud) {
   opacity: 1 !important;
   transform: none !important;
+}
+
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail {
+  opacity: 1 !important;
+  transform: translateX(-50%) !important;
 }
 
 html body .journey-causal-world :is(.causal-object, .causal-mechanism-core, .causal-object__payload) {

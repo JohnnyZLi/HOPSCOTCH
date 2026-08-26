@@ -256,6 +256,7 @@ async function captureRepresentativeState(cdp, route, viewport) {
     };
   })()`);
   assert.deepEqual(state.speedOptions, ['0.5', '1', '1.5', '2'], `${route.id}/${viewport.id} speed choices changed.`);
+  assert.ok(state.boxes.rail && state.boxes.rail.left >= -1 && state.boxes.rail.right <= state.innerWidth + 1, `${route.id}/${viewport.id} timeline rail escapes the viewport: ${JSON.stringify(state.boxes.rail)}.`);
   assert.equal(state.controlsTrackOverlap, false, `${route.id}/${viewport.id} playback controls overlap the timeline track.`);
   assert.equal(state.speedTrackOverlap, false, `${route.id}/${viewport.id} speed control overlaps the timeline track.`);
   assert.ok(state.scrollWidth <= state.innerWidth + 1, `${route.id}/${viewport.id} horizontally overflows (${state.scrollWidth} > ${state.innerWidth}).`);
