@@ -127,7 +127,7 @@ const profiles = [
     path: '/labs/tcp',
     query: '',
     readySelector: '.tcp-visual-workspace',
-    expected: ['TCP THEATER', 'CLIENT SEQUENCE SPACE', 'CONGESTION WINDOW', 'PROVENANCE'],
+    expected: ['TCP recovery', 'CLIENT SEQUENCE SPACE', 'CONGESTION WINDOW', 'PROVENANCE'],
     protocolWorkspace: true,
   },
   {
@@ -137,7 +137,7 @@ const profiles = [
     path: '/labs/dns',
     query: '',
     readySelector: '.dns-visual-workspace',
-    expected: ['DNS THEATER', 'www.example.test', 'NAMESPACE', 'PROVENANCE'],
+    expected: ['DNS resolution', 'www.example.test', 'NAMESPACE', 'PROVENANCE'],
     protocolWorkspace: true,
   },
   {
@@ -147,7 +147,7 @@ const profiles = [
     path: '/labs/tls',
     query: '',
     readySelector: '.tls-visual-workspace',
-    expected: ['TLS 1.3 THEATER', 'SYMBOLIC KEY SCHEDULE', 'WIRE VISIBILITY', 'PROVENANCE'],
+    expected: ['TLS 1.3 handshake', 'SYMBOLIC KEY SCHEDULE', 'WIRE VISIBILITY', 'PROVENANCE'],
     protocolWorkspace: true,
   },
   {
@@ -157,7 +157,7 @@ const profiles = [
     path: '/labs/http2-vs-http3',
     query: '',
     readySelector: '.http-visual-workspace',
-    expected: ['HTTP A/B THEATER', 'HTTP/2', 'HTTP/3', 'SAME LOSS', 'PROVENANCE'],
+    expected: ['HTTP loss comparison', 'HTTP/2', 'HTTP/3', 'SAME LOSS', 'PROVENANCE'],
     protocolWorkspace: true,
   },
   {

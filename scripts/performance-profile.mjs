@@ -1,1575 +1,9 @@
-import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import { gzipSync } from 'node:zlib';
-import net from 'node:net';
-import { performance } from 'node:perf_hooks';
-import { serveProductionArtifact } from './production-artifact-server.mjs';
-
-const enforce = process.argv.includes('--enforce');
-const compatibility = process.argv.includes('--compatibility');
-const phase3VisualReview = process.argv.includes('--visual-review');
-const phase4VisualReview = process.argv.includes('--phase4-visual-review');
-const visualReview = phase3VisualReview || phase4VisualReview;
-const gpuMode = process.env.HOPSCOTCH_GPU_MODE?.trim() || 'default';
-if (!['default', 'swiftshader', 'disabled'].includes(gpuMode)) throw new Error(`Unsupported HOPSCOTCH_GPU_MODE: ${gpuMode}`);
-const root = process.cwd();
-const distDir = resolve(root, 'dist');
-const budgetPath = resolve(root, 'config/performance-budget.json');
-const defaultVisualDirectory = phase4VisualReview ? 'artifacts/phase4-visual-review' : 'artifacts/phase3-visual-review';
-const reportPath = resolve(root, process.env.HOPSCOTCH_REPORT_PATH?.trim() || (visualReview ? `${defaultVisualDirectory}/${phase4VisualReview ? 'evidence-report.json' : 'worlds-report.json'}` : 'artifacts/performance-profile.json'));
-const visualReviewDirectory = resolve(root, process.env.HOPSCOTCH_VISUAL_REVIEW_DIR?.trim() || defaultVisualDirectory);
-const measuredFixturePath = resolve(root, 'scripts/fixtures/measured-workspace-v2.json');
-const measuredInvalidFixturePath = resolve(root, 'scripts/fixtures/measured-workspace-invalid.json');
-const budgetDocument = JSON.parse(readFileSync(budgetPath, 'utf8'));
-const budgets = budgetDocument.budgets;
-const stressBudgets = budgetDocument.stressBudgets ?? {};
-const stressConfig = budgetDocument.stress;
-
-const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
-
-function executableFromPath(command) {
-  const result = spawnSync(process.platform === 'win32' ? 'where' : 'which', [command], { encoding: 'utf8' });
-  if (result.status !== 0) return null;
-  return result.stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? null;
-}
-
-function findChrome() {
-  const explicit = process.env.CHROME_PATH?.trim();
-  if (explicit) {
-    if (!existsSync(explicit)) throw new Error(`CHROME_PATH does not exist: ${explicit}`);
-    return explicit;
-  }
-
-  const commandCandidates = process.platform === 'win32'
-    ? ['chrome', 'msedge']
-    : ['google-chrome-stable', 'google-chrome', 'chromium', 'chromium-browser'];
-  for (const command of commandCandidates) {
-    const found = executableFromPath(command);
-    if (found) return found;
-  }
-
-  const pathCandidates = process.platform === 'darwin'
-    ? [
-        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        '/Applications/Chromium.app/Contents/MacOS/Chromium',
-        '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-      ]
-    : process.platform === 'win32'
-      ? [
-          'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-          'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-          'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-        ]
-      : ['/usr/bin/google-chrome-stable', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
-  for (const candidate of pathCandidates) if (existsSync(candidate)) return candidate;
-  throw new Error('Chrome/Chromium not found. Set CHROME_PATH to an installed Chrome-compatible browser.');
-}
-
-async function freePort() {
-  const server = net.createServer();
-  await new Promise((resolvePromise, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', resolvePromise);
-  });
-  const address = server.address();
-  assert.ok(address && typeof address === 'object');
-  const port = address.port;
-  await new Promise((resolvePromise) => server.close(resolvePromise));
-  return port;
-}
-
-async function fetchJson(url) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`);
-  return response.json();
-}
-
-async function waitForDevTools(port, timeoutMs = 12000) {
-  const deadline = performance.now() + timeoutMs;
-  let lastError = null;
-  while (performance.now() < deadline) {
-    try {
-      return await fetchJson(`http://127.0.0.1:${port}/json/version`);
-    } catch (error) {
-      lastError = error;
-      await sleep(100);
-    }
-  }
-  throw new Error(`Chrome DevTools did not become ready within ${timeoutMs} ms: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
-}
-
-
-function chromeGpuArgs(mode) {
-  if (mode === 'swiftshader') return ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
-  if (mode === 'disabled') return ['--disable-webgl', '--disable-webgl2'];
-  return [];
-}
-
-async function launchChrome(chromePath, maxAttempts = 3) {
-  const attempts = [];
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const port = await freePort();
-    const userDataDir = mkdtempSync(join(tmpdir(), `hopscotch-perf-${attempt}-`));
-    const chromeArgs = [
-      '--headless=new',
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-background-networking',
-      '--disable-default-apps',
-      '--disable-extensions',
-      '--disable-sync',
-      '--metrics-recording-only',
-      '--mute-audio',
-      '--remote-debugging-address=127.0.0.1',
-      `--remote-debugging-port=${port}`,
-      '--remote-allow-origins=*',
-      `--user-data-dir=${userDataDir}`,
-      'about:blank',
-    ];
-    chromeArgs.splice(chromeArgs.length - 1, 0, ...chromeGpuArgs(gpuMode));
-    const state = { stderr: '', exitCode: null, exitSignal: null, spawnError: null };
-    const chrome = spawn(chromePath, chromeArgs, { stdio: ['ignore', 'ignore', 'pipe'] });
-    chrome.stderr.setEncoding('utf8');
-    chrome.stderr.on('data', (chunk) => { state.stderr = `${state.stderr}${chunk}`.slice(-24000); });
-    chrome.once('exit', (code, signal) => { state.exitCode = code; state.exitSignal = signal; });
-    chrome.once('error', (error) => { state.spawnError = error instanceof Error ? error.message : String(error); });
-    try {
-      const version = await waitForDevTools(port, 8000);
-      return { chrome, port, userDataDir, version, state, attempts, args: chromeArgs };
-    } catch (error) {
-      await sleep(100);
-      if (!chrome.killed) chrome.kill('SIGKILL');
-      attempts.push({
-        attempt,
-        port,
-        error: error instanceof Error ? error.message : String(error),
-        exitCode: state.exitCode,
-        exitSignal: state.exitSignal,
-        spawnError: state.spawnError,
-        stderrTail: state.stderr || null,
-      });
-      rmSync(userDataDir, { recursive: true, force: true });
-    }
-  }
-  const launchError = new Error(`Chrome DevTools did not start after ${maxAttempts} attempts.`);
-  launchError.launchAttempts = attempts;
-  throw launchError;
-}
-
-class CdpClient {
-  constructor(url) {
-    this.url = url;
-    this.nextId = 0;
-    this.pending = new Map();
-    this.events = [];
-    this.socket = new WebSocket(url);
-    this.ready = new Promise((resolvePromise, reject) => {
-      this.socket.addEventListener('open', resolvePromise, { once: true });
-      this.socket.addEventListener('error', () => reject(new Error(`Unable to open CDP WebSocket ${url}`)), { once: true });
-    });
-    this.socket.addEventListener('message', async (message) => {
-      const raw = typeof message.data === 'string'
-        ? message.data
-        : Buffer.from(await message.data.arrayBuffer()).toString('utf8');
-      const payload = JSON.parse(raw);
-      if (payload.id !== undefined) {
-        const waiter = this.pending.get(payload.id);
-        if (!waiter) return;
-        this.pending.delete(payload.id);
-        if (payload.error) waiter.reject(new Error(`${waiter.method}: ${payload.error.message}`));
-        else waiter.resolve(payload.result ?? {});
-        return;
-      }
-      this.events.push(payload);
-    });
-  }
-
-  async call(method, params = {}) {
-    await this.ready;
-    const id = ++this.nextId;
-    const promise = new Promise((resolvePromise, reject) => this.pending.set(id, { resolve: resolvePromise, reject, method }));
-    this.socket.send(JSON.stringify({ id, method, params }));
-    return promise;
-  }
-
-  async evaluate(expression) {
-    const result = await this.call('Runtime.evaluate', {
-      expression,
-      awaitPromise: true,
-      returnByValue: true,
-    });
-    if (result.exceptionDetails) {
-      const text = result.exceptionDetails.exception?.description ?? result.exceptionDetails.text ?? 'Runtime evaluation failed';
-      throw new Error(text);
-    }
-    return result.result?.value;
-  }
-
-  clearEvents() {
-    this.events.length = 0;
-  }
-
-  async close() {
-    try { this.socket.close(); } catch { /* noop */ }
-  }
-}
-
-function readProductionArtifact() {
-  const indexPath = join(distDir, 'index.html');
-  if (!existsSync(indexPath)) throw new Error('dist/index.html is missing. Run `npm run build` first.');
-  const html = readFileSync(indexPath, 'utf8');
-  const scriptMatch = html.match(/<script\b[^>]*\bsrc="([^"]+\.js)"[^>]*><\/script>/i);
-  const cssMatch = html.match(/<link\b[^>]*\bhref="([^"]+\.css)"[^>]*>/i);
-  if (!scriptMatch || !cssMatch) throw new Error('Unable to resolve generated Vite JS/CSS assets from dist/index.html.');
-  const scriptPath = join(distDir, scriptMatch[1].replace(/^\//, ''));
-  const cssPath = join(distDir, cssMatch[1].replace(/^\//, ''));
-  const script = readFileSync(scriptPath);
-  const css = readFileSync(cssPath);
-  return {
-    bundle: {
-      scriptFile: scriptMatch[1],
-      styleFile: cssMatch[1],
-      jsBytes: script.length,
-      jsGzipBytes: gzipSync(script, { level: 9 }).length,
-      cssBytes: css.length,
-      cssGzipBytes: gzipSync(css, { level: 9 }).length,
-    },
-  };
-}
-
-function query(parameters) {
-  const search = new URLSearchParams(parameters);
-  return `?${search.toString()}`;
-}
-
-const maxModifierSet = 'dns-failure,route-failure,route-leak,server-failure,single-loss,latency-spike,congestion,partition';
-const profiles = [
-  {
-    id: 'max-composed-terminal',
-    width: 1440,
-    height: 1000,
-    reducedMotion: false,
-    query: query({ journey: '2', host: 'example.test', transport: 'quic-h3', dns: 'cache-miss', mods: maxModifierSet, t: '999999' }),
-    expected: ['DNS FAIL + ROUTE + LEAK + SERVER + LOSS + LATENCY + CONGESTION + PARTITION', 'NO ROUTE', 'NETWORK UNREACHABLE', 'ACTIVE PATH NONE', 'ROUTE CANDIDATES 0'],
-  },
-  {
-    id: 'route-leak-desktop',
-    width: 1440,
-    height: 1000,
-    reducedMotion: false,
-    query: query({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', impairment: 'route-leak', t: '4810' }),
-    expected: ['POLICY-ANOMALY', 'ACTIVE LOCAL_PREF\n300', 'REACHABLE\nYES', 'POLICY COMPLIANT\nNO', 'DOWN â†’ PEER Â· LOCAL_PREF 300'],
-  },
-  {
-    id: 'route-leak-mobile',
-    width: 390,
-    height: 844,
-    reducedMotion: false,
-    query: query({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', impairment: 'route-leak', t: '4810' }),
-    expected: ['POLICY-ANOMALY', 'REACHABLE\nYES', 'POLICY COMPLIANT\nNO'],
-    assertMobileGrid: true,
-  },
-  {
-    id: 'route-leak-quic-reduced-motion',
-    width: 1440,
-    height: 1000,
-    reducedMotion: true,
-    query: query({ journey: '1', host: 'example.test', transport: 'quic-h3', dns: 'cache-hit', impairment: 'route-leak', t: '3120' }),
-    expected: ['QUIC + H3', 'POLICY-RESTORED', 'ACTIVE LOCAL_PREF\n200', 'REACHABLE\nYES', 'POLICY COMPLIANT\nYES'],
-  },
-];
-
-profiles.push(
-  { id: 'stress-as-canvas', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'as-density' }), readySelector: '.internet-scale', expected: ['POLICY MAKES', 'SIMULATED WINNER'], stressExpected: { profile: 'as-density', asNodes: 160, asRelationships: 220 } },
-  { id: 'stress-builder-ceiling', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'builder-density' }), readySelector: '.builder-workspace', expected: ['32 NODES Â· 96 LINKS', 'PATH', 'YES Â· COST', 'FORWARDING', 'NO ROUTE'], stressExpected: { profile: 'builder-density', builderNodes: 32, builderLinks: 96 } },
-  { id: 'stress-physical-webgl', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'physical-density' }), readySelector: '.physical-globe', expected: gpuMode === 'disabled' ? ['SIMULATED Â· STRESS FIXTURE', 'SIMULATED STRESS POINTS Â· NOT PUBLIC DATA', 'FALLBACK', 'WEBGL 2 UNAVAILABLE'] : ['SIMULATED Â· STRESS FIXTURE', 'SIMULATED STRESS POINTS Â· NOT PUBLIC DATA', 'WEBGL 2'], stressExpected: { profile: 'physical-density', physicalPoints: 2000, webgl: gpuMode !== 'disabled' }, allowExpectedWebglFailure: gpuMode === 'disabled' },
-);
-
-if (compatibility) profiles.push(
-{ id: 'protocol-tcp-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/tcp', query: '', readySelector: '.tcp-visual-workspace', protocolWorkspace: true, expected: ['TCP THEATER', 'CLIENT SEQUENCE SPACE', 'CONGESTION WINDOW', 'PROVENANCE'] },
-{ id: 'protocol-dns-mobile', width: 390, height: 844, reducedMotion: false, path: '/labs/dns', query: '', readySelector: '.dns-visual-workspace', protocolWorkspace: true, expected: ['DNS THEATER', 'www.example.test', 'NAMESPACE', 'PROVENANCE'] },
-{ id: 'protocol-tls-reduced-motion', width: 1280, height: 900, reducedMotion: true, path: '/labs/tls', query: '', readySelector: '.tls-visual-workspace', protocolWorkspace: true, expected: ['TLS 1.3 THEATER', 'SYMBOLIC KEY SCHEDULE', 'WIRE VISIBILITY', 'PROVENANCE'] },
-{ id: 'protocol-http-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/http2-vs-http3', query: '', readySelector: '.http-visual-workspace', protocolWorkspace: true, expected: ['HTTP A/B THEATER', 'HTTP/2', 'HTTP/3', 'SAME LOSS', 'PROVENANCE'] },
-{ id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED Â· VLAN 10 â†’ 20', 'VLAN 20', 'DERIVED FDB', 'ARP CACHE', 'STP', 'FORWARDING'] },
-{ id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED Â· VLAN 10 â†’ 20', 'VLAN 20', 'ARP CACHE', 'STP', 'FORWARDING'] },
-{ id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED Â· BOUNDED Â· NOT GLOBAL', 'Network Diagnostics Engine'] },
-  { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED Â· BOUNDED Â· NOT GLOBAL', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
-  { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED Â· BOUNDED Â· NOT GLOBAL', 'Network Diagnostics Engine'] },
-  { id: 'measured-sidecars-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
-  { id: 'measured-sidecars-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
-  { id: 'measured-sidecars-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
-);
-
-if (phase3VisualReview) {
-  const visualViewports = [
-    { id: 'ultrawide', width: 2560, height: 1200 },
-    { id: 'wide', width: 1600, height: 950 },
-    { id: 'laptop', width: 1366, height: 768 },
-    { id: 'narrow', width: 900, height: 820 },
-    { id: 'mobile', width: 390, height: 844 },
-  ];
-  const visualWorlds = [
-    { id: 'as-routing', path: '/internet/as-routing', query: '', readySelector: '.as-visual-workspace', expected: ['LAB 05A Â· AS ROUTING', 'SIMULATED WINNER', 'PROVENANCE'], workspaceSelector: '.as-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.internet-canvas-wrap', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.as-visual-workspace .visual-drawer-tabs button', drawerSelector: '.as-visual-workspace .visual-drawer' },
-    { id: 'physical-atlas', path: '/', query: query({ stress: 'physical-density' }), readySelector: '.physical-visual-workspace', expected: ['LAB 05C Â· PHYSICAL ATLAS', 'SIMULATED STRESS POINTS', 'PROVENANCE'], workspaceSelector: '.physical-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.globe-viewport', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.physical-visual-workspace .visual-drawer-tabs button', drawerSelector: '.physical-visual-workspace .visual-drawer' },
-    { id: 'packet-microscope', path: '/labs/packet', query: '', readySelector: '.packet-visual-workspace', expected: ['LAB 02 Â· PACKET MICROSCOPE', 'SIMULATED', 'PROVENANCE'], workspaceSelector: '.packet-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.packet-stage', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.packet-visual-workspace .visual-drawer-tabs button', drawerSelector: '.packet-visual-workspace .visual-drawer' },
-    { id: 'network-builder', path: '/labs/builder', query: '', readySelector: '.builder-visual-workspace', expected: ['LAB 04 Â· NETWORK BUILDER', 'PATH', 'FORWARDING', 'OSPF', 'GRAPH'], workspaceSelector: '.builder-visual-workspace', stageSelector: '.builder-stage', worldSelector: '.builder-canvas', semanticSelector: '.builder-node-anchor', semanticMinWidthRatio: 0.72, semanticMinHeightRatio: 0.34, toolbarSelector: '.builder-world-toolbar', hudSelector: '.builder-stage-meta', inspectButtonSelector: '.builder-tool-inspect', drawerSelector: '.builder-context-drawer.open' },
-  ];
-  profiles.splice(0, profiles.length, ...visualWorlds.flatMap((world) => visualViewports.map((viewport) => ({
-    ...world,
-    ...viewport,
-    id: `${world.id}-${viewport.id}`,
-    reducedMotion: false,
-    visualReview: true,
-    inspectReview: viewport.id === 'wide' || viewport.id === 'mobile',
-  }))));
-}
-
-if (phase4VisualReview) {
-  const evidenceViewports = [
-    { id: 'ultrawide', width: 2560, height: 1200 },
-    { id: 'wide', width: 1600, height: 950 },
-    { id: 'laptop', width: 1366, height: 768 },
-    { id: 'narrow', width: 900, height: 820 },
-    { id: 'mobile', width: 390, height: 844 },
-  ];
-  const evidenceWorlds = [
-    { id: 'internet-evidence', path: '/internet/observed', query: '', readySelector: '.observed-internet', phase4Observed: true, expected: ['NO ROUTE CLAIM', 'NO CONTINUOUS OBSERVATION', 'PUBLIC COLLECTOR'] },
-    { id: 'measured-network', path: '/measured', query: '', readySelector: '.measured-workspace', phase4Measured: true, expected: ['LOCAL MEASURED Â· BOUNDED Â· NOT GLOBAL', 'Network Diagnostics Engine', 'NO CROSS-TARGET MERGE'] },
-  ];
-  profiles.splice(0, profiles.length, ...evidenceWorlds.flatMap((world) => evidenceViewports.map((viewport) => ({
-    ...world,
-    ...viewport,
-    id: `${world.id}-${viewport.id}`,
-    reducedMotion: false,
-    visualReview: true,
-    phase4VisualReview: true,
-    inspectReview: viewport.id === 'wide' || viewport.id === 'mobile',
-  }))));
-}
-
-async function waitForExpression(cdp, expression, timeoutMs = 5000) {
-  const deadline = performance.now() + timeoutMs;
-  while (performance.now() < deadline) {
-    if (await cdp.evaluate(expression)) return;
-    await sleep(25);
-  }
-  throw new Error(`Timed out waiting for browser expression: ${expression}`);
-}
-
-async function setFileInput(cdp, selector, filePath) {
-  const document = await cdp.call('DOM.getDocument', { depth: 1 });
-  const result = await cdp.call('DOM.querySelector', { nodeId: document.root.nodeId, selector });
-  if (!result.nodeId) throw new Error(`Unable to find file input ${selector}.`);
-  await cdp.call('DOM.setFileInputFiles', { nodeId: result.nodeId, files: [filePath] });
-}
-
-async function exerciseBuilderOspf(cdp, profile) {
-  await openOverviewWorkspace(cdp, 'builder');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
-
-  const state = async () => cdp.evaluate(`(()=>({
-    innerWidth,
-    scrollWidth:document.documentElement.scrollWidth,
-    scrollY,
-    text:document.body.innerText,
-    meta:document.querySelector('.builder-stage-meta')?.innerText??'',
-    ospf:document.querySelector('.builder-ospf-summary')?.innerText??'',
-    forwarding:document.querySelector('.builder-forwarding')?.innerText??'',
-    routeTable:document.querySelector('.builder-ipv4-route-table')?.innerText??'',
-    ospfRoutes:document.querySelectorAll('.builder-ipv4-route-table .source-ospf').length,
-  }))()`);
-  const assertViewport = (value, label) => {
-    if (value.scrollWidth > value.innerWidth) throw new Error(`${profile.id} ${label} horizontally overflows: ${value.scrollWidth} > ${value.innerWidth}.`);
-    if (value.scrollY !== 0) throw new Error(`${profile.id} ${label} moved document scrollY to ${value.scrollY}.`);
-  };
-
-  const initial = await state();
-  assertViewport(initial, 'default Builder');
-  if (!initial.meta.includes('OSPF') || !initial.meta.includes('OFF')) throw new Error(`${profile.id} did not start with OSPF disabled.`);
-  if (!initial.meta.includes('FORWARDING') || !initial.meta.includes('NO ROUTE')) throw new Error(`${profile.id} OSPF-off default fabricated forwarding reachability.`);
-
-  const initialEdgeSelected = await cdp.evaluate(`(()=>{
-    const node=[...document.querySelectorAll('.builder-node')].find((candidate)=>candidate.querySelector('strong')?.textContent?.trim()==='EDGE');
-    if(!node)return false;
-    node.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:1,isPrimary:true,pointerType:'mouse'}));
-    return true;
-  })()`);
-  if (!initialEdgeSelected) throw new Error(`${profile.id} could not select EDGE before enabling OSPF.`);
-  await waitForExpression(cdp, `Boolean(document.querySelector('.builder-ospf-section button'))`, 8000);
-  await measuredClickButton(cdp, '.builder-ospf-section button', 'ENABLE ALL');
-  await waitForExpression(cdp, `document.querySelector('.builder-stage-meta')?.innerText.includes('4 RTR Â· 5 FULL')`, 8000);
-  await waitForExpression(cdp, `!document.querySelector('.builder-forwarding')?.classList.contains('unreachable')`, 8000);
-
-  const edgeSelected = await cdp.evaluate(`(()=>{
-    const node=[...document.querySelectorAll('.builder-node')].find((candidate)=>candidate.querySelector('strong')?.textContent?.trim()==='EDGE');
-    if(!node)return false;
-    node.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:1,isPrimary:true,pointerType:'mouse'}));
-    return true;
-  })()`);
-  if (!edgeSelected) throw new Error(`${profile.id} could not select EDGE for OSPF route-table inspection.`);
-  await waitForExpression(cdp, `document.querySelectorAll('.builder-ipv4-route-table .source-ospf').length > 0`, 8000);
-  const converged = await state();
-  assertViewport(converged, 'converged OSPF');
-  if (!converged.routeTable.includes('10.0.0.4/30') || !converged.routeTable.includes('via 10.0.0.10')) throw new Error(`${profile.id} EDGE did not install the primary OSPF path via R1.`);
-
-  const selectedLink = await cdp.evaluate(`(()=>{
-    const link=document.querySelector('.builder-link[data-link-id="edge-r1"]');
-    if(!link)return false;
-    link.dispatchEvent(new MouseEvent('click',{bubbles:true}));
-    return true;
-  })()`);
-  if (!selectedLink) throw new Error(`${profile.id} could not select edge-r1.`);
-  await waitForExpression(cdp, `document.querySelector('.builder-link-section .control-title')?.innerText.includes('EDGE â†” R1')`, 8000);
-  await measuredClickButton(cdp, '.builder-link-section button', 'FAIL LINK');
-  await waitForExpression(cdp, `document.querySelector('.builder-ospf-summary')?.innerText.includes('4 FULL') && document.querySelector('.builder-ospf-summary')?.innerText.includes('1 DOWN')`, 8000);
-  await waitForExpression(cdp, `document.querySelector('.builder-forwarding')?.innerText.includes('EDGE â†’ R2 â†’ CORE')`, 8000);
-  await waitForExpression(cdp, `document.querySelector('.builder-ipv4-route-table')?.innerText.includes('via 10.0.0.14')`, 8000);
-
-  const failed = await state();
-  assertViewport(failed, 'OSPF failover');
-  if (!failed.meta.includes('REACHABLE')) throw new Error(`${profile.id} OSPF failover did not preserve L3 reachability.`);
-  if (!failed.routeTable.includes('10.0.0.4/30') || !failed.routeTable.includes('via 10.0.0.14')) throw new Error(`${profile.id} EDGE did not reconverge the app subnet through R2.`);
-  if (!failed.routeTable.includes('AD 110')) throw new Error(`${profile.id} OSPF route lost its administrative-distance teaching state.`);
-
-  // Lab 11D: the same routed failure state must be observable by an active traceroute.
-  await measuredClickButton(cdp, '.builder-probe-section button', 'TRACEROUTE');
-  await waitForExpression(cdp, `document.querySelector('.builder-probe-panel')?.innerText.includes('TRACEROUTE') && document.querySelector('.builder-probe-panel')?.innerText.includes('ECHO REPLY')`, 8000);
-  const probe = await cdp.evaluate(`(()=>({
-    panel:document.querySelector('.builder-probe-panel')?.innerText??'',
-    path:document.querySelector('.builder-probe-path')?.innerText??'',
-    activeLinks:document.querySelectorAll('.builder-link.probe-active').length,
-  }))()`);
-  if (!probe.path.includes('EDGE') || !probe.path.includes('R2') || !probe.path.includes('CORE') || !probe.path.includes('APP')) throw new Error(`${profile.id} traceroute did not consume the OSPF failover path through R2.`);
-  if (probe.path.includes('R1')) throw new Error(`${profile.id} traceroute retained failed R1 in the active request path.`);
-  if (probe.activeLinks < 4) throw new Error(`${profile.id} did not visually mark the traceroute forwarding path.`);
-  const probeMetrics = await cdp.evaluate(`document.querySelector('.builder-probe-metrics')?.innerText??''`);
-  if (!probeMetrics.includes('RTT MS') || !probeMetrics.includes('PATH MTU') || /â€”\s*RTT MS/.test(probeMetrics)) throw new Error(`${profile.id} traceroute did not expose link-derived RTT/MTU metrics.`);
-
-  // Lab 11J: evaluate policy while the OSPF failover path is still live.
-  const aclEdgeSelected = await cdp.evaluate(`(()=>{
-    const node=[...document.querySelectorAll('.builder-node')].find((candidate)=>candidate.querySelector('strong')?.textContent?.trim()==='EDGE');
-    if(!node)return false;
-    node.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:1,isPrimary:true,pointerType:'mouse'}));
-    return true;
-  })()`);
-  if (!aclEdgeSelected) throw new Error(`${profile.id} could not select EDGE for ACL policy testing.`);
-  await waitForExpression(cdp, `document.querySelector('.builder-acl-section .control-title')?.innerText.includes('0 RULES')`, 8000);
-  await measuredClickButton(cdp, '.builder-acl-section button', 'ADD ACL RULE');
-  await waitForExpression(cdp, `document.querySelector('.builder-policy-panel')?.classList.contains('denied')`, 8000);
-  const deniedPolicy = await cdp.evaluate(`(()=>({policy:document.querySelector('.builder-policy-panel')?.innerText??'',forwarding:document.querySelector('.builder-forwarding')?.innerText??'',rules:document.querySelectorAll('.builder-acl-rules>div').length}))()`);
-  if (!deniedPolicy.policy.includes('DENIED') || !deniedPolicy.forwarding.includes('EDGE â†’ R2 â†’ CORE') || deniedPolicy.rules !== 1) throw new Error(`${profile.id} ACL denial did not remain separate from OSPF forwarding truth.`);
-  await measuredClickButton(cdp, '.builder-probe-section button', 'PING');
-  await waitForExpression(cdp, `document.querySelector('.builder-probe-panel')?.innerText.includes('PING') && document.querySelector('.builder-probe-panel')?.classList.contains('failed')`, 8000);
-  const aclPing = await cdp.evaluate(`document.querySelector('.builder-probe-panel')?.innerText??''`);
-  if (!/ACL|POLICY|DENIED/i.test(aclPing)) throw new Error(`${profile.id} Ping did not surface ACL policy denial.`);
-  const deletedAcl = await cdp.evaluate(`(()=>{const button=document.querySelector('.builder-acl-rules button');if(!button)return false;button.click();return true})()`);
-  if (!deletedAcl) throw new Error(`${profile.id} could not remove the temporary ACL rule.`);
-  await waitForExpression(cdp, `!document.querySelector('.builder-policy-panel')?.classList.contains('denied')`, 8000);
-  await measuredClickButton(cdp, '.builder-probe-section button', 'PING');
-  await waitForExpression(cdp, `document.querySelector('.builder-probe-panel')?.innerText.includes('PING') && document.querySelector('.builder-probe-panel')?.classList.contains('success')`, 8000);
-
-  // Restore a TTL-scoped traceroute selection before jumping into Lab 02 so the cross-link contract remains stable.
-  await measuredClickButton(cdp, '.builder-probe-section button', 'TRACEROUTE');
-  await waitForExpression(cdp, `document.querySelector('.builder-probe-panel')?.innerText.includes('TRACEROUTE') && document.querySelector('.builder-probe-panel')?.innerText.includes('ECHO REPLY')`, 8000);
-
-  // Cross-link one TTL-scoped probe into the actual Packet Microscope and return.
-  await measuredClickButton(cdp, '.builder-probe-section button', 'OPEN ICMP PACKET');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.packet-microscope'))`, 8000);
-  const packetText = await cdp.evaluate(`document.querySelector('.packet-microscope')?.innerText??''`);
-  if (!packetText.includes('LAB 11D Â· ICMP TRACE TTL') || !packetText.includes('ICMP') || !packetText.includes('TTL')) throw new Error(`${profile.id} probe packet did not seed Lab 02 ICMP state.`);
-  await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN TO BUILDER');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
-
-  // Lab 11N foundation: IPv6 is an independent FIB. Addressing exists by default, but routed reachability
-  // appears only after explicit IPv6 route state is installed. The existing failed EDGEâ†”R1 link means the
-  // weighted-path helper must choose the live R2 side without borrowing IPv4 OSPF state.
-  const ipv6Before = await cdp.evaluate(`document.querySelector('.builder-ipv6-section')?.innerText??''`);
-  if (!ipv6Before.includes('IPV6 Â· DUAL STACK') || !ipv6Before.includes('ENABLED Â· NO ROUTE') || !ipv6Before.includes('2001:db8:') || !ipv6Before.includes('LINK-LOCAL fe80:')) throw new Error(`${profile.id} IPv6 foundation did not expose independent enabled addressing before route installation.`);
-  await measuredClickButton(cdp, '.builder-ipv6-section button', 'INSTALL IPV6 STATIC PATH');
-  await waitForExpression(cdp, `document.querySelector('.builder-ipv6-section')?.innerText.includes('ENABLED Â· REACHABLE')`, 8000);
-  const ipv6FamilySelected = await cdp.evaluate(`(()=>{
-    const select=document.querySelector('.builder-probe-section select');
-    if(!select)return false;
-    select.value='ipv6';
-    select.dispatchEvent(new Event('change',{bubbles:true}));
-    return select.value==='ipv6';
-  })()`);
-  if (!ipv6FamilySelected) throw new Error(`${profile.id} could not select the IPv6 active-probe family.`);
-  await sleep(60);
-  await measuredClickButton(cdp, '.builder-probe-section button', 'TRACEROUTE');
-  await waitForExpression(cdp, `document.querySelector('.builder-probe-panel')?.innerText.includes('TRACEROUTE') && document.querySelector('.builder-probe-panel')?.innerText.includes('ECHO REPLY')`, 8000);
-  const ipv6ProbeText = await cdp.evaluate(`document.querySelector('.builder-probe-section')?.innerText??''`);
-  if (!ipv6ProbeText.includes('ICMPV6') || !ipv6ProbeText.includes('IPV6') || !ipv6ProbeText.includes('HOP LIMIT')) throw new Error(`${profile.id} IPv6 traceroute did not expose ICMPv6/Hop-Limit teaching state.`);
-  await measuredClickButton(cdp, '.builder-probe-section button', 'OPEN ICMP PACKET');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.packet-microscope'))`, 8000);
-  const packet6Text = await cdp.evaluate(`document.querySelector('.packet-microscope')?.innerText??''`);
-  if (!packet6Text.includes('LAB 11N Â· ICMPV6 TRACE HOP LIMIT') || !packet6Text.includes('IPv6') || !packet6Text.includes('ICMPv6') || !packet6Text.toLowerCase().includes('2001:db8:')) throw new Error(`${profile.id} IPv6 probe packet did not seed actual Builder ICMPv6 state into Lab 02.`);
-  await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN TO BUILDER');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
-  const ipv4FamilyRestored = await cdp.evaluate(`(()=>{
-    const select=document.querySelector('.builder-probe-section select');
-    if(!select)return false;
-    select.value='ipv4';
-    select.dispatchEvent(new Event('change',{bubbles:true}));
-    return select.value==='ipv4';
-  })()`);
-  if (!ipv4FamilyRestored) throw new Error(`${profile.id} could not restore IPv4 probe family for downstream policy contracts.`);
-  await sleep(60);
-
-  // Labs 11E-H: first show ARP resolution, STP blocking, same-VLAN switching, and MAC learning.
-  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
-  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('SWITCHED Â· VLAN 10')`, 8000);
-  const switched = await cdp.evaluate(`(()=>({
-    stage:document.querySelector('.builder-ethernet-stage')?.innerText??'',
-    fdb:document.querySelector('.builder-fdb')?.innerText??'',
-    flowLinks:document.querySelectorAll('.builder-lan-canvas g.flow').length,
-  }))()`);
-  if (!switched.stage.includes('FLOOD THEN LEARN') || !switched.fdb.includes('SW1 Â· V10') || !switched.fdb.includes('SW2 Â· V10')) throw new Error(`${profile.id} same-VLAN flow did not expose VLAN-scoped FDB learning.`);
-  if (!switched.stage.includes('ARP REQUEST â†’ REPLY') || !switched.stage.includes('SW1 ROOT') || !switched.stage.includes('1 BLOCKED')) throw new Error(`${profile.id} first LAN flow did not expose ARP + STP truth.`);
-  if (switched.flowLinks < 3) throw new Error(`${profile.id} same-VLAN path did not highlight the LAN links.`);
-  if (await cdp.evaluate(`document.querySelectorAll('.builder-lan-canvas g.stp-blocked').length`) !== 1) throw new Error(`${profile.id} did not visually mark exactly one VLAN-10 STP blocked segment.`);
-
-  // Repeating the same flow must hit the session-only ARP cache rather than replay address resolution.
-  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
-  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('ARP CACHE HIT')`, 8000);
-
-  const setSelect = async (index, value) => cdp.evaluate(`(()=>{
-    const section=document.querySelector('.builder-ethernet-section');
-    const select=section?.querySelectorAll('select')[${index}];
-    if(!select)return false;
-    select.value=${JSON.stringify(value)};
-    select.dispatchEvent(new Event('change',{bubbles:true}));
-    return true;
-  })()`);
-  if (!(await setSelect(2, 'lan-sw1-sw2'))) throw new Error(`${profile.id} could not select the primary SW1â†”SW2 trunk for STP failover.`);
-  await sleep(60);
-  await measuredClickButton(cdp, '.builder-ethernet-section button', 'FAIL LAN LINK');
-  await waitForExpression(cdp, `document.querySelector('.builder-lan-truth')?.innerText.includes('0 BLOCKED')`, 8000);
-  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
-  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('SWITCHED Â· VLAN 10')`, 8000);
-  const stpFailover = await cdp.evaluate(`document.querySelector('.builder-ethernet-stage')?.innerText??''`);
-  if (!stpFailover.includes('SW3') || !stpFailover.includes('PC-B')) throw new Error(`${profile.id} VLAN-10 traffic did not reconverge through SW3 after primary trunk failure.`);
-  await measuredClickButton(cdp, '.builder-ethernet-section button', 'RESTORE LAN LINK');
-  await waitForExpression(cdp, `document.querySelector('.builder-lan-truth')?.innerText.includes('1 BLOCKED')`, 8000);
-
-  if (!(await setSelect(1, 'lan-c'))) throw new Error(`${profile.id} could not choose PC-C for inter-VLAN flow.`);
-  await sleep(80);
-  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
-  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('ROUTED Â· VLAN 10 â†’ 20')`, 8000);
-  let routed = await cdp.evaluate(`document.querySelector('.builder-ethernet-stage')?.innerText??''`);
-  if (!routed.includes('RTR') || !routed.includes('VLAN 20') || !routed.includes('TTL 64 â†’ 63')) throw new Error(`${profile.id} inter-VLAN flow lost router-on-a-stick or TTL truth.`);
-  if ((routed.match(/ARP REQUEST â†’ REPLY/g)??[]).length < 2 || !routed.includes('10.10.0.1') || !routed.includes('10.20.0.10')) throw new Error(`${profile.id} inter-VLAN flow did not resolve gateway-side and destination-side ARP independently.`);
-
-  // Block VLAN 20 on the switch trunk: VLAN 20 must fail while VLAN 10 remains usable.
-  if (!(await setSelect(2, 'lan-sw1-sw2'))) throw new Error(`${profile.id} could not select SW1â†”SW2 trunk.`);
-  await sleep(80);
-  const trunkEdited = await cdp.evaluate(`(()=>{
-    const input=document.querySelector('.builder-ethernet-section input'); if(!input)return false;
-    input.value='10'; input.dispatchEvent(new FocusEvent('focusout',{bubbles:true})); return true;
-  })()`);
-  if (!trunkEdited) throw new Error(`${profile.id} could not edit trunk allow-list.`);
-  await sleep(100);
-  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
-  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.classList.contains('failed')`, 8000);
-  const blocked = await cdp.evaluate(`document.querySelector('.builder-ethernet-stage')?.innerText??''`);
-  if (!blocked.includes('UNREACHABLE') || !blocked.includes('VLAN 20')) throw new Error(`${profile.id} trunk filter did not isolate VLAN 20.`);
-
-  if (!(await setSelect(1, 'lan-b'))) throw new Error(`${profile.id} could not return destination to PC-B.`);
-  await sleep(60);
-  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
-  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('SWITCHED Â· VLAN 10')`, 8000);
-
-  // Restore the trunk, rerun inter-VLAN routing, and leave the final screenshot on the successful routed state.
-  const trunkRestored = await cdp.evaluate(`(()=>{
-    const input=document.querySelector('.builder-ethernet-section input'); if(!input)return false;
-    input.value='10, 20'; input.dispatchEvent(new FocusEvent('focusout',{bubbles:true})); return true;
-  })()`);
-  if (!trunkRestored) throw new Error(`${profile.id} could not restore trunk allow-list.`);
-  if (!(await setSelect(1, 'lan-c'))) throw new Error(`${profile.id} could not restore PC-C destination.`);
-  await sleep(100);
-  await measuredClickButton(cdp, '.builder-ethernet-section button', 'SEND FRAME / PACKET');
-  await waitForExpression(cdp, `document.querySelector('.builder-ethernet-stage')?.innerText.includes('ROUTED Â· VLAN 10 â†’ 20')`, 8000);
-  const depthFinal = await state();
-  assertViewport(depthFinal, 'active probes + Ethernet/VLAN fabric');
-
-  mkdirSync(dirname(reportPath), { recursive: true });
-  const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: true });
-  writeFileSync(join(dirname(reportPath), `builder-ospf-${profile.id}.png`), Buffer.from(screenshot.data, 'base64'));
-  writeFileSync(join(dirname(reportPath), `builder-depth-${profile.id}.png`), Buffer.from(screenshot.data, 'base64'));
-  return {
-    defaultNoRoute: true,
-    enabledRouters: 4,
-    initialFullAdjacencies: 5,
-    failedAdjacencies: 1,
-    failoverNextHop: '10.0.0.14',
-    ospfRouteCount: failed.ospfRoutes,
-    scrollWidth: failed.scrollWidth,
-    innerWidth: depthFinal.innerWidth,
-    activeProbeFailover: true,
-    packetMicroscopeIcmp: true,
-    ipv6Foundation: true,
-    packetMicroscopeIcmpv6: true,
-    sameVlanSwitching: true,
-    trunkIsolation: true,
-    interVlanRouting: true,
-    arpResolutionAndCache: true,
-    stpBlockingAndFailover: true,
-    linkDerivedProbeMetrics: true,
-    aclPolicyIsolation: true,
-  };
-}
-
-async function exerciseLoopbackBridgeWorkspace(cdp, profile) {
-  const bridgeReport = JSON.parse(readFileSync(measuredFixturePath, 'utf8'));
-  const handshake = {
-    schema: 'hopscotch.network-diagnostics-bridge',
-    version: 1,
-    application: 'Network Diagnostics Suite',
-    reportSchemaVersion: '2.0',
-    reportPath: '/api/hopscotch/v1/report',
-    bridgeVersion: '0.1.0-ci',
-    capabilities: ['report-v2'],
-  };
-
-  await cdp.evaluate(`(()=>{
-    const handshake=${JSON.stringify(handshake)};
-    const report=${JSON.stringify(bridgeReport)};
-    const originalFetch=globalThis.fetch;
-    const mock={mode:'network-error',calls:[],handshake,report,originalFetch};
-    globalThis.__hopscotchBridgeMock=mock;
-    globalThis.fetch=async(input,init={})=>{
-      const url=typeof input==='string'?input:(input?.url??String(input));
-      mock.calls.push({url,method:init.method??null,mode:init.mode??null,credentials:init.credentials??null,cache:init.cache??null,redirect:init.redirect??null});
-      if(mock.mode==='network-error')throw new TypeError('Failed to fetch');
-      if(url.endsWith('/api/hopscotch/v1/handshake')){
-        const body=mock.mode==='bad-handshake'?{...handshake,schema:'wrong.bridge'}:handshake;
-        return new Response(JSON.stringify(body),{status:200,headers:{'content-type':'application/json'}});
-      }
-      if(url.endsWith('/api/hopscotch/v1/report')){
-        const body=mock.mode==='invalid-report'?{schemaVersion:'99.0'}:report;
-        return new Response(JSON.stringify(body),{status:200,headers:{'content-type':'application/json'}});
-      }
-      throw new Error('Unexpected bridge URL: '+url);
-    };
-    return true;
-  })()`);
-
-  await measuredClickButton(cdp, '.measured-heading .visual-drawer-tabs button', 'SETUP');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.measured-workspace .visual-drawer'))`);
-
-  const setOrigin = async (value) => {
-    const changed = await cdp.evaluate(`(()=>{
-      const input=document.querySelector('.measured-bridge-origin input');
-      if(!input)return false;
-      const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')?.set;
-      setter?.call(input,${JSON.stringify(value)});
-      input.dispatchEvent(new Event('input',{bubbles:true}));
-      return true;
-    })()`);
-    if (!changed) throw new Error(`${profile.id} could not set the loopback bridge origin.`);
-  };
-
-  const setMode = async (mode) => cdp.evaluate(`(()=>{globalThis.__hopscotchBridgeMock.mode=${JSON.stringify(mode)};return true})()`);
-  const callCount = async () => cdp.evaluate(`globalThis.__hopscotchBridgeMock.calls.length`);
-  const workspaceState = async () => cdp.evaluate(`(()=>({
-    status:document.querySelector('.measured-workspace')?.getAttribute('data-bridge-status')??null,
-    measured:document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')??null,
-    text:document.querySelector('.measured-workspace')?.innerText??'',
-    innerWidth,
-    scrollWidth:document.documentElement.scrollWidth,
-    scrollY,
-  }))()`);
-  const assertViewport = async (label) => {
-    const state = await workspaceState();
-    if (state.scrollWidth > state.innerWidth) throw new Error(`${profile.id} ${label} horizontally overflows: ${state.scrollWidth} > ${state.innerWidth}.`);
-    if (state.scrollY !== 0) throw new Error(`${profile.id} ${label} moved document scrollY to ${state.scrollY}.`);
-    return state;
-  };
-
-  await setOrigin('http://192.168.1.50:8765');
-  await measuredClickButton(cdp, '.measured-bridge-actions button', 'CONNECT');
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-bridge-status')==='unavailable'`, 8000);
-  if (await callCount() !== 0) throw new Error(`${profile.id} non-loopback input reached fetch instead of failing before network access.`);
-  let state = await assertViewport('private-LAN rejection');
-  if (state.measured !== 'false') throw new Error(`${profile.id} private-LAN rejection changed measured state.`);
-
-  await setOrigin('http://127.0.0.1:8765');
-  await setMode('network-error');
-  await measuredClickButton(cdp, '.measured-bridge-actions button', 'CONNECT');
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-bridge-status')==='unavailable'`, 8000);
-  if (await callCount() !== 1) throw new Error(`${profile.id} network-error connect did not perform exactly one handshake attempt.`);
-  state = await assertViewport('network-error bridge');
-  if (state.measured !== 'false') throw new Error(`${profile.id} network-error connect changed measured state.`);
-
-  await setMode('bad-handshake');
-  await measuredClickButton(cdp, '.measured-bridge-actions button', 'CONNECT');
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-bridge-status')==='rejected'`, 8000);
-  if (await callCount() !== 2) throw new Error(`${profile.id} bad-handshake connect did not perform exactly one request.`);
-  state = await assertViewport('bad-handshake bridge');
-  if (state.measured !== 'false') throw new Error(`${profile.id} rejected handshake changed measured state.`);
-
-  await setMode('good');
-  await measuredClickButton(cdp, '.measured-bridge-actions button', 'CONNECT');
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-bridge-status')==='connected'`, 8000);
-  if (await callCount() !== 3) throw new Error(`${profile.id} successful Connect performed more than the one handshake request.`);
-  state = await assertViewport('connected bridge');
-  if (state.measured !== 'false') throw new Error(`${profile.id} Connect created measured truth before Refresh Report.`);
-  if (!state.text.includes('Network Diagnostics Suite') || !state.text.includes('0.1.0-ci')) throw new Error(`${profile.id} did not show validated bridge identity/version after Connect.`);
-
-  await measuredClickButton(cdp, '.measured-bridge-actions button', 'REFRESH REPORT');
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
-  await waitForExpression(cdp, `document.body.innerText.includes('Network Diagnostics Engine')`, 8000);
-  if (await callCount() !== 4) throw new Error(`${profile.id} first Refresh Report did not perform exactly one report request.`);
-  state = await assertViewport('valid bridge refresh');
-  if (state.status !== 'connected') throw new Error(`${profile.id} valid report refresh changed bridge connection state.`);
-  if (!state.text.includes('LOCAL BRIDGE Â· REPORT V2')) throw new Error(`${profile.id} valid bridge refresh was not identified as the local bridge report.`);
-
-  await setMode('invalid-report');
-  await measuredClickButton(cdp, '.measured-bridge-actions button', 'REFRESH REPORT');
-  await waitForExpression(cdp, `document.body.innerText.includes('PREVIOUS VALID MEASUREMENT REMAINS ACTIVE.')`, 8000);
-  if (await callCount() !== 5) throw new Error(`${profile.id} invalid report refresh did not perform exactly one request.`);
-  state = await assertViewport('invalid bridge refresh');
-  if (state.status !== 'connected' || state.measured !== 'true') throw new Error(`${profile.id} invalid report refresh discarded connection or previous valid measurement.`);
-  if (!state.text.includes('Network Diagnostics Engine')) throw new Error(`${profile.id} invalid report refresh lost the previous valid report.`);
-
-  await measuredClickButton(cdp, '.measured-heading-actions button', 'CLEAR');
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='false'`, 8000);
-  state = await assertViewport('clear while connected');
-  if (state.status !== 'connected') throw new Error(`${profile.id} Clear silently disconnected the bridge.`);
-
-  await setMode('good');
-  await measuredClickButton(cdp, '.measured-bridge-actions button', 'REFRESH REPORT');
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
-  if (await callCount() !== 6) throw new Error(`${profile.id} re-refresh after Clear did not issue exactly one report request.`);
-  await measuredClickButton(cdp, '.measured-bridge-actions button', 'DISCONNECT');
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-bridge-status')==='disconnected'`, 8000);
-  state = await assertViewport('disconnect with measured report');
-  if (state.measured !== 'true') throw new Error(`${profile.id} Disconnect erased the last valid measured report.`);
-
-  await measuredClickButton(cdp, '.measured-heading-actions button', 'CLEAR');
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='false'`, 8000);
-  state = await assertViewport('bridge flow reset');
-  if (state.status !== 'disconnected') throw new Error(`${profile.id} Clear mutated disconnected bridge state.`);
-
-  const requests = await cdp.evaluate(`globalThis.__hopscotchBridgeMock.calls`);
-  for (const request of requests) {
-    if (!request.url.endsWith('/api/hopscotch/v1/handshake') && !request.url.endsWith('/api/hopscotch/v1/report')) {
-      throw new Error(`${profile.id} bridge browser flow used an unexpected URL: ${request.url}`);
-    }
-    if (request.credentials !== 'omit' || request.mode !== 'cors' || request.cache !== 'no-store' || request.redirect !== 'error') {
-      throw new Error(`${profile.id} bridge browser request lost bounded CORS/no-credential/no-cache/no-redirect options.`);
-    }
-  }
-
-  await measuredClickButton(cdp, '.measured-workspace .visual-drawer__close', 'Ã—');
-  await waitForExpression(cdp, `!document.querySelector('.measured-workspace .visual-drawer')`);
-  await cdp.evaluate(`(()=>{const mock=globalThis.__hopscotchBridgeMock;if(mock?.originalFetch)globalThis.fetch=mock.originalFetch;delete globalThis.__hopscotchBridgeMock;return true})()`);
-  return {
-    privateLanRejectedBeforeFetch: true,
-    networkFailureSurfaced: true,
-    badHandshakeRejected: true,
-    connectDidNotMeasure: true,
-    validRefreshLoaded: true,
-    invalidRefreshPreservedPrevious: true,
-    clearKeptConnection: true,
-    disconnectKeptMeasurement: true,
-    requestCount: requests.length,
-  };
-}
-
-async function exerciseMeasuredWorkspace(cdp, profile) {
-  await openOverviewWorkspace(cdp, 'measured');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.measured-workspace'))`);
-  await waitForExpression(cdp, `document.body.innerText.includes('NO LOCAL MEASUREMENT LOADED')`);
-
-  const bridgeInteraction = await exerciseLoopbackBridgeWorkspace(cdp, profile);
-
-  await setFileInput(cdp, '.measured-file-input', measuredFixturePath);
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
-  await waitForExpression(cdp, `document.body.innerText.includes('Network Diagnostics Engine') && document.querySelectorAll('.measured-target-selector button').length > 1`, 8000);
-  const selectedThroughput = await cdp.evaluate(`(()=>{
-    const button=[...document.querySelectorAll('.measured-target-selector button')].find((candidate)=>candidate.textContent?.includes('speed.example.test'));
-    if(!button)return false;
-    button.click();
-    return true;
-  })()`);
-  if (!selectedThroughput) throw new Error(`${profile.id} could not select the transfer target scope.`);
-  await waitForExpression(cdp, `document.body.innerText.includes('500 Mbps')`, 8000);
-  const loaded = await cdp.evaluate(`(()=>({
-    text:document.body.innerText,
-    innerWidth,
-    scrollWidth:document.documentElement.scrollWidth,
-    scrollY,
-    factCount:document.querySelectorAll('.measured-fact').length,
-    categoryCount:document.querySelectorAll('.measured-categories button').length,
-    loaded:document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded'),
-  }))()`);
-  if (loaded.scrollWidth > loaded.innerWidth) throw new Error(`${profile.id} measured workspace overflows after valid import: ${loaded.scrollWidth} > ${loaded.innerWidth}.`);
-  if (loaded.scrollY !== 0) throw new Error(`${profile.id} measured workspace moved document scrollY to ${loaded.scrollY}.`);
-  if (loaded.categoryCount !== 7) throw new Error(`${profile.id} expected 7 measured categories, found ${loaded.categoryCount}.`);
-  if (loaded.factCount <= 0) throw new Error(`${profile.id} rendered no measured facts after valid import.`);
-  for (const forbidden of ['DERIVED FINDING MUST NOT BECOME A FACT','BROWSER EDGE MUST NOT BECOME A FACT','UNKNOWN FIELD MUST NOT BECOME A FACT']) {
-    if (loaded.text.includes(forbidden)) throw new Error(`${profile.id} leaked excluded report content into the visible measured workspace: ${forbidden}`);
-  }
-
-  await measuredClickButton(cdp, '.measured-heading .visual-drawer-tabs button', 'PROVENANCE');
-  await waitForExpression(cdp, `document.body.innerText.includes('NOT PROMOTED TO LOCAL MEASURED')`, 8000);
-  await measuredClickButton(cdp, '.measured-workspace .visual-drawer__close', 'Ã—');
-  await waitForExpression(cdp, `!document.querySelector('.measured-workspace .visual-drawer')`);
-
-  await setFileInput(cdp, '.measured-file-input', measuredInvalidFixturePath);
-  await waitForExpression(cdp, `document.body.innerText.includes('IMPORT REJECTED')`, 8000);
-  const rejected = await cdp.evaluate(`(()=>({
-    loaded:document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded'),
-    text:document.body.innerText,
-  }))()`);
-  if (rejected.loaded !== 'true') throw new Error(`${profile.id} invalid replacement cleared the previous valid measured state.`);
-  if (!rejected.text.includes('THE PREVIOUS VALID REPORT REMAINS ACTIVE.')) throw new Error(`${profile.id} did not preserve/restate previous-valid-report behavior.`);
-  if (!rejected.text.includes('Network Diagnostics Engine')) throw new Error(`${profile.id} lost the previous valid report after a rejected replacement.`);
-
-  const cleared = await cdp.evaluate(`(()=>{
-    const button=document.querySelector('.measured-clear');
-    if(!button)return false;
-    button.click();
-    return true;
-  })()`);
-  if (!cleared) throw new Error(`${profile.id} could not find the measured Clear action.`);
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='false'`);
-  await waitForExpression(cdp, `document.body.innerText.includes('NO LOCAL MEASUREMENT LOADED')`);
-
-  await setFileInput(cdp, '.measured-file-input', measuredFixturePath);
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
-  await waitForExpression(cdp, `document.body.innerText.includes('Network Diagnostics Engine')`, 8000);
-  return {
-    bridge: bridgeInteraction,
-    validFactCount: loaded.factCount,
-    categoryCount: loaded.categoryCount,
-    targetScopeSelectionVerified: true,
-    contextualProvenanceVerified: true,
-    rejectedReplacementPreserved: true,
-    clearReturnedToEmpty: true,
-  };
-}
-
-async function measuredClickButton(cdp, selector, text) {
-  const clicked = await cdp.evaluate(`(()=>{
-    const button=[...document.querySelectorAll(${JSON.stringify(selector)})].find((candidate)=>candidate.textContent?.includes(${JSON.stringify(text)}));
-    if(!button)return false;
-    button.click();
-    return true;
-  })()`);
-  if (!clicked) throw new Error(`Unable to click ${selector} containing ${JSON.stringify(text)}.`);
-}
-
-async function openOverviewWorkspace(cdp, destination) {
-  const opened = await cdp.evaluate(`(()=>{
-    const button=document.querySelector('.corner-navigator');
-    if(!button)return false;
-    button.click();
-    return true;
-  })()`);
-  if (!opened) throw new Error(`Unable to open corner navigation for ${destination}.`);
-  await waitForExpression(cdp, `Boolean(document.querySelector('#explore-dialog'))`, 8000);
-
-  const destinationSelector = `[data-explore-destination="${destination}"]`;
-  const selected = await cdp.evaluate(`(()=>{
-    const row=document.querySelector(${JSON.stringify(destinationSelector)});
-    if(!row)return false;
-    row.click();
-    return true;
-  })()`);
-  if (!selected) throw new Error(`Unable to select ${destination} from corner navigation.`);
-  await waitForExpression(cdp, `!document.querySelector('#explore-dialog')`, 8000);
-}
-
-async function openJourneyDrawer(cdp, label) {
-  await measuredClickButton(cdp, '.visual-drawer-tabs button', label);
-  await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace .visual-drawer'))`, 8000);
-  await waitForExpression(cdp, `(()=>{
-    const drawer=document.querySelector('.journey-visual-workspace .visual-drawer')?.getBoundingClientRect();
-    const stage=document.querySelector('.journey-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
-    return Boolean(drawer&&stage&&drawer.left>=stage.left-1&&drawer.right<=stage.right+1);
-  })()`, 8000);
-  await sleep(80);
-}
-
-async function closeJourneyDrawer(cdp) {
-  const closed = await cdp.evaluate(`(()=>{
-    const button=document.querySelector('.journey-visual-workspace .visual-drawer__close');
-    if(!button)return false;
-    button.click();
-    return true;
-  })()`);
-  if (!closed) throw new Error('Unable to close the active Journey drawer.');
-  await waitForExpression(cdp, `!document.querySelector('.journey-visual-workspace .visual-drawer')`, 8000);
-}
-
-async function selectJourneyEvent(cdp, title) {
-  await openJourneyDrawer(cdp, 'Events');
-  await measuredClickButton(cdp, '.journey-event', title);
-  await waitForExpression(cdp, `document.querySelector('.journey-callout-overlay h2')?.textContent?.includes(${JSON.stringify(title)})`, 8000);
-  await closeJourneyDrawer(cdp);
-}
-
-async function inspectJourneyDrawerArchitecture(cdp, profile) {
-  const before = await cdp.evaluate(`(()=>{
-    const stage=document.querySelector('.journey-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
-    const exit=[...document.querySelectorAll('.journey-visual-tools .visual-tool-button')].find((button)=>button.textContent?.includes('Exit'))?.getBoundingClientRect();
-    return {stage:stage?{x:stage.x,y:stage.y,width:stage.width,height:stage.height}:null,exit:exit?{x:exit.x,y:exit.y,width:exit.width,height:exit.height}:null};
-  })()`);
-  if (!before.stage) throw new Error(`${profile.id} is missing the Journey visual stage.`);
-  if (!before.exit || before.exit.width <= 0 || before.exit.height <= 0) throw new Error(`${profile.id} does not expose a visible Journey Exit action.`);
-  if (before.exit.x < before.stage.x || before.exit.x + before.exit.width > before.stage.x + before.stage.width + 1) throw new Error(`${profile.id} Journey Exit action is outside the visible stage.`);
-
-  await openJourneyDrawer(cdp, 'Configure');
-  const opened = await cdp.evaluate(`(()=>{
-    const stage=document.querySelector('.journey-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
-    const drawer=document.querySelector('.journey-visual-workspace .visual-drawer')?.getBoundingClientRect();
-    const modifierProfile=document.querySelector('.journey-modifier-profile');
-    const controls=[...document.querySelectorAll('.journey-modifier-profile button')].map((button,index)=>{const rect=button.getBoundingClientRect();return {index:index+1,text:button.innerText,x:Math.round(rect.x),y:Math.round(rect.y),width:Math.round(rect.width),height:Math.round(rect.height)}});
-    return {
-      stage:stage?{x:stage.x,y:stage.y,width:stage.width,height:stage.height}:null,
-      drawer:drawer?{x:drawer.x,y:drawer.y,width:drawer.width,height:drawer.height}:null,
-      controls,
-      modifierColumns:modifierProfile?getComputedStyle(modifierProfile).gridTemplateColumns.split(' ').filter(Boolean).length:0,
-      modal:document.querySelector('.journey-visual-workspace .visual-drawer')?.getAttribute('aria-modal'),
-    };
-  })()`);
-  if (!opened.stage || !opened.drawer) throw new Error(`${profile.id} did not render the Config drawer over the Journey stage.`);
-  if (opened.modal !== 'true') throw new Error(`${profile.id} Journey drawer lost modal accessibility semantics.`);
-  if (opened.controls.length !== 10) throw new Error(`${profile.id} expected 10 GOD MODE controls, found ${opened.controls.length}.`);
-  for (const key of ['x', 'y', 'width', 'height']) {
-    if (Math.abs(opened.stage[key] - before.stage[key]) > 1) throw new Error(`${profile.id} Config drawer changed stage ${key}: ${before.stage[key]} â†’ ${opened.stage[key]}.`);
-  }
-  if (profile.width <= 680) {
-    for (const key of ['x', 'y', 'width', 'height']) {
-      if (Math.abs(opened.drawer[key] - opened.stage[key]) > 1) throw new Error(`${profile.id} mobile drawer did not cover the full stage ${key}.`);
-    }
-  } else if (opened.drawer.x < opened.stage.x || opened.drawer.x + opened.drawer.width > opened.stage.x + opened.stage.width + 1) {
-    throw new Error(`${profile.id} desktop drawer escaped the visual stage.`);
-  }
-  await closeJourneyDrawer(cdp);
-  const after = await cdp.evaluate(`(()=>{const stage=document.querySelector('.journey-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();return stage?{x:stage.x,y:stage.y,width:stage.width,height:stage.height}:null})()`);
-  if (!after) throw new Error(`${profile.id} lost the Journey stage after closing Config.`);
-  for (const key of ['x', 'y', 'width', 'height']) {
-    if (Math.abs(after[key] - before.stage[key]) > 1) throw new Error(`${profile.id} stage did not recover after closing Config (${key}).`);
-  }
-  return { modifierControls: opened.controls, modifierColumns: opened.modifierColumns, modal: true, stagePreserved: true, mobileFullStage: profile.width <= 680 };
-}
-
-async function measuredViewportState(cdp) {
-  return cdp.evaluate(`(()=>({
-    innerWidth,
-    scrollWidth:document.documentElement.scrollWidth,
-    scrollY,
-    sidecar:document.querySelector('.journey-measured-sidecar')?.innerText ?? null,
-    compatibility:document.querySelector('.journey-measured-sidecar')?.getAttribute('data-measured-compatibility') ?? null,
-    scene:document.querySelector('.journey-measured-sidecar')?.getAttribute('data-measured-scene') ?? null,
-    activeEvent:document.querySelector('.journey-callout-overlay h2')?.textContent ?? null,
-  }))()`);
-}
-
-function assertMeasuredViewport(profile, state, label) {
-  if (state.scrollWidth > state.innerWidth) throw new Error(`${profile.id} ${label} horizontally overflows: ${state.scrollWidth} > ${state.innerWidth}.`);
-  if (state.scrollY !== 0) throw new Error(`${profile.id} ${label} moved document scrollY to ${state.scrollY}.`);
-}
-
-async function exerciseMeasuredJourneySidecars(cdp, profile) {
-  await openOverviewWorkspace(cdp, 'measured');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.measured-workspace'))`);
-  await setFileInput(cdp, '.measured-file-input', measuredFixturePath);
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
-  await measuredClickButton(cdp, '.measured-heading-actions button', 'EXIT LAB');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.kinetic-overview'))`);
-  await openOverviewWorkspace(cdp, 'journey');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`, 8000);
-
-  await selectJourneyEvent(cdp, 'Default gateway selected');
-  await waitForExpression(cdp, `document.querySelector('.journey-measured-sidecar')?.getAttribute('data-measured-compatibility')==='local-context'`, 8000);
-  const routing = await measuredViewportState(cdp);
-  assertMeasuredViewport(profile, routing, 'routing sidecar');
-  if (routing.scene !== 'routing' || routing.activeEvent !== 'Default gateway selected') throw new Error(`${profile.id} did not bind LOCAL CONTEXT to the routing phase.`);
-  if (!routing.sidecar?.includes('LOCAL MEASURED') || !routing.sidecar.includes('LOCAL CONTEXT') || !routing.sidecar.includes('SIMULATED STORY UNCHANGED')) throw new Error(`${profile.id} routing sidecar lost provenance/boundary language.`);
-
-  await selectJourneyEvent(cdp, 'Stub asks recursive resolver');
-  await waitForExpression(cdp, `document.querySelector('.journey-measured-sidecar')?.getAttribute('data-measured-compatibility')==='matched-target'`, 8000);
-  const dns = await measuredViewportState(cdp);
-  assertMeasuredViewport(profile, dns, 'DNS sidecar');
-  if (dns.scene !== 'dns' || !dns.sidecar?.includes('MATCHED TARGET') || !dns.sidecar.includes('8 ms')) throw new Error(`${profile.id} DNS sidecar did not expose exact-target measured DNS context.`);
-
-  await selectJourneyEvent(cdp, 'TCP connection established');
-  await waitForExpression(cdp, `document.querySelector('.journey-measured-sidecar')?.getAttribute('data-measured-compatibility')==='matched-target'`, 8000);
-  const transport = await measuredViewportState(cdp);
-  assertMeasuredViewport(profile, transport, 'transport sidecar');
-  if (transport.scene !== 'transport' || !transport.sidecar?.includes('MATCHED TARGET')) throw new Error(`${profile.id} transport sidecar did not expose exact-target context.`);
-  if (transport.sidecar.includes('500 Mbps')) throw new Error(`${profile.id} leaked other-target speed-test throughput into matched Journey transport evidence.`);
-  if (!transport.sidecar.includes('OTHER-TARGET FACT')) throw new Error(`${profile.id} did not disclose that other-target transport facts were hidden.`);
-
-  await openJourneyDrawer(cdp, 'Configure');
-  const changedHost = await cdp.evaluate(`(()=>{
-    const input=document.querySelector('.journey-drawer-form input');
-    const form=document.querySelector('.journey-drawer-form');
-    if(!input||!form)return false;
-    const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')?.set;
-    setter?.call(input,'other.test');
-    input.dispatchEvent(new Event('input',{bubbles:true}));
-    form.requestSubmit();
-    return true;
-  })()`);
-  if (!changedHost) throw new Error(`${profile.id} could not change Journey hostname for mismatch validation.`);
-  await waitForExpression(cdp, `document.querySelector('.journey-drawer-form input')?.value==='other.test'`, 8000);
-  await closeJourneyDrawer(cdp);
-  await selectJourneyEvent(cdp, 'TCP connection established');
-  await waitForExpression(cdp, `document.querySelector('.journey-measured-sidecar')?.getAttribute('data-measured-compatibility')==='other-target'`, 8000);
-  const mismatch = await measuredViewportState(cdp);
-  assertMeasuredViewport(profile, mismatch, 'mismatched transport sidecar');
-  if (!mismatch.sidecar?.includes('NO COMPATIBLE TRANSPORT TARGET') || !mismatch.sidecar.includes('OTHER TARGET')) throw new Error(`${profile.id} mismatched target did not fail closed visibly.`);
-  if (mismatch.sidecar.includes('500 Mbps') || mismatch.sidecar.includes('24 ms') || mismatch.sidecar.includes('17 ms')) throw new Error(`${profile.id} rendered mismatched measured values as Journey evidence.`);
-
-  await measuredClickButton(cdp, '.journey-visual-tools .visual-tool-button', 'Exit');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.kinetic-overview'))`);
-  await openOverviewWorkspace(cdp, 'measured');
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
-  await measuredClickButton(cdp, '.measured-clear', 'CLEAR');
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='false'`, 8000);
-  await measuredClickButton(cdp, '.measured-heading-actions button', 'EXIT LAB');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.kinetic-overview'))`);
-  await openOverviewWorkspace(cdp, 'journey');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`, 8000);
-  await selectJourneyEvent(cdp, 'Default gateway selected');
-  await sleep(120);
-  if (await cdp.evaluate(`Boolean(document.querySelector('.journey-measured-sidecar'))`)) throw new Error(`${profile.id} measured sidecar survived explicit Lab 09 Clear.`);
-  const cleared = await measuredViewportState(cdp);
-  assertMeasuredViewport(profile, cleared, 'cleared Journey');
-
-  return {
-    routingCompatibility: routing.compatibility,
-    dnsCompatibility: dns.compatibility,
-    transportCompatibility: transport.compatibility,
-    mismatchCompatibility: mismatch.compatibility,
-    otherTargetValuesHidden: true,
-    clearRemovedSidecars: true,
-  };
-}
-
-async function exercisePhase4ObservedInternet(cdp, profile) {
-  const snapshot = {
-    schema: 'hopscotch.internet-evidence', version: 1, generatedAt: '2026-08-20T22:00:00.000Z',
-    edge: { provenance: 'EDGE OBSERVED', availability: 'available', asn: 13335, organization: 'Cloudflare, Inc.', colo: 'LHR', country: 'GB', region: 'England', city: 'London', transportRttMs: 17, transport: 'QUIC', observedAt: '2026-08-20T22:00:00.000Z', note: 'Observed at the edge serving this explicit HOPSCOTCH request.' },
-    destination: { provenance: 'INFERRED', availability: 'available', hostname: 'cloudflare.com', addresses: ['104.16.132.229', '104.16.133.229', '2606:4700::6810:84e5'], selectedAddress: '104.16.132.229', note: 'DNS resolution provides destination context, not a measured forwarding path.' },
-    routing: { provenance: 'PUBLIC COLLECTOR', availability: 'available', prefix: '104.16.128.0/20', originAsns: [13335], note: 'Public route-origin context seen from independent collector vantage points.' },
-    collectorPaths: [
-      { provenance: 'PUBLIC COLLECTOR', availability: 'available', sourceId: 'rrc00-peer-64500', targetPrefix: '104.16.128.0/20', asPath: [64500, 3356, 13335], note: 'Independent RIS vantage; not the browser path.' },
-      { provenance: 'PUBLIC COLLECTOR', availability: 'available', sourceId: 'rrc10-peer-64496', targetPrefix: '104.16.128.0/20', asPath: [64496, 1299, 13335], note: 'Independent RIS vantage; not the browser path.' },
-      { provenance: 'PUBLIC COLLECTOR', availability: 'available', sourceId: 'rrc21-peer-64497', targetPrefix: '104.16.128.0/20', asPath: [64497, 174, 13335], note: 'Independent RIS vantage; not the browser path.' },
-    ],
-    bridge: { provenance: 'INFERRED', availability: 'partial', sourceAsn: 13335, destinationOriginAsns: [13335], note: 'No continuous observation joins the request edge, the browser forwarding path, and these public collector routes.' },
-    warnings: ['Collector paths are independent route observations and do not identify the current browser path.'],
-  };
-  await cdp.evaluate(`(()=>{
-    const originalFetch=globalThis.fetch;
-    const snapshot=${JSON.stringify(snapshot)};
-    globalThis.__hopscotchObservedFetch=originalFetch;
-    globalThis.fetch=async(input)=>{
-      const url=typeof input==='string'?input:(input?.url??String(input));
-      if(url.includes('/api/internet/snapshot'))return new Response(JSON.stringify(snapshot),{status:200,headers:{'content-type':'application/json'}});
-      return originalFetch(input);
-    };
-    return true;
-  })()`);
-  await measuredClickButton(cdp, '.observed-query button', 'BUILD EVIDENCE SNAPSHOT');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.observed-main'))`, 8000);
-  await waitForExpression(cdp, `document.querySelectorAll('.evidence-card').length===3`, 8000);
-  await cdp.evaluate(`(()=>{if(globalThis.__hopscotchObservedFetch)globalThis.fetch=globalThis.__hopscotchObservedFetch;delete globalThis.__hopscotchObservedFetch;return true})()`);
-  const state = await cdp.evaluate(`(()=>({cards:document.querySelectorAll('.evidence-card').length,collectors:document.querySelectorAll('.collector-paths article').length,drawer:document.querySelector('.observed-internet')?.getAttribute('data-inspect-mode'),text:document.querySelector('.observed-internet')?.innerText??''}))()`);
-  if (state.cards !== 3 || state.drawer !== 'idle' || !state.text.includes('NO CONTINUOUS OBSERVATION')) throw new Error(`${profile.id} did not build the bounded evidence-island scene.`);
-  return state;
-}
-
-async function exercisePhase4MeasuredNetwork(cdp, profile) {
-  await setFileInput(cdp, '.measured-file-input', measuredFixturePath);
-  await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
-  await waitForExpression(cdp, `document.querySelectorAll('.measured-fact').length>0`, 8000);
-  const state = await cdp.evaluate(`(()=>({facts:document.querySelectorAll('.measured-fact').length,categories:document.querySelectorAll('.measured-categories button').length,permanentProvenance:document.querySelectorAll('.measured-main > .measured-provenance-panel').length,source:document.querySelector('.capture-source strong')?.textContent??null}))()`);
-  if (state.facts <= 0 || state.categories !== 7 || state.permanentProvenance !== 0) throw new Error(`${profile.id} did not reach the Phase 4 measured analysis layout.`);
-  return state;
-}
-
-async function dispatchKey(cdp, key, code, modifiers = 0) {
-  const windowsVirtualKeyCode = key === 'Tab' ? 9 : key === 'Escape' ? 27 : 0;
-  await cdp.call('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code, modifiers, windowsVirtualKeyCode, nativeVirtualKeyCode: windowsVirtualKeyCode });
-  await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key, code, modifiers, windowsVirtualKeyCode, nativeVirtualKeyCode: windowsVirtualKeyCode });
-}
-
-async function capturePhase4EvidenceReview(cdp, profile) {
-  mkdirSync(visualReviewDirectory, { recursive: true });
-  await waitForExpression(cdp, `!document.querySelector('.visual-entrance')`, 5000);
-  await sleep(120);
-  const observed = profile.phase4Observed === true;
-  const geometry = await cdp.evaluate(`(()=>{
-    const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
-    const toolbar=rect(${JSON.stringify(observed ? '.observed-internet .visual-workspace__toolbar' : '.measured-heading')});
-    const hud=rect(${JSON.stringify(observed ? '.observed-internet .visual-workspace__hud' : '.measured-capture-strip')});
-    return {
-      viewport:{width:innerWidth,height:innerHeight},
-      workspace:rect(${JSON.stringify(observed ? '.observed-internet' : '.measured-workspace')}),
-      stage:rect(${JSON.stringify(observed ? '.observed-internet .visual-workspace__stage' : '.measured-main')}),
-      world:rect(${JSON.stringify(observed ? '.observed-main' : '.measured-scene')}),
-      categories:rect('.measured-categories'),toolbar,hud,
-      toolbarHudOverlap:Boolean(toolbar&&hud&&toolbar.left<hud.right&&toolbar.right>hud.left&&toolbar.top<hud.bottom&&toolbar.bottom>hud.top),
-      scrollWidth:document.documentElement.scrollWidth,scrollY,
-      permanentProvenance:document.querySelectorAll('.measured-main > .measured-provenance-panel').length,
-      collectorPanelInWorld:document.querySelectorAll('.observed-main > .collector-panel').length,
-    };
-  })()`);
-  if (!geometry.workspace || !geometry.stage || !geometry.world) throw new Error(`${profile.id} is missing Phase 4 evidence geometry: ${JSON.stringify(geometry)}.`);
-  if (geometry.viewport.width - geometry.workspace.width > 26) throw new Error(`${profile.id} retains a restrictive outer width cap.`);
-  if (geometry.world.width < geometry.stage.width * (observed ? 0.94 : 0.68)) throw new Error(`${profile.id} central evidence content is too narrow: ${JSON.stringify(geometry)}.`);
-  if (geometry.world.height < geometry.stage.height * (observed ? 0.62 : 0.72)) throw new Error(`${profile.id} central evidence content is too short: ${JSON.stringify(geometry)}.`);
-  if (geometry.scrollWidth > geometry.viewport.width || geometry.scrollY !== 0) throw new Error(`${profile.id} overflows or moves the document viewport.`);
-  if (observed && geometry.collectorPanelInWorld !== 0) throw new Error(`${profile.id} retained a permanent collector panel in the world.`);
-  if (!observed && geometry.permanentProvenance !== 0) throw new Error(`${profile.id} retained a permanent provenance column.`);
-  if (observed && geometry.toolbarHudOverlap) throw new Error(`${profile.id} toolbar collides with its truth HUD.`);
-
-  const capture = async (suffix = '') => {
-    const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });
-    const path = join(visualReviewDirectory, `${profile.id}${suffix}.png`);
-    writeFileSync(path, Buffer.from(screenshot.data, 'base64'));
-    return path;
-  };
-  const screenshotPath = await capture();
-  let inspect = null;
-  let setupScreenshotPath = null;
-  if (profile.inspectReview) {
-    const openerSelector = observed ? '.observed-internet .visual-drawer-tabs button:nth-child(2)' : '.measured-heading .visual-drawer-tabs button:nth-child(2)';
-    const openerText = observed ? 'COLLECTORS' : 'PROVENANCE';
-    await cdp.evaluate(`document.querySelector(${JSON.stringify(openerSelector)})?.focus()`);
-    await measuredClickButton(cdp, openerSelector, openerText);
-    await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(observed ? '.observed-internet .visual-drawer' : '.measured-workspace .visual-drawer')}))`, 8000);
-    const drawerSelector = observed ? '.observed-internet .visual-drawer' : '.measured-workspace .visual-drawer';
-    const initialFocus = await cdp.evaluate(`document.activeElement?.classList.contains('visual-drawer__close')===true`);
-    await dispatchKey(cdp, 'Tab', 'Tab', 8);
-    const shiftTabContained = await cdp.evaluate(`document.querySelector(${JSON.stringify(drawerSelector)})?.contains(document.activeElement)===true`);
-    await dispatchKey(cdp, 'Tab', 'Tab');
-    const tabContained = await cdp.evaluate(`document.querySelector(${JSON.stringify(drawerSelector)})?.contains(document.activeElement)===true`);
-    const inspectScreenshotPath = await capture('-context');
-    await dispatchKey(cdp, 'Escape', 'Escape');
-    await waitForExpression(cdp, `!document.querySelector(${JSON.stringify(drawerSelector)})`, 8000);
-    const restored = await cdp.evaluate(`document.activeElement===document.querySelector(${JSON.stringify(openerSelector)})`);
-    if (!initialFocus || !shiftTabContained || !tabContained || !restored) throw new Error(`${profile.id} contextual drawer focus lifecycle failed.`);
-    inspect = { initialFocus, shiftTabContained, tabContained, restored, screenshotPath: inspectScreenshotPath };
-
-    if (!observed) {
-      const setupSelector = '.measured-heading .visual-drawer-tabs button:nth-child(1)';
-      await measuredClickButton(cdp, setupSelector, 'SETUP');
-      await waitForExpression(cdp, `Boolean(document.querySelector('.measured-workspace .visual-drawer'))`);
-      setupScreenshotPath = await capture('-setup');
-      await dispatchKey(cdp, 'Escape', 'Escape');
-      await waitForExpression(cdp, `!document.querySelector('.measured-workspace .visual-drawer')`);
-    }
-  }
-  return { geometry, screenshotPath, inspect, setupScreenshotPath };
-}
-
-async function captureVisualReview(cdp, profile) {
-  mkdirSync(visualReviewDirectory, { recursive: true });
-  await sleep(900);
-  const geometry = await cdp.evaluate(`(()=>{
-    const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
-    const semanticRects=${JSON.stringify(profile.semanticSelector ?? '')}?[...document.querySelectorAll(${JSON.stringify(profile.semanticSelector ?? '')})].map((value)=>value.getBoundingClientRect()).filter((value)=>value.width>0&&value.height>0):[];
-    const semanticBounds=semanticRects.length===0?null:{left:Math.min(...semanticRects.map((value)=>value.left)),top:Math.min(...semanticRects.map((value)=>value.top)),right:Math.max(...semanticRects.map((value)=>value.right)),bottom:Math.max(...semanticRects.map((value)=>value.bottom))};
-    const toolbar=rect(${JSON.stringify(profile.toolbarSelector)});
-    const hud=rect(${JSON.stringify(profile.hudSelector)});
-    return {
-      viewport:{width:innerWidth,height:innerHeight},
-      workspace:rect(${JSON.stringify(profile.workspaceSelector)}),
-      stage:rect(${JSON.stringify(profile.stageSelector)}),
-      world:rect(${JSON.stringify(profile.worldSelector)}),
-      toolbar,
-      hud,
-      semanticBounds:semanticBounds?{...semanticBounds,width:semanticBounds.right-semanticBounds.left,height:semanticBounds.bottom-semanticBounds.top}:null,
-      toolbarHudOverlap:Boolean(toolbar&&hud&&toolbar.left<hud.right&&toolbar.right>hud.left&&toolbar.top<hud.bottom&&toolbar.bottom>hud.top),
-    };
-  })()`);
-  if (!geometry.workspace || !geometry.stage || !geometry.world) throw new Error(`${profile.id} is missing visual review geometry: ${JSON.stringify(geometry)}.`);
-  const outerGutter = geometry.viewport.width - geometry.workspace.width;
-  if (outerGutter > 26) throw new Error(`${profile.id} leaves ${outerGutter.toFixed(1)}px of outer desktop gutter.`);
-  if (geometry.world.width < geometry.stage.width * 0.96 || geometry.world.height < geometry.stage.height * 0.9) throw new Error(`${profile.id} world does not own its stage: ${JSON.stringify(geometry)}.`);
-  if (geometry.toolbarHudOverlap) throw new Error(`${profile.id} toolbar collides with its persistent HUD.`);
-  if (profile.semanticMinWidthRatio && (!geometry.semanticBounds || geometry.semanticBounds.width < geometry.world.width * profile.semanticMinWidthRatio)) throw new Error(`${profile.id} semantic content is compressed horizontally inside its stage: ${JSON.stringify(geometry)}.`);
-  if (profile.semanticMinHeightRatio && (!geometry.semanticBounds || geometry.semanticBounds.height < geometry.world.height * profile.semanticMinHeightRatio)) throw new Error(`${profile.id} semantic content is compressed vertically inside its stage: ${JSON.stringify(geometry)}.`);
-
-  const capture = async (suffix = '') => {
-    const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });
-    const path = join(visualReviewDirectory, `${profile.id}${suffix}.png`);
-    writeFileSync(path, Buffer.from(screenshot.data, 'base64'));
-    return path;
-  };
-  const screenshotPath = await capture();
-  let inspect = null;
-  if (profile.inspectReview) {
-    await cdp.evaluate(`document.querySelector(${JSON.stringify(profile.inspectButtonSelector)})?.focus()`);
-    await measuredClickButton(cdp, profile.inspectButtonSelector, 'INSPECT');
-    await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(profile.drawerSelector)}))`, 8000);
-    await sleep(120);
-    const initialFocus = await cdp.evaluate(`(()=>({
-      inside:Boolean(document.querySelector(${JSON.stringify(profile.drawerSelector)})?.contains(document.activeElement)),
-      label:document.activeElement?.getAttribute('aria-label')??document.activeElement?.textContent?.trim()??null,
-    }))()`);
-    if (!initialFocus.inside || !String(initialFocus.label).toUpperCase().includes('CLOSE')) throw new Error(`${profile.id} drawer did not focus its close control: ${JSON.stringify(initialFocus)}.`);
-    await dispatchKey(cdp, 'Tab', 'Tab', 8);
-    const shiftTabContained = await cdp.evaluate(`document.querySelector(${JSON.stringify(profile.drawerSelector)})?.contains(document.activeElement)===true`);
-    if (!shiftTabContained) throw new Error(`${profile.id} drawer let Shift+Tab escape its modal focus scope.`);
-    await dispatchKey(cdp, 'Tab', 'Tab');
-    const tabContained = await cdp.evaluate(`document.querySelector(${JSON.stringify(profile.drawerSelector)})?.contains(document.activeElement)===true`);
-    if (!tabContained) throw new Error(`${profile.id} drawer let Tab escape its modal focus scope.`);
-    const inspectScreenshotPath = await capture('-inspect');
-    await dispatchKey(cdp, 'Escape', 'Escape');
-    await waitForExpression(cdp, `!document.querySelector(${JSON.stringify(profile.drawerSelector)})`, 8000);
-    const restored = await cdp.evaluate(`document.activeElement===document.querySelector(${JSON.stringify(profile.inspectButtonSelector)})`);
-    if (!restored) throw new Error(`${profile.id} drawer did not restore focus to its opener.`);
-    inspect = { initialFocus, shiftTabContained, tabContained, restored, screenshotPath: inspectScreenshotPath };
-  }
-  return { geometry, screenshotPath, inspect };
-}
-
-async function loadProfile(cdp, origin, profile) {
-  cdp.clearEvents();
-  await cdp.call('Emulation.setDeviceMetricsOverride', {
-    width: profile.width,
-    height: profile.height,
-    deviceScaleFactor: 1,
-    mobile: profile.width <= 520,
-  });
-  await cdp.call('Emulation.setEmulatedMedia', {
-    features: [{ name: 'prefers-reduced-motion', value: profile.reducedMotion ? 'reduce' : 'no-preference' }],
-  });
-  const startedAt = performance.now();
-  await cdp.call('Page.navigate', { url: `${origin}${profile.path ?? '/'}${profile.query}` });
-  await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(profile.readySelector ?? '.journey-visual-workspace')}))`);
-  await sleep(550);
-  const phase4Interaction = profile.phase4Observed
-    ? await exercisePhase4ObservedInternet(cdp, profile)
-    : profile.phase4Measured
-      ? await exercisePhase4MeasuredNetwork(cdp, profile)
-      : null;
-  const builderOspfInteraction = profile.builderOspf ? await exerciseBuilderOspf(cdp, profile) : null;
-  const measuredInteraction = profile.measuredWorkspace
-    ? await exerciseMeasuredWorkspace(cdp, profile)
-    : profile.measuredSidecars
-      ? await exerciseMeasuredJourneySidecars(cdp, profile)
-      : null;
-  const readyMs = performance.now() - startedAt;
-  const bodyText = await cdp.evaluate('document.body.innerText');
-  for (const expected of profile.expected) {
-    if (!bodyText.includes(expected)) throw new Error(`${profile.id} did not reach expected semantic text: ${JSON.stringify(expected)}`);
-  }
-  if (profile.reducedMotion && !(await cdp.evaluate('matchMedia("(prefers-reduced-motion: reduce)").matches'))) {
-    throw new Error(`${profile.id} did not enable reduced motion.`);
-  }
-
-  const visualReviewResult = profile.phase4VisualReview
-    ? await capturePhase4EvidenceReview(cdp, profile)
-    : profile.visualReview
-      ? await captureVisualReview(cdp, profile)
-      : null;
-
-  const journeyDrawer = await cdp.evaluate(`Boolean(document.querySelector('.journey-visual-workspace'))`)
-    ? await inspectJourneyDrawerArchitecture(cdp, profile)
-    : null;
-
-  await cdp.call('HeapProfiler.collectGarbage');
-  const heap = await cdp.call('Runtime.getHeapUsage');
-  const performanceMetrics = Object.fromEntries((await cdp.call('Performance.getMetrics')).metrics.map((metric) => [metric.name, metric.value]));
-  const structural = await cdp.evaluate(`(()=>{
-    return {
-      elementCount: document.getElementsByTagName('*').length,
-      eventCount: document.querySelectorAll('.visual-time-rail__events button').length,
-      innerWidth,
-      scrollWidth: document.documentElement.scrollWidth,
-      scrollY,
-      heading: document.querySelector('.visual-identity > strong')?.textContent ?? null,
-      measured: {
-        loaded: document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded') ?? null,
-        categoryButtons: document.querySelectorAll('.measured-categories button').length,
-        visibleFacts: document.querySelectorAll('.measured-fact').length,
-      },
-      protocol: (()=>{
-        const stage=document.querySelector('.protocol-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
-        const scene=document.querySelector('.protocol-cinematic-stage')?.getBoundingClientRect();
-        return {
-          active:Boolean(stage&&scene),
-          stageWidth:stage?.width??0,
-          stageHeight:stage?.height??0,
-          sceneWidth:scene?.width??0,
-          sceneHeight:scene?.height??0,
-          drawerTabs:document.querySelectorAll('.protocol-visual-workspace .visual-drawer-tabs button').length,
-          timeRail:Boolean(document.querySelector('.protocol-visual-workspace .visual-time-rail')),
-          permanentInspectors:document.querySelectorAll('.tcp-inspector,.dns-inspector,.tls-inspector,.http-inspector').length,
-        };
-      })(),
-      stress: {
-        profile: document.querySelector('[data-stress-profile]')?.getAttribute('data-stress-profile') ?? null,
-        asNodes: Number(document.querySelector('.internet-scale')?.getAttribute('data-node-count') ?? 0),
-        asRelationships: Number(document.querySelector('.internet-scale')?.getAttribute('data-relationship-count') ?? 0),
-        builderNodes: Number(document.querySelector('.builder-workspace')?.getAttribute('data-node-count') ?? 0),
-        builderLinks: Number(document.querySelector('.builder-workspace')?.getAttribute('data-link-count') ?? 0),
-        physicalPoints: Number(document.querySelector('.physical-globe')?.getAttribute('data-point-count') ?? 0),
-        webgl: Boolean(document.querySelector('.globe-render-host canvas')),
-        canvasBackingWidth: document.querySelector('.internet-scale canvas,.globe-render-host canvas')?.width ?? 0,
-        canvasBackingHeight: document.querySelector('.internet-scale canvas,.globe-render-host canvas')?.height ?? 0,
-      },
-    };
-  })()`);
-  structural.modifierControls = journeyDrawer?.modifierControls ?? [];
-  structural.drawerArchitecture = journeyDrawer;
-
-  if (structural.scrollWidth > structural.innerWidth) throw new Error(`${profile.id} horizontally overflows: ${structural.scrollWidth} > ${structural.innerWidth}`);
-  if (structural.scrollY !== 0) throw new Error(`${profile.id} unexpectedly moved document scrollY to ${structural.scrollY}.`);
-
-  if (profile.stressExpected) {
-    for (const [key, value] of Object.entries(profile.stressExpected)) {
-      if (structural.stress[key] !== value) throw new Error(`${profile.id} stress invariant ${key}=${JSON.stringify(structural.stress[key])}; expected ${JSON.stringify(value)}.`);
-    }
-    if ((structural.stress.asNodes > 0 || structural.stress.webgl) && (structural.stress.canvasBackingWidth <= 0 || structural.stress.canvasBackingHeight <= 0)) throw new Error(`${profile.id} renderer canvas has invalid backing dimensions.`);
-  }
-
-  if (profile.assertMeasuredMobile) {
-    if (structural.measured.loaded !== 'true') throw new Error(`${profile.id} mobile measured workspace did not remain loaded.`);
-    if (structural.measured.categoryButtons !== 7) throw new Error(`${profile.id} mobile measured category count ${structural.measured.categoryButtons}; expected 7.`);
-    if (structural.measured.visibleFacts <= 0) throw new Error(`${profile.id} mobile measured workspace rendered no facts.`);
-  }
-
-  if (profile.protocolWorkspace) {
-    if (!structural.protocol.active) throw new Error(`${profile.id} did not render a protocol scene inside the shared visual workspace.`);
-    if (structural.protocol.sceneWidth < structural.protocol.stageWidth * 0.98 || structural.protocol.sceneHeight < structural.protocol.stageHeight * 0.98) throw new Error(`${profile.id} scene does not occupy the visual stage: ${JSON.stringify(structural.protocol)}.`);
-    if (structural.protocol.drawerTabs < 3) throw new Error(`${profile.id} exposed only ${structural.protocol.drawerTabs} on-demand workspace tools.`);
-    if (!structural.protocol.timeRail) throw new Error(`${profile.id} did not render the shared Time Rail.`);
-    if (structural.protocol.permanentInspectors !== 0) throw new Error(`${profile.id} retained ${structural.protocol.permanentInspectors} permanent legacy inspector(s).`);
-  }
-
-  if (profile.assertMobileGrid) {
-    if (structural.modifierControls.length !== 10) throw new Error(`Expected 10 GOD MODE controls, found ${structural.modifierControls.length}.`);
-    if (structural.drawerArchitecture?.modifierColumns !== 3) throw new Error(`Expected a three-column mobile GOD MODE grid, found ${structural.drawerArchitecture?.modifierColumns ?? 0} columns.`);
-    for (const button of structural.modifierControls) {
-      if (button.width < 40 || button.height < 32) throw new Error(`Mobile GOD MODE control ${button.text} is too small: ${button.width}Ã—${button.height}.`);
-    }
-    const finalControl = structural.modifierControls.at(-1);
-    if (finalControl?.text !== 'LEAK') throw new Error(`Unexpected final mobile control: ${finalControl?.text ?? 'missing'}`);
-  }
-
-  const pageErrors = cdp.events.filter((event) =>
-    event.method === 'Runtime.exceptionThrown'
-    || (event.method === 'Log.entryAdded' && event.params?.entry?.level === 'error')
-    || (event.method === 'Runtime.consoleAPICalled' && event.params?.type === 'error'));
-  const unexpectedPageErrors = profile.allowExpectedWebglFailure
-    ? pageErrors.filter((event) => !/(webgl|webglrenderer|context)/i.test(JSON.stringify(event)))
-    : pageErrors;
-  if (unexpectedPageErrors.length > 0) throw new Error(`${profile.id} emitted ${unexpectedPageErrors.length} unexpected runtime/console error event(s).`);
-
-  return {
-    id: profile.id,
-    viewport: { width: profile.width, height: profile.height },
-    reducedMotion: profile.reducedMotion,
-    readyMs: Number(readyMs.toFixed(2)),
-    elementCount: structural.elementCount,
-    eventCount: structural.eventCount,
-    scrollWidth: structural.scrollWidth,
-    innerWidth: structural.innerWidth,
-    scrollY: structural.scrollY,
-    modifierControls: structural.modifierControls.length,
-    heading: structural.heading,
-    drawerArchitecture: structural.drawerArchitecture,
-    stress: structural.stress,
-    measured: measuredInteraction,
-    phase4Evidence: phase4Interaction,
-    protocol: structural.protocol,
-    builderOspf: builderOspfInteraction,
-    visualReview: visualReviewResult,
-    heapUsedBytes: heap.usedSize,
-    diagnostic: {
-      scriptDurationSeconds: performanceMetrics.ScriptDuration ?? null,
-      layoutDurationSeconds: performanceMetrics.LayoutDuration ?? null,
-      recalcStyleDurationSeconds: performanceMetrics.RecalcStyleDuration ?? null,
-      taskDurationSeconds: performanceMetrics.TaskDuration ?? null,
-    },
-  };
-}
-
-async function seekStress(cdp, origin, cycles = stressConfig.seekCycles, id = 'max-composed-seek-stress') {
-  const profile = {
-    id,
-    width: 1440,
-    height: 1000,
-    reducedMotion: false,
-    query: query({ journey: '2', host: 'example.test', transport: 'quic-h3', dns: 'cache-miss', mods: maxModifierSet, t: '0' }),
-    expected: ['DNS FAIL + ROUTE + LEAK + SERVER + LOSS + LATENCY + CONGESTION + PARTITION'],
-  };
-  await loadProfile(cdp, origin, profile);
-  await cdp.call('HeapProfiler.collectGarbage');
-  const before = await cdp.call('Runtime.getHeapUsage');
-  const beforeState = await cdp.evaluate(`(()=>({
-    eventCount:document.querySelectorAll('.visual-time-rail__events button').length,
-    heading:document.querySelector('.visual-identity > strong')?.textContent ?? null,
-    scrollY,
-    elementCount:document.getElementsByTagName('*').length,
-  }))()`);
-  const startedAt = performance.now();
-  const stressResult = await cdp.evaluate(`(async()=>{
-    const cycles=${Number(cycles)};
-    const buttons=[...document.querySelectorAll('.visual-time-rail__events button')];
-    for(let cycle=0;cycle<cycles;cycle+=1){
-      for(const button of buttons){
-        button.click();
-        await new Promise((resolve)=>requestAnimationFrame(()=>resolve()));
-      }
-    }
-    await new Promise((resolve)=>setTimeout(resolve,${Number(stressConfig.settleMs)}));
-    return {
-      eventCount:document.querySelectorAll('.visual-time-rail__events button').length,
-      heading:document.querySelector('.visual-identity > strong')?.textContent ?? null,
-      scrollY,
-      elementCount:document.getElementsByTagName('*').length,
-    };
-  })()`);
-  const elapsedMs = performance.now() - startedAt;
-  await cdp.call('HeapProfiler.collectGarbage');
-  const after = await cdp.call('Runtime.getHeapUsage');
-  if (stressResult.eventCount !== beforeState.eventCount) throw new Error(`Seek stress mutated event count ${beforeState.eventCount} â†’ ${stressResult.eventCount}.`);
-  if (stressResult.heading !== beforeState.heading) throw new Error('Seek stress mutated canonical scenario identity/heading.');
-  if (stressResult.scrollY !== 0) throw new Error(`Seek stress moved document scrollY to ${stressResult.scrollY}.`);
-  return {
-    cycles,
-    eventsPerCycle: beforeState.eventCount,
-    elapsedMs: Number(elapsedMs.toFixed(2)),
-    beforeHeapUsedBytes: before.usedSize,
-    afterHeapUsedBytes: after.usedSize,
-    heapGrowthBytes: after.usedSize - before.usedSize,
-    finalElementCount: stressResult.elementCount,
-    scrollY: stressResult.scrollY,
-  };
-}
-
-function addBudgetFailure(failures, condition, message) {
-  if (!condition) failures.push(message);
-}
-
-async function main() {
-  if (typeof WebSocket === 'undefined') throw new Error('Node 24 WebSocket support is required.');
-  const artifact = readProductionArtifact();
-  const chromePath = findChrome();
-  let launch = null;
-  let cdp = null;
-  let production = null;
-  const report = {
-    schema: phase4VisualReview ? 'hopscotch.phase4-evidence-visual-review' : phase3VisualReview ? 'hopscotch.phase3-visual-review' : 'hopscotch.performance-profile',
-    version: 1,
-    generatedAt: new Date().toISOString(),
-    enforce,
-    compatibility,
-    visualReview,
-    gpuMode,
-    budgetDocument,
-    browser: { path: chromePath },
-    bundle: artifact.bundle,
-    profiles: [],
-    seekStress: null,
-    highDensitySeekStress: null,
-    failures: [],
-  };
-
-  try {
-    production = await serveProductionArtifact(distDir);
-    launch = await launchChrome(chromePath);
-    report.browser.version = launch.version.Browser ?? null;
-    report.browser.launchAttempts = launch.attempts;
-    report.browser.args = launch.args;
-    const targets = await fetchJson(`http://127.0.0.1:${launch.port}/json`);
-    const page = targets.find((target) => target.type === 'page');
-    if (!page?.webSocketDebuggerUrl) throw new Error('Chrome did not expose a page CDP target.');
-    cdp = new CdpClient(page.webSocketDebuggerUrl);
-    await cdp.call('Page.enable');
-    await cdp.call('DOM.enable');
-    await cdp.call('Runtime.enable');
-    await cdp.call('Log.enable');
-    await cdp.call('Performance.enable');
-    await cdp.call('HeapProfiler.enable');
-
-    for (const profile of profiles) report.profiles.push(await loadProfile(cdp, production.origin, profile));
-    if (!compatibility && !visualReview) {
-      report.seekStress = await seekStress(cdp, production.origin);
-      report.highDensitySeekStress = await seekStress(cdp, production.origin, stressBudgets.highDensitySeek?.cycles ?? 12, 'high-density-seek-stress');
-
-    addBudgetFailure(report.failures, artifact.bundle.jsGzipBytes <= budgets.maxJsGzipBytes, `JS gzip ${artifact.bundle.jsGzipBytes} exceeds ${budgets.maxJsGzipBytes}.`);
-    addBudgetFailure(report.failures, artifact.bundle.cssGzipBytes <= budgets.maxCssGzipBytes, `CSS gzip ${artifact.bundle.cssGzipBytes} exceeds ${budgets.maxCssGzipBytes}.`);
-    for (const profile of report.profiles) {
-      const stressProfileId = profile.stress?.profile;
-      if (stressProfileId) {
-        const stressBudget = stressBudgets[stressProfileId];
-        addBudgetFailure(report.failures, Boolean(stressBudget), `${profile.id} is missing a versioned stress budget.`);
-        if (stressBudget) {
-          addBudgetFailure(report.failures, profile.elementCount <= stressBudget.maxDomElements, `${profile.id} DOM ${profile.elementCount} exceeds stress budget ${stressBudget.maxDomElements}.`);
-          addBudgetFailure(report.failures, profile.heapUsedBytes <= stressBudget.maxHeapUsedBytes, `${profile.id} heap ${profile.heapUsedBytes} exceeds stress budget ${stressBudget.maxHeapUsedBytes}.`);
-        }
-        continue;
-      }
-      addBudgetFailure(report.failures, profile.elementCount <= budgets.maxDomElements, `${profile.id} DOM ${profile.elementCount} exceeds ${budgets.maxDomElements}.`);
-      addBudgetFailure(report.failures, profile.heapUsedBytes <= budgets.maxHeapUsedBytes, `${profile.id} heap ${profile.heapUsedBytes} exceeds ${budgets.maxHeapUsedBytes}.`);
-    }
-    addBudgetFailure(report.failures, report.seekStress.finalElementCount <= budgets.maxDomElements, `seek stress DOM ${report.seekStress.finalElementCount} exceeds ${budgets.maxDomElements}.`);
-    addBudgetFailure(report.failures, report.seekStress.heapGrowthBytes <= budgets.maxHeapGrowthBytes, `seek stress heap growth ${report.seekStress.heapGrowthBytes} exceeds ${budgets.maxHeapGrowthBytes}.`);
-    const highDensitySeekBudget = stressBudgets.highDensitySeek;
-    addBudgetFailure(report.failures, Boolean(highDensitySeekBudget), 'High-density seek stress is missing a versioned stress budget.');
-    if (highDensitySeekBudget) {
-      addBudgetFailure(report.failures, report.highDensitySeekStress.cycles === highDensitySeekBudget.cycles, `high-density seek cycles ${report.highDensitySeekStress.cycles} do not match budget contract ${highDensitySeekBudget.cycles}.`);
-      addBudgetFailure(report.failures, report.highDensitySeekStress.eventsPerCycle === highDensitySeekBudget.eventsPerCycle, `high-density seek event count ${report.highDensitySeekStress.eventsPerCycle} does not match budget contract ${highDensitySeekBudget.eventsPerCycle}.`);
-      addBudgetFailure(report.failures, report.highDensitySeekStress.heapGrowthBytes <= highDensitySeekBudget.maxHeapGrowthBytes, `high-density seek heap growth ${report.highDensitySeekStress.heapGrowthBytes} exceeds stress budget ${highDensitySeekBudget.maxHeapGrowthBytes}.`);
-    }
-    }
-  } catch (error) {
-    if (error && typeof error === 'object' && 'launchAttempts' in error) report.browser.launchAttempts = error.launchAttempts;
-    report.fatalError = error instanceof Error ? error.stack ?? error.message : String(error);
-  } finally {
-    if (cdp) {
-      try { await cdp.call('Browser.close'); } catch { /* noop */ }
-      await cdp.close();
-    }
-    if (launch?.chrome && !launch.chrome.killed) launch.chrome.kill('SIGKILL');
-    if (launch?.userDataDir) rmSync(launch.userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-    if (production) await new Promise((resolvePromise) => production.server.close(resolvePromise));
-    report.browser.stderrTail = launch?.state.stderr || null;
-    mkdirSync(dirname(reportPath), { recursive: true });
-    writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
-  }
-
-  console.log(`HOPSCOTCH production ${phase4VisualReview ? 'Phase 4 visual review' : phase3VisualReview ? 'Phase 3 visual review' : compatibility ? 'compatibility' : 'performance'} profile (${report.browser.version ?? 'browser unknown'})`);
-  console.log(`GPU mode: ${gpuMode}`);
-  console.log(`Bundle: JS ${report.bundle.jsGzipBytes} gzip bytes Â· CSS ${report.bundle.cssGzipBytes} gzip bytes`);
-  for (const profile of report.profiles) {
-    console.log(`${profile.id}: DOM ${profile.elementCount} Â· heap ${(profile.heapUsedBytes / 1048576).toFixed(2)} MiB Â· ready ${profile.readyMs.toFixed(0)} ms Â· events ${profile.eventCount}`);
-  }
-  if (report.seekStress) {
-    console.log(`seek stress: ${report.seekStress.cycles} Ã— ${report.seekStress.eventsPerCycle} events Â· heap growth ${(report.seekStress.heapGrowthBytes / 1048576).toFixed(2)} MiB Â· ${report.seekStress.elapsedMs.toFixed(0)} ms diagnostic`);
-  }
-  if (report.highDensitySeekStress) {
-    console.log(`high-density seek stress: ${report.highDensitySeekStress.cycles} Ã— ${report.highDensitySeekStress.eventsPerCycle} events Â· heap growth ${(report.highDensitySeekStress.heapGrowthBytes / 1048576).toFixed(2)} MiB Â· ${report.highDensitySeekStress.elapsedMs.toFixed(0)} ms diagnostic`);
-  }
-  console.log(`Report: ${reportPath}`);
-  if (report.fatalError) {
-    console.error(report.fatalError);
-    process.exitCode = 1;
-  } else if (report.failures.length > 0) {
-    console.error('Performance budget violations:');
-    for (const failure of report.failures) console.error(`- ${failure}`);
-    if (enforce) process.exitCode = 1;
-  } else {
-    console.log(phase4VisualReview ? 'Phase 4 evidence production visual review capture and geometry checks passed.' : phase3VisualReview ? 'Phase 3 production visual review capture and geometry checks passed.' : compatibility ? `Compatibility semantic profile passed for GPU mode ${gpuMode}.` : 'Stable performance and high-density stress budgets passed.');
-  }
-}
-
-await main();
+YªçŠx-®éÜj×¢ëiºÚ+Š§j[h‘éÜ¢éíßöÝ:-jZ.¶›­–)Þ³V–×÷'B76W'Bg&öÒvæöFS¦76W'B÷7G&–7Bs°¦–×÷'B²7vâÂ7vå7–æ2Òg&öÒvæöFS¦6†–ÆE÷&ö6W72s°¦–×÷'B²W†—7G57–æ2ÂÖ¶F—%7–æ2ÂÖ¶GFV×7–æ2Â&VDf–ÆU7–æ2Â&Õ7–æ2Âw&—FTf–ÆU7–æ2Òg&öÒvæöFS¦g2s°¦–×÷'B²F×F—"Òg&öÒvæöFS¦÷2s°¦–×÷'B²F—&æÖRÂ¦ö–âÂ&W6öÇfRÒg&öÒvæöFS§F‚s°¦–×÷'B²w¦—7–æ2Òg&öÒvæöFS§¦Æ–"s°¦–×÷'BæWBg&öÒvæöFS¦æWBs°¦–×÷'B²W&f÷&Öæ6RÒg&öÒvæöFS§W&eö†öö·2s°¦–×÷'B²6W'fU&öGV7F–öä'F–f7BÒg&öÒrâ÷&öGV7F–öâÖ'F–f7B×6W'fW"æÖ§2s° ¦6öç7BVæf÷&6RÒ&ö6W72æ&wbæ–æ6ÇVFW2‚rÒÖVæf÷&6Rr“°¦6öç7B6ö×F–&–Æ—G’Ò&ö6W72æ&wbæ–æ6ÇVFW2‚rÒÖ6ö×F–&–Æ—G’r“°¦6öç7B†6S5f—7VÅ&Wf–WrÒ&ö6W72æ&wbæ–æ6ÇVFW2‚rÒ×f—7VÂ×&Wf–Wrr“°¦6öç7B†6SEf—7VÅ&Wf–WrÒ&ö6W72æ&wbæ–æ6ÇVFW2‚rÒ×†6SB×f—7VÂ×&Wf–Wrr“°¦6öç7Bf—7VÅ&Wf–WrÒ†6S5f—7VÅ&Wf–WrÇÂ†6SEf—7VÅ&Wf–Ws°¦6öç7BwTÖöFRÒ&ö6W72æVçbä„õ44õD4…ôuUôÔôDSòçG&–Ò‚’ÇÂvFVfVÇBs°¦–b‚²vFVfVÇBrÂw7v–gG6†FW"rÂvF—6&ÆVBuÒæ–æ6ÇVFW2†wTÖöFR’’F‡&÷ræWrW'&÷"†Vç7W÷'FVB„õ44õD4…ôuUôÔôDS¢G¶wTÖöFWÖ“°¦6öç7B&ö÷BÒ&ö6W72æ7vB‚“°¦6öç7BF—7DF—"Ò&W6öÇfR‡&ö÷BÂvF—7Br“°¦6öç7B'VFvWEF‚Ò&W6öÇfR‡&ö÷BÂv6öæf–r÷W&f÷&Öæ6RÖ'VFvWBæ§6öâr“°¦6öç7BFVfVÇEf—7VÄF—&V7F÷'’Ò†6SEf—7VÅ&Wf–Wròv'F–f7G2÷†6SB×f—7VÂ×&Wf–Wrr¢v'F–f7G2÷†6S2×f—7VÂ×&Wf–Wrs°¦6öç7B&W÷'EF‚Ò&W6öÇfR‡&ö÷BÂ&ö6W72æVçbä„õ44õD4…õ$Uõ%EõDƒòçG&–Ò‚’ÇÂ‡f—7VÅ&Wf–WròG¶FVfVÇEf—7VÄF—&V7F÷'—ÒòG·†6SEf—7VÅ&Wf–WròvWf–FVæ6R×&W÷'Bæ§6öâr¢wv÷&ÆG2×&W÷'Bæ§6öâwÖ¢v'F–f7G2÷W&f÷&Öæ6R×&öf–ÆRæ§6öâr’“°¦6öç7Bf—7VÅ&Wf–WtF—&V7F÷'’Ò&W6öÇfR‡&ö÷BÂ&ö6W72æVçbä„õ44õD4…õd•5TÅõ$Ud”UuôD•#òçG&–Ò‚’ÇÂFVfVÇEf—7VÄF—&V7F÷'’“°¦6öç7BÖV7W&VDf—‡GW&UF‚Ò&W6öÇfR‡&ö÷BÂw67&—G2öf—‡GW&W2öÖV7W&VB×v÷&·76R×c"æ§6öâr“°¦6öç7BÖV7W&VD–çfÆ–Df—‡GW&UF‚Ò&W6öÇfR‡&ö÷BÂw67&—G2öf—‡GW&W2öÖV7W&VB×v÷&·76RÖ–çfÆ–Bæ§6öâr“°¦6öç7B'VFvWDFö7VÖVçBÒ¥4ôâç'6R‡&VDf–ÆU7–æ2†'VFvWEF‚ÂwWFc‚r’“°¦6öç7B'VFvWG2Ò'VFvWDFö7VÖVçBæ'VFvWG3°¦6öç7B7G&W74'VFvWG2Ò'VFvWDFö7VÖVçBç7G&W74'VFvWG2óò·Ó°¦6öç7B7G&W746öæf–rÒ'VFvWDFö7VÖVçBç7G&W73° ¦6öç7B6ÆVWÒ†×2’ÓâæWr&öÖ—6R‚‡&W6öÇfU&öÖ—6R’Óâ6WEF–ÖV÷WB‡&W6öÇfU&öÖ—6RÂ×2’“° ¦gVæ7F–öâW†V7WF&ÆTg&öÕF‚†6öÖÖæB’°¢6öç7B&W7VÇBÒ7vå7–æ2‡&ö6W72çÆFf÷&ÒÓÓÒwv–ã3"ròwv†W&Rr¢wv†–6‚rÂ¶6öÖÖæEÒÂ²Væ6öF–æs¢wWFc‚rÒ“°¢–b‡&W7VÇBç7FGW2ÓÒ’&WGW&âçVÆÃ°¢&WGW&â&W7VÇBç7FF÷WBç7Æ—B‚õÇ#õÆâò’æÖ‚†Æ–æR’ÓâÆ–æRçG&–Ò‚’’æf–æB„&ööÆVâ’óòçVÆÃ°§Ð ¦gVæ7F–öâf–æD6‡&öÖR‚’°¢6öç7BW‡Æ–6—BÒ&ö6W72æVçbä4…$ôÔUõDƒòçG&–Ò‚“°¢–b†W‡Æ–6—B’°¢–b‚W†—7G57–æ2†W‡Æ–6—B’’F‡&÷ræWrW'&÷"†4…$ôÔUõD‚FöW2æ÷BW†—7C¢G¶W‡Æ–6—GÖ“°¢&WGW&âW‡Æ–6—C°¢Ð ¢6öç7B6öÖÖæD6æF–FFW2Ò&ö6W72çÆFf÷&ÒÓÓÒwv–ã3"p¢ò²v6‡&öÖRrÂv×6VFvRuÐ¢¢²vvöövÆRÖ6‡&öÖR×7F&ÆRrÂvvöövÆRÖ6‡&öÖRrÂv6‡&öÖ—VÒrÂv6‡&öÖ—VÒÖ'&÷w6W"uÓ°¢f÷"†6öç7B6öÖÖæBöb6öÖÖæD6æF–FFW2’°¢6öç7Bf÷VæBÒW†V7WF&ÆTg&öÕF‚†6öÖÖæB“°¢–b†f÷VæB’&WGW&âf÷VæC°¢Ð ¢6öç7BF„6æF–FFW2Ò&ö6W72çÆFf÷&ÒÓÓÒvF'v–âp¢ò°¢rôÆ–6F–öç2ôvöövÆR6‡&öÖRæô6öçFVçG2ôÖ4õ2ôvöövÆR6‡&öÖRrÀ¢rôÆ–6F–öç2ô6‡&öÖ—VÒæô6öçFVçG2ôÖ4õ2ô6‡&öÖ—VÒrÀ¢rôÆ–6F–öç2ôÖ–7&÷6ögBVFvRæô6öçFVçG2ôÖ4õ2ôÖ–7&÷6ögBVFvRrÀ¢Ð¢¢&ö6W72çÆFf÷&ÒÓÓÒwv–ã3"p¢ò°¢t3¥ÅÅ&öw&Òf–ÆW5ÅÄvöövÆUÅÄ6‡&öÖUÅÄÆ–6F–öåÅÆ6‡&öÖRæW†RrÀ¢t3¥ÅÅ&öw&Òf–ÆW2‡ƒƒb•ÅÄvöövÆUÅÄ6‡&öÖUÅÄÆ–6F–öåÅÆ6‡&öÖRæW†RrÀ¢t3¥ÅÅ&öw&Òf–ÆW2‡ƒƒb•ÅÄÖ–7&÷6ögEÅÄVFvUÅÄÆ–6F–öåÅÆ×6VFvRæW†RrÀ¢Ð¢¢²r÷W7"ö&–âövöövÆRÖ6‡&öÖR×7F&ÆRrÂr÷W7"ö&–âövöövÆRÖ6‡&öÖRrÂr÷W7"ö&–âö6‡&öÖ—VÒrÂr÷W7"ö&–âö6‡&öÖ—VÒÖ'&÷w6W"uÓ°¢f÷"†6öç7B6æF–FFRöbF„6æF–FFW2’–b†W†—7G57–æ2†6æF–FFR’’&WGW&â6æF–FFS°¢F‡&÷ræWrW'&÷"‚t6‡&öÖRô6‡&öÖ—VÒæ÷Bf÷VæBâ6WB4…$ôÔUõD‚Fòâ–ç7FÆÆVB6‡&öÖRÖ6ö×F–&ÆR'&÷w6W"âr“°§Ð ¦7–æ2gVæ7F–öâg&VU÷'B‚’°¢6öç7B6W'fW"ÒæWBæ7&VFU6W'fW"‚“°¢v—BæWr&öÖ—6R‚‡&W6öÇfU&öÖ—6RÂ&V¦V7B’Óâ°¢6W'fW"æöæ6R‚vW'&÷"rÂ&V¦V7B“°¢6W'fW"æÆ—7FVâƒÂs#rãããrÂ&W6öÇfU&öÖ—6R“°¢Ò“°¢6öç7BFG&W72Ò6W'fW"æFG&W72‚“°¢76W'Bæö²†FG&W72bbG—VöbFG&W72ÓÓÒvö&¦V7Br“°¢6öç7B÷'BÒFG&W72ç÷'C°¢v—BæWr&öÖ—6R‚‡&W6öÇfU&öÖ—6R’Óâ6W'fW"æ6Æ÷6R‡&W6öÇfU&öÖ—6R’“°¢&WGW&â÷'C°§Ð ¦7–æ2gVæ7F–öâfWF6„§6öâ‡W&Â’°¢6öç7B&W7öç6RÒv—BfWF6‚‡W&Â“°¢–b‚&W7öç6Ræö²’F‡&÷ræWrW'&÷"†G·W&ÇÒ&WGW&æVB…EEG·&W7öç6Rç7FGW7Ö“°¢&WGW&â&W7öç6Ræ§6öâ‚“°§Ð ¦7–æ2gVæ7F–öâv—Df÷$FWeFööÇ2‡÷'BÂF–ÖV÷WD×2Ò#’°¢6öç7BFVFÆ–æRÒW&f÷&Öæ6Rææ÷r‚’²F–ÖV÷WD×3°¢ÆWBÆ7DW'&÷"ÒçVÆÃ°¢v†–ÆR‡W&f÷&Öæ6Rææ÷r‚’ÂFVFÆ–æR’°¢G'’°¢&WGW&âv—BfWF6„§6öâ†‡GG¢òó#rããã¢G·÷'GÒö§6öâ÷fW'6–öæ“°¢Ò6F6‚†W'&÷"’°¢Æ7DW'&÷"ÒW'&÷#°¢v—B6ÆVWƒ“°¢Ð¢Ð¢F‡&÷ræWrW'&÷"†6‡&öÖRFWeFööÇ2F–Bæ÷B&V6öÖR&VG’v—F†–âG·F–ÖV÷WD×7Ò×3¢G¶Æ7DW'&÷"–ç7Fæ6VöbW'&÷"òÆ7DW'&÷"æÖW76vR¢7G&–ær†Æ7DW'&÷"—Ö“°§Ð  ¦gVæ7F–öâ6‡&öÖTwT&w2†ÖöFR’°¢–b†ÖöFRÓÓÒw7v–gG6†FW"r’&WGW&â²rÒ×W6RÖvÃÖævÆRrÂrÒ×W6RÖævÆS×7v–gG6†FW"rÂrÒÖVæ&ÆR×Vç6fR×7v–gG6†FW"uÓ°¢–b†ÖöFRÓÓÒvF—6&ÆVBr’&WGW&â²rÒÖF—6&ÆR×vV&vÂrÂrÒÖF—6&ÆR×vV&vÃ"uÓ°¢&WGW&âµÓ°§Ð ¦7–æ2gVæ7F–öâÆVæ6„6‡&öÖR†6‡&öÖUF‚ÂÖ„GFV×G2Ò2’°¢6öç7BGFV×G2ÒµÓ°¢f÷"†ÆWBGFV×BÒ²GFV×BÃÒÖ„GFV×G3²GFV×B³Ò’°¢6öç7B÷'BÒv—Bg&VU÷'B‚“°¢6öç7BW6W$FFF—"ÒÖ¶GFV×7–æ2†¦ö–â‡F×F—"‚’Â†÷66÷F6‚×W&bÒG¶GFV×GÒÖ’“°¢6öç7B6‡&öÖT&w2Ò°¢rÒÖ†VFÆW73ÖæWrrÀ¢rÒÖæò×6æF&÷‚rÀ¢rÒÖF—6&ÆRÖFWb×6†Ò×W6vRrÀ¢rÒÖæòÖf—'7B×'VârÀ¢rÒÖæòÖFVfVÇBÖ'&÷w6W"Ö6†V6²rÀ¢rÒÖF—6&ÆRÖ&6¶w&÷VæBÖæWGv÷&¶–ærrÀ¢rÒÖF—6&ÆRÖFVfVÇBÖ2rÀ¢rÒÖF—6&ÆRÖW‡FVç6–öç2rÀ¢rÒÖF—6&ÆR×7–æ2rÀ¢rÒÖÖWG&–72×&V6÷&F–ærÖöæÇ’rÀ¢rÒÖ×WFRÖVF–òrÀ¢rÒ×&VÖ÷FRÖFV'Vvv–ærÖFG&W73Ó#rãããrÀ¢Ò×&VÖ÷FRÖFV'Vvv–ær×÷'CÒG·÷'GÖÀ¢rÒ×&VÖ÷FRÖÆÆ÷rÖ÷&–v–ç3Ò¢rÀ¢Ò×W6W"ÖFFÖF—#ÒG·W6W$FFF—'ÖÀ¢v&÷WC¦&Ææ²rÀ¢Ó°¢6‡&öÖT&w2ç7Æ–6R†6‡&öÖT&w2æÆVæwF‚ÒÂÂââæ6‡&öÖTwT&w2†wTÖöFR’“°¢6öç7B7FFRÒ²7FFW'#¢rrÂW†—D6öFS¢çVÆÂÂW†—E6–væÃ¢çVÆÂÂ7väW'&÷#¢çVÆÂÓ°¢6öç7B6‡&öÖRÒ7vâ†6‡&öÖUF‚Â6‡&öÖT&w2Â²7FF–ó¢²v–væ÷&RrÂv–væ÷&RrÂw—RuÒÒ“°¢6‡&öÖRç7FFW'"ç6WDVæ6öF–ær‚wWFc‚r“°¢6‡&öÖRç7FFW'"æöâ‚vFFrÂ†6‡Væ²’Óâ²7FFRç7FFW'"ÒG·7FFRç7FFW''ÒG¶6‡Væ·Öç6Æ–6R‚Ó#C“²Ò“°¢6‡&öÖRæöæ6R‚vW†—BrÂ†6öFRÂ6–væÂ’Óâ²7FFRæW†—D6öFRÒ6öFS²7FFRæW†—E6–væÂÒ6–væÃ²Ò“°¢6‡&öÖRæöæ6R‚vW'&÷"rÂ†W'&÷"’Óâ²7FFRç7väW'&÷"ÒW'&÷"–ç7Fæ6VöbW'&÷"òW'&÷"æÖW76vR¢7G&–ær†W'&÷"“²Ò“°¢G'’°¢6öç7BfW'6–öâÒv—Bv—Df÷$FWeFööÇ2‡÷'BÂƒ“°¢&WGW&â²6‡&öÖRÂ÷'BÂW6W$FFF—"ÂfW'6–öâÂ7FFRÂGFV×G2Â&w3¢6‡&öÖT&w2Ó°¢Ò6F6‚†W'&÷"’°¢v—B6ÆVWƒ“°¢–b‚6‡&öÖRæ¶–ÆÆVB’6‡&öÖRæ¶–ÆÂ‚u4”t´”ÄÂr“°¢GFV×G2çW6‚‡°¢GFV×BÀ¢÷'BÀ¢W'&÷#¢W'&÷"–ç7Fæ6VöbW'&÷"òW'&÷"æÖW76vR¢7G&–ær†W'&÷"’À¢W†—D6öFS¢7FFRæW†—D6öFRÀ¢W†—E6–væÃ¢7FFRæW†—E6–væÂÀ¢7väW'&÷#¢7FFRç7väW'&÷"À¢7FFW'%F–Ã¢7FFRç7FFW'"ÇÂçVÆÂÀ¢Ò“°¢&Õ7–æ2‡W6W$FFF—"Â²&V7W'6—fS¢G'VRÂf÷&6S¢G'VRÒ“°¢Ð¢Ð¢6öç7BÆVæ6„W'&÷"ÒæWrW'&÷"†6‡&öÖRFWeFööÇ2F–Bæ÷B7F'BgFW"G¶Ö„GFV×G7ÒGFV×G2æ“°¢ÆVæ6„W'&÷"æÆVæ6„GFV×G2ÒGFV×G3°¢F‡&÷rÆVæ6„W'&÷#°§Ð ¦6Æ726G6Æ–VçB°¢6öç7G'V7F÷"‡W&Â’°¢F†—2çW&ÂÒW&Ã°¢F†—2ææW‡D–BÒ°¢F†—2çVæF–ærÒæWrÖ‚“°¢F†—2æWfVçG2ÒµÓ°¢F†—2ç6ö6¶WBÒæWrvV%6ö6¶WB‡W&Â“°¢F†—2ç&VG’ÒæWr&öÖ—6R‚‡&W6öÇfU&öÖ—6RÂ&V¦V7B’Óâ°¢F†—2ç6ö6¶WBæFDWfVçDÆ—7FVæW"‚v÷VârÂ&W6öÇfU&öÖ—6RÂ²öæ6S¢G'VRÒ“°¢F†—2ç6ö6¶WBæFDWfVçDÆ—7FVæW"‚vW'&÷"rÂ‚’Óâ&V¦V7B†æWrW'&÷"†Væ&ÆRFò÷Vâ4EvV%6ö6¶WBG·W&ÇÖ’’Â²öæ6S¢G'VRÒ“°¢Ò“°¢F†—2ç6ö6¶WBæFDWfVçDÆ—7FVæW"‚vÖW76vRrÂ7–æ2†ÖW76vR’Óâ°¢6öç7B&rÒG—VöbÖW76vRæFFÓÓÒw7G&–ærp¢òÖW76vRæFF¢¢'VffW"æg&öÒ†v—BÖW76vRæFFæ'&”'VffW"‚’’çFõ7G&–ær‚wWFc‚r“°¢6öç7B–ÆöBÒ¥4ôâç'6R‡&r“°¢–b‡–ÆöBæ–BÓÒVæFVf–æVB’°¢6öç7Bv—FW"ÒF†—2çVæF–ærævWB‡–ÆöBæ–B“°¢–b‚v—FW"’&WGW&ã°¢F†—2çVæF–æræFVÆWFR‡–ÆöBæ–B“°¢–b‡–ÆöBæW'&÷"’v—FW"ç&V¦V7B†æWrW'&÷"†G·v—FW"æÖWF†öGÓ¢G·–ÆöBæW'&÷"æÖW76vWÖ’“°¢VÇ6Rv—FW"ç&W6öÇfR‡–ÆöBç&W7VÇBóò·Ò“°¢&WGW&ã°¢Ð¢F†—2æWfVçG2çW6‚‡–ÆöB“°¢Ò“°¢Ð ¢7–æ26ÆÂ†ÖWF†öBÂ&×2Ò·Ò’°¢v—BF†—2ç&VG“°¢6öç7B–BÒ²·F†—2ææW‡D–C°¢6öç7B&öÖ—6RÒæWr&öÖ—6R‚‡&W6öÇfU&öÖ—6RÂ&V¦V7B’ÓâF†—2çVæF–ærç6WB†–BÂ²&W6öÇfS¢&W6öÇfU&öÖ—6RÂ&V¦V7BÂÖWF†öBÒ’“°¢F†—2ç6ö6¶WBç6VæB„¥4ôâç7G&–æv–g’‡²–BÂÖWF†öBÂ&×2Ò’“°¢&WGW&â&öÖ—6S°¢Ð ¢7–æ2WfÇVFR†W‡&W76–öâ’°¢6öç7B&W7VÇBÒv—BF†—2æ6ÆÂ‚u'VçF–ÖRæWfÇVFRrÂ°¢W‡&W76–öâÀ¢v—E&öÖ—6S¢G'VRÀ¢&WGW&ä'•fÇVS¢G'VRÀ¢Ò“°¢–b‡&W7VÇBæW†6WF–öäFWF–Ç2’°¢6öç7BFW‡BÒ&W7VÇBæW†6WF–öäFWF–Ç2æW†6WF–öãòæFW67&—F–öâóò&W7VÇBæW†6WF–öäFWF–Ç2çFW‡Bóòu'VçF–ÖRWfÇVF–öâf–ÆVBs°¢F‡&÷ræWrW'&÷"‡FW‡B“°¢Ð¢&WGW&â&W7VÇBç&W7VÇCòçfÇVS°¢Ð ¢6ÆV$WfVçG2‚’°¢F†—2æWfVçG2æÆVæwF‚Ò°¢Ð ¢7–æ26Æ÷6R‚’°¢G'’²F†—2ç6ö6¶WBæ6Æ÷6R‚“²Ò6F6‚²ò¢æö÷¢òÐ¢Ð§Ð ¦gVæ7F–öâ&VE&öGV7F–öä'F–f7B‚’°¢6öç7B–æFW…F‚Ò¦ö–â†F—7DF—"Âv–æFW‚æ‡FÖÂr“°¢–b‚W†—7G57–æ2†–æFW…F‚’’F‡&÷ræWrW'&÷"‚vF—7Bö–æFW‚æ‡FÖÂ—2Ö—76–ærâ'VâçÒ'Vâ'V–ÆFf—'7Bâr“°¢6öç7B‡FÖÂÒ&VDf–ÆU7–æ2†–æFW…F‚ÂwWFc‚r“°¢6öç7B67&—DÖF6‚Ò‡FÖÂæÖF6‚‚óÇ67&—EÆ%µãåÒ¥Æ'7&3Ò"…µâ%ÒµÂæ§2’%µãåÒ£ãÅÂ÷67&—Câö’“°¢6öç7B774ÖF6‚Ò‡FÖÂæÖF6‚‚óÆÆ–æµÆ%µãåÒ¥Æ&‡&VcÒ"…µâ%ÒµÂæ772’%µãåÒ£âö’“°¢–b‚67&—DÖF6‚ÇÂ774ÖF6‚’F‡&÷ræWrW'&÷"‚uVæ&ÆRFò&W6öÇfRvVæW&FVBf—FR¥2ô55276WG2g&öÒF—7Bö–æFW‚æ‡FÖÂâr“°¢6öç7B67&—EF‚Ò¦ö–â†F—7DF—"Â67&—DÖF6…³Òç&WÆ6R‚õåÂòòÂrr’“°¢6öç7B775F‚Ò¦ö–â†F—7DF—"Â774ÖF6…³Òç&WÆ6R‚õåÂòòÂrr’“°¢6öç7B67&—BÒ&VDf–ÆU7–æ2‡67&—EF‚“°¢6öç7B772Ò&VDf–ÆU7–æ2†775F‚“°¢&WGW&â°¢'VæFÆS¢°¢67&—Df–ÆS¢67&—DÖF6…³ÒÀ¢7G–ÆTf–ÆS¢774ÖF6…³ÒÀ¢§4'—FW3¢67&—BæÆVæwF‚À¢§4w¦—'—FW3¢w¦—7–æ2‡67&—BÂ²ÆWfVÃ¢’Ò’æÆVæwF‚À¢774'—FW3¢772æÆVæwF‚À¢774w¦—'—FW3¢w¦—7–æ2†772Â²ÆWfVÃ¢’Ò’æÆVæwF‚À¢ÒÀ¢Ó°§Ð ¦gVæ7F–öâVW'’‡&ÖWFW'2’°¢6öç7B6V&6‚ÒæWrU$Å6V&6…&×2‡&ÖWFW'2“°¢&WGW&âòG·6V&6‚çFõ7G&–ær‚—Ö°§Ð ¦6öç7BÖ„ÖöF–f–W%6WBÒvFç2Öf–ÇW&RÇ&÷WFRÖf–ÇW&RÇ&÷WFRÖÆV²Ç6W'fW"Öf–ÇW&RÇ6–ævÆRÖÆ÷72ÆÆFVæ7’×7–¶RÆ6öævW7F–öâÇ'F—F–öâs°¦6öç7B&öf–ÆW2Ò°¢°¢–C¢vÖ‚Ö6ö×÷6VB×FW&Ö–æÂrÀ¢v–GFƒ¢CCÀ¢†V–v‡C¢À¢&VGV6VDÖ÷F–öã¢fÇ6RÀ¢VW'“¢VW'’‡²¦÷W&æW“¢s"rÂ†÷7C¢vW†×ÆRçFW7BrÂG&ç7÷'C¢wV–2Öƒ2rÂFç3¢v66†RÖÖ—72rÂÖöG3¢Ö„ÖöF–f–W%6WBÂC¢s“““““’rÒ’À¢W‡V7FVC¢²tDå2d”Â²$õUDR²ÄT²²4U%dU"²Äõ52²ÄDTä5’²4ôätU5D”ôâ²%D•D”ôârÂtäò$õUDRrÂtäUEtõ$²Tå$T4„$ÄRrÂt5D•dRD‚äôäRrÂu$õUDR4äD”DDU2uÒÀ¢ÒÀ¢°¢–C¢w&÷WFRÖÆV²ÖFW6·F÷rÀ¢v–GFƒ¢CCÀ¢†V–v‡C¢À¢&VGV6VDÖ÷F–öã¢fÇ6RÀ¢VW'“¢VW'’‡²¦÷W&æW“¢srÂ†÷7C¢vW†×ÆRçFW7BrÂG&ç7÷'C¢wF7Öƒ"rÂFç3¢v66†RÖÖ—72rÂ–×—&ÖVçC¢w&÷WFRÖÆV²rÂC¢sCƒrÒ’À¢W‡V7FVC¢²uôÄ”5’ÔäôÔÅ’rÂt5D•dRÄô4Åõ$TeÆã3rÂu$T4„$ÄUÆå”U2rÂuôÄ”5’4ôÕÄ”åEÆääòrÂtDõtâ(i"TU"+rÄô4Åõ$Tb3uÒÀ¢ÒÀ¢°¢–C¢w&÷WFRÖÆV²ÖÖö&–ÆRrÀ¢v–GFƒ¢3“À¢†V–v‡C¢ƒCBÀ¢&VGV6VDÖ÷F–öã¢fÇ6RÀ¢VW'“¢VW'’‡²¦÷W&æW“¢srÂ†÷7C¢vW†×ÆRçFW7BrÂG&ç7÷'C¢wF7Öƒ"rÂFç3¢v66†RÖÖ—72rÂ–×—&ÖVçC¢w&÷WFRÖÆV²rÂC¢sCƒrÒ’À¢W‡V7FVC¢²uôÄ”5’ÔäôÔÅ’rÂu$T4„$ÄUÆå”U2rÂuôÄ”5’4ôÕÄ”åEÆääòuÒÀ¢76W'DÖö&–ÆTw&–C¢G'VRÀ¢ÒÀ¢°¢–C¢w&÷WFRÖÆV²×V–2×&VGV6VBÖÖ÷F–öârÀ¢v–GFƒ¢CCÀ¢†V–v‡C¢À¢&VGV6VDÖ÷F–öã¢G'VRÀ¢VW'“¢VW'’‡²¦÷W&æW“¢srÂ†÷7C¢vW†×ÆRçFW7BrÂG&ç7÷'C¢wV–2Öƒ2rÂFç3¢v66†RÖ†—BrÂ–×—&ÖVçC¢w&÷WFRÖÆV²rÂC¢s3#rÒ’À¢W‡V7FVC¢²uT”2²ƒ2rÂuôÄ”5’Õ$U5Dõ$TBrÂt5D•dRÄô4Åõ$TeÆã#rÂu$T4„$ÄUÆå”U2rÂuôÄ”5’4ôÕÄ”åEÆå”U2uÒÀ¢ÒÀ¥Ó° §&öf–ÆW2çW6‚€¢²–C¢w7G&W72Ö2Ö6çf2rÂ7G&W73¢G'VRÂv–GFƒ¢CCÂ†V–v‡C¢Â&VGV6VDÖ÷F–öã¢G'VRÂVW'“¢VW'’‡²7G&W73¢v2ÖFVç6—G’rÒ’Â&VG•6VÆV7F÷#¢ræ–çFW&æWB×66ÆRrÂW‡V7FVC¢²uôÄ”5’Ô´U2rÂu4”ÕTÄDTBt”ääU"uÒÂ7G&W74W‡V7FVC¢²&öf–ÆS¢v2ÖFVç6—G’rÂ4æöFW3¢cÂ5&VÆF–öç6†—3¢##ÒÒÀ¢²–C¢w7G&W72Ö'V–ÆFW"Ö6V–Æ–ærrÂ7G&W73¢G'VRÂv–GFƒ¢CCÂ†V–v‡C¢Â&VGV6VDÖ÷F–öã¢G'VRÂVW'“¢VW'’‡²7G&W73¢v'V–ÆFW"ÖFVç6—G’rÒ’Â&VG•6VÆV7F÷#¢ræ'V–ÆFW"×v÷&·76RrÂW‡V7FVC¢²s3"äôDU2+r“bÄ”äµ2rÂuD‚rÂu”U2+r4õ5BrÂtdõ%t$D”ärrÂtäò$õUDRuÒÂ7G&W74W‡V7FVC¢²&öf–ÆS¢v'V–ÆFW"ÖFVç6—G’rÂ'V–ÆFW$æöFW3¢3"Â'V–ÆFW$Æ–æ·3¢“bÒÒÀ¢²–C¢w7G&W72×‡—6–6Â×vV&vÂrÂ7G&W73¢G'VRÂv–GFƒ¢CCÂ†V–v‡C¢Â&VGV6VDÖ÷F–öã¢G'VRÂVW'“¢VW'’‡²7G&W73¢w‡—6–6ÂÖFVç6—G’rÒ’Â&VG•6VÆV7F÷#¢rç‡—6–6ÂÖvÆö&RrÂW‡V7FVC¢wTÖöFRÓÓÒvF—6&ÆVBrò²u4”ÕTÄDTB+r5E$U52d•…EU$RrÂu4”ÕTÄDTB5E$U52ô”åE2+räõBT$Ä”2DDrÂtdÄÄ$4²rÂutT$tÂ"Täd”Ä$ÄRuÒ¢²u4”ÕTÄDTB+r5E$U52d•…EU$RrÂu4”ÕTÄDTB5E$U52ô”åE2+räõBT$Ä”2DDrÂutT$tÂ"uÒÂ7G&W74W‡V7FVC¢²&öf–ÆS¢w‡—6–6ÂÖFVç6—G’rÂ‡—6–6Åö–çG3¢#ÂvV&vÃ¢wTÖöFRÓÒvF—6&ÆVBrÒÂÆÆ÷tW‡V7FVEvV&vÄf–ÇW&S¢wTÖöFRÓÓÒvF—6&ÆVBrÒÀ¢“° ¦–b†6ö×F–&–Æ—G’’&öf–ÆW2çW6‚€§²–C¢w&÷Fö6öÂ×F7ÖFW6·F÷rÂv–GFƒ¢CCÂ†V–v‡C¢Â&VGV6VDÖ÷F–öã¢fÇ6RÂFƒ¢röÆ'2÷F7rÂVW'“¢rrÂ&VG•6VÆV7F÷#¢rçF7×f—7VÂ×v÷&·76RrÂ&÷Fö6öÅv÷&·76S¢G'VRÂW‡V7FVC¢²uD5&V6÷fW'’rÂt4Ä”TåB4UTTä4R54RrÂt4ôätU5D”ôât”äDõrrÂu$õdTää4RuÒÒÀ§²–C¢w&÷Fö6öÂÖFç2ÖÖö&–ÆRrÂv–GFƒ¢3“Â†V–v‡C¢ƒCBÂ&VGV6VDÖ÷F–öã¢fÇ6RÂFƒ¢röÆ'2öFç2rÂVW'“¢rrÂ&VG•6VÆV7F÷#¢ræFç2×f—7VÂ×v÷&·76RrÂ&÷Fö6öÅv÷&·76S¢G'VRÂW‡V7FVC¢²tDå2&W6öÇWF–öârÂwwwræW†×ÆRçFW7BrÂtäÔU54RrÂu$õdTää4RuÒÒÀ§²–C¢w&÷Fö6öÂ×FÇ2×&VGV6VBÖÖ÷F–öârÂv–GFƒ¢#ƒÂ†V–v‡C¢“Â&VGV6VDÖ÷F–öã¢G'VRÂFƒ¢röÆ'2÷FÇ2rÂVW'“¢rrÂ&VG•6VÆV7F÷#¢rçFÇ2×f—7VÂ×v÷&·76RrÂ&÷Fö6öÅv÷&·76S¢G'VRÂW‡V7FVC¢²uDÅ2ã2†æG6†¶RrÂu5”Ô$ôÄ”2´U’44„TETÄRrÂut•$Rd•4”$”Ä•E’rÂu$õdTää4RuÒÒÀ§²–C¢w&÷Fö6öÂÖ‡GGÖFW6·F÷rÂv–GFƒ¢CCÂ†V–v‡C¢Â&VGV6VDÖ÷F–öã¢fÇ6RÂFƒ¢röÆ'2ö‡GG"×g2Ö‡GG2rÂVW'“¢rrÂ&VG•6VÆV7F÷#¢ræ‡GG×f—7VÂ×v÷&·76RrÂ&÷Fö6öÅv÷&·76S¢G'VRÂW‡V7FVC¢²t…EEÆ÷726ö×&—6öârÂt…EEó"rÂt…EEó2rÂu4ÔRÄõ52rÂu$õdTää4RuÒÒÀ§²–C¢v'V–ÆFW"Ö÷7bÖFW6·F÷rÂv–GFƒ¢CCÂ†V–v‡C¢Â&VGV6VDÖ÷F–öã¢fÇ6RÂVW'“¢rrÂ&VG•6VÆV7F÷#¢ræ¶–æWF–2Ö÷fW'f–WrrÂ'V–ÆFW$÷7c¢G'VRÂW‡V7FVC¢²tUD„U$äUBd%$”2rÂu$õUDTB+rdÄâ(i"#rÂudÄâ#rÂtDU$•dTBdD"rÂt%44„RrÂu5ErÂtdõ%t$D”äruÒÒÀ§²–C¢v'V–ÆFW"Ö÷7bÖÖö&–ÆRrÂv–GFƒ¢3“Â†V–v‡C¢ƒCBÂ&VGV6VDÖ÷F–öã¢fÇ6RÂVW'“¢rrÂ&VG•6VÆV7F÷#¢ræ¶–æWF–2Ö÷fW'f–WrrÂ'V–ÆFW$÷7c¢G'VRÂW‡V7FVC¢²tUD„U$äUBd%$”2rÂu$õUDTB+rdÄâ(i"#rÂudÄâ#rÂt%44„RrÂu5ErÂtdõ%t$D”äruÒÒÀ§²–C¢vÖV7W&VB×v÷&·76RÖFW6·F÷rÂv–GFƒ¢CCÂ†V–v‡C¢Â&VGV6VDÖ÷F–öã¢fÇ6RÂVW'“¢rrÂ&VG•6VÆV7F÷#¢ræ¶–æWF–2Ö÷fW'f–WrrÂÖV7W&VEv÷&·76S¢G'VRÂW‡V7FVC¢²tÄô4ÂÔT5U$TB+r$õTäDTB+räõBtÄô$ÂrÂtæWGv÷&²F–væ÷7F–72Væv–æRuÒÒÀ¢²–C¢vÖV7W&VB×v÷&·76RÖÖö&–ÆRrÂv–GFƒ¢3“Â†V–v‡C¢ƒCBÂ&VGV6VDÖ÷F–öã¢fÇ6RÂVW'“¢rrÂ&VG•6VÆV7F÷#¢ræ¶–æWF–2Ö÷fW'f–WrrÂÖV7W&VEv÷&·76S¢G'VRÂW‡V7FVC¢²tÄô4ÂÔT5U$TB+r$õTäDTB+räõBtÄô$ÂrÂtæWGv÷&²F–væ÷7F–72Væv–æRuÒÂ76W'DÖV7W&VDÖö&–ÆS¢G'VRÒÀ¢²–C¢vÖV7W&VB×v÷&·76R×&VGV6VBÖÖ÷F–öârÂv–GFƒ¢#ƒÂ†V–v‡C¢“Â&VGV6VDÖ÷F–öã¢G'VRÂVW'“¢rrÂ&VG•6VÆV7F÷#¢ræ¶–æWF–2Ö÷fW'f–WrrÂÖV7W&VEv÷&·76S¢G'VRÂW‡V7FVC¢²tÄô4ÂÔT5U$TB+r$õTäDTB+räõBtÄô$ÂrÂtæWGv÷&²F–væ÷7F–72Væv–æRuÒÒÀ¢²–C¢vÖV7W&VB×6–FV6'2ÖFW6·F÷rÂv–GFƒ¢CCÂ†V–v‡C¢Â&VGV6VDÖ÷F–öã¢fÇ6RÂVW'“¢rrÂ&VG•6VÆV7F÷#¢ræ¶–æWF–2Ö÷fW'f–WrrÂÖV7W&VE6–FV6'3¢G'VRÂW‡V7FVC¢²uU$Â¤õU$äU’rÂu$õdTää4RuÒÒÀ¢²–C¢vÖV7W&VB×6–FV6'2ÖÖö&–ÆRrÂv–GFƒ¢3“Â†V–v‡C¢ƒCBÂ&VGV6VDÖ÷F–öã¢fÇ6RÂVW'“¢rrÂ&VG•6VÆV7F÷#¢ræ¶–æWF–2Ö÷fW'f–WrrÂÖV7W&VE6–FV6'3¢G'VRÂW‡V7FVC¢²uU$Â¤õU$äU’rÂu$õdTää4RuÒÒÀ¢²–C¢vÖV7W&VB×6–FV6'2×&VGV6VBÖÖ÷F–öârÂv–GFƒ¢#ƒÂ†V–v‡C¢“Â&VGV6VDÖ÷F–öã¢G'VRÂVW'“¢rrÂ&VG•6VÆV7F÷#¢ræ¶–æWF–2Ö÷fW'f–WrrÂÖV7W&VE6–FV6'3¢G'VRÂW‡V7FVC¢²uU$Â¤õU$äU’rÂu$õdTää4RuÒÒÀ¢“° ¦–b‡†6S5f—7VÅ&Wf–Wr’°¢6öç7Bf—7VÅf–Ww÷'G2Ò°¢²–C¢wVÇG&v–FRrÂv–GFƒ¢#ScÂ†V–v‡C¢#ÒÀ¢²–C¢wv–FRrÂv–GFƒ¢cÂ†V–v‡C¢“SÒÀ¢²–C¢vÆF÷rÂv–GFƒ¢3cbÂ†V–v‡C¢sc‚ÒÀ¢²–C¢væ'&÷rrÂv–GFƒ¢“Â†V–v‡C¢ƒ#ÒÀ¢²–C¢vÖö&–ÆRrÂv–GFƒ¢3“Â†V–v‡C¢ƒCBÒÀ¢Ó°¢6öç7Bf—7VÅv÷&ÆG2Ò°¢²–C¢v2×&÷WF–ærrÂFƒ¢rö–çFW&æWBö2×&÷WF–ærrÂVW'“¢rrÂ&VG•6VÆV7F÷#¢ræ2×f—7VÂ×v÷&·76RrÂW‡V7FVC¢²tÄ"T+r2$õUD”ärrÂu4”ÕTÄDTBt”ääU"rÂu$õdTää4RuÒÂv÷&·76U6VÆV7F÷#¢ræ2×f—7VÂ×v÷&·76RrÂ7FvU6VÆV7F÷#¢rçf—7VÂ×v÷&·76Uõ÷7FvRrÂv÷&ÆE6VÆV7F÷#¢ræ–çFW&æWBÖ6çf2×w&rÂFööÆ&%6VÆV7F÷#¢rçf—7VÂ×v÷&·76Uõ÷FööÆ&"rÂ‡VE6VÆV7F÷#¢rçf—7VÂ×v÷&·76Uõö‡VBrÂ–ç7V7D'WGFöå6VÆV7F÷#¢ræ2×f—7VÂ×v÷&·76Rçf—7VÂÖG&vW"×F'2'WGFöârÂG&vW%6VÆV7F÷#¢ræ2×f—7VÂ×v÷&·76Rçf—7VÂÖG&vW"rÒÀ¢²–C¢w‡—6–6ÂÖFÆ2rÂFƒ¢ròrÂVW'“¢VW'’‡²7G&W73¢w‡—6–6ÂÖFVç6—G’rÒ’Â&VG•6VÆV7F÷#¢rç‡—6–6Â×f—7VÂ×v÷&·76RrÂW‡V7FVC¢²tÄ"T2+r…•4”4ÂDÄ2rÂu4”ÕTÄDTB5E$U52ô”åE2rÂu$õdTää4RuÒÂv÷&·76U6VÆV7F÷#¢rç‡—6–6Â×f—7VÂ×v÷&·76RrÂ7FvU6VÆV7F÷#¢rçf—7VÂ×v÷&·76Uõ÷7FvRrÂv÷&ÆE6VÆV7F÷#¢rævÆö&R×f–Ww÷'BrÂFööÆ&%6VÆV7F÷#¢rçf—7VÂ×v÷&·76Uõ÷FööÆ&"rÂ‡VE6VÆV7F÷#¢rçf—7VÂ×v÷&·76Uõö‡VBrÂ–ç7V7D'WGFöå6VÆV7F÷#¢rç‡—6–6Â×f—7VÂ×v÷&·76Rçf—7VÂÖG&vW"×F'2'WGFöârÂG&vW%6VÆV7F÷#¢rç‡—6–6Â×f—7VÂ×v÷&·76Rçf—7VÂÖG&vW"rÒÀ¢²–C¢w6¶WBÖÖ–7&÷66÷RrÂFƒ¢röÆ'2÷6¶WBrÂVW'“¢rrÂ&VG•6VÆV7F÷#¢rç6¶WB×f—7VÂ×v÷&·76RrÂW‡V7FVC¢²tÄ""+r4´UBÔ”5$õ44õRrÂu4”ÕTÄDTBrÂu$õdTää4RuÒÂv÷&·76U6VÆV7F÷#¢rç6¶WB×f—7VÂ×v÷&·76RrÂ7FvU6VÆV7F÷#¢rçf—7VÂ×v÷&·76Uõ÷7FvRrÂv÷&ÆE6VÆV7F÷#¢rç6¶WB×7FvRrÂFööÆ&%6VÆV7F÷#¢rçf—7VÂ×v÷&·76Uõ÷FööÆ&"rÂ‡VE6VÆV7F÷#¢rçf—7VÂ×v÷&·76Uõö‡VBrÂ–ç7V7D'WGFöå6VÆV7F÷#¢rç6¶WB×f—7VÂ×v÷&·76Rçf—7VÂÖG&vW"×F'2'WGFöârÂG&vW%6VÆV7F÷#¢rç6¶WB×f—7VÂ×v÷&·76Rçf—7VÂÖG&vW"rÒÀ¢²–C¢væWGv÷&²Ö'V–ÆFW"rÂFƒ¢röÆ'2ö'V–ÆFW"rÂVW'“¢rrÂ&VG•6VÆV7F÷#¢ræ'V–ÆFW"×f—7VÂ×v÷&·76RrÂW‡V7FVC¢²tÄ"B+räUEtõ$²%T”ÄDU"rÂuD‚rÂtdõ%t$D”ärrÂtõ5brÂtu$‚uÒÂv÷&·76U6VÆV7F÷#¢ræ'V–ÆFW"×f—7VÂ×v÷&·76RrÂ7FvU6VÆV7F÷#¢ræ'V–ÆFW"×7FvRrÂv÷&ÆE6VÆV7F÷#¢ræ'V–ÆFW"Ö6çf2rÂ6VÖçF–56VÆV7F÷#¢ræ'V–ÆFW"ÖæöFRÖæ6†÷"rÂ6VÖçF–4Ö–åv–GF…&F–ó¢ãs"Â6VÖçF–4Ö–ä†V–v‡E&F–ó¢ã3BÂFööÆ&%6VÆV7F÷#¢ræ'V–ÆFW"×v÷&ÆB×FööÆ&"rÂ‡VE6VÆV7F÷#¢ræ'V–ÆFW"×7FvRÖÖWFrÂ–ç7V7D'WGFöå6VÆV7F÷#¢ræ'V–ÆFW"×FööÂÖ–ç7V7BrÂG&vW%6VÆV7F÷#¢ræ'V–ÆFW"Ö6öçFW‡BÖG&vW"æ÷VârÒÀ¢Ó°¢&öf–ÆW2ç7Æ–6RƒÂ&öf–ÆW2æÆVæwF‚Âââçf—7VÅv÷&ÆG2æfÆDÖ‚‡v÷&ÆB’Óâf—7VÅf–Ww÷'G2æÖ‚‡f–Ww÷'B’Óâ‡°¢ââçv÷&ÆBÀ¢ââçf–Ww÷'BÀ¢–C¢G·v÷&ÆBæ–GÒÒG·f–Ww÷'Bæ–GÖÀ¢&VGV6VDÖ÷F–öã¢fÇ6RÀ¢f—7VÅ&Wf–Ws¢G'VRÀ¢–ç7V7E&Wf–Ws¢f–Ww÷'Bæ–BÓÓÒwv–FRrÇÂf–Ww÷'Bæ–BÓÓÒvÖö&–ÆRrÀ¢Ò’’’“°§Ð ¦–b‡†6SEf—7VÅ&Wf–Wr’°¢6öç7BWf–FVæ6Uf–Ww÷'G2Ò°¢²–C¢wVÇG&v–FRrÂv–GFƒ¢#ScÂ†V–v‡C¢#ÒÀ¢²–C¢wv–FRrÂv–GFƒ¢cÂ†V–v‡C¢“SÒÀ¢²–C¢vÆF÷rÂv–GFƒ¢3cbÂ†V–v‡C¢sc‚ÒÀ¢²–C¢væ'&÷rrÂv–GFƒ¢“Â†V–v‡C¢ƒ#ÒÀ¢²–C¢vÖö&–ÆRrÂv–GFƒ¢3“Â†V–v‡C¢ƒCBÒÀ¢Ó°¢6öç7BWf–FVæ6Uv÷&ÆG2Ò°¢²–C¢v–çFW&æWBÖWf–FVæ6RrÂFƒ¢rö–çFW&æWBöö'6W'fVBrÂVW'“¢rrÂ&VG•6VÆV7F÷#¢ræö'6W'fVBÖ–çFW&æWBrÂ†6SDö'6W'fVC¢G'VRÂW‡V7FVC¢²täò$õUDR4Ä”ÒrÂtäò4ôåD”åTõU2ô%4U%dD”ôârÂuT$Ä”24ôÄÄT5Dõ"uÒÒÀ¢²–C¢vÖV7W&VBÖæWGv÷&²rÂFƒ¢röÖV7W&VBrÂVW'“¢rrÂ&VG•6VÆV7F÷#¢ræÖV7W&VB×v÷&·76RrÂ†6SDÖV7W&VC¢G'VRÂW‡V7FVC¢²tÄô4ÂÔT5U$TB+r$õTäDTB+räõBtÄô$ÂrÂtæWGv÷&²F–væ÷7F–72Væv–æRrÂtäò5$õ52ÕD$tUBÔU$tRuÒÒÀ¢Ó°¢&öf–ÆW2ç7Æ–6RƒÂ&öf–ÆW2æÆVæwF‚ÂââæWf–FVæ6Uv÷&ÆG2æfÆDÖ‚‡v÷&ÆB’ÓâWf–FVæ6Uf–Ww÷'G2æÖ‚‡f–Ww÷'B’Óâ‡°¢ââçv÷&ÆBÀ¢ââçf–Ww÷'BÀ¢–C¢G·v÷&ÆBæ–GÒÒG·f–Ww÷'Bæ–GÖÀ¢&VGV6VDÖ÷F–öã¢fÇ6RÀ¢f—7VÅ&Wf–Ws¢G'VRÀ¢†6SEf—7VÅ&Wf–Ws¢G'VRÀ¢–ç7V7E&Wf–Ws¢f–Ww÷'Bæ–BÓÓÒwv–FRrÇÂf–Ww÷'Bæ–BÓÓÒvÖö&–ÆRrÀ¢Ò’’’“°§Ð ¦7–æ2gVæ7F–öâv—Df÷$W‡&W76–öâ†6GÂW‡&W76–öâÂF–ÖV÷WD×2ÒS’°¢6öç7BFVFÆ–æRÒW&f÷&Öæ6Rææ÷r‚’²F–ÖV÷WD×3°¢v†–ÆR‡W&f÷&Öæ6Rææ÷r‚’ÂFVFÆ–æR’°¢–b†v—B6GæWfÇVFR†W‡&W76–öâ’’&WGW&ã°¢v—B6ÆVWƒ#R“°¢Ð¢F‡&÷ræWrW'&÷"†F–ÖVB÷WBv—F–ærf÷"'&÷w6W"W‡&W76–öã¢G¶W‡&W76–öçÖ“°§Ð ¦7–æ2gVæ7F–öâ6WDf–ÆT–çWB†6GÂ6VÆV7F÷"Âf–ÆUF‚’°¢6öç7BFö7VÖVçBÒv—B6Gæ6ÆÂ‚tDôÒævWDFö7VÖVçBrÂ²FWFƒ¢Ò“°¢6öç7B&W7VÇBÒv—B6Gæ6ÆÂ‚tDôÒçVW'•6VÆV7F÷"rÂ²æöFT–C¢Fö7VÖVçBç&ö÷BææöFT–BÂ6VÆV7F÷"Ò“°¢–b‚&W7VÇBææöFT–B’F‡&÷ræWrW'&÷"†Væ&ÆRFòf–æBf–ÆR–çWBG·6VÆV7F÷'Òæ“°¢v—B6Gæ6ÆÂ‚tDôÒç6WDf–ÆT–çWDf–ÆW2rÂ²æöFT–C¢&W7VÇBææöFT–BÂf–ÆW3¢¶f–ÆUF…ÒÒ“°§Ð ¦7–æ2gVæ7F–öâW†W&6—6T'V–ÆFW$÷7b†6GÂ&öf–ÆR’°¢v—B÷Vä÷fW'f–Wuv÷&·76R†6GÂv'V–ÆFW"r“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂ&ööÆVâ†Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×v÷&·76Rr’–Âƒ“° ¢6öç7B7FFRÒ7–æ2‚’Óâ6GæWfÇVFR†‚‚“Óâ‡°¢–ææW%v–GF‚À¢67&öÆÅv–GFƒ¦Fö7VÖVçBæFö7VÖVçDVÆVÖVçBç67&öÆÅv–GF‚À¢67&öÆÅ’À¢FW‡C¦Fö7VÖVçBæ&öG’æ–ææW%FW‡BÀ¢ÖWF¦Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×7FvRÖÖWFr“òæ–ææW%FW‡CóòrrÀ¢÷7c¦Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"Ö÷7b×7VÖÖ'’r“òæ–ææW%FW‡CóòrrÀ¢f÷'v&F–æs¦Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"Öf÷'v&F–ærr“òæ–ææW%FW‡CóòrrÀ¢&÷WFUF&ÆS¦Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"Ö—cB×&÷WFR×F&ÆRr“òæ–ææW%FW‡CóòrrÀ¢÷7e&÷WFW3¦Fö7VÖVçBçVW'•6VÆV7F÷$ÆÂ‚ræ'V–ÆFW"Ö—cB×&÷WFR×F&ÆRç6÷W&6RÖ÷7br’æÆVæwF‚À¢Ò’’‚–“°¢6öç7B76W'Ef–Ww÷'BÒ‡fÇVRÂÆ&VÂ’Óâ°¢–b‡fÇVRç67&öÆÅv–GF‚âfÇVRæ–ææW%v–GF‚’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒG¶Æ&VÇÒ†÷&—¦öçFÆÇ’÷fW&fÆ÷w3¢G·fÇVRç67&öÆÅv–GF‡ÒâG·fÇVRæ–ææW%v–GF‡Òæ“°¢–b‡fÇVRç67&öÆÅ’ÓÒ’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒG¶Æ&VÇÒÖ÷fVBFö7VÖVçB67&öÆÅ’FòG·fÇVRç67&öÆÅ—Òæ“°¢Ó° ¢6öç7B–æ—F–ÂÒv—B7FFR‚“°¢76W'Ef–Ww÷'B†–æ—F–ÂÂvFVfVÇB'V–ÆFW"r“°¢–b‚–æ—F–ÂæÖWFæ–æ6ÇVFW2‚tõ5br’ÇÂ–æ—F–ÂæÖWFæ–æ6ÇVFW2‚tôdbr’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒF–Bæ÷B7F'Bv—F‚õ5bF—6&ÆVBæ“°¢–b‚–æ—F–ÂæÖWFæ–æ6ÇVFW2‚tdõ%t$D”ärr’ÇÂ–æ—F–ÂæÖWFæ–æ6ÇVFW2‚täò$õUDRr’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒõ5bÖöfbFVfVÇBf'&–6FVBf÷'v&F–ær&V6†&–Æ—G’æ“° ¢6öç7B–æ—F–ÄVFvU6VÆV7FVBÒv—B6GæWfÇVFR†‚‚“Óç°¢6öç7BæöFSÕ²ââæFö7VÖVçBçVW'•6VÆV7F÷$ÆÂ‚ræ'V–ÆFW"ÖæöFRr•Òæf–æB‚†6æF–FFR“Óæ6æF–FFRçVW'•6VÆV7F÷"‚w7G&öærr“òçFW‡D6öçFVçCòçG&–Ò‚“ÓÓÒtTDtRr“°¢–b‚æöFR—&WGW&âfÇ6S°¢æöFRæF—7F6„WfVçB†æWrö–çFW$WfVçB‚wö–çFW&F÷vârÇ¶'V&&ÆW3§G'VRÇö–çFW$–C£Æ—5&–Ö'“§G'VRÇö–çFW%G—S¢vÖ÷W6RwÒ’“°¢&WGW&âG'VS°¢Ò’‚–“°¢–b‚–æ—F–ÄVFvU6VÆV7FVB’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6÷VÆBæ÷B6VÆV7BTDtR&Vf÷&RVæ&Æ–ærõ5bæ“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂ&ööÆVâ†Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"Ö÷7b×6V7F–öâ'WGFöâr’–Âƒ“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"Ö÷7b×6V7F–öâ'WGFöârÂtTä$ÄRÄÂr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×7FvRÖÖWFr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚sB%E"+rReTÄÂr–Âƒ“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"Öf÷'v&F–ærr“òæ6Æ74Æ—7Bæ6öçF–ç2‚wVç&V6†&ÆRr–Âƒ“° ¢6öç7BVFvU6VÆV7FVBÒv—B6GæWfÇVFR†‚‚“Óç°¢6öç7BæöFSÕ²ââæFö7VÖVçBçVW'•6VÆV7F÷$ÆÂ‚ræ'V–ÆFW"ÖæöFRr•Òæf–æB‚†6æF–FFR“Óæ6æF–FFRçVW'•6VÆV7F÷"‚w7G&öærr“òçFW‡D6öçFVçCòçG&–Ò‚“ÓÓÒtTDtRr“°¢–b‚æöFR—&WGW&âfÇ6S°¢æöFRæF—7F6„WfVçB†æWrö–çFW$WfVçB‚wö–çFW&F÷vârÇ¶'V&&ÆW3§G'VRÇö–çFW$–C£Æ—5&–Ö'“§G'VRÇö–çFW%G—S¢vÖ÷W6RwÒ’“°¢&WGW&âG'VS°¢Ò’‚–“°¢–b‚VFvU6VÆV7FVB’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6÷VÆBæ÷B6VÆV7BTDtRf÷"õ5b&÷WFR×F&ÆR–ç7V7F–öâæ“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷$ÆÂ‚ræ'V–ÆFW"Ö—cB×&÷WFR×F&ÆRç6÷W&6RÖ÷7br’æÆVæwF‚âÂƒ“°¢6öç7B6öçfW&vVBÒv—B7FFR‚“°¢76W'Ef–Ww÷'B†6öçfW&vVBÂv6öçfW&vVBõ5br“°¢–b‚6öçfW&vVBç&÷WFUF&ÆRæ–æ6ÇVFW2‚sãããBó3r’ÇÂ6öçfW&vVBç&÷WFUF&ÆRæ–æ6ÇVFW2‚wf–ãããr’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒTDtRF–Bæ÷B–ç7FÆÂF†R&–Ö'’õ5bF‚f–#æ“° ¢6öç7B6VÆV7FVDÆ–æ²Òv—B6GæWfÇVFR†‚‚“Óç°¢6öç7BÆ–æ³ÖFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖÆ–æµ¶FFÖÆ–æ²Ö–CÒ&VFvR×#%Òr“°¢–b‚Æ–æ²—&WGW&âfÇ6S°¢Æ–æ²æF—7F6„WfVçB†æWrÖ÷W6TWfVçB‚v6Æ–6²rÇ¶'V&&ÆW3§G'VWÒ’“°¢&WGW&âG'VS°¢Ò’‚–“°¢–b‚6VÆV7FVDÆ–æ²’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6÷VÆBæ÷B6VÆV7BVFvR×#æ“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖÆ–æ²×6V7F–öâæ6öçG&öÂ×F—FÆRr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚tTDtR(iB#r–Âƒ“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"ÖÆ–æ²×6V7F–öâ'WGFöârÂtd”ÂÄ”ä²r“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"Ö÷7b×7VÖÖ'’r“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚sBeTÄÂr’bbFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"Ö÷7b×7VÖÖ'’r“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚sDõtâr–Âƒ“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"Öf÷'v&F–ærr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚tTDtR(i"#"(i"4õ$Rr–Âƒ“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"Ö—cB×&÷WFR×F&ÆRr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚wf–ãããBr–Âƒ“° ¢6öç7Bf–ÆVBÒv—B7FFR‚“°¢76W'Ef–Ww÷'B†f–ÆVBÂtõ5bf–Æ÷fW"r“°¢–b‚f–ÆVBæÖWFæ–æ6ÇVFW2‚u$T4„$ÄRr’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒõ5bf–Æ÷fW"F–Bæ÷B&W6W'fRÃ2&V6†&–Æ—G’æ“°¢–b‚f–ÆVBç&÷WFUF&ÆRæ–æ6ÇVFW2‚sãããBó3r’ÇÂf–ÆVBç&÷WFUF&ÆRæ–æ6ÇVFW2‚wf–ãããBr’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒTDtRF–Bæ÷B&V6öçfW&vRF†R7V&æWBF‡&÷Vv‚#"æ“°¢–b‚f–ÆVBç&÷WFUF&ÆRæ–æ6ÇVFW2‚tBr’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒõ5b&÷WFRÆ÷7B—G2FÖ–æ—7G&F—fRÖF—7Fæ6RFV6†–ær7FFRæ“° ¢òòÆ"C¢F†R6ÖR&÷WFVBf–ÇW&R7FFR×W7B&Rö'6W'f&ÆR'’â7F—fRG&6W&÷WFRà¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"×&ö&R×6V7F–öâ'WGFöârÂuE$4U$õUDRr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×æVÂr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚uE$4U$õUDRr’bbFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×æVÂr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚tT4„ò$UÅ’r–Âƒ“°¢6öç7B&ö&RÒv—B6GæWfÇVFR†‚‚“Óâ‡°¢æVÃ¦Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×æVÂr“òæ–ææW%FW‡CóòrrÀ¢Fƒ¦Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×F‚r“òæ–ææW%FW‡CóòrrÀ¢7F—fTÆ–æ·3¦Fö7VÖVçBçVW'•6VÆV7F÷$ÆÂ‚ræ'V–ÆFW"ÖÆ–æ²ç&ö&RÖ7F—fRr’æÆVæwF‚À¢Ò’’‚–“°¢–b‚&ö&RçF‚æ–æ6ÇVFW2‚tTDtRr’ÇÂ&ö&RçF‚æ–æ6ÇVFW2‚u#"r’ÇÂ&ö&RçF‚æ–æ6ÇVFW2‚t4õ$Rr’ÇÂ&ö&RçF‚æ–æ6ÇVFW2‚tr’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒG&6W&÷WFRF–Bæ÷B6öç7VÖRF†Rõ5bf–Æ÷fW"F‚F‡&÷Vv‚#"æ“°¢–b‡&ö&RçF‚æ–æ6ÇVFW2‚u#r’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒG&6W&÷WFR&WF–æVBf–ÆVB#–âF†R7F—fR&WVW7BF‚æ“°¢–b‡&ö&Ræ7F—fTÆ–æ·2ÂB’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒF–Bæ÷Bf—7VÆÇ’Ö&²F†RG&6W&÷WFRf÷'v&F–ærF‚æ“°¢6öç7B&ö&TÖWG&–72Òv—B6GæWfÇVFR†Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&RÖÖWG&–72r“òæ–ææW%FW‡Cóòrv“°¢–b‚&ö&TÖWG&–72æ–æ6ÇVFW2‚u%EBÕ2r’ÇÂ&ö&TÖWG&–72æ–æ6ÇVFW2‚uD‚ÕERr’ÇÂþ(	EÇ2¥%EBÕ2òçFW7B‡&ö&TÖWG&–72’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒG&6W&÷WFRF–Bæ÷BW‡÷6RÆ–æ²ÖFW&—fVB%EBôÕERÖWG&–72æ“° ¢òòÆ"£¢WfÇVFRöÆ–7’v†–ÆRF†Rõ5bf–Æ÷fW"F‚—27F–ÆÂÆ—fRà¢6öç7B6ÄVFvU6VÆV7FVBÒv—B6GæWfÇVFR†‚‚“Óç°¢6öç7BæöFSÕ²ââæFö7VÖVçBçVW'•6VÆV7F÷$ÆÂ‚ræ'V–ÆFW"ÖæöFRr•Òæf–æB‚†6æF–FFR“Óæ6æF–FFRçVW'•6VÆV7F÷"‚w7G&öærr“òçFW‡D6öçFVçCòçG&–Ò‚“ÓÓÒtTDtRr“°¢–b‚æöFR—&WGW&âfÇ6S°¢æöFRæF—7F6„WfVçB†æWrö–çFW$WfVçB‚wö–çFW&F÷vârÇ¶'V&&ÆW3§G'VRÇö–çFW$–C£Æ—5&–Ö'“§G'VRÇö–çFW%G—S¢vÖ÷W6RwÒ’“°¢&WGW&âG'VS°¢Ò’‚–“°¢–b‚6ÄVFvU6VÆV7FVB’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6÷VÆBæ÷B6VÆV7BTDtRf÷"4ÂöÆ–7’FW7F–æræ“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"Ö6Â×6V7F–öâæ6öçG&öÂ×F—FÆRr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚s%TÄU2r–Âƒ“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"Ö6Â×6V7F–öâ'WGFöârÂtDB4Â%TÄRr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×öÆ–7’×æVÂr“òæ6Æ74Æ—7Bæ6öçF–ç2‚vFVæ–VBr–Âƒ“°¢6öç7BFVæ–VEöÆ–7’Òv—B6GæWfÇVFR†‚‚“Óâ‡·öÆ–7“¦Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×öÆ–7’×æVÂr“òæ–ææW%FW‡CóòrrÆf÷'v&F–æs¦Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"Öf÷'v&F–ærr“òæ–ææW%FW‡CóòrrÇ'VÆW3¦Fö7VÖVçBçVW'•6VÆV7F÷$ÆÂ‚ræ'V–ÆFW"Ö6Â×'VÆW3æF—br’æÆVæwF‡Ò’’‚–“°¢–b‚FVæ–VEöÆ–7’çöÆ–7’æ–æ6ÇVFW2‚tDTä”TBr’ÇÂFVæ–VEöÆ–7’æf÷'v&F–æræ–æ6ÇVFW2‚tTDtR(i"#"(i"4õ$Rr’ÇÂFVæ–VEöÆ–7’ç'VÆW2ÓÒ’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ4ÂFVæ–ÂF–Bæ÷B&VÖ–â6W&FRg&öÒõ5bf÷'v&F–ærG'WF‚æ“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"×&ö&R×6V7F–öâ'WGFöârÂu”ärr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×æVÂr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚u”ärr’bbFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×æVÂr“òæ6Æ74Æ—7Bæ6öçF–ç2‚vf–ÆVBr–Âƒ“°¢6öç7B6Å–ærÒv—B6GæWfÇVFR†Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×æVÂr“òæ–ææW%FW‡Cóòrv“°¢–b‚ô4ÇÅôÄ”5—ÄDTä”TBö’çFW7B†6Å–ær’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ–ærF–Bæ÷B7W&f6R4ÂöÆ–7’FVæ–Âæ“°¢6öç7BFVÆWFVD6ÂÒv—B6GæWfÇVFR†‚‚“Óç¶6öç7B'WGFöãÖFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"Ö6Â×'VÆW2'WGFöâr“¶–b‚'WGFöâ—&WGW&âfÇ6S¶'WGFöâæ6Æ–6²‚“·&WGW&âG'VWÒ’‚–“°¢–b‚FVÆWFVD6Â’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6÷VÆBæ÷B&VÖ÷fRF†RFV×÷&'’4Â'VÆRæ“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×öÆ–7’×æVÂr“òæ6Æ74Æ—7Bæ6öçF–ç2‚vFVæ–VBr–Âƒ“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"×&ö&R×6V7F–öâ'WGFöârÂu”ärr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×æVÂr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚u”ärr’bbFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×æVÂr“òæ6Æ74Æ—7Bæ6öçF–ç2‚w7V66W72r–Âƒ“° ¢òò&W7F÷&REDÂ×66÷VBG&6W&÷WFR6VÆV7F–öâ&Vf÷&R§V×–ær–çFòÆ""6òF†R7&÷72ÖÆ–æ²6öçG&7B&VÖ–ç27F&ÆRà¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"×&ö&R×6V7F–öâ'WGFöârÂuE$4U$õUDRr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×æVÂr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚uE$4U$õUDRr’bbFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×æVÂr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚tT4„ò$UÅ’r–Âƒ“° ¢òò7&÷72ÖÆ–æ²öæREDÂ×66÷VB&ö&R–çFòF†R7GVÂ6¶WBÖ–7&÷66÷RæB&WGW&âà¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"×&ö&R×6V7F–öâ'WGFöârÂtõTâ”4Õ4´UBr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂ&ööÆVâ†Fö7VÖVçBçVW'•6VÆV7F÷"‚rç6¶WBÖÖ–7&÷66÷Rr’–Âƒ“°¢6öç7B6¶WEFW‡BÒv—B6GæWfÇVFR†Fö7VÖVçBçVW'•6VÆV7F÷"‚rç6¶WBÖÖ–7&÷66÷Rr“òæ–ææW%FW‡Cóòrv“°¢–b‚6¶WEFW‡Bæ–æ6ÇVFW2‚tÄ"B+r”4ÕE$4REDÂr’ÇÂ6¶WEFW‡Bæ–æ6ÇVFW2‚t”4Õr’ÇÂ6¶WEFW‡Bæ–æ6ÇVFW2‚uEDÂr’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ&ö&R6¶WBF–Bæ÷B6VVBÆ""”4Õ7FFRæ“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂrç6¶WBÖ÷&–v–â×7G&—'WGFöârÂu$UEU$âDò%T”ÄDU"r“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂ&ööÆVâ†Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×v÷&·76Rr’–Âƒ“° ¢òòÆ"âf÷VæFF–öã¢•cb—2â–æFWVæFVçBd”"âFG&W76–ærW†—7G2'’FVfVÇBÂ'WB&÷WFVB&V6†&–Æ—G¢òòV'2öæÇ’gFW"W‡Æ–6—B•cb&÷WFR7FFR—2–ç7FÆÆVBâF†RW†—7F–ærf–ÆVBTDt^(iE#Æ–æ²ÖVç2F†P¢òòvV–v‡FVB×F‚†VÇW"×W7B6†ö÷6RF†RÆ—fR#"6–FRv—F†÷WB&÷'&÷v–ær•cBõ5b7FFRà¢6öç7B—cd&Vf÷&RÒv—B6GæWfÇVFR†Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"Ö—cb×6V7F–öâr“òæ–ææW%FW‡Cóòrv“°¢–b‚—cd&Vf÷&Ræ–æ6ÇVFW2‚t•cb+rETÂ5D4²r’ÇÂ—cd&Vf÷&Ræ–æ6ÇVFW2‚tTä$ÄTB+räò$õUDRr’ÇÂ—cd&Vf÷&Ræ–æ6ÇVFW2‚s#¦F#ƒ¢r’ÇÂ—cd&Vf÷&Ræ–æ6ÇVFW2‚tÄ”ä²ÔÄô4ÂfSƒ¢r’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ•cbf÷VæFF–öâF–Bæ÷BW‡÷6R–æFWVæFVçBVæ&ÆVBFG&W76–ær&Vf÷&R&÷WFR–ç7FÆÆF–öâæ“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"Ö—cb×6V7F–öâ'WGFöârÂt”å5DÄÂ•cb5DD”2D‚r“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"Ö—cb×6V7F–öâr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚tTä$ÄTB+r$T4„$ÄRr–Âƒ“°¢6öç7B—cdfÖ–Ç•6VÆV7FVBÒv—B6GæWfÇVFR†‚‚“Óç°¢6öç7B6VÆV7CÖFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×6V7F–öâ6VÆV7Br“°¢–b‚6VÆV7B—&WGW&âfÇ6S°¢6VÆV7BçfÇVSÒv—cbs°¢6VÆV7BæF—7F6„WfVçB†æWrWfVçB‚v6†ævRrÇ¶'V&&ÆW3§G'VWÒ’“°¢&WGW&â6VÆV7BçfÇVSÓÓÒv—cbs°¢Ò’‚–“°¢–b‚—cdfÖ–Ç•6VÆV7FVB’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6÷VÆBæ÷B6VÆV7BF†R•cb7F—fR×&ö&RfÖ–Ç’æ“°¢v—B6ÆVWƒc“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"×&ö&R×6V7F–öâ'WGFöârÂuE$4U$õUDRr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×æVÂr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚uE$4U$õUDRr’bbFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×æVÂr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚tT4„ò$UÅ’r–Âƒ“°¢6öç7B—ce&ö&UFW‡BÒv—B6GæWfÇVFR†Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×6V7F–öâr“òæ–ææW%FW‡Cóòrv“°¢–b‚—ce&ö&UFW‡Bæ–æ6ÇVFW2‚t”4Õcbr’ÇÂ—ce&ö&UFW‡Bæ–æ6ÇVFW2‚t•cbr’ÇÂ—ce&ö&UFW‡Bæ–æ6ÇVFW2‚t„õÄ”Ô•Br’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ•cbG&6W&÷WFRF–Bæ÷BW‡÷6R”4Õcbô†÷ÔÆ–Ö—BFV6†–ær7FFRæ“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"×&ö&R×6V7F–öâ'WGFöârÂtõTâ”4Õ4´UBr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂ&ööÆVâ†Fö7VÖVçBçVW'•6VÆV7F÷"‚rç6¶WBÖÖ–7&÷66÷Rr’–Âƒ“°¢6öç7B6¶WCeFW‡BÒv—B6GæWfÇVFR†Fö7VÖVçBçVW'•6VÆV7F÷"‚rç6¶WBÖÖ–7&÷66÷Rr“òæ–ææW%FW‡Cóòrv“°¢–b‚6¶WCeFW‡Bæ–æ6ÇVFW2‚tÄ"â+r”4ÕcbE$4R„õÄ”Ô•Br’ÇÂ6¶WCeFW‡Bæ–æ6ÇVFW2‚t•cbr’ÇÂ6¶WCeFW‡Bæ–æ6ÇVFW2‚t”4Õcbr’ÇÂ6¶WCeFW‡BçFôÆ÷vW$66R‚’æ–æ6ÇVFW2‚s#¦F#ƒ¢r’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ•cb&ö&R6¶WBF–Bæ÷B6VVB7GVÂ'V–ÆFW"”4Õcb7FFR–çFòÆ""æ“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂrç6¶WBÖ÷&–v–â×7G&—'WGFöârÂu$UEU$âDò%T”ÄDU"r“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂ&ööÆVâ†Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×v÷&·76Rr’–Âƒ“°¢6öç7B—cDfÖ–Ç•&W7F÷&VBÒv—B6GæWfÇVFR†‚‚“Óç°¢6öç7B6VÆV7CÖFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"×&ö&R×6V7F–öâ6VÆV7Br“°¢–b‚6VÆV7B—&WGW&âfÇ6S°¢6VÆV7BçfÇVSÒv—cBs°¢6VÆV7BæF—7F6„WfVçB†æWrWfVçB‚v6†ævRrÇ¶'V&&ÆW3§G'VWÒ’“°¢&WGW&â6VÆV7BçfÇVSÓÓÒv—cBs°¢Ò’‚–“°¢–b‚—cDfÖ–Ç•&W7F÷&VB’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6÷VÆBæ÷B&W7F÷&R•cB&ö&RfÖ–Ç’f÷"F÷vç7G&VÒöÆ–7’6öçG&7G2æ“°¢v—B6ÆVWƒc“° ¢òòÆ'2RÔƒ¢f—'7B6†÷r%&W6öÇWF–öâÂ5E&Æö6¶–ærÂ6ÖRÕdÄâ7v—F6†–ærÂæBÔ2ÆV&æ–ærà¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"ÖWF†W&æWB×6V7F–öâ'WGFöârÂu4TäBe$ÔRò4´UBr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖWF†W&æWB×7FvRr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚u5t•D4„TB+rdÄâr–Âƒ“°¢6öç7B7v—F6†VBÒv—B6GæWfÇVFR†‚‚“Óâ‡°¢7FvS¦Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖWF†W&æWB×7FvRr“òæ–ææW%FW‡CóòrrÀ¢fF#¦Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖfF"r“òæ–ææW%FW‡CóòrrÀ¢fÆ÷tÆ–æ·3¦Fö7VÖVçBçVW'•6VÆV7F÷$ÆÂ‚ræ'V–ÆFW"ÖÆâÖ6çf2ræfÆ÷rr’æÆVæwF‚À¢Ò’’‚–“°¢–b‚7v—F6†VBç7FvRæ–æ6ÇVFW2‚tdÄôôBD„TâÄT$âr’ÇÂ7v—F6†VBæfF"æ–æ6ÇVFW2‚u5s+rcr’ÇÂ7v—F6†VBæfF"æ–æ6ÇVFW2‚u5s"+rcr’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6ÖRÕdÄâfÆ÷rF–Bæ÷BW‡÷6RdÄâ×66÷VBdD"ÆV&æ–æræ“°¢–b‚7v—F6†VBç7FvRæ–æ6ÇVFW2‚t%$UTU5B(i"$UÅ’r’ÇÂ7v—F6†VBç7FvRæ–æ6ÇVFW2‚u5s$ôõBr’ÇÂ7v—F6†VBç7FvRæ–æ6ÇVFW2‚s$Äô4´TBr’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒf—'7BÄâfÆ÷rF–Bæ÷BW‡÷6R%²5EG'WF‚æ“°¢–b‡7v—F6†VBæfÆ÷tÆ–æ·2Â2’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6ÖRÕdÄâF‚F–Bæ÷B†–v†Æ–v‡BF†RÄâÆ–æ·2æ“°¢–b†v—B6GæWfÇVFR†Fö7VÖVçBçVW'•6VÆV7F÷$ÆÂ‚ræ'V–ÆFW"ÖÆâÖ6çf2rç7GÖ&Æö6¶VBr’æÆVæwF†’ÓÒ’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒF–Bæ÷Bf—7VÆÇ’Ö&²W†7FÇ’öæRdÄâÓ5E&Æö6¶VB6VvÖVçBæ“° ¢òò&WVF–ærF†R6ÖRfÆ÷r×W7B†—BF†R6W76–öâÖöæÇ’%66†R&F†W"F†â&WÆ’FG&W72&W6öÇWF–öâà¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"ÖWF†W&æWB×6V7F–öâ'WGFöârÂu4TäBe$ÔRò4´UBr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖWF†W&æWB×7FvRr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚t%44„R„•Br–Âƒ“° ¢6öç7B6WE6VÆV7BÒ7–æ2†–æFW‚ÂfÇVR’Óâ6GæWfÇVFR†‚‚“Óç°¢6öç7B6V7F–öãÖFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖWF†W&æWB×6V7F–öâr“°¢6öç7B6VÆV7C×6V7F–öãòçVW'•6VÆV7F÷$ÆÂ‚w6VÆV7Br•²G¶–æFW‡ÕÓ°¢–b‚6VÆV7B—&WGW&âfÇ6S°¢6VÆV7BçfÇVSÒG´¥4ôâç7G&–æv–g’‡fÇVR—Ó°¢6VÆV7BæF—7F6„WfVçB†æWrWfVçB‚v6†ævRrÇ¶'V&&ÆW3§G'VWÒ’“°¢&WGW&âG'VS°¢Ò’‚–“°¢–b‚†v—B6WE6VÆV7Bƒ"ÂvÆâ×7s×7s"r’’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6÷VÆBæ÷B6VÆV7BF†R&–Ö'’5s(iE5s"G'Væ²f÷"5Ef–Æ÷fW"æ“°¢v—B6ÆVWƒc“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"ÖWF†W&æWB×6V7F–öâ'WGFöârÂtd”ÂÄâÄ”ä²r“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖÆâ×G'WF‚r“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚s$Äô4´TBr–Âƒ“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"ÖWF†W&æWB×6V7F–öâ'WGFöârÂu4TäBe$ÔRò4´UBr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖWF†W&æWB×7FvRr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚u5t•D4„TB+rdÄâr–Âƒ“°¢6öç7B7Gf–Æ÷fW"Òv—B6GæWfÇVFR†Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖWF†W&æWB×7FvRr“òæ–ææW%FW‡Cóòrv“°¢–b‚7Gf–Æ÷fW"æ–æ6ÇVFW2‚u5s2r’ÇÂ7Gf–Æ÷fW"æ–æ6ÇVFW2‚u2Ô"r’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒdÄâÓG&ff–2F–Bæ÷B&V6öçfW&vRF‡&÷Vv‚5s2gFW"&–Ö'’G'Væ²f–ÇW&Ræ“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"ÖWF†W&æWB×6V7F–öâ'WGFöârÂu$U5Dõ$RÄâÄ”ä²r“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖÆâ×G'WF‚r“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚s$Äô4´TBr–Âƒ“° ¢–b‚†v—B6WE6VÆV7BƒÂvÆâÖ2r’’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6÷VÆBæ÷B6†ö÷6R2Ô2f÷"–çFW"ÕdÄâfÆ÷ræ“°¢v—B6ÆVWƒƒ“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"ÖWF†W&æWB×6V7F–öâ'WGFöârÂu4TäBe$ÔRò4´UBr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖWF†W&æWB×7FvRr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚u$õUDTB+rdÄâ(i"#r–Âƒ“°¢ÆWB&÷WFVBÒv—B6GæWfÇVFR†Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖWF†W&æWB×7FvRr“òæ–ææW%FW‡Cóòrv“°¢–b‚&÷WFVBæ–æ6ÇVFW2‚u%E"r’ÇÂ&÷WFVBæ–æ6ÇVFW2‚udÄâ#r’ÇÂ&÷WFVBæ–æ6ÇVFW2‚uEDÂcB(i"c2r’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ–çFW"ÕdÄâfÆ÷rÆ÷7B&÷WFW"ÖöâÖ×7F–6²÷"EDÂG'WF‚æ“°¢–b‚‡&÷WFVBæÖF6‚‚ô%$UTU5B(i"$UÅ’ör“óõµÒ’æÆVæwF‚Â"ÇÂ&÷WFVBæ–æ6ÇVFW2‚sãããr’ÇÂ&÷WFVBæ–æ6ÇVFW2‚sã#ããr’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ–çFW"ÕdÄâfÆ÷rF–Bæ÷B&W6öÇfRvFWv’×6–FRæBFW7F–æF–öâ×6–FR%–æFWVæFVçFÇ’æ“° ¢òò&Æö6²dÄâ#öâF†R7v—F6‚G'Væ³¢dÄâ#×W7Bf–Âv†–ÆRdÄâ&VÖ–ç2W6&ÆRà¢–b‚†v—B6WE6VÆV7Bƒ"ÂvÆâ×7s×7s"r’’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6÷VÆBæ÷B6VÆV7B5s(iE5s"G'Væ²æ“°¢v—B6ÆVWƒƒ“°¢6öç7BG'Væ´VF—FVBÒv—B6GæWfÇVFR†‚‚“Óç°¢6öç7B–çWCÖFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖWF†W&æWB×6V7F–öâ–çWBr“²–b‚–çWB—&WGW&âfÇ6S°¢–çWBçfÇVSÒss²–çWBæF—7F6„WfVçB†æWrfö7W4WfVçB‚vfö7W6÷WBrÇ¶'V&&ÆW3§G'VWÒ’“²&WGW&âG'VS°¢Ò’‚–“°¢–b‚G'Væ´VF—FVB’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6÷VÆBæ÷BVF—BG'Væ²ÆÆ÷rÖÆ—7Bæ“°¢v—B6ÆVWƒ“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"ÖWF†W&æWB×6V7F–öâ'WGFöârÂu4TäBe$ÔRò4´UBr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖWF†W&æWB×7FvRr“òæ6Æ74Æ—7Bæ6öçF–ç2‚vf–ÆVBr–Âƒ“°¢6öç7B&Æö6¶VBÒv—B6GæWfÇVFR†Fö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖWF†W&æWB×7FvRr“òæ–ææW%FW‡Cóòrv“°¢–b‚&Æö6¶VBæ–æ6ÇVFW2‚uTå$T4„$ÄRr’ÇÂ&Æö6¶VBæ–æ6ÇVFW2‚udÄâ#r’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒG'Væ²f–ÇFW"F–Bæ÷B—6öÆFRdÄâ#æ“° ¢–b‚†v—B6WE6VÆV7BƒÂvÆâÖ"r’’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6÷VÆBæ÷B&WGW&âFW7F–æF–öâFò2Ô"æ“°¢v—B6ÆVWƒc“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"ÖWF†W&æWB×6V7F–öâ'WGFöârÂu4TäBe$ÔRò4´UBr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖWF†W&æWB×7FvRr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚u5t•D4„TB+rdÄâr–Âƒ“° ¢òò&W7F÷&RF†RG'Væ²Â&W'Vâ–çFW"ÕdÄâ&÷WF–ærÂæBÆVfRF†Rf–æÂ67&VVç6†÷BöâF†R7V66W76gVÂ&÷WFVB7FFRà¢6öç7BG'Væµ&W7F÷&VBÒv—B6GæWfÇVFR†‚‚“Óç°¢6öç7B–çWCÖFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖWF†W&æWB×6V7F–öâ–çWBr“²–b‚–çWB—&WGW&âfÇ6S°¢–çWBçfÇVSÒsÂ#s²–çWBæF—7F6„WfVçB†æWrfö7W4WfVçB‚vfö7W6÷WBrÇ¶'V&&ÆW3§G'VWÒ’“²&WGW&âG'VS°¢Ò’‚–“°¢–b‚G'Væµ&W7F÷&VB’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6÷VÆBæ÷B&W7F÷&RG'Væ²ÆÆ÷rÖÆ—7Bæ“°¢–b‚†v—B6WE6VÆV7BƒÂvÆâÖ2r’’’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6÷VÆBæ÷B&W7F÷&R2Ô2FW7F–æF–öâæ“°¢v—B6ÆVWƒ“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræ'V–ÆFW"ÖWF†W&æWB×6V7F–öâ'WGFöârÂu4TäBe$ÔRò4´UBr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræ'V–ÆFW"ÖWF†W&æWB×7FvRr“òæ–ææW%FW‡Bæ–æ6ÇVFW2‚u$õUDTB+rdÄâ(i"#r–Âƒ“°¢6öç7BFWF„f–æÂÒv—B7FFR‚“°¢76W'Ef–Ww÷'B†FWF„f–æÂÂv7F—fR&ö&W2²WF†W&æWBõdÄâf'&–2r“° ¢Ö¶F—%7–æ2†F—&æÖR‡&W÷'EF‚’Â²&V7W'6—fS¢G'VRÒ“°¢6öç7B67&VVç6†÷BÒv—B6Gæ6ÆÂ‚uvRæ6GW&U67&VVç6†÷BrÂ²f÷&ÖC¢wærrÂg&öÕ7W&f6S¢G'VRÂ6GW&T&W–öæEf–Ww÷'C¢G'VRÒ“°¢w&—FTf–ÆU7–æ2†¦ö–â†F—&æÖR‡&W÷'EF‚’Â'V–ÆFW"Ö÷7bÒG·&öf–ÆRæ–GÒçæv’Â'VffW"æg&öÒ‡67&VVç6†÷BæFFÂv&6ScBr’“°¢w&—FTf–ÆU7–æ2†¦ö–â†F—&æÖR‡&W÷'EF‚’Â'V–ÆFW"ÖFWF‚ÒG·&öf–ÆRæ–GÒçæv’Â'VffW"æg&öÒ‡67&VVç6†÷BæFFÂv&6ScBr’“°¢&WGW&â°¢FVfVÇDæõ&÷WFS¢G'VRÀ¢Væ&ÆVE&÷WFW'3¢BÀ¢–æ—F–ÄgVÆÄF¦6Væ6–W3¢RÀ¢f–ÆVDF¦6Væ6–W3¢À¢f–Æ÷fW$æW‡D†÷¢sãããBrÀ¢÷7e&÷WFT6÷VçC¢f–ÆVBæ÷7e&÷WFW2À¢67&öÆÅv–GFƒ¢f–ÆVBç67&öÆÅv–GF‚À¢–ææW%v–GFƒ¢FWF„f–æÂæ–ææW%v–GF‚À¢7F—fU&ö&Tf–Æ÷fW#¢G'VRÀ¢6¶WDÖ–7&÷66÷T–6×¢G'VRÀ¢—cdf÷VæFF–öã¢G'VRÀ¢6¶WDÖ–7&÷66÷T–6×cc¢G'VRÀ¢6ÖUfÆå7v—F6†–æs¢G'VRÀ¢G'Væ´—6öÆF–öã¢G'VRÀ¢–çFW%fÆå&÷WF–æs¢G'VRÀ¢'&W6öÇWF–öäæD66†S¢G'VRÀ¢7G&Æö6¶–ætæDf–Æ÷fW#¢G'VRÀ¢Æ–æ´FW&—fVE&ö&TÖWG&–73¢G'VRÀ¢6ÅöÆ–7”—6öÆF–öã¢G'VRÀ¢Ó°§Ð ¦7–æ2gVæ7F–öâW†W&6—6TÆö÷&6´'&–FvUv÷&·76R†6GÂ&öf–ÆR’°¢6öç7B'&–FvU&W÷'BÒ¥4ôâç'6R‡&VDf–ÆU7–æ2†ÖV7W&VDf—‡GW&UF‚ÂwWFc‚r’“°¢6öç7B†æG6†¶RÒ°¢66†VÖ¢v†÷66÷F6‚ææWGv÷&²ÖF–væ÷7F–72Ö'&–FvRrÀ¢fW'6–öã¢À¢Æ–6F–öã¢tæWGv÷&²F–væ÷7F–727V—FRrÀ¢&W÷'E66†VÖfW'6–öã¢s"ãrÀ¢&W÷'EFƒ¢rö’ö†÷66÷F6‚÷c÷&W÷'BrÀ¢'&–FvUfW'6–öã¢sããÖ6’rÀ¢6&–Æ—F–W3¢²w&W÷'B×c"uÒÀ¢Ó° ¢v—B6GæWfÇVFR†‚‚“Óç°¢6öç7B†æG6†¶SÒG´¥4ôâç7G&–æv–g’††æG6†¶R—Ó°¢6öç7B&W÷'CÒG´¥4ôâç7G&–æv–g’†'&–FvU&W÷'B—Ó°¢6öç7B÷&–v–æÄfWF6ƒÖvÆö&ÅF†—2æfWF6ƒ°¢6öç7BÖö6³×¶ÖöFS¢væWGv÷&²ÖW'&÷"rÆ6ÆÇ3¥µÒÆ†æG6†¶RÇ&W÷'BÆ÷&–v–æÄfWF6‡Ó°¢vÆö&ÅF†—2åõö†÷66÷F6„'&–FvTÖö6³ÖÖö6³°¢vÆö&ÅF†—2æfWF6ƒÖ7–æ2†–çWBÆ–æ—C×·Ò“Óç°¢6öç7BW&Ã×G—Vöb–çWCÓÓÒw7G&–ærsö–çWC¢†–çWCòçW&Ãóõ7G&–ær†–çWB’“°¢Öö6²æ6ÆÇ2çW6‚‡·W&ÂÆÖWF†öC¦–æ—BæÖWF†öCóöçVÆÂÆÖöFS¦–æ—BæÖöFSóöçVÆÂÆ7&VFVçF–Ç3¦–æ—Bæ7&VFVçF–Ç3óöçVÆÂÆ66†S¦–æ—Bæ66†SóöçVÆÂÇ&VF—&V7C¦–æ—Bç&VF—&V7CóöçVÆÇÒ“°¢–b†Öö6²æÖöFSÓÓÒvæWGv÷&²ÖW'&÷"r—F‡&÷ræWrG—TW'&÷"‚tf–ÆVBFòfWF6‚r“°¢–b‡W&ÂæVæG5v—F‚‚rö’ö†÷66÷F6‚÷cö†æG6†¶Rr’—°¢6öç7B&öG“ÖÖö6²æÖöFSÓÓÒv&BÖ†æG6†¶Rs÷²ââæ†æG6†¶RÇ66†VÖ¢ww&öæræ'&–FvRwÓ¦†æG6†¶S°¢&WGW&âæWr&W7öç6R„¥4ôâç7G&–æv–g’†&öG’’Ç·7FGW3£#Æ†VFW'3§²v6öçFVçB×G—Rs¢vÆ–6F–öâö§6öâw×Ò“°¢Ð¢–b‡W&ÂæVæG5v—F‚‚rö’ö†÷66÷F6‚÷c÷&W÷'Br’—°¢6öç7B&öG“ÖÖö6²æÖöFSÓÓÒv–çfÆ–B×&W÷'Bs÷·66†VÖfW'6–öã¢s“’ãwÓ§&W÷'C°¢&WGW&âæWr&W7öç6R„¥4ôâç7G&–æv–g’†&öG’’Ç·7FGW3£#Æ†VFW'3§²v6öçFVçB×G—Rs¢vÆ–6F–öâö§6öâw×Ò“°¢Ð¢F‡&÷ræWrW'&÷"‚uVæW‡V7FVB'&–FvRU$Ã¢r·W&Â“°¢Ó°¢&WGW&âG'VS°¢Ò’‚–“° ¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræÖV7W&VBÖ†VF–ærçf—7VÂÖG&vW"×F'2'WGFöârÂu4UEUr“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂ&ööÆVâ†Fö7VÖVçBçVW'•6VÆV7F÷"‚ræÖV7W&VB×v÷&·76Rçf—7VÂÖG&vW"r’–“° ¢6öç7B6WD÷&–v–âÒ7–æ2‡fÇVR’Óâ°¢6öç7B6†ævVBÒv—B6GæWfÇVFR†‚‚“Óç°¢6öç7B–çWCÖFö7VÖVçBçVW'•6VÆV7F÷"‚ræÖV7W&VBÖ'&–FvRÖ÷&–v–â–çWBr“°¢–b‚–çWB—&WGW&âfÇ6S°¢6öç7B6WGFW#Ôö&¦V7BævWD÷vå&÷W'G”FW67&—F÷"„…DÔÄ–çWDVÆVÖVçBç&÷F÷G—RÂwfÇVRr“òç6WC°¢6WGFW#òæ6ÆÂ†–çWBÂG´¥4ôâç7G&–æv–g’‡fÇVR—Ò“°¢–çWBæF—7F6„WfVçB†æWrWfVçB‚v–çWBrÇ¶'V&&ÆW3§G'VWÒ’“°¢&WGW&âG'VS°¢Ò’‚–“°¢–b‚6†ævVB’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒ6÷VÆBæ÷B6WBF†RÆö÷&6²'&–FvR÷&–v–âæ“°¢Ó° ¢6öç7B6WDÖöFRÒ7–æ2†ÖöFR’Óâ6GæWfÇVFR†‚‚“Óç¶vÆö&ÅF†—2åõö†÷66÷F6„'&–FvTÖö6²æÖöFSÒG´¥4ôâç7G&–æv–g’†ÖöFR—Ó·&WGW&âG'VWÒ’‚–“°¢6öç7B6ÆÄ6÷VçBÒ7–æ2‚’Óâ6GæWfÇVFR†vÆö&ÅF†—2åõö†÷66÷F6„'&–FvTÖö6²æ6ÆÇ2æÆVæwF†“°¢6öç7Bv÷&·76U7FFRÒ7–æ2‚’Óâ6GæWfÇVFR†‚‚“Óâ‡°¢7FGW3¦Fö7VÖVçBçVW'•6VÆV7F÷"‚ræÖV7W&VB×v÷&·76Rr“òævWDGG&–'WFR‚vFFÖ'&–FvR×7FGW2r“óöçVÆÂÀ¢ÖV7W&VC¦Fö7VÖVçBçVW'•6VÆV7F÷"‚ræÖV7W&VB×v÷&·76Rr“òævWDGG&–'WFR‚vFFÖÖV7W&VBÖÆöFVBr“óöçVÆÂÀ¢FW‡C¦Fö7VÖVçBçVW'•6VÆV7F÷"‚ræÖV7W&VB×v÷&·76Rr“òæ–ææW%FW‡CóòrrÀ¢–ææW%v–GF‚À¢67&öÆÅv–GFƒ¦Fö7VÖVçBæFö7VÖVçDVÆVÖVçBç67&öÆÅv–GF‚À¢67&öÆÅ’À¢Ò’’‚–“°¢6öç7B76W'Ef–Ww÷'BÒ7–æ2†Æ&VÂ’Óâ°¢6öç7B7FFRÒv—Bv÷&·76U7FFR‚“°¢–b‡7FFRç67&öÆÅv–GF‚â7FFRæ–ææW%v–GF‚’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒG¶Æ&VÇÒ†÷&—¦öçFÆÇ’÷fW&fÆ÷w3¢G·7FFRç67&öÆÅv–GF‡ÒâG·7FFRæ–ææW%v–GF‡Òæ“°¢–b‡7FFRç67&öÆÅ’ÓÒ’F‡&÷ræWrW'&÷"†G·&öf–ÆRæ–GÒG¶Æ&VÇÒÖ÷fVBFö7VÖVçB67&öÆÅ’FòG·7FFRç67&öÆÅ—Òæ“°¢&WGW&â7FFS°¢Ó° ¢v—B6WD÷&–v–â‚v‡GG¢òó“"ãc‚ããS£ƒscRr“°¢v—BÖV7W&VD6Æ–6´'WGFöâ†6GÂræÖV7W&VBÖ'&–FvRÖ7F–öç2'WGFöârÂt4ôääT5Br“°¢v—Bv—Df÷$W‡&W76–öâ†6GÂFö7VÖVçBçVW'•6VÆV7F÷"‚ræÖV7W&VB×v÷&·76Rr“òævWDGG&–'WFR‚vFFÖ'&–FvR×7FGW2r“ÓÓÒwVæf–Æ&ÆRvÂwÛ{h‘éì¶»§q«^t±äé‘É…Ý•È¹ä±Ý¥‘Ñ é‘É…Ý•È¹Ý¥‘Ñ ±¡•¥¡Ðé‘É…Ý•È¹¡•¥¡Ñôé¹Õ±°°(€€€€€½¹ÑÉ½±Ì°(€€€€€µ½‘¥™¥•É½±Õµ¹Ìéµ½‘¥™¥•ÉAÉ½™¥±”ý•Ñ½µÁÕÑ•‘MÑå±”¡µ½‘¥™¥•ÉAÉ½™¥±”¤¹É¥‘Q•µÁ±…Ñ•½±Õµ¹Ì¹ÍÁ±¥Ð œ€œ¤¹™¥±Ñ•È¡	½½±•…¸¤¹±•¹Ñ èÀ°(€€€€€µ½‘…°é‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµÙ¥ÍÕ…°µÝ½É­ÍÁ…”€¹Ù¥ÍÕ…°µ‘É…Ý•Èœ¤ü¹•ÑÑÑÉ¥‰ÕÑ” …É¥„µµ½‘…°œ¤°(€€€ôì(€ô¤ ¥€¤ì(€¥˜€ …½Á•¹•¹ÍÑ…”ñð€…½Á•¹•¹‘É…Ý•È¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô‘¥¹½ÐÉ•¹‘•ÈÑ¡”½¹™¥œ‘É…Ý•È½Ù•ÈÑ¡”)½ÕÉ¹•äÍÑ…”¹€¤ì(€¥˜€¡½Á•¹•¹µ½‘…°€„ôô€ÑÉÕ”œ¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô)½ÕÉ¹•ä‘É…Ý•È±½ÍÐµ½‘…°…•ÍÍ¥‰¥±¥ÑäÍ•µ…¹Ñ¥Ì¹€¤ì(€¥˜€¡½Á•¹•¹½¹ÑÉ½±Ì¹±•¹Ñ €„ôô€ÄÀ¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô•áÁ•Ñ•€ÄÀ=5=½¹ÑÉ½±Ì°™½Õ¹€‘í½Á•¹•¹½¹ÑÉ½±Ì¹±•¹Ñ¡ô¹€¤ì(€™½È€¡½¹ÍÐ­•ä½˜làœ°€äœ°€Ý¥‘Ñ œ°€¡•¥¡Ðt¤ì(€€€¥˜€¡5…Ñ ¹…‰Ì¡½Á•¹•¹ÍÑ…•m­•åt€´‰•™½É”¹ÍÑ…•m­•åt¤€ø€Ä¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô½¹™¥œ‘É…Ý•È¡…¹•ÍÑ…”€‘í­•åôè€‘í‰•™½É”¹ÍÑ…•m­•åuôƒŠH€‘í½Á•¹•¹ÍÑ…•m­•åuô¹€¤ì(€ô(€¥˜€¡ÁÉ½™¥±”¹Ý¥‘Ñ €ðô€ØàÀ¤ì(€€€™½È€¡½¹ÍÐ­•ä½˜làœ°€äœ°€Ý¥‘Ñ œ°€¡•¥¡Ðt¤ì(€€€€€¥˜€¡5…Ñ ¹…‰Ì¡½Á•¹•¹‘É…Ý•Ém­•åt€´½Á•¹•¹ÍÑ…•m­•åt¤€ø€Ä¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôµ½‰¥±”‘É…Ý•È‘¥¹½Ð½Ù•ÈÑ¡”™Õ±°ÍÑ…”€‘í­•åô¹€¤ì(€€€ô(€ô•±Í”¥˜€¡½Á•¹•¹‘É…Ý•È¹à€ð½Á•¹•¹ÍÑ…”¹àñð½Á•¹•¹‘É…Ý•È¹à€¬½Á•¹•¹‘É…Ý•È¹Ý¥‘Ñ €ø½Á•¹•¹ÍÑ…”¹à€¬½Á•¹•¹ÍÑ…”¹Ý¥‘Ñ €¬€Ä¤ì(€€€Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô‘•Í­Ñ½À‘É…Ý•È•Í…Á•Ñ¡”Ù¥ÍÕ…°ÍÑ…”¹€¤ì(€ô(€…Ý…¥Ð±½Í•)½ÕÉ¹•åÉ…Ý•È¡‘À¤ì(€½¹ÍÐ…™Ñ•È€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡€  ¤ôùí½¹ÍÐÍÑ…”õ‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµÙ¥ÍÕ…°µÝ½É­ÍÁ…”€¹Ù¥ÍÕ…°µÝ½É­ÍÁ…•}}ÍÑ…”œ¤ü¹•Ñ	½Õ¹‘¥¹±¥•¹ÑI•Ð ¤íÉ•ÑÕÉ¸ÍÑ…”ýíàéÍÑ…”¹à±äéÍÑ…”¹ä±Ý¥‘Ñ éÍÑ…”¹Ý¥‘Ñ ±¡•¥¡ÐéÍÑ…”¹¡•¥¡Ñôé¹Õ±±ô¤ ¥€¤ì(€¥˜€ ……™Ñ•È¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô±½ÍÐÑ¡”)½ÕÉ¹•äÍÑ…”…™Ñ•È±½Í¥¹œ½¹™¥œ¹€¤ì(€™½È€¡½¹ÍÐ­•ä½˜làœ°€äœ°€Ý¥‘Ñ œ°€¡•¥¡Ðt¤ì(€€€¥˜€¡5…Ñ ¹…‰Ì¡…™Ñ•Ém­•åt€´‰•™½É”¹ÍÑ…•m­•åt¤€ø€Ä¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÍÑ…”‘¥¹½ÐÉ•½Ù•È…™Ñ•È±½Í¥¹œ½¹™¥œ€ ‘í­•åô¤¹€¤ì(€ô(€É•ÑÕÉ¸ìµ½‘¥™¥•É½¹ÑÉ½±Ìè½Á•¹•¹½¹ÑÉ½±Ì°µ½‘¥™¥•É½±Õµ¹Ìè½Á•¹•¹µ½‘¥™¥•É½±Õµ¹Ì°µ½‘…°èÑÉÕ”°ÍÑ…•AÉ•Í•ÉÙ•èÑÉÕ”°µ½‰¥±•Õ±±MÑ…”èÁÉ½™¥±”¹Ý¥‘Ñ €ðô€ØàÀôì)ô()…Íå¹Œ™Õ¹Ñ¥½¸µ•…ÍÕÉ•‘Y¥•ÝÁ½ÉÑMÑ…Ñ”¡‘À¤ì(€É•ÑÕÉ¸‘À¹•Ù…±Õ…Ñ”¡€  ¤ôø¡ì(€€€¥¹¹•É]¥‘Ñ °(€€€ÍÉ½±±]¥‘Ñ é‘½Õµ•¹Ð¹‘½Õµ•¹Ñ±•µ•¹Ð¹ÍÉ½±±]¥‘Ñ °(€€€ÍÉ½±±d°(€€€Í¥‘•…Èé‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµµ•…ÍÕÉ•µÍ¥‘•…Èœ¤ü¹¥¹¹•ÉQ•áÐ€üü¹Õ±°°(€€€½µÁ…Ñ¥‰¥±¥Ñäé‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµµ•…ÍÕÉ•µÍ¥‘•…Èœ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µµ•…ÍÕÉ•µ½µÁ…Ñ¥‰¥±¥Ñäœ¤€üü¹Õ±°°(€€€Í•¹”é‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµµ•…ÍÕÉ•µÍ¥‘•…Èœ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µµ•…ÍÕÉ•µÍ•¹”œ¤€üü¹Õ±°°(€€€…Ñ¥Ù•Ù•¹Ðé‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµ…±±½ÕÐµ½Ù•É±…ä Èœ¤ü¹Ñ•áÑ½¹Ñ•¹Ð€üü¹Õ±°°(€ô¤¤ ¥€¤ì)ô()™Õ¹Ñ¥½¸…ÍÍ•ÉÑ5•…ÍÕÉ•‘Y¥•ÝÁ½ÉÐ¡ÁÉ½™¥±”°ÍÑ…Ñ”°±…‰•°¤ì(€¥˜€¡ÍÑ…Ñ”¹ÍÉ½±±]¥‘Ñ €øÍÑ…Ñ”¹¥¹¹•É]¥‘Ñ ¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô€‘í±…‰•±ô¡½É¥é½¹Ñ…±±ä½Ù•É™±½ÝÌè€‘íÍÑ…Ñ”¹ÍÉ½±±]¥‘Ñ¡ô€ø€‘íÍÑ…Ñ”¹¥¹¹•É]¥‘Ñ¡ô¹€¤ì(€¥˜€¡ÍÑ…Ñ”¹ÍÉ½±±d€„ôô€À¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô€‘í±…‰•±ôµ½Ù•‘½Õµ•¹ÐÍÉ½±±dÑ¼€‘íÍÑ…Ñ”¹ÍÉ½±±eô¹€¤ì)ô()…Íå¹Œ™Õ¹Ñ¥½¸•á•É¥Í•5•…ÍÕÉ•‘)½ÕÉ¹•åM¥‘•…ÉÌ¡‘À°ÁÉ½™¥±”¤ì(€…Ý…¥Ð½Á•¹=Ù•ÉÙ¥•Ý]½É­ÍÁ…”¡‘À°€µ•…ÍÕÉ•œ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹µ•…ÍÕÉ•µÝ½É­ÍÁ…”œ¤¥€¤ì(€…Ý…¥ÐÍ•Ñ¥±•%¹ÁÕÐ¡‘À°€œ¹µ•…ÍÕÉ•µ™¥±”µ¥¹ÁÕÐœ°µ•…ÍÕÉ•‘¥áÑÕÉ•A…Ñ ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹µ•…ÍÕÉ•µÝ½É­ÍÁ…”œ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µµ•…ÍÕÉ•µ±½…‘•œ¤ôôôÑÉÕ”€°€àÀÀÀ¤ì(€…Ý…¥Ðµ•…ÍÕÉ•‘±¥­	ÕÑÑ½¸¡‘À°€œ¹µ•…ÍÕÉ•µ¡•…‘¥¹œµ…Ñ¥½¹Ì‰ÕÑÑ½¸œ°€a%P1œ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹­¥¹•Ñ¥Œµ½Ù•ÉÙ¥•Üœ¤¥€¤ì(€…Ý…¥Ð½Á•¹=Ù•ÉÙ¥•Ý]½É­ÍÁ…”¡‘À°€©½ÕÉ¹•äœ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµÙ¥ÍÕ…°µÝ½É­ÍÁ…”œ¤¥€°€àÀÀÀ¤ì((€…Ý…¥ÐÍ•±•Ñ)½ÕÉ¹•åÙ•¹Ð¡‘À°€•™…Õ±Ð…Ñ•Ý…äÍ•±•Ñ•œ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµµ•…ÍÕÉ•µÍ¥‘•…Èœ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µµ•…ÍÕÉ•µ½µÁ…Ñ¥‰¥±¥Ñäœ¤ôôô±½…°µ½¹Ñ•áÐ€°€àÀÀÀ¤ì(€½¹ÍÐÉ½ÕÑ¥¹œ€ô…Ý…¥Ðµ•…ÍÕÉ•‘Y¥•ÝÁ½ÉÑMÑ…Ñ”¡‘À¤ì(€…ÍÍ•ÉÑ5•…ÍÕÉ•‘Y¥•ÝÁ½ÉÐ¡ÁÉ½™¥±”°É½ÕÑ¥¹œ°€É½ÕÑ¥¹œÍ¥‘•…Èœ¤ì(€¥˜€¡É½ÕÑ¥¹œ¹Í•¹”€„ôô€É½ÕÑ¥¹œœñðÉ½ÕÑ¥¹œ¹…Ñ¥Ù•Ù•¹Ð€„ôô€•™…Õ±Ð…Ñ•Ý…äÍ•±•Ñ•œ¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô‘¥¹½Ð‰¥¹1=0=9QaPÑ¼Ñ¡”É½ÕÑ¥¹œÁ¡…Í”¹€¤ì(€¥˜€ …É½ÕÑ¥¹œ¹Í¥‘•…Èü¹¥¹±Õ‘•Ì 1=05MUIœ¤ñð€…É½ÕÑ¥¹œ¹Í¥‘•…È¹¥¹±Õ‘•Ì 1=0=9QaPœ¤ñð€…É½ÕÑ¥¹œ¹Í¥‘•…È¹¥¹±Õ‘•Ì M%5U1QMQ=IdU9!9œ¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÉ½ÕÑ¥¹œÍ¥‘•…È±½ÍÐÁÉ½Ù•¹…¹”½‰½Õ¹‘…Éä±…¹Õ…”¹€¤ì((€…Ý…¥ÐÍ•±•Ñ)½ÕÉ¹•åÙ•¹Ð¡‘À°€MÑÕˆ…Í­ÌÉ•ÕÉÍ¥Ù”É•Í½±Ù•Èœ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµµ•…ÍÕÉ•µÍ¥‘•…Èœ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µµ•…ÍÕÉ•µ½µÁ…Ñ¥‰¥±¥Ñäœ¤ôôôµ…Ñ¡•µÑ…É•Ð€°€àÀÀÀ¤ì(€½¹ÍÐ‘¹Ì€ô…Ý…¥Ðµ•…ÍÕÉ•‘Y¥•ÝÁ½ÉÑMÑ…Ñ”¡‘À¤ì(€…ÍÍ•ÉÑ5•…ÍÕÉ•‘Y¥•ÝÁ½ÉÐ¡ÁÉ½™¥±”°‘¹Ì°€9LÍ¥‘•…Èœ¤ì(€¥˜€¡‘¹Ì¹Í•¹”€„ôô€‘¹Ìœñð€…‘¹Ì¹Í¥‘•…Èü¹¥¹±Õ‘•Ì 5Q!QIPœ¤ñð€…‘¹Ì¹Í¥‘•…È¹¥¹±Õ‘•Ì œàµÌœ¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô9LÍ¥‘•…È‘¥¹½Ð•áÁ½Í”•á…ÐµÑ…É•Ðµ•…ÍÕÉ•9L½¹Ñ•áÐ¹€¤ì((€…Ý…¥ÐÍ•±•Ñ)½ÕÉ¹•åÙ•¹Ð¡‘À°€Q@½¹¹•Ñ¥½¸•ÍÑ…‰±¥Í¡•œ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµµ•…ÍÕÉ•µÍ¥‘•…Èœ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µµ•…ÍÕÉ•µ½µÁ…Ñ¥‰¥±¥Ñäœ¤ôôôµ…Ñ¡•µÑ…É•Ð€°€àÀÀÀ¤ì(€½¹ÍÐÑÉ…¹ÍÁ½ÉÐ€ô…Ý…¥Ðµ•…ÍÕÉ•‘Y¥•ÝÁ½ÉÑMÑ…Ñ”¡‘À¤ì(€…ÍÍ•ÉÑ5•…ÍÕÉ•‘Y¥•ÝÁ½ÉÐ¡ÁÉ½™¥±”°ÑÉ…¹ÍÁ½ÉÐ°€ÑÉ…¹ÍÁ½ÉÐÍ¥‘•…Èœ¤ì(€¥˜€¡ÑÉ…¹ÍÁ½ÉÐ¹Í•¹”€„ôô€ÑÉ…¹ÍÁ½ÉÐœñð€…ÑÉ…¹ÍÁ½ÉÐ¹Í¥‘•…Èü¹¥¹±Õ‘•Ì 5Q!QIPœ¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÑÉ…¹ÍÁ½ÉÐÍ¥‘•…È‘¥¹½Ð•áÁ½Í”•á…ÐµÑ…É•Ð½¹Ñ•áÐ¹€¤ì(€¥˜€¡ÑÉ…¹ÍÁ½ÉÐ¹Í¥‘•…È¹¥¹±Õ‘•Ì œÔÀÀ5‰ÁÌœ¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô±•…­•½Ñ¡•ÈµÑ…É•ÐÍÁ••µÑ•ÍÐÑ¡É½Õ¡ÁÕÐ¥¹Ñ¼µ…Ñ¡•)½ÕÉ¹•äÑÉ…¹ÍÁ½ÉÐ•Ù¥‘•¹”¹€¤ì(€¥˜€ …ÑÉ…¹ÍÁ½ÉÐ¹Í¥‘•…È¹¥¹±Õ‘•Ì =Q!HµQIPPœ¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô‘¥¹½Ð‘¥Í±½Í”Ñ¡…Ð½Ñ¡•ÈµÑ…É•ÐÑÉ…¹ÍÁ½ÉÐ™…ÑÌÝ•É”¡¥‘‘•¸¹€¤ì((€…Ý…¥Ð½Á•¹)½ÕÉ¹•åÉ…Ý•È¡‘À°€½¹™¥ÕÉ”œ¤ì(€½¹ÍÐ¡…¹•‘!½ÍÐ€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡€  ¤ôùì(€€€½¹ÍÐ¥¹ÁÕÐõ‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµ‘É…Ý•Èµ™½É´¥¹ÁÕÐœ¤ì(€€€½¹ÍÐ™½É´õ‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµ‘É…Ý•Èµ™½É´œ¤ì(€€€¥˜ …¥¹ÁÕÑñð…™½É´¥É•ÑÕÉ¸™…±Í”ì(€€€½¹ÍÐÍ•ÑÑ•Èõ=‰©•Ð¹•Ñ=Ý¹AÉ½Á•ÉÑå•ÍÉ¥ÁÑ½È¡!Q51%¹ÁÕÑ±•µ•¹Ð¹ÁÉ½Ñ½ÑåÁ”°Ù…±Õ”œ¤ü¹Í•Ðì(€€€Í•ÑÑ•Èü¹…±°¡¥¹ÁÕÐ°½Ñ¡•È¹Ñ•ÍÐœ¤ì(€€€¥¹ÁÕÐ¹‘¥ÍÁ…Ñ¡Ù•¹Ð¡¹•ÜÙ•¹Ð ¥¹ÁÕÐœ±í‰Õ‰‰±•ÌéÑÉÕ•ô¤¤ì(€€€™½É´¹É•ÅÕ•ÍÑMÕ‰µ¥Ð ¤ì(€€€É•ÑÕÉ¸ÑÉÕ”ì(€ô¤ ¥€¤ì(€¥˜€ …¡…¹•‘!½ÍÐ¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô½Õ±¹½Ð¡…¹”)½ÕÉ¹•ä¡½ÍÑ¹…µ”™½Èµ¥Íµ…Ñ Ù…±¥‘…Ñ¥½¸¹€¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµ‘É…Ý•Èµ™½É´¥¹ÁÕÐœ¤ü¹Ù…±Õ”ôôô½Ñ¡•È¹Ñ•ÍÐ€°€àÀÀÀ¤ì(€…Ý…¥Ð±½Í•)½ÕÉ¹•åÉ…Ý•È¡‘À¤ì(€…Ý…¥ÐÍ•±•Ñ)½ÕÉ¹•åÙ•¹Ð¡‘À°€Q@½¹¹•Ñ¥½¸•ÍÑ…‰±¥Í¡•œ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµµ•…ÍÕÉ•µÍ¥‘•…Èœ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µµ•…ÍÕÉ•µ½µÁ…Ñ¥‰¥±¥Ñäœ¤ôôô½Ñ¡•ÈµÑ…É•Ð€°€àÀÀÀ¤ì(€½¹ÍÐµ¥Íµ…Ñ €ô…Ý…¥Ðµ•…ÍÕÉ•‘Y¥•ÝÁ½ÉÑMÑ…Ñ”¡‘À¤ì(€…ÍÍ•ÉÑ5•…ÍÕÉ•‘Y¥•ÝÁ½ÉÐ¡ÁÉ½™¥±”°µ¥Íµ…Ñ °€µ¥Íµ…Ñ¡•ÑÉ…¹ÍÁ½ÉÐÍ¥‘•…Èœ¤ì(€¥˜€ …µ¥Íµ…Ñ ¹Í¥‘•…Èü¹¥¹±Õ‘•Ì 9<=5AQ%	1QI9MA=IPQIPœ¤ñð€…µ¥Íµ…Ñ ¹Í¥‘•…È¹¥¹±Õ‘•Ì =Q!HQIPœ¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôµ¥Íµ…Ñ¡•Ñ…É•Ð‘¥¹½Ð™…¥°±½Í•Ù¥Í¥‰±ä¹€¤ì(€¥˜€¡µ¥Íµ…Ñ ¹Í¥‘•…È¹¥¹±Õ‘•Ì œÔÀÀ5‰ÁÌœ¤ñðµ¥Íµ…Ñ ¹Í¥‘•…È¹¥¹±Õ‘•Ì œÈÐµÌœ¤ñðµ¥Íµ…Ñ ¹Í¥‘•…È¹¥¹±Õ‘•Ì œÄÜµÌœ¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÉ•¹‘•É•µ¥Íµ…Ñ¡•µ•…ÍÕÉ•Ù…±Õ•Ì…Ì)½ÕÉ¹•ä•Ù¥‘•¹”¹€¤ì((€…Ý…¥Ðµ•…ÍÕÉ•‘±¥­	ÕÑÑ½¸¡‘À°€œ¹©½ÕÉ¹•äµÙ¥ÍÕ…°µÑ½½±Ì€¹Ù¥ÍÕ…°µÑ½½°µ‰ÕÑÑ½¸œ°€á¥Ðœ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹­¥¹•Ñ¥Œµ½Ù•ÉÙ¥•Üœ¤¥€¤ì(€…Ý…¥Ð½Á•¹=Ù•ÉÙ¥•Ý]½É­ÍÁ…”¡‘À°€µ•…ÍÕÉ•œ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹µ•…ÍÕÉ•µÝ½É­ÍÁ…”œ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µµ•…ÍÕÉ•µ±½…‘•œ¤ôôôÑÉÕ”€°€àÀÀÀ¤ì(€…Ý…¥Ðµ•…ÍÕÉ•‘±¥­	ÕÑÑ½¸¡‘À°€œ¹µ•…ÍÕÉ•µ±•…Èœ°€1Hœ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹µ•…ÍÕÉ•µÝ½É­ÍÁ…”œ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µµ•…ÍÕÉ•µ±½…‘•œ¤ôôô™…±Í”€°€àÀÀÀ¤ì(€…Ý…¥Ðµ•…ÍÕÉ•‘±¥­	ÕÑÑ½¸¡‘À°€œ¹µ•…ÍÕÉ•µ¡•…‘¥¹œµ…Ñ¥½¹Ì‰ÕÑÑ½¸œ°€a%P1œ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹­¥¹•Ñ¥Œµ½Ù•ÉÙ¥•Üœ¤¥€¤ì(€…Ý…¥Ð½Á•¹=Ù•ÉÙ¥•Ý]½É­ÍÁ…”¡‘À°€©½ÕÉ¹•äœ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµÙ¥ÍÕ…°µÝ½É­ÍÁ…”œ¤¥€°€àÀÀÀ¤ì(€…Ý…¥ÐÍ•±•Ñ)½ÕÉ¹•åÙ•¹Ð¡‘À°€•™…Õ±Ð…Ñ•Ý…äÍ•±•Ñ•œ¤ì(€…Ý…¥ÐÍ±••À ÄÈÀ¤ì(€¥˜€¡…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµµ•…ÍÕÉ•µÍ¥‘•…Èœ¤¥€¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôµ•…ÍÕÉ•Í¥‘•…ÈÍÕÉÙ¥Ù••áÁ±¥¥Ð1…ˆ€Àä±•…È¹€¤ì(€½¹ÍÐ±•…É•€ô…Ý…¥Ðµ•…ÍÕÉ•‘Y¥•ÝÁ½ÉÑMÑ…Ñ”¡‘À¤ì(€…ÍÍ•ÉÑ5•…ÍÕÉ•‘Y¥•ÝÁ½ÉÐ¡ÁÉ½™¥±”°±•…É•°€±•…É•)½ÕÉ¹•äœ¤ì((€É•ÑÕÉ¸ì(€€€É½ÕÑ¥¹½µÁ…Ñ¥‰¥±¥ÑäèÉ½ÕÑ¥¹œ¹½µÁ…Ñ¥‰¥±¥Ñä°(€€€‘¹Í½µÁ…Ñ¥‰¥±¥Ñäè‘¹Ì¹½µÁ…Ñ¥‰¥±¥Ñä°(€€€ÑÉ…¹ÍÁ½ÉÑ½µÁ…Ñ¥‰¥±¥ÑäèÑÉ…¹ÍÁ½ÉÐ¹½µÁ…Ñ¥‰¥±¥Ñä°(€€€µ¥Íµ…Ñ¡½µÁ…Ñ¥‰¥±¥Ñäèµ¥Íµ…Ñ ¹½µÁ…Ñ¥‰¥±¥Ñä°(€€€½Ñ¡•ÉQ…É•ÑY…±Õ•Í!¥‘‘•¸èÑÉÕ”°(€€€±•…ÉI•µ½Ù•‘M¥‘•…ÉÌèÑÉÕ”°(€ôì)ô()…Íå¹Œ™Õ¹Ñ¥½¸•á•É¥Í•A¡…Í”Ñ=‰Í•ÉÙ•‘%¹Ñ•É¹•Ð¡‘À°ÁÉ½™¥±”¤ì(€½¹ÍÐÍ¹…ÁÍ¡½Ð€ôì(€€€Í¡•µ„è€¡½ÁÍ½Ñ ¹¥¹Ñ•É¹•Ðµ•Ù¥‘•¹”œ°Ù•ÉÍ¥½¸è€Ä°•¹•É…Ñ•‘Ðè€œÈÀÈØ´Àà´ÈÁPÈÈèÀÀèÀÀ¸ÀÀÁhœ°(€€€•‘”èìÁÉ½Ù•¹…¹”è€=	MIYœ°…Ù…¥±…‰¥±¥Ñäè€…Ù…¥±…‰±”œ°…Í¸è€ÄÌÌÌÔ°½É…¹¥é…Ñ¥½¸è€±½Õ‘™±…É”°%¹Œ¸œ°½±¼è€1!Hœ°½Õ¹ÑÉäè€œ°É•¥½¸è€¹±…¹œ°¥Ñäè€1½¹‘½¸œ°ÑÉ…¹ÍÁ½ÉÑIÑÑ5Ìè€ÄÜ°ÑÉ…¹ÍÁ½ÉÐè€EU%œ°½‰Í•ÉÙ•‘Ðè€œÈÀÈØ´Àà´ÈÁPÈÈèÀÀèÀÀ¸ÀÀÁhœ°¹½Ñ”è€=‰Í•ÉÙ•…ÐÑ¡”•‘”Í•ÉÙ¥¹œÑ¡¥Ì•áÁ±¥¥Ð!=AM=Q É•ÅÕ•ÍÐ¸œô°(€€€‘•ÍÑ¥¹…Ñ¥½¸èìÁÉ½Ù•¹…¹”è€%9IIœ°…Ù…¥±…‰¥±¥Ñäè€…Ù…¥±…‰±”œ°¡½ÍÑ¹…µ”è€±½Õ‘™±…É”¹½´œ°…‘‘É•ÍÍ•ÌèlœÄÀÐ¸ÄØ¸ÄÌÈ¸ÈÈäœ°€œÄÀÐ¸ÄØ¸ÄÌÌ¸ÈÈäœ°€œÈØÀØèÐÜÀÀèèØàÄÀèàÑ”Ôt°Í•±•Ñ•‘‘‘É•ÍÌè€œÄÀÐ¸ÄØ¸ÄÌÈ¸ÈÈäœ°¹½Ñ”è€9LÉ•Í½±ÕÑ¥½¸ÁÉ½Ù¥‘•Ì‘•ÍÑ¥¹…Ñ¥½¸½¹Ñ•áÐ°¹½Ð„µ•…ÍÕÉ•™½ÉÝ…É‘¥¹œÁ…Ñ ¸œô°(€€€É½ÕÑ¥¹œèìÁÉ½Ù•¹…¹”è€AU	1%=11Q=Hœ°…Ù…¥±…‰¥±¥Ñäè€…Ù…¥±…‰±”œ°ÁÉ•™¥àè€œÄÀÐ¸ÄØ¸ÄÈà¸À¼ÈÀœ°½É¥¥¹Í¹ÌèlÄÌÌÌÕt°¹½Ñ”è€AÕ‰±¥ŒÉ½ÕÑ”µ½É¥¥¸½¹Ñ•áÐÍ••¸™É½´¥¹‘•Á•¹‘•¹Ð½±±•Ñ½ÈÙ…¹Ñ…”Á½¥¹ÑÌ¸œô°(€€€½±±•Ñ½ÉA…Ñ¡Ìèl(€€€€€ìÁÉ½Ù•¹…¹”è€AU	1%=11Q=Hœ°…Ù…¥±…‰¥±¥Ñäè€…Ù…¥±…‰±”œ°Í½ÕÉ•%è€ÉÉŒÀÀµÁ••È´ØÐÔÀÀœ°Ñ…É•ÑAÉ•™¥àè€œÄÀÐ¸ÄØ¸ÄÈà¸À¼ÈÀœ°…ÍA…Ñ èlØÐÔÀÀ°€ÌÌÔØ°€ÄÌÌÌÕt°¹½Ñ”è€%¹‘•Á•¹‘•¹ÐI%LÙ…¹Ñ…”ì¹½ÐÑ¡”‰É½ÝÍ•ÈÁ…Ñ ¸œô°(€€€€€ìÁÉ½Ù•¹…¹”è€AU	1%=11Q=Hœ°…Ù…¥±…‰¥±¥Ñäè€…Ù…¥±…‰±”œ°Í½ÕÉ•%è€ÉÉŒÄÀµÁ••È´ØÐÐäØœ°Ñ…É•ÑAÉ•™¥àè€œÄÀÐ¸ÄØ¸ÄÈà¸À¼ÈÀœ°…ÍA…Ñ èlØÐÐäØ°€ÄÈää°€ÄÌÌÌÕt°¹½Ñ”è€%¹‘•Á•¹‘•¹ÐI%LÙ…¹Ñ…”ì¹½ÐÑ¡”‰É½ÝÍ•ÈÁ…Ñ ¸œô°(€€€€€ìÁÉ½Ù•¹…¹”è€AU	1%=11Q=Hœ°…Ù…¥±…‰¥±¥Ñäè€…Ù…¥±…‰±”œ°Í½ÕÉ•%è€ÉÉŒÈÄµÁ••È´ØÐÐäÜœ°Ñ…É•ÑAÉ•™¥àè€œÄÀÐ¸ÄØ¸ÄÈà¸À¼ÈÀœ°…ÍA…Ñ èlØÐÐäÜ°€ÄÜÐ°€ÄÌÌÌÕt°¹½Ñ”è€%¹‘•Á•¹‘•¹ÐI%LÙ…¹Ñ…”ì¹½ÐÑ¡”‰É½ÝÍ•ÈÁ…Ñ ¸œô°(€€€t°(€€€‰É¥‘”èìÁÉ½Ù•¹…¹”è€%9IIœ°…Ù…¥±…‰¥±¥Ñäè€Á…ÉÑ¥…°œ°Í½ÕÉ•Í¸è€ÄÌÌÌÔ°‘•ÍÑ¥¹…Ñ¥½¹=É¥¥¹Í¹ÌèlÄÌÌÌÕt°¹½Ñ”è€9¼½¹Ñ¥¹Õ½ÕÌ½‰Í•ÉÙ…Ñ¥½¸©½¥¹ÌÑ¡”É•ÅÕ•ÍÐ•‘”°Ñ¡”‰É½ÝÍ•È™½ÉÝ…É‘¥¹œÁ…Ñ °…¹Ñ¡•Í”ÁÕ‰±¥Œ½±±•Ñ½ÈÉ½ÕÑ•Ì¸œô°(€€€Ý…É¹¥¹Ìèl½±±•Ñ½ÈÁ…Ñ¡Ì…É”¥¹‘•Á•¹‘•¹ÐÉ½ÕÑ”½‰Í•ÉÙ…Ñ¥½¹Ì…¹‘¼¹½Ð¥‘•¹Ñ¥™äÑ¡”ÕÉÉ•¹Ð‰É½ÝÍ•ÈÁ…Ñ ¸t°(€ôì(€…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡€  ¤ôùì(€€€½¹ÍÐ½É¥¥¹…±•Ñ õ±½‰…±Q¡¥Ì¹™•Ñ ì(€€€½¹ÍÐÍ¹…ÁÍ¡½Ðô‘í)M=8¹ÍÑÉ¥¹¥™ä¡Í¹…ÁÍ¡½Ð¥ôì(€€€±½‰…±Q¡¥Ì¹}}¡½ÁÍ½Ñ¡=‰Í•ÉÙ•‘•Ñ õ½É¥¥¹…±•Ñ ì(€€€±½‰…±Q¡¥Ì¹™•Ñ õ…Íå¹Œ¡¥¹ÁÕÐ¤ôùì(€€€€€½¹ÍÐÕÉ°õÑåÁ•½˜¥¹ÁÕÐôôôÍÑÉ¥¹œœý¥¹ÁÕÐè¡¥¹ÁÕÐü¹ÕÉ°üýMÑÉ¥¹œ¡¥¹ÁÕÐ¤¤ì(€€€€€¥˜¡ÕÉ°¹¥¹±Õ‘•Ì œ½…Á¤½¥¹Ñ•É¹•Ð½Í¹…ÁÍ¡½Ðœ¤¥É•ÑÕÉ¸¹•ÜI•ÍÁ½¹Í”¡)M=8¹ÍÑÉ¥¹¥™ä¡Í¹…ÁÍ¡½Ð¤±íÍÑ…ÑÕÌèÈÀÀ±¡•…‘•ÉÌéì½¹Ñ•¹ÐµÑåÁ”œè…ÁÁ±¥…Ñ¥½¸½©Í½¸õô¤ì(€€€€€É•ÑÕÉ¸½É¥¥¹…±•Ñ ¡¥¹ÁÕÐ¤ì(€€€ôì(€€€É•ÑÕÉ¸ÑÉÕ”ì(€ô¤ ¥€¤ì(€…Ý…¥Ðµ•…ÍÕÉ•‘±¥­	ÕÑÑ½¸¡‘À°€œ¹½‰Í•ÉÙ•µÅÕ•Éä‰ÕÑÑ½¸œ°€	U%1Y%9M9AM!=Pœ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹½‰Í•ÉÙ•µµ…¥¸œ¤¥€°€àÀÀÀ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹•Ù¥‘•¹”µ…Éœ¤¹±•¹Ñ ôôôÍ€°€àÀÀÀ¤ì(€…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡€  ¤ôùí¥˜¡±½‰…±Q¡¥Ì¹}}¡½ÁÍ½Ñ¡=‰Í•ÉÙ•‘•Ñ ¥±½‰…±Q¡¥Ì¹™•Ñ õ±½‰…±Q¡¥Ì¹}}¡½ÁÍ½Ñ¡=‰Í•ÉÙ•‘•Ñ í‘•±•Ñ”±½‰…±Q¡¥Ì¹}}¡½ÁÍ½Ñ¡=‰Í•ÉÙ•‘•Ñ íÉ•ÑÕÉ¸ÑÉÕ•ô¤ ¥€¤ì(€½¹ÍÐÍÑ…Ñ”€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡€  ¤ôø¡í…É‘Ìé‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹•Ù¥‘•¹”µ…Éœ¤¹±•¹Ñ ±½±±•Ñ½ÉÌé‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹½±±•Ñ½ÈµÁ…Ñ¡Ì…ÉÑ¥±”œ¤¹±•¹Ñ ±‘É…Ý•Èé‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹½‰Í•ÉÙ•µ¥¹Ñ•É¹•Ðœ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µ¥¹ÍÁ•Ðµµ½‘”œ¤±Ñ•áÐé‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹½‰Í•ÉÙ•µ¥¹Ñ•É¹•Ðœ¤ü¹¥¹¹•ÉQ•áÐüüœô¤¤ ¥€¤ì(€¥˜€¡ÍÑ…Ñ”¹…É‘Ì€„ôô€ÌñðÍÑ…Ñ”¹‘É…Ý•È€„ôô€¥‘±”œñð€…ÍÑ…Ñ”¹Ñ•áÐ¹¥¹±Õ‘•Ì 9<=9Q%9U=UL=	MIYQ%=8œ¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô‘¥¹½Ð‰Õ¥±Ñ¡”‰½Õ¹‘••Ù¥‘•¹”µ¥Í±…¹Í•¹”¹€¤ì(€É•ÑÕÉ¸ÍÑ…Ñ”ì)ô()…Íå¹Œ™Õ¹Ñ¥½¸•á•É¥Í•A¡…Í”Ñ5•…ÍÕÉ•‘9•ÑÝ½É¬¡‘À°ÁÉ½™¥±”¤ì(€…Ý…¥ÐÍ•Ñ¥±•%¹ÁÕÐ¡‘À°€œ¹µ•…ÍÕÉ•µ™¥±”µ¥¹ÁÕÐœ°µ•…ÍÕÉ•‘¥áÑÕÉ•A…Ñ ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹µ•…ÍÕÉ•µÝ½É­ÍÁ…”œ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µµ•…ÍÕÉ•µ±½…‘•œ¤ôôôÑÉÕ”€°€àÀÀÀ¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹µ•…ÍÕÉ•µ™…Ðœ¤¹±•¹Ñ øÁ€°€àÀÀÀ¤ì(€½¹ÍÐÍÑ…Ñ”€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡€  ¤ôø¡í™…ÑÌé‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹µ•…ÍÕÉ•µ™…Ðœ¤¹±•¹Ñ ±…Ñ•½É¥•Ìé‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹µ•…ÍÕÉ•µ…Ñ•½É¥•Ì‰ÕÑÑ½¸œ¤¹±•¹Ñ ±Á•Éµ…¹•¹ÑAÉ½Ù•¹…¹”é‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹µ•…ÍÕÉ•µµ…¥¸€ø€¹µ•…ÍÕÉ•µÁÉ½Ù•¹…¹”µÁ…¹•°œ¤¹±•¹Ñ ±Í½ÕÉ”é‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹…ÁÑÕÉ”µÍ½ÕÉ”ÍÑÉ½¹œœ¤ü¹Ñ•áÑ½¹Ñ•¹Ðüý¹Õ±±ô¤¤ ¥€¤ì(€¥˜€¡ÍÑ…Ñ”¹™…ÑÌ€ðô€ÀñðÍÑ…Ñ”¹…Ñ•½É¥•Ì€„ôô€ÜñðÍÑ…Ñ”¹Á•Éµ…¹•¹ÑAÉ½Ù•¹…¹”€„ôô€À¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô‘¥¹½ÐÉ•… Ñ¡”A¡…Í”€Ðµ•…ÍÕÉ•…¹…±åÍ¥Ì±…å½ÕÐ¹€¤ì(€É•ÑÕÉ¸ÍÑ…Ñ”ì)ô()…Íå¹Œ™Õ¹Ñ¥½¸‘¥ÍÁ…Ñ¡-•ä¡‘À°­•ä°½‘”°µ½‘¥™¥•ÉÌ€ô€À¤ì(€½¹ÍÐÝ¥¹‘½ÝÍY¥ÉÑÕ…±-•å½‘”€ô­•ä€ôôô€Q…ˆœ€ü€ä€è­•ä€ôôô€Í…Á”œ€ü€ÈÜ€è€Àì(€…Ý…¥Ð‘À¹…±° %¹ÁÕÐ¹‘¥ÍÁ…Ñ¡-•åÙ•¹Ðœ°ìÑåÁ”è€É…Ý-•å½Ý¸œ°­•ä°½‘”°µ½‘¥™¥•ÉÌ°Ý¥¹‘½ÝÍY¥ÉÑÕ…±-•å½‘”°¹…Ñ¥Ù•Y¥ÉÑÕ…±-•å½‘”èÝ¥¹‘½ÝÍY¥ÉÑÕ…±-•å½‘”ô¤ì(€…Ý…¥Ð‘À¹…±° %¹ÁÕÐ¹‘¥ÍÁ…Ñ¡-•åÙ•¹Ðœ°ìÑåÁ”è€­•åUÀœ°­•ä°½‘”°µ½‘¥™¥•ÉÌ°Ý¥¹‘½ÝÍY¥ÉÑÕ…±-•å½‘”°¹…Ñ¥Ù•Y¥ÉÑÕ…±-•å½‘”èÝ¥¹‘½ÝÍY¥ÉÑÕ…±-•å½‘”ô¤ì)ô()…Íå¹Œ™Õ¹Ñ¥½¸…ÁÑÕÉ•A¡…Í”ÑÙ¥‘•¹•I•Ù¥•Ü¡‘À°ÁÉ½™¥±”¤ì(€µ­‘¥ÉMå¹Œ¡Ù¥ÍÕ…±I•Ù¥•Ý¥É•Ñ½Éä°ìÉ•ÕÉÍ¥Ù”èÑÉÕ”ô¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°€…‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹Ù¥ÍÕ…°µ•¹ÑÉ…¹”œ¥€°€ÔÀÀÀ¤ì(€…Ý…¥ÐÍ±••À ÄÈÀ¤ì(€½¹ÍÐ½‰Í•ÉÙ•€ôÁÉ½™¥±”¹Á¡…Í”Ñ=‰Í•ÉÙ•€ôôôÑÉÕ”ì(€½¹ÍÐ•½µ•ÑÉä€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡€  ¤ôùì(€€€½¹ÍÐÉ•Ðô¡Í•±•Ñ½È¤ôùí½¹ÍÐÙ…±Õ”õ‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È¡Í•±•Ñ½È¤ü¹•Ñ	½Õ¹‘¥¹±¥•¹ÑI•Ð ¤íÉ•ÑÕÉ¸Ù…±Õ”ýí±•™ÐéÙ…±Õ”¹±•™Ð±Ñ½ÀéÙ…±Õ”¹Ñ½À±É¥¡ÐéÙ…±Õ”¹É¥¡Ð±‰½ÑÑ½´éÙ…±Õ”¹‰½ÑÑ½´±Ý¥‘Ñ éÙ…±Õ”¹Ý¥‘Ñ ±¡•¥¡ÐéÙ…±Õ”¹¡•¥¡Ñôé¹Õ±±ôì(€€€½¹ÍÐÑ½½±‰…ÈõÉ•Ð ‘í)M=8¹ÍÑÉ¥¹¥™ä¡½‰Í•ÉÙ•€ü€œ¹½‰Í•ÉÙ•µ¥¹Ñ•É¹•Ð€¹Ù¥ÍÕ…°µÝ½É­ÍÁ…•}}Ñ½½±‰…Èœ€è€œ¹µ•…ÍÕÉ•µ¡•…‘¥¹œœ¥ô¤ì(€€€½¹ÍÐ¡ÕõÉ•Ð ‘í)M=8¹ÍÑÉ¥¹¥™ä¡½‰Í•ÉÙ•€ü€œ¹½‰Í•ÉÙ•µ¥¹Ñ•É¹•Ð€¹Ù¥ÍÕ…°µÝ½É­ÍÁ…•}}¡Õœ€è€œ¹µ•…ÍÕÉ•µ…ÁÑÕÉ”µÍÑÉ¥Àœ¥ô¤ì(€€€É•ÑÕÉ¸ì(€€€€€Ù¥•ÝÁ½ÉÐéíÝ¥‘Ñ é¥¹¹•É]¥‘Ñ ±¡•¥¡Ðé¥¹¹•É!•¥¡Ñô°(€€€€€Ý½É­ÍÁ…”éÉ•Ð ‘í)M=8¹ÍÑÉ¥¹¥™ä¡½‰Í•ÉÙ•€ü€œ¹½‰Í•ÉÙ•µ¥¹Ñ•É¹•Ðœ€è€œ¹µ•…ÍÕÉ•µÝ½É­ÍÁ…”œ¥ô¤°(€€€€€ÍÑ…”éÉ•Ð ‘í)M=8¹ÍÑÉ¥¹¥™ä¡½‰Í•ÉÙ•€ü€œ¹½‰Í•ÉÙ•µ¥¹Ñ•É¹•Ð€¹Ù¥ÍÕ…°µÝ½É­ÍÁ…•}}ÍÑ…”œ€è€œ¹µ•…ÍÕÉ•µµ…¥¸œ¥ô¤°(€€€€€Ý½É±éÉ•Ð ‘í)M=8¹ÍÑÉ¥¹¥™ä¡½‰Í•ÉÙ•€ü€œ¹½‰Í•ÉÙ•µµ…¥¸œ€è€œ¹µ•…ÍÕÉ•µÍ•¹”œ¥ô¤°(€€€€€…Ñ•½É¥•ÌéÉ•Ð œ¹µ•…ÍÕÉ•µ…Ñ•½É¥•Ìœ¤±Ñ½½±‰…È±¡Õ°(€€€€€Ñ½½±‰…É!Õ‘=Ù•É±…Àé	½½±•…¸¡Ñ½½±‰…È˜™¡Õ˜™Ñ½½±‰…È¹±•™Ðñ¡Õ¹É¥¡Ð˜™Ñ½½±‰…È¹É¥¡Ðù¡Õ¹±•™Ð˜™Ñ½½±‰…È¹Ñ½Àñ¡Õ¹‰½ÑÑ½´˜™Ñ½½±‰…È¹‰½ÑÑ½´ù¡Õ¹Ñ½À¤°(€€€€€ÍÉ½±±]¥‘Ñ é‘½Õµ•¹Ð¹‘½Õµ•¹Ñ±•µ•¹Ð¹ÍÉ½±±]¥‘Ñ ±ÍÉ½±±d°(€€€€€Á•Éµ…¹•¹ÑAÉ½Ù•¹…¹”é‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹µ•…ÍÕÉ•µµ…¥¸€ø€¹µ•…ÍÕÉ•µÁÉ½Ù•¹…¹”µÁ…¹•°œ¤¹±•¹Ñ °(€€€€€½±±•Ñ½ÉA…¹•±%¹]½É±é‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹½‰Í•ÉÙ•µµ…¥¸€ø€¹½±±•Ñ½ÈµÁ…¹•°œ¤¹±•¹Ñ °(€€€ôì(€ô¤ ¥€¤ì(€¥˜€ …•½µ•ÑÉä¹Ý½É­ÍÁ…”ñð€…•½µ•ÑÉä¹ÍÑ…”ñð€…•½µ•ÑÉä¹Ý½É±¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô¥Ìµ¥ÍÍ¥¹œA¡…Í”€Ð•Ù¥‘•¹”•½µ•ÑÉäè€‘í)M=8¹ÍÑÉ¥¹¥™ä¡•½µ•ÑÉä¥ô¹€¤ì(€¥˜€¡•½µ•ÑÉä¹Ù¥•ÝÁ½ÉÐ¹Ý¥‘Ñ €´•½µ•ÑÉä¹Ý½É­ÍÁ…”¹Ý¥‘Ñ €ø€ÈØ¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÉ•Ñ…¥¹Ì„É•ÍÑÉ¥Ñ¥Ù”½ÕÑ•ÈÝ¥‘Ñ …À¹€¤ì(€¥˜€¡•½µ•ÑÉä¹Ý½É±¹Ý¥‘Ñ €ð•½µ•ÑÉä¹ÍÑ…”¹Ý¥‘Ñ €¨€¡½‰Í•ÉÙ•€ü€À¸äÐ€è€À¸Øà¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô•¹ÑÉ…°•Ù¥‘•¹”½¹Ñ•¹Ð¥ÌÑ½¼¹…ÉÉ½Üè€‘í)M=8¹ÍÑÉ¥¹¥™ä¡•½µ•ÑÉä¥ô¹€¤ì(€¥˜€¡•½µ•ÑÉä¹Ý½É±¹¡•¥¡Ð€ð•½µ•ÑÉä¹ÍÑ…”¹¡•¥¡Ð€¨€¡½‰Í•ÉÙ•€ü€À¸ØÈ€è€À¸ÜÈ¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô•¹ÑÉ…°•Ù¥‘•¹”½¹Ñ•¹Ð¥ÌÑ½¼Í¡½ÉÐè€‘í)M=8¹ÍÑÉ¥¹¥™ä¡•½µ•ÑÉä¥ô¹€¤ì(€¥˜€¡•½µ•ÑÉä¹ÍÉ½±±]¥‘Ñ €ø•½µ•ÑÉä¹Ù¥•ÝÁ½ÉÐ¹Ý¥‘Ñ ñð•½µ•ÑÉä¹ÍÉ½±±d€„ôô€À¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô½Ù•É™±½ÝÌ½Èµ½Ù•ÌÑ¡”‘½Õµ•¹ÐÙ¥•ÝÁ½ÉÐ¹€¤ì(€¥˜€¡½‰Í•ÉÙ•€˜˜•½µ•ÑÉä¹½±±•Ñ½ÉA…¹•±%¹]½É±€„ôô€À¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÉ•Ñ…¥¹•„Á•Éµ…¹•¹Ð½±±•Ñ½ÈÁ…¹•°¥¸Ñ¡”Ý½É±¹€¤ì(€¥˜€ …½‰Í•ÉÙ•€˜˜•½µ•ÑÉä¹Á•Éµ…¹•¹ÑAÉ½Ù•¹…¹”€„ôô€À¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÉ•Ñ…¥¹•„Á•Éµ…¹•¹ÐÁÉ½Ù•¹…¹”½±Õµ¸¹€¤ì(€¥˜€¡½‰Í•ÉÙ•€˜˜•½µ•ÑÉä¹Ñ½½±‰…É!Õ‘=Ù•É±…À¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÑ½½±‰…È½±±¥‘•ÌÝ¥Ñ ¥ÑÌÑÉÕÑ !U¹€¤ì((€½¹ÍÐ…ÁÑÕÉ”€ô…Íå¹Œ€¡ÍÕ™™¥à€ô€œœ¤€ôøì(€€€½¹ÍÐÍÉ••¹Í¡½Ð€ô…Ý…¥Ð‘À¹…±° A…”¹…ÁÑÕÉ•MÉ••¹Í¡½Ðœ°ì™½Éµ…Ðè€Á¹œœ°™É½µMÕÉ™…”èÑÉÕ”°…ÁÑÕÉ•	•å½¹‘Y¥•ÝÁ½ÉÐè™…±Í”ô¤ì(€€€½¹ÍÐÁ…Ñ €ô©½¥¸¡Ù¥ÍÕ…±I•Ù¥•Ý¥É•Ñ½Éä°€‘íÁÉ½™¥±”¹¥‘ô‘íÍÕ™™¥áô¹Á¹€¤ì(€€€ÝÉ¥Ñ•¥±•Må¹Œ¡Á…Ñ °	Õ™™•È¹™É½´¡ÍÉ••¹Í¡½Ð¹‘…Ñ„°€‰…Í”ØÐœ¤¤ì(€€€É•ÑÕÉ¸Á…Ñ ì(€ôì(€½¹ÍÐÍÉ••¹Í¡½ÑA…Ñ €ô…Ý…¥Ð…ÁÑÕÉ” ¤ì(€±•Ð¥¹ÍÁ•Ð€ô¹Õ±°ì(€±•ÐÍ•ÑÕÁMÉ••¹Í¡½ÑA…Ñ €ô¹Õ±°ì(€¥˜€¡ÁÉ½™¥±”¹¥¹ÍÁ•ÑI•Ù¥•Ü¤ì(€€€½¹ÍÐ½Á•¹•ÉM•±•Ñ½È€ô½‰Í•ÉÙ•€ü€œ¹½‰Í•ÉÙ•µ¥¹Ñ•É¹•Ð€¹Ù¥ÍÕ…°µ‘É…Ý•ÈµÑ…‰Ì‰ÕÑÑ½¸é¹Ñ µ¡¥± È¤œ€è€œ¹µ•…ÍÕÉ•µ¡•…‘¥¹œ€¹Ù¥ÍÕ…°µ‘É…Ý•ÈµÑ…‰Ì‰ÕÑÑ½¸é¹Ñ µ¡¥± È¤œì(€€€½¹ÍÐ½Á•¹•ÉQ•áÐ€ô½‰Í•ÉÙ•€ü€=11Q=ILœ€è€AI=Y99œì(€€€…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È ‘í)M=8¹ÍÑÉ¥¹¥™ä¡½Á•¹•ÉM•±•Ñ½È¥ô¤ü¹™½ÕÌ ¥€¤ì(€€€…Ý…¥Ðµ•…ÍÕÉ•‘±¥­	ÕÑÑ½¸¡‘À°½Á•¹•ÉM•±•Ñ½È°½Á•¹•ÉQ•áÐ¤ì(€€€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È ‘í)M=8¹ÍÑÉ¥¹¥™ä¡½‰Í•ÉÙ•€ü€œ¹½‰Í•ÉÙ•µ¥¹Ñ•É¹•Ð€¹Ù¥ÍÕ…°µ‘É…Ý•Èœ€è€œ¹µ•…ÍÕÉ•µÝ½É­ÍÁ…”€¹Ù¥ÍÕ…°µ‘É…Ý•Èœ¥ô¤¥€°€àÀÀÀ¤ì(€€€½¹ÍÐ‘É…Ý•ÉM•±•Ñ½È€ô½‰Í•ÉÙ•€ü€œ¹½‰Í•ÉÙ•µ¥¹Ñ•É¹•Ð€¹Ù¥ÍÕ…°µ‘É…Ý•Èœ€è€œ¹µ•…ÍÕÉ•µÝ½É­ÍÁ…”€¹Ù¥ÍÕ…°µ‘É…Ý•Èœì(€€€½¹ÍÐ¥¹¥Ñ¥…±½ÕÌ€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡‘½Õµ•¹Ð¹…Ñ¥Ù•±•µ•¹Ðü¹±…ÍÍ1¥ÍÐ¹½¹Ñ…¥¹Ì Ù¥ÍÕ…°µ‘É…Ý•É}}±½Í”œ¤ôôõÑÉÕ•€¤ì(€€€…Ý…¥Ð‘¥ÍÁ…Ñ¡-•ä¡‘À°€Q…ˆœ°€Q…ˆœ°€à¤ì(€€€½¹ÍÐÍ¡¥™ÑQ…‰½¹Ñ…¥¹•€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È ‘í)M=8¹ÍÑÉ¥¹¥™ä¡‘É…Ý•ÉM•±•Ñ½È¥ô¤ü¹½¹Ñ…¥¹Ì¡‘½Õµ•¹Ð¹…Ñ¥Ù•±•µ•¹Ð¤ôôõÑÉÕ•€¤ì(€€€…Ý…¥Ð‘¥ÍÁ…Ñ¡-•ä¡‘À°€Q…ˆœ°€Q…ˆœ¤ì(€€€½¹ÍÐÑ…‰½¹Ñ…¥¹•€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È ‘í)M=8¹ÍÑÉ¥¹¥™ä¡‘É…Ý•ÉM•±•Ñ½È¥ô¤ü¹½¹Ñ…¥¹Ì¡‘½Õµ•¹Ð¹…Ñ¥Ù•±•µ•¹Ð¤ôôõÑÉÕ•€¤ì(€€€½¹ÍÐ¥¹ÍÁ•ÑMÉ••¹Í¡½ÑA…Ñ €ô…Ý…¥Ð…ÁÑÕÉ” œµ½¹Ñ•áÐœ¤ì(€€€…Ý…¥Ð‘¥ÍÁ…Ñ¡-•ä¡‘À°€Í…Á”œ°€Í…Á”œ¤ì(€€€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°€…‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È ‘í)M=8¹ÍÑÉ¥¹¥™ä¡‘É…Ý•ÉM•±•Ñ½È¥ô¥€°€àÀÀÀ¤ì(€€€½¹ÍÐÉ•ÍÑ½É•€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡‘½Õµ•¹Ð¹…Ñ¥Ù•±•µ•¹Ðôôõ‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È ‘í)M=8¹ÍÑÉ¥¹¥™ä¡½Á•¹•ÉM•±•Ñ½È¥ô¥€¤ì(€€€¥˜€ …¥¹¥Ñ¥…±½ÕÌñð€…Í¡¥™ÑQ…‰½¹Ñ…¥¹•ñð€…Ñ…‰½¹Ñ…¥¹•ñð€…É•ÍÑ½É•¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô½¹Ñ•áÑÕ…°‘É…Ý•È™½ÕÌ±¥™•å±”™…¥±•¹€¤ì(€€€¥¹ÍÁ•Ð€ôì¥¹¥Ñ¥…±½ÕÌ°Í¡¥™ÑQ…‰½¹Ñ…¥¹•°Ñ…‰½¹Ñ…¥¹•°É•ÍÑ½É•°ÍÉ••¹Í¡½ÑA…Ñ è¥¹ÍÁ•ÑMÉ••¹Í¡½ÑA…Ñ ôì((€€€¥˜€ …½‰Í•ÉÙ•¤ì(€€€€€½¹ÍÐÍ•ÑÕÁM•±•Ñ½È€ô€œ¹µ•…ÍÕÉ•µ¡•…‘¥¹œ€¹Ù¥ÍÕ…°µ‘É…Ý•ÈµÑ…‰Ì‰ÕÑÑ½¸é¹Ñ µ¡¥± Ä¤œì(€€€€€…Ý…¥Ðµ•…ÍÕÉ•‘±¥­	ÕÑÑ½¸¡‘À°Í•ÑÕÁM•±•Ñ½È°€MQU@œ¤ì(€€€€€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹µ•…ÍÕÉ•µÝ½É­ÍÁ…”€¹Ù¥ÍÕ…°µ‘É…Ý•Èœ¤¥€¤ì(€€€€€Í•ÑÕÁMÉ••¹Í¡½ÑA…Ñ €ô…Ý…¥Ð…ÁÑÕÉ” œµÍ•ÑÕÀœ¤ì(€€€€€…Ý…¥Ð‘¥ÍÁ…Ñ¡-•ä¡‘À°€Í…Á”œ°€Í…Á”œ¤ì(€€€€€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°€…‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹µ•…ÍÕÉ•µÝ½É­ÍÁ…”€¹Ù¥ÍÕ…°µ‘É…Ý•Èœ¥€¤ì(€€€ô(€ô(€É•ÑÕÉ¸ì•½µ•ÑÉä°ÍÉ••¹Í¡½ÑA…Ñ °¥¹ÍÁ•Ð°Í•ÑÕÁMÉ••¹Í¡½ÑA…Ñ ôì)ô()…Íå¹Œ™Õ¹Ñ¥½¸…ÁÑÕÉ•Y¥ÍÕ…±I•Ù¥•Ü¡‘À°ÁÉ½™¥±”¤ì(€µ­‘¥ÉMå¹Œ¡Ù¥ÍÕ…±I•Ù¥•Ý¥É•Ñ½Éä°ìÉ•ÕÉÍ¥Ù”èÑÉÕ”ô¤ì(€…Ý…¥ÐÍ±••À äÀÀ¤ì(€½¹ÍÐ•½µ•ÑÉä€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡€  ¤ôùì(€€€½¹ÍÐÉ•Ðô¡Í•±•Ñ½È¤ôùí½¹ÍÐÙ…±Õ”õ‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È¡Í•±•Ñ½È¤ü¹•Ñ	½Õ¹‘¥¹±¥•¹ÑI•Ð ¤íÉ•ÑÕÉ¸Ù…±Õ”ýí±•™ÐéÙ…±Õ”¹±•™Ð±Ñ½ÀéÙ…±Õ”¹Ñ½À±É¥¡ÐéÙ…±Õ”¹É¥¡Ð±‰½ÑÑ½´éÙ…±Õ”¹‰½ÑÑ½´±Ý¥‘Ñ éÙ…±Õ”¹Ý¥‘Ñ ±¡•¥¡ÐéÙ…±Õ”¹¡•¥¡Ñôé¹Õ±±ôì(€€€½¹ÍÐÍ•µ…¹Ñ¥I•ÑÌô‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÁÉ½™¥±”¹Í•µ…¹Ñ¥M•±•Ñ½È€üü€œœ¥ôýl¸¸¹‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° ‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÁÉ½™¥±”¹Í•µ…¹Ñ¥M•±•Ñ½È€üü€œœ¥ô¥t¹µ…À ¡Ù…±Õ”¤ôùÙ…±Õ”¹•Ñ	½Õ¹‘¥¹±¥•¹ÑI•Ð ¤¤¹™¥±Ñ•È ¡Ù…±Õ”¤ôùÙ…±Õ”¹Ý¥‘Ñ øÀ˜™Ù…±Õ”¹¡•¥¡ÐøÀ¤émtì(€€€½¹ÍÐÍ•µ…¹Ñ¥	½Õ¹‘ÌõÍ•µ…¹Ñ¥I•ÑÌ¹±•¹Ñ ôôôÀý¹Õ±°éí±•™Ðé5…Ñ ¹µ¥¸ ¸¸¹Í•µ…¹Ñ¥I•ÑÌ¹µ…À ¡Ù…±Õ”¤ôùÙ…±Õ”¹±•™Ð¤¤±Ñ½Àé5…Ñ ¹µ¥¸ ¸¸¹Í•µ…¹Ñ¥I•ÑÌ¹µ…À ¡Ù…±Õ”¤ôùÙ…±Õ”¹Ñ½À¤¤±É¥¡Ðé5…Ñ ¹µ…à ¸¸¹Í•µ…¹Ñ¥I•ÑÌ¹µ…À ¡Ù…±Õ”¤ôùÙ…±Õ”¹É¥¡Ð¤¤±‰½ÑÑ½´é5…Ñ ¹µ…à ¸¸¹Í•µ…¹Ñ¥I•ÑÌ¹µ…À ¡Ù…±Õ”¤ôùÙ…±Õ”¹‰½ÑÑ½´¤¥ôì(€€€½¹ÍÐÑ½½±‰…ÈõÉ•Ð ‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÁÉ½™¥±”¹Ñ½½±‰…ÉM•±•Ñ½È¥ô¤ì(€€€½¹ÍÐ¡ÕõÉ•Ð ‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÁÉ½™¥±”¹¡Õ‘M•±•Ñ½È¥ô¤ì(€€€É•ÑÕÉ¸ì(€€€€€Ù¥•ÝÁ½ÉÐéíÝ¥‘Ñ é¥¹¹•É]¥‘Ñ ±¡•¥¡Ðé¥¹¹•É!•¥¡Ñô°(€€€€€Ý½É­ÍÁ…”éÉ•Ð ‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÁÉ½™¥±”¹Ý½É­ÍÁ…•M•±•Ñ½È¥ô¤°(€€€€€ÍÑ…”éÉ•Ð ‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÁÉ½™¥±”¹ÍÑ…•M•±•Ñ½È¥ô¤°(€€€€€Ý½É±éÉ•Ð ‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÁÉ½™¥±”¹Ý½É±‘M•±•Ñ½È¥ô¤°(€€€€€Ñ½½±‰…È°(€€€€€¡Õ°(€€€€€Í•µ…¹Ñ¥	½Õ¹‘ÌéÍ•µ…¹Ñ¥	½Õ¹‘Ìýì¸¸¹Í•µ…¹Ñ¥	½Õ¹‘Ì±Ý¥‘Ñ éÍ•µ…¹Ñ¥	½Õ¹‘Ì¹É¥¡ÐµÍ•µ…¹Ñ¥	½Õ¹‘Ì¹±•™Ð±¡•¥¡ÐéÍ•µ…¹Ñ¥	½Õ¹‘Ì¹‰½ÑÑ½´µÍ•µ…¹Ñ¥	½Õ¹‘Ì¹Ñ½Áôé¹Õ±°°(€€€€€Ñ½½±‰…É!Õ‘=Ù•É±…Àé	½½±•…¸¡Ñ½½±‰…È˜™¡Õ˜™Ñ½½±‰…È¹±•™Ðñ¡Õ¹É¥¡Ð˜™Ñ½½±‰…È¹É¥¡Ðù¡Õ¹±•™Ð˜™Ñ½½±‰…È¹Ñ½Àñ¡Õ¹‰½ÑÑ½´˜™Ñ½½±‰…È¹‰½ÑÑ½´ù¡Õ¹Ñ½À¤°(€€€ôì(€ô¤ ¥€¤ì(€¥˜€ …•½µ•ÑÉä¹Ý½É­ÍÁ…”ñð€…•½µ•ÑÉä¹ÍÑ…”ñð€…•½µ•ÑÉä¹Ý½É±¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô¥Ìµ¥ÍÍ¥¹œÙ¥ÍÕ…°É•Ù¥•Ü•½µ•ÑÉäè€‘í)M=8¹ÍÑÉ¥¹¥™ä¡•½µ•ÑÉä¥ô¹€¤ì(€½¹ÍÐ½ÕÑ•ÉÕÑÑ•È€ô•½µ•ÑÉä¹Ù¥•ÝÁ½ÉÐ¹Ý¥‘Ñ €´•½µ•ÑÉä¹Ý½É­ÍÁ…”¹Ý¥‘Ñ ì(€¥˜€¡½ÕÑ•ÉÕÑÑ•È€ø€ÈØ¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô±•…Ù•Ì€‘í½ÕÑ•ÉÕÑÑ•È¹Ñ½¥á• Ä¥õÁà½˜½ÕÑ•È‘•Í­Ñ½ÀÕÑÑ•È¹€¤ì(€¥˜€¡•½µ•ÑÉä¹Ý½É±¹Ý¥‘Ñ €ð•½µ•ÑÉä¹ÍÑ…”¹Ý¥‘Ñ €¨€À¸äØñð•½µ•ÑÉä¹Ý½É±¹¡•¥¡Ð€ð•½µ•ÑÉä¹ÍÑ…”¹¡•¥¡Ð€¨€À¸ä¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÝ½É±‘½•Ì¹½Ð½Ý¸¥ÑÌÍÑ…”è€‘í)M=8¹ÍÑÉ¥¹¥™ä¡•½µ•ÑÉä¥ô¹€¤ì(€¥˜€¡•½µ•ÑÉä¹Ñ½½±‰…É!Õ‘=Ù•É±…À¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÑ½½±‰…È½±±¥‘•ÌÝ¥Ñ ¥ÑÌÁ•ÉÍ¥ÍÑ•¹Ð!U¹€¤ì(€¥˜€¡ÁÉ½™¥±”¹Í•µ…¹Ñ¥5¥¹]¥‘Ñ¡I…Ñ¥¼€˜˜€ …•½µ•ÑÉä¹Í•µ…¹Ñ¥	½Õ¹‘Ìñð•½µ•ÑÉä¹Í•µ…¹Ñ¥	½Õ¹‘Ì¹Ý¥‘Ñ €ð•½µ•ÑÉä¹Ý½É±¹Ý¥‘Ñ €¨ÁÉ½™¥±”¹Í•µ…¹Ñ¥5¥¹]¥‘Ñ¡I…Ñ¥¼¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÍ•µ…¹Ñ¥Œ½¹Ñ•¹Ð¥Ì½µÁÉ•ÍÍ•¡½É¥é½¹Ñ…±±ä¥¹Í¥‘”¥ÑÌÍÑ…”è€‘í)M=8¹ÍÑÉ¥¹¥™ä¡•½µ•ÑÉä¥ô¹€¤ì(€¥˜€¡ÁÉ½™¥±”¹Í•µ…¹Ñ¥5¥¹!•¥¡ÑI…Ñ¥¼€˜˜€ …•½µ•ÑÉä¹Í•µ…¹Ñ¥	½Õ¹‘Ìñð•½µ•ÑÉä¹Í•µ…¹Ñ¥	½Õ¹‘Ì¹¡•¥¡Ð€ð•½µ•ÑÉä¹Ý½É±¹¡•¥¡Ð€¨ÁÉ½™¥±”¹Í•µ…¹Ñ¥5¥¹!•¥¡ÑI…Ñ¥¼¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÍ•µ…¹Ñ¥Œ½¹Ñ•¹Ð¥Ì½µÁÉ•ÍÍ•Ù•ÉÑ¥…±±ä¥¹Í¥‘”¥ÑÌÍÑ…”è€‘í)M=8¹ÍÑÉ¥¹¥™ä¡•½µ•ÑÉä¥ô¹€¤ì((€½¹ÍÐ…ÁÑÕÉ”€ô…Íå¹Œ€¡ÍÕ™™¥à€ô€œœ¤€ôøì(€€€½¹ÍÐÍÉ••¹Í¡½Ð€ô…Ý…¥Ð‘À¹…±° A…”¹…ÁÑÕÉ•MÉ••¹Í¡½Ðœ°ì™½Éµ…Ðè€Á¹œœ°™É½µMÕÉ™…”èÑÉÕ”°…ÁÑÕÉ•	•å½¹‘Y¥•ÝÁ½ÉÐè™…±Í”ô¤ì(€€€½¹ÍÐÁ…Ñ €ô©½¥¸¡Ù¥ÍÕ…±I•Ù¥•Ý¥É•Ñ½Éä°€‘íÁÉ½™¥±”¹¥‘ô‘íÍÕ™™¥áô¹Á¹€¤ì(€€€ÝÉ¥Ñ•¥±•Må¹Œ¡Á…Ñ °	Õ™™•È¹™É½´¡ÍÉ••¹Í¡½Ð¹‘…Ñ„°€‰…Í”ØÐœ¤¤ì(€€€É•ÑÕÉ¸Á…Ñ ì(€ôì(€½¹ÍÐÍÉ••¹Í¡½ÑA…Ñ €ô…Ý…¥Ð…ÁÑÕÉ” ¤ì(€±•Ð¥¹ÍÁ•Ð€ô¹Õ±°ì(€¥˜€¡ÁÉ½™¥±”¹¥¹ÍÁ•ÑI•Ù¥•Ü¤ì(€€€…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È ‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÁÉ½™¥±”¹¥¹ÍÁ•Ñ	ÕÑÑ½¹M•±•Ñ½È¥ô¤ü¹™½ÕÌ ¥€¤ì(€€€…Ý…¥Ðµ•…ÍÕÉ•‘±¥­	ÕÑÑ½¸¡‘À°ÁÉ½™¥±”¹¥¹ÍÁ•Ñ	ÕÑÑ½¹M•±•Ñ½È°€%9MAPœ¤ì(€€€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È ‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÁÉ½™¥±”¹‘É…Ý•ÉM•±•Ñ½È¥ô¤¥€°€àÀÀÀ¤ì(€€€…Ý…¥ÐÍ±••À ÄÈÀ¤ì(€€€½¹ÍÐ¥¹¥Ñ¥…±½ÕÌ€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡€  ¤ôø¡ì(€€€€€¥¹Í¥‘”é	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È ‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÁÉ½™¥±”¹‘É…Ý•ÉM•±•Ñ½È¥ô¤ü¹½¹Ñ…¥¹Ì¡‘½Õµ•¹Ð¹…Ñ¥Ù•±•µ•¹Ð¤¤°(€€€€€±…‰•°é‘½Õµ•¹Ð¹…Ñ¥Ù•±•µ•¹Ðü¹•ÑÑÑÉ¥‰ÕÑ” …É¥„µ±…‰•°œ¤üý‘½Õµ•¹Ð¹…Ñ¥Ù•±•µ•¹Ðü¹Ñ•áÑ½¹Ñ•¹Ðü¹ÑÉ¥´ ¤üý¹Õ±°°(€€€ô¤¤ ¥€¤ì(€€€¥˜€ …¥¹¥Ñ¥…±½ÕÌ¹¥¹Í¥‘”ñð€…MÑÉ¥¹œ¡¥¹¥Ñ¥…±½ÕÌ¹±…‰•°¤¹Ñ½UÁÁ•É…Í” ¤¹¥¹±Õ‘•Ì 1=Mœ¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô‘É…Ý•È‘¥¹½Ð™½ÕÌ¥ÑÌ±½Í”½¹ÑÉ½°è€‘í)M=8¹ÍÑÉ¥¹¥™ä¡¥¹¥Ñ¥…±½ÕÌ¥ô¹€¤ì(€€€…Ý…¥Ð‘¥ÍÁ…Ñ¡-•ä¡‘À°€Q…ˆœ°€Q…ˆœ°€à¤ì(€€€½¹ÍÐÍ¡¥™ÑQ…‰½¹Ñ…¥¹•€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È ‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÁÉ½™¥±”¹‘É…Ý•ÉM•±•Ñ½È¥ô¤ü¹½¹Ñ…¥¹Ì¡‘½Õµ•¹Ð¹…Ñ¥Ù•±•µ•¹Ð¤ôôõÑÉÕ•€¤ì(€€€¥˜€ …Í¡¥™ÑQ…‰½¹Ñ…¥¹•¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô‘É…Ý•È±•ÐM¡¥™Ð­Q…ˆ•Í…Á”¥ÑÌµ½‘…°™½ÕÌÍ½Á”¹€¤ì(€€€…Ý…¥Ð‘¥ÍÁ…Ñ¡-•ä¡‘À°€Q…ˆœ°€Q…ˆœ¤ì(€€€½¹ÍÐÑ…‰½¹Ñ…¥¹•€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È ‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÁÉ½™¥±”¹‘É…Ý•ÉM•±•Ñ½È¥ô¤ü¹½¹Ñ…¥¹Ì¡‘½Õµ•¹Ð¹…Ñ¥Ù•±•µ•¹Ð¤ôôõÑÉÕ•€¤ì(€€€¥˜€ …Ñ…‰½¹Ñ…¥¹•¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô‘É…Ý•È±•ÐQ…ˆ•Í…Á”¥ÑÌµ½‘…°™½ÕÌÍ½Á”¹€¤ì(€€€½¹ÍÐ¥¹ÍÁ•ÑMÉ••¹Í¡½ÑA…Ñ €ô…Ý…¥Ð…ÁÑÕÉ” œµ¥¹ÍÁ•Ðœ¤ì(€€€…Ý…¥Ð‘¥ÍÁ…Ñ¡-•ä¡‘À°€Í…Á”œ°€Í…Á”œ¤ì(€€€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°€…‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È ‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÁÉ½™¥±”¹‘É…Ý•ÉM•±•Ñ½È¥ô¥€°€àÀÀÀ¤ì(€€€½¹ÍÐÉ•ÍÑ½É•€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡‘½Õµ•¹Ð¹…Ñ¥Ù•±•µ•¹Ðôôõ‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È ‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÁÉ½™¥±”¹¥¹ÍÁ•Ñ	ÕÑÑ½¹M•±•Ñ½È¥ô¥€¤ì(€€€¥˜€ …É•ÍÑ½É•¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô‘É…Ý•È‘¥¹½ÐÉ•ÍÑ½É”™½ÕÌÑ¼¥ÑÌ½Á•¹•È¹€¤ì(€€€¥¹ÍÁ•Ð€ôì¥¹¥Ñ¥…±½ÕÌ°Í¡¥™ÑQ…‰½¹Ñ…¥¹•°Ñ…‰½¹Ñ…¥¹•°É•ÍÑ½É•°ÍÉ••¹Í¡½ÑA…Ñ è¥¹ÍÁ•ÑMÉ••¹Í¡½ÑA…Ñ ôì(€ô(€É•ÑÕÉ¸ì•½µ•ÑÉä°ÍÉ••¹Í¡½ÑA…Ñ °¥¹ÍÁ•Ðôì)ô()…Íå¹Œ™Õ¹Ñ¥½¸±½…‘AÉ½™¥±”¡‘À°½É¥¥¸°ÁÉ½™¥±”¤ì(€‘À¹±•…ÉÙ•¹ÑÌ ¤ì(€…Ý…¥Ð‘À¹…±° µÕ±…Ñ¥½¸¹Í•Ñ•Ù¥•5•ÑÉ¥Í=Ù•ÉÉ¥‘”œ°ì(€€€Ý¥‘Ñ èÁÉ½™¥±”¹Ý¥‘Ñ °(€€€¡•¥¡ÐèÁÉ½™¥±”¹¡•¥¡Ð°(€€€‘•Ù¥•M…±•…Ñ½Èè€Ä°(€€€µ½‰¥±”èÁÉ½™¥±”¹Ý¥‘Ñ €ðô€ÔÈÀ°(€ô¤ì(€…Ý…¥Ð‘À¹…±° µÕ±…Ñ¥½¸¹Í•ÑµÕ±…Ñ•‘5•‘¥„œ°ì(€€€™•…ÑÕÉ•Ìèmì¹…µ”è€ÁÉ•™•ÉÌµÉ•‘Õ•µµ½Ñ¥½¸œ°Ù…±Õ”èÁÉ½™¥±”¹É•‘Õ•‘5½Ñ¥½¸€ü€É•‘Õ”œ€è€¹¼µÁÉ•™•É•¹”œõt°(€ô¤ì(€½¹ÍÐÍÑ…ÉÑ•‘Ð€ôÁ•É™½Éµ…¹”¹¹½Ü ¤ì(€…Ý…¥Ð‘À¹…±° A…”¹¹…Ù¥…Ñ”œ°ìÕÉ°è€‘í½É¥¥¹ô‘íÁÉ½™¥±”¹Á…Ñ €üü€œ¼ô‘íÁÉ½™¥±”¹ÅÕ•Éåõ€ô¤ì(€…Ý…¥ÐÝ…¥Ñ½ÉáÁÉ•ÍÍ¥½¸¡‘À°	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È ‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÁÉ½™¥±”¹É•…‘åM•±•Ñ½È€üü€œ¹©½ÕÉ¹•äµÙ¥ÍÕ…°µÝ½É­ÍÁ…”œ¥ô¤¥€¤ì(€…Ý…¥ÐÍ±••À ÔÔÀ¤ì(€½¹ÍÐÁ¡…Í”Ñ%¹Ñ•É…Ñ¥½¸€ôÁÉ½™¥±”¹Á¡…Í”Ñ=‰Í•ÉÙ•(€€€€ü…Ý…¥Ð•á•É¥Í•A¡…Í”Ñ=‰Í•ÉÙ•‘%¹Ñ•É¹•Ð¡‘À°ÁÉ½™¥±”¤(€€€€èÁÉ½™¥±”¹Á¡…Í”Ñ5•…ÍÕÉ•(€€€€€€ü…Ý…¥Ð•á•É¥Í•A¡…Í”Ñ5•…ÍÕÉ•‘9•ÑÝ½É¬¡‘À°ÁÉ½™¥±”¤(€€€€€€è¹Õ±°ì(€½¹ÍÐ‰Õ¥±‘•É=ÍÁ™%¹Ñ•É…Ñ¥½¸€ôÁÉ½™¥±”¹‰Õ¥±‘•É=ÍÁ˜€ü…Ý…¥Ð•á•É¥Í•	Õ¥±‘•É=ÍÁ˜¡‘À°ÁÉ½™¥±”¤€è¹Õ±°ì(€½¹ÍÐµ•…ÍÕÉ•‘%¹Ñ•É…Ñ¥½¸€ôÁÉ½™¥±”¹µ•…ÍÕÉ•‘]½É­ÍÁ…”(€€€€ü…Ý…¥Ð•á•É¥Í•5•…ÍÕÉ•‘]½É­ÍÁ…”¡‘À°ÁÉ½™¥±”¤(€€€€èÁÉ½™¥±”¹µ•…ÍÕÉ•‘M¥‘•…ÉÌ(€€€€€€ü…Ý…¥Ð•á•É¥Í•5•…ÍÕÉ•‘)½ÕÉ¹•åM¥‘•…ÉÌ¡‘À°ÁÉ½™¥±”¤(€€€€€€è¹Õ±°ì(€½¹ÍÐÉ•…‘å5Ì€ôÁ•É™½Éµ…¹”¹¹½Ü ¤€´ÍÑ…ÉÑ•‘Ðì(€½¹ÍÐ‰½‘åQ•áÐ€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ” ‘½Õµ•¹Ð¹‰½‘ä¹¥¹¹•ÉQ•áÐœ¤ì(€™½È€¡½¹ÍÐ•áÁ•Ñ•½˜ÁÉ½™¥±”¹•áÁ•Ñ•¤ì(€€€¥˜€ …‰½‘åQ•áÐ¹¥¹±Õ‘•Ì¡•áÁ•Ñ•¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô‘¥¹½ÐÉ•… •áÁ•Ñ•Í•µ…¹Ñ¥ŒÑ•áÐè€‘í)M=8¹ÍÑÉ¥¹¥™ä¡•áÁ•Ñ•¥õ€¤ì(€ô(€¥˜€¡ÁÉ½™¥±”¹É•‘Õ•‘5½Ñ¥½¸€˜˜€„¡…Ý…¥Ð‘À¹•Ù…±Õ…Ñ” µ…Ñ¡5•‘¥„ ˆ¡ÁÉ•™•ÉÌµÉ•‘Õ•µµ½Ñ¥½¸èÉ•‘Õ”¤ˆ¤¹µ…Ñ¡•Ìœ¤¤¤ì(€€€Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô‘¥¹½Ð•¹…‰±”É•‘Õ•µ½Ñ¥½¸¹€¤ì(€ô((€½¹ÍÐÙ¥ÍÕ…±I•Ù¥•ÝI•ÍÕ±Ð€ôÁÉ½™¥±”¹Á¡…Í”ÑY¥ÍÕ…±I•Ù¥•Ü(€€€€ü…Ý…¥Ð…ÁÑÕÉ•A¡…Í”ÑÙ¥‘•¹•I•Ù¥•Ü¡‘À°ÁÉ½™¥±”¤(€€€€èÁÉ½™¥±”¹Ù¥ÍÕ…±I•Ù¥•Ü(€€€€€€ü…Ý…¥Ð…ÁÑÕÉ•Y¥ÍÕ…±I•Ù¥•Ü¡‘À°ÁÉ½™¥±”¤(€€€€€€è¹Õ±°ì((€½¹ÍÐ©½ÕÉ¹•åÉ…Ý•È€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹©½ÕÉ¹•äµÙ¥ÍÕ…°µÝ½É­ÍÁ…”œ¤¥€¤(€€€€ü…Ý…¥Ð¥¹ÍÁ•Ñ)½ÕÉ¹•åÉ…Ý•ÉÉ¡¥Ñ•ÑÕÉ”¡‘À°ÁÉ½™¥±”¤(€€€€è¹Õ±°ì((€…Ý…¥Ð‘À¹…±° !•…ÁAÉ½™¥±•È¹½±±•Ñ…É‰…”œ¤ì(€½¹ÍÐ¡•…À€ô…Ý…¥Ð‘À¹…±° IÕ¹Ñ¥µ”¹•Ñ!•…ÁUÍ…”œ¤ì(€½¹ÍÐÁ•É™½Éµ…¹•5•ÑÉ¥Ì€ô=‰©•Ð¹™É½µ¹ÑÉ¥•Ì ¡…Ý…¥Ð‘À¹…±° A•É™½Éµ…¹”¹•Ñ5•ÑÉ¥Ìœ¤¤¹µ•ÑÉ¥Ì¹µ…À ¡µ•ÑÉ¥Œ¤€ôømµ•ÑÉ¥Œ¹¹…µ”°µ•ÑÉ¥Œ¹Ù…±Õ•t¤¤ì(€½¹ÍÐÍÑÉÕÑÕÉ…°€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡€  ¤ôùì(€€€É•ÑÕÉ¸ì(€€€€€•±•µ•¹Ñ½Õ¹Ðè‘½Õµ•¹Ð¹•Ñ±•µ•¹ÑÍ	åQ…9…µ” œ¨œ¤¹±•¹Ñ °(€€€€€•Ù•¹Ñ½Õ¹Ðè‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹Ù¥ÍÕ…°µÑ¥µ”µÉ…¥±}}•Ù•¹ÑÌ‰ÕÑÑ½¸œ¤¹±•¹Ñ °(€€€€€¥¹¹•É]¥‘Ñ °(€€€€€ÍÉ½±±]¥‘Ñ è‘½Õµ•¹Ð¹‘½Õµ•¹Ñ±•µ•¹Ð¹ÍÉ½±±]¥‘Ñ °(€€€€€ÍÉ½±±d°(€€€€€¡•…‘¥¹œè‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹Ù¥ÍÕ…°µ¥‘•¹Ñ¥Ñä€øÍÑÉ½¹œœ¤ü¹Ñ•áÑ½¹Ñ•¹Ð€üü¹Õ±°°(€€€€€µ•…ÍÕÉ•èì(€€€€€€€±½…‘•è‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹µ•…ÍÕÉ•µÝ½É­ÍÁ…”œ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µµ•…ÍÕÉ•µ±½…‘•œ¤€üü¹Õ±°°(€€€€€€€…Ñ•½Éå	ÕÑÑ½¹Ìè‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹µ•…ÍÕÉ•µ…Ñ•½É¥•Ì‰ÕÑÑ½¸œ¤¹±•¹Ñ °(€€€€€€€Ù¥Í¥‰±•…ÑÌè‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹µ•…ÍÕÉ•µ™…Ðœ¤¹±•¹Ñ °(€€€€€ô°(€€€€€ÁÉ½Ñ½½°è€  ¤ôùì(€€€€€€€½¹ÍÐÍÑ…”õ‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹ÁÉ½Ñ½½°µÙ¥ÍÕ…°µÝ½É­ÍÁ…”€¹Ù¥ÍÕ…°µÝ½É­ÍÁ…•}}ÍÑ…”œ¤ü¹•Ñ	½Õ¹‘¥¹±¥•¹ÑI•Ð ¤ì(€€€€€€€½¹ÍÐÍ•¹”õ‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹ÁÉ½Ñ½½°µ¥¹•µ…Ñ¥ŒµÍÑ…”œ¤ü¹•Ñ	½Õ¹‘¥¹±¥•¹ÑI•Ð ¤ì(€€€€€€€É•ÑÕÉ¸ì(€€€€€€€€€…Ñ¥Ù”é	½½±•…¸¡ÍÑ…”˜™Í•¹”¤°(€€€€€€€€€ÍÑ…•]¥‘Ñ éÍÑ…”ü¹Ý¥‘Ñ üüÀ°(€€€€€€€€€ÍÑ…•!•¥¡ÐéÍÑ…”ü¹¡•¥¡ÐüüÀ°(€€€€€€€€€Í•¹•]¥‘Ñ éÍ•¹”ü¹Ý¥‘Ñ üüÀ°(€€€€€€€€€Í•¹•!•¥¡ÐéÍ•¹”ü¹¡•¥¡ÐüüÀ°(€€€€€€€€€‘É…Ý•ÉQ…‰Ìé‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹ÁÉ½Ñ½½°µÙ¥ÍÕ…°µÝ½É­ÍÁ…”€¹Ù¥ÍÕ…°µ‘É…Ý•ÈµÑ…‰Ì‰ÕÑÑ½¸œ¤¹±•¹Ñ °(€€€€€€€€€Ñ¥µ•I…¥°é	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹ÁÉ½Ñ½½°µÙ¥ÍÕ…°µÝ½É­ÍÁ…”€¹Ù¥ÍÕ…°µÑ¥µ”µÉ…¥°œ¤¤°(€€€€€€€€€Á•Éµ…¹•¹Ñ%¹ÍÁ•Ñ½ÉÌé‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹ÑÀµ¥¹ÍÁ•Ñ½È°¹‘¹Ìµ¥¹ÍÁ•Ñ½È°¹Ñ±Ìµ¥¹ÍÁ•Ñ½È°¹¡ÑÑÀµ¥¹ÍÁ•Ñ½Èœ¤¹±•¹Ñ °(€€€€€€€ôì(€€€€€ô¤ ¤°(€€€€€ÍÑÉ•ÍÌèì(€€€€€€€ÁÉ½™¥±”è‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È m‘…Ñ„µÍÑÉ•ÍÌµÁÉ½™¥±•tœ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µÍÑÉ•ÍÌµÁÉ½™¥±”œ¤€üü¹Õ±°°(€€€€€€€…Í9½‘•Ìè9Õµ‰•È¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹¥¹Ñ•É¹•ÐµÍ…±”œ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µ¹½‘”µ½Õ¹Ðœ¤€üü€À¤°(€€€€€€€…ÍI•±…Ñ¥½¹Í¡¥ÁÌè9Õµ‰•È¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹¥¹Ñ•É¹•ÐµÍ…±”œ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µÉ•±…Ñ¥½¹Í¡¥Àµ½Õ¹Ðœ¤€üü€À¤°(€€€€€€€‰Õ¥±‘•É9½‘•Ìè9Õµ‰•È¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹‰Õ¥±‘•ÈµÝ½É­ÍÁ…”œ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µ¹½‘”µ½Õ¹Ðœ¤€üü€À¤°(€€€€€€€‰Õ¥±‘•É1¥¹­Ìè9Õµ‰•È¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹‰Õ¥±‘•ÈµÝ½É­ÍÁ…”œ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µ±¥¹¬µ½Õ¹Ðœ¤€üü€À¤°(€€€€€€€Á¡åÍ¥…±A½¥¹ÑÌè9Õµ‰•È¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹Á¡åÍ¥…°µ±½‰”œ¤ü¹•ÑÑÑÉ¥‰ÕÑ” ‘…Ñ„µÁ½¥¹Ðµ½Õ¹Ðœ¤€üü€À¤°(€€€€€€€Ý•‰°è	½½±•…¸¡‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹±½‰”µÉ•¹‘•Èµ¡½ÍÐ…¹Ù…Ìœ¤¤°(€€€€€€€…¹Ù…Í	…­¥¹]¥‘Ñ è‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹¥¹Ñ•É¹•ÐµÍ…±”…¹Ù…Ì°¹±½‰”µÉ•¹‘•Èµ¡½ÍÐ…¹Ù…Ìœ¤ü¹Ý¥‘Ñ €üü€À°(€€€€€€€…¹Ù…Í	…­¥¹!•¥¡Ðè‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹¥¹Ñ•É¹•ÐµÍ…±”…¹Ù…Ì°¹±½‰”µÉ•¹‘•Èµ¡½ÍÐ…¹Ù…Ìœ¤ü¹¡•¥¡Ð€üü€À°(€€€€€ô°(€€€ôì(€ô¤ ¥€¤ì(€ÍÑÉÕÑÕÉ…°¹µ½‘¥™¥•É½¹ÑÉ½±Ì€ô©½ÕÉ¹•åÉ…Ý•Èü¹µ½‘¥™¥•É½¹ÑÉ½±Ì€üümtì(€ÍÑÉÕÑÕÉ…°¹‘É…Ý•ÉÉ¡¥Ñ•ÑÕÉ”€ô©½ÕÉ¹•åÉ…Ý•Èì((€¥˜€¡ÍÑÉÕÑÕÉ…°¹ÍÉ½±±]¥‘Ñ €øÍÑÉÕÑÕÉ…°¹¥¹¹•É]¥‘Ñ ¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô¡½É¥é½¹Ñ…±±ä½Ù•É™±½ÝÌè€‘íÍÑÉÕÑÕÉ…°¹ÍÉ½±±]¥‘Ñ¡ô€ø€‘íÍÑÉÕÑÕÉ…°¹¥¹¹•É]¥‘Ñ¡õ€¤ì(€¥˜€¡ÍÑÉÕÑÕÉ…°¹ÍÉ½±±d€„ôô€À¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÕ¹•áÁ•Ñ•‘±äµ½Ù•‘½Õµ•¹ÐÍÉ½±±dÑ¼€‘íÍÑÉÕÑÕÉ…°¹ÍÉ½±±eô¹€¤ì((€¥˜€¡ÁÉ½™¥±”¹ÍÑÉ•ÍÍáÁ•Ñ•¤ì(€€€™½È€¡½¹ÍÐm­•ä°Ù…±Õ•t½˜=‰©•Ð¹•¹ÑÉ¥•Ì¡ÁÉ½™¥±”¹ÍÑÉ•ÍÍáÁ•Ñ•¤¤ì(€€€€€¥˜€¡ÍÑÉÕÑÕÉ…°¹ÍÑÉ•ÍÍm­•åt€„ôôÙ…±Õ”¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÍÑÉ•ÍÌ¥¹Ù…É¥…¹Ð€‘í­•åôô‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÍÑÉÕÑÕÉ…°¹ÍÑÉ•ÍÍm­•åt¥ôì•áÁ•Ñ•€‘í)M=8¹ÍÑÉ¥¹¥™ä¡Ù…±Õ”¥ô¹€¤ì(€€€ô(€€€¥˜€ ¡ÍÑÉÕÑÕÉ…°¹ÍÑÉ•ÍÌ¹…Í9½‘•Ì€ø€ÀñðÍÑÉÕÑÕÉ…°¹ÍÑÉ•ÍÌ¹Ý•‰°¤€˜˜€¡ÍÑÉÕÑÕÉ…°¹ÍÑÉ•ÍÌ¹…¹Ù…Í	…­¥¹]¥‘Ñ €ðô€ÀñðÍÑÉÕÑÕÉ…°¹ÍÑÉ•ÍÌ¹…¹Ù…Í	…­¥¹!•¥¡Ð€ðô€À¤¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÉ•¹‘•É•È…¹Ù…Ì¡…Ì¥¹Ù…±¥‰…­¥¹œ‘¥µ•¹Í¥½¹Ì¹€¤ì(€ô((€¥˜€¡ÁÉ½™¥±”¹…ÍÍ•ÉÑ5•…ÍÕÉ•‘5½‰¥±”¤ì(€€€¥˜€¡ÍÑÉÕÑÕÉ…°¹µ•…ÍÕÉ•¹±½…‘•€„ôô€ÑÉÕ”œ¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôµ½‰¥±”µ•…ÍÕÉ•Ý½É­ÍÁ…”‘¥¹½ÐÉ•µ…¥¸±½…‘•¹€¤ì(€€€¥˜€¡ÍÑÉÕÑÕÉ…°¹µ•…ÍÕÉ•¹…Ñ•½Éå	ÕÑÑ½¹Ì€„ôô€Ü¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôµ½‰¥±”µ•…ÍÕÉ•…Ñ•½Éä½Õ¹Ð€‘íÍÑÉÕÑÕÉ…°¹µ•…ÍÕÉ•¹…Ñ•½Éå	ÕÑÑ½¹Íôì•áÁ•Ñ•€Ü¹€¤ì(€€€¥˜€¡ÍÑÉÕÑÕÉ…°¹µ•…ÍÕÉ•¹Ù¥Í¥‰±•…ÑÌ€ðô€À¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôµ½‰¥±”µ•…ÍÕÉ•Ý½É­ÍÁ…”É•¹‘•É•¹¼™…ÑÌ¹€¤ì(€ô((€¥˜€¡ÁÉ½™¥±”¹ÁÉ½Ñ½½±]½É­ÍÁ…”¤ì(€€€¥˜€ …ÍÑÉÕÑÕÉ…°¹ÁÉ½Ñ½½°¹…Ñ¥Ù”¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô‘¥¹½ÐÉ•¹‘•È„ÁÉ½Ñ½½°Í•¹”¥¹Í¥‘”Ñ¡”Í¡…É•Ù¥ÍÕ…°Ý½É­ÍÁ…”¹€¤ì(€€€¥˜€¡ÍÑÉÕÑÕÉ…°¹ÁÉ½Ñ½½°¹Í•¹•]¥‘Ñ €ðÍÑÉÕÑÕÉ…°¹ÁÉ½Ñ½½°¹ÍÑ…•]¥‘Ñ €¨€À¸äàñðÍÑÉÕÑÕÉ…°¹ÁÉ½Ñ½½°¹Í•¹•!•¥¡Ð€ðÍÑÉÕÑÕÉ…°¹ÁÉ½Ñ½½°¹ÍÑ…•!•¥¡Ð€¨€À¸äà¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÍ•¹”‘½•Ì¹½Ð½ÕÁäÑ¡”Ù¥ÍÕ…°ÍÑ…”è€‘í)M=8¹ÍÑÉ¥¹¥™ä¡ÍÑÉÕÑÕÉ…°¹ÁÉ½Ñ½½°¥ô¹€¤ì(€€€¥˜€¡ÍÑÉÕÑÕÉ…°¹ÁÉ½Ñ½½°¹‘É…Ý•ÉQ…‰Ì€ð€Ì¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô•áÁ½Í•½¹±ä€‘íÍÑÉÕÑÕÉ…°¹ÁÉ½Ñ½½°¹‘É…Ý•ÉQ…‰Íô½¸µ‘•µ…¹Ý½É­ÍÁ…”Ñ½½±Ì¹€¤ì(€€€¥˜€ …ÍÑÉÕÑÕÉ…°¹ÁÉ½Ñ½½°¹Ñ¥µ•I…¥°¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô‘¥¹½ÐÉ•¹‘•ÈÑ¡”Í¡…É•Q¥µ”I…¥°¹€¤ì(€€€¥˜€¡ÍÑÉÕÑÕÉ…°¹ÁÉ½Ñ½½°¹Á•Éµ…¹•¹Ñ%¹ÍÁ•Ñ½ÉÌ€„ôô€À¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ôÉ•Ñ…¥¹•€‘íÍÑÉÕÑÕÉ…°¹ÁÉ½Ñ½½°¹Á•Éµ…¹•¹Ñ%¹ÍÁ•Ñ½ÉÍôÁ•Éµ…¹•¹Ð±•…ä¥¹ÍÁ•Ñ½È¡Ì¤¹€¤ì(€ô((€¥˜€¡ÁÉ½™¥±”¹…ÍÍ•ÉÑ5½‰¥±•É¥¤ì(€€€¥˜€¡ÍÑÉÕÑÕÉ…°¹µ½‘¥™¥•É½¹ÑÉ½±Ì¹±•¹Ñ €„ôô€ÄÀ¤Ñ¡É½Ü¹•ÜÉÉ½È¡áÁ•Ñ•€ÄÀ=5=½¹ÑÉ½±Ì°™½Õ¹€‘íÍÑÉÕÑÕÉ…°¹µ½‘¥™¥•É½¹ÑÉ½±Ì¹±•¹Ñ¡ô¹€¤ì(€€€¥˜€¡ÍÑÉÕÑÕÉ…°¹‘É…Ý•ÉÉ¡¥Ñ•ÑÕÉ”ü¹µ½‘¥™¥•É½±Õµ¹Ì€„ôô€Ì¤Ñ¡É½Ü¹•ÜÉÉ½È¡áÁ•Ñ•„Ñ¡É•”µ½±Õµ¸µ½‰¥±”=5=É¥°™½Õ¹€‘íÍÑÉÕÑÕÉ…°¹‘É…Ý•ÉÉ¡¥Ñ•ÑÕÉ”ü¹µ½‘¥™¥•É½±Õµ¹Ì€üü€Áô½±Õµ¹Ì¹€¤ì(€€€™½È€¡½¹ÍÐ‰ÕÑÑ½¸½˜ÍÑÉÕÑÕÉ…°¹µ½‘¥™¥•É½¹ÑÉ½±Ì¤ì(€€€€€¥˜€¡‰ÕÑÑ½¸¹Ý¥‘Ñ €ð€ÐÀñð‰ÕÑÑ½¸¹¡•¥¡Ð€ð€ÌÈ¤Ñ¡É½Ü¹•ÜÉÉ½È¡5½‰¥±”=5=½¹ÑÉ½°€‘í‰ÕÑÑ½¸¹Ñ•áÑô¥ÌÑ½¼Íµ…±°è€‘í‰ÕÑÑ½¸¹Ý¥‘Ñ¡÷\‘í‰ÕÑÑ½¸¹¡•¥¡Ñô¹€¤ì(€€€ô(€€€½¹ÍÐ™¥¹…±½¹ÑÉ½°€ôÍÑÉÕÑÕÉ…°¹µ½‘¥™¥•É½¹ÑÉ½±Ì¹…Ð ´Ä¤ì(€€€¥˜€¡™¥¹…±½¹ÑÉ½°ü¹Ñ•áÐ€„ôô€1,œ¤Ñ¡É½Ü¹•ÜÉÉ½È¡U¹•áÁ•Ñ•™¥¹…°µ½‰¥±”½¹ÑÉ½°è€‘í™¥¹…±½¹ÑÉ½°ü¹Ñ•áÐ€üü€µ¥ÍÍ¥¹œõ€¤ì(€ô((€½¹ÍÐÁ…•ÉÉ½ÉÌ€ô‘À¹•Ù•¹ÑÌ¹™¥±Ñ•È ¡•Ù•¹Ð¤€ôø(€€€•Ù•¹Ð¹µ•Ñ¡½€ôôô€IÕ¹Ñ¥µ”¹•á•ÁÑ¥½¹Q¡É½Ý¸œ(€€€ñð€¡•Ù•¹Ð¹µ•Ñ¡½€ôôô€1½œ¹•¹ÑÉå‘‘•œ€˜˜•Ù•¹Ð¹Á…É…µÌü¹•¹ÑÉäü¹±•Ù•°€ôôô€•ÉÉ½Èœ¤(€€€ñð€¡•Ù•¹Ð¹µ•Ñ¡½€ôôô€IÕ¹Ñ¥µ”¹½¹Í½±•A%…±±•œ€˜˜•Ù•¹Ð¹Á…É…µÌü¹ÑåÁ”€ôôô€•ÉÉ½Èœ¤¤ì(€½¹ÍÐÕ¹•áÁ•Ñ•‘A…•ÉÉ½ÉÌ€ôÁÉ½™¥±”¹…±±½ÝáÁ•Ñ•‘]•‰±…¥±ÕÉ”(€€€€üÁ…•ÉÉ½ÉÌ¹™¥±Ñ•È ¡•Ù•¹Ð¤€ôø€„¼¡Ý•‰±ñÝ•‰±É•¹‘•É•Éñ½¹Ñ•áÐ¤½¤¹Ñ•ÍÐ¡)M=8¹ÍÑÉ¥¹¥™ä¡•Ù•¹Ð¤¤¤(€€€€èÁ…•ÉÉ½ÉÌì(€¥˜€¡Õ¹•áÁ•Ñ•‘A…•ÉÉ½ÉÌ¹±•¹Ñ €ø€À¤Ñ¡É½Ü¹•ÜÉÉ½È¡€‘íÁÉ½™¥±”¹¥‘ô•µ¥ÑÑ•€‘íÕ¹•áÁ•Ñ•‘A…•ÉÉ½ÉÌ¹±•¹Ñ¡ôÕ¹•áÁ•Ñ•ÉÕ¹Ñ¥µ”½½¹Í½±”•ÉÉ½È•Ù•¹Ð¡Ì¤¹€¤ì((€É•ÑÕÉ¸ì(€€€¥èÁÉ½™¥±”¹¥°(€€€Ù¥•ÝÁ½ÉÐèìÝ¥‘Ñ èÁÉ½™¥±”¹Ý¥‘Ñ °¡•¥¡ÐèÁÉ½™¥±”¹¡•¥¡Ðô°(€€€É•‘Õ•‘5½Ñ¥½¸èÁÉ½™¥±”¹É•‘Õ•‘5½Ñ¥½¸°(€€€É•…‘å5Ìè9Õµ‰•È¡É•…‘å5Ì¹Ñ½¥á• È¤¤°(€€€•±•µ•¹Ñ½Õ¹ÐèÍÑÉÕÑÕÉ…°¹•±•µ•¹Ñ½Õ¹Ð°(€€€•Ù•¹Ñ½Õ¹ÐèÍÑÉÕÑÕÉ…°¹•Ù•¹Ñ½Õ¹Ð°(€€€ÍÉ½±±]¥‘Ñ èÍÑÉÕÑÕÉ…°¹ÍÉ½±±]¥‘Ñ °(€€€¥¹¹•É]¥‘Ñ èÍÑÉÕÑÕÉ…°¹¥¹¹•É]¥‘Ñ °(€€€ÍÉ½±±dèÍÑÉÕÑÕÉ…°¹ÍÉ½±±d°(€€€µ½‘¥™¥•É½¹ÑÉ½±ÌèÍÑÉÕÑÕÉ…°¹µ½‘¥™¥•É½¹ÑÉ½±Ì¹±•¹Ñ °(€€€¡•…‘¥¹œèÍÑÉÕÑÕÉ…°¹¡•…‘¥¹œ°(€€€‘É…Ý•ÉÉ¡¥Ñ•ÑÕÉ”èÍÑÉÕÑÕÉ…°¹‘É…Ý•ÉÉ¡¥Ñ•ÑÕÉ”°(€€€ÍÑÉ•ÍÌèÍÑÉÕÑÕÉ…°¹ÍÑÉ•ÍÌ°(€€€µ•…ÍÕÉ•èµ•…ÍÕÉ•‘%¹Ñ•É…Ñ¥½¸°(€€€Á¡…Í”ÑÙ¥‘•¹”èÁ¡…Í”Ñ%¹Ñ•É…Ñ¥½¸°(€€€ÁÉ½Ñ½½°èÍÑÉÕÑÕÉ…°¹ÁÉ½Ñ½½°°(€€€‰Õ¥±‘•É=ÍÁ˜è‰Õ¥±‘•É=ÍÁ™%¹Ñ•É…Ñ¥½¸°(€€€Ù¥ÍÕ…±I•Ù¥•ÜèÙ¥ÍÕ…±I•Ù¥•ÝI•ÍÕ±Ð°(€€€¡•…ÁUÍ•‘	åÑ•Ìè¡•…À¹ÕÍ•‘M¥é”°(€€€‘¥…¹½ÍÑ¥Œèì(€€€€€ÍÉ¥ÁÑÕÉ…Ñ¥½¹M•½¹‘ÌèÁ•É™½Éµ…¹•5•ÑÉ¥Ì¹MÉ¥ÁÑÕÉ…Ñ¥½¸€üü¹Õ±°°(€€€€€±…å½ÕÑÕÉ…Ñ¥½¹M•½¹‘ÌèÁ•É™½Éµ…¹•5•ÑÉ¥Ì¹1…å½ÕÑÕÉ…Ñ¥½¸€üü¹Õ±°°(€€€€€É•…±MÑå±•ÕÉ…Ñ¥½¹M•½¹‘ÌèÁ•É™½Éµ…¹•5•ÑÉ¥Ì¹I•…±MÑå±•ÕÉ…Ñ¥½¸€üü¹Õ±°°(€€€€€Ñ…Í­ÕÉ…Ñ¥½¹M•½¹‘ÌèÁ•É™½Éµ…¹•5•ÑÉ¥Ì¹Q…Í­ÕÉ…Ñ¥½¸€üü¹Õ±°°(€€€ô°(€ôì)ô()…Íå¹Œ™Õ¹Ñ¥½¸Í••­MÑÉ•ÍÌ¡‘À°½É¥¥¸°å±•Ì€ôÍÑÉ•ÍÍ½¹™¥œ¹Í••­å±•Ì°¥€ô€µ…àµ½µÁ½Í•µÍ••¬µÍÑÉ•ÍÌœ¤ì(€½¹ÍÐÁÉ½™¥±”€ôì(€€€¥°(€€€Ý¥‘Ñ è€ÄÐÐÀ°(€€€¡•¥¡Ðè€ÄÀÀÀ°(€€€É•‘Õ•‘5½Ñ¥½¸è™…±Í”°(€€€ÅÕ•ÉäèÅÕ•Éä¡ì©½ÕÉ¹•äè€œÈœ°¡½ÍÐè€•á…µÁ±”¹Ñ•ÍÐœ°ÑÉ…¹ÍÁ½ÉÐè€ÅÕ¥Œµ Ìœ°‘¹Ìè€…¡”µµ¥ÍÌœ°µ½‘Ìèµ…á5½‘¥™¥•ÉM•Ð°Ðè€œÀœô¤°(€€€•áÁ•Ñ•èl9L%0€¬I=UQ€¬1,€¬MIYH€¬1=ML€¬1Q9d€¬=9MQ%=8€¬AIQ%Q%=8t°(€ôì(€…Ý…¥Ð±½…‘AÉ½™¥±”¡‘À°½É¥¥¸°ÁÉ½™¥±”¤ì(€…Ý…¥Ð‘À¹…±° !•…ÁAÉ½™¥±•È¹½±±•Ñ…É‰…”œ¤ì(€½¹ÍÐ‰•™½É”€ô…Ý…¥Ð‘À¹…±° IÕ¹Ñ¥µ”¹•Ñ!•…ÁUÍ…”œ¤ì(€½¹ÍÐ‰•™½É•MÑ…Ñ”€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡€  ¤ôø¡ì(€€€•Ù•¹Ñ½Õ¹Ðé‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹Ù¥ÍÕ…°µÑ¥µ”µÉ…¥±}}•Ù•¹ÑÌ‰ÕÑÑ½¸œ¤¹±•¹Ñ °(€€€¡•…‘¥¹œé‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹Ù¥ÍÕ…°µ¥‘•¹Ñ¥Ñä€øÍÑÉ½¹œœ¤ü¹Ñ•áÑ½¹Ñ•¹Ð€üü¹Õ±°°(€€€ÍÉ½±±d°(€€€•±•µ•¹Ñ½Õ¹Ðé‘½Õµ•¹Ð¹•Ñ±•µ•¹ÑÍ	åQ…9…µ” œ¨œ¤¹±•¹Ñ °(€ô¤¤ ¥€¤ì(€½¹ÍÐÍÑ…ÉÑ•‘Ð€ôÁ•É™½Éµ…¹”¹¹½Ü ¤ì(€½¹ÍÐÍÑÉ•ÍÍI•ÍÕ±Ð€ô…Ý…¥Ð‘À¹•Ù…±Õ…Ñ”¡€¡…Íå¹Œ ¤ôùì(€€€½¹ÍÐå±•Ìô‘í9Õµ‰•È¡å±•Ì¥ôì(€€€½¹ÍÐ‰ÕÑÑ½¹Ìõl¸¸¹‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹Ù¥ÍÕ…°µÑ¥µ”µÉ…¥±}}•Ù•¹ÑÌ‰ÕÑÑ½¸œ¥tì(€€€™½È¡±•Ðå±”ôÀíå±”ñå±•Ìíå±”¬ôÄ¥ì(€€€€€™½È¡½¹ÍÐ‰ÕÑÑ½¸½˜‰ÕÑÑ½¹Ì¥ì(€€€€€€€‰ÕÑÑ½¸¹±¥¬ ¤ì(€€€€€€€…Ý…¥Ð¹•ÜAÉ½µ¥Í” ¡É•Í½±Ù”¤ôùÉ•ÅÕ•ÍÑ¹¥µ…Ñ¥½¹É…µ”  ¤ôùÉ•Í½±Ù” ¤¤¤ì(€€€€€ô(€€€ô(€€€…Ý…¥Ð¹•ÜAÉ½µ¥Í” ¡É•Í½±Ù”¤ôùÍ•ÑQ¥µ•½ÕÐ¡É•Í½±Ù”°‘í9Õµ‰•È¡ÍÑÉ•ÍÍ½¹™¥œ¹Í•ÑÑ±•5Ì¥ô¤¤ì(€€€É•ÑÕÉ¸ì(€€€€€•Ù•¹Ñ½Õ¹Ðé‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½É±° œ¹Ù¥ÍÕ…°µÑ¥µ”µÉ…¥±}}•Ù•¹ÑÌ‰ÕÑÑ½¸œ¤¹±•¹Ñ °(€€€€€¡•…‘¥¹œé‘½Õµ•¹Ð¹ÅÕ•ÉåM•±•Ñ½È œ¹Ù¥ÍÕ…°µ¥‘•¹Ñ¥Ñä€øÍÑÉ½¹œœ¤ü¹Ñ•áÑ½¹Ñ•¹Ð€üü¹Õ±°°(€€€€€ÍÉ½±±d°(€€€€€•±•µ•¹Ñ½Õ¹Ðé‘½Õµ•¹Ð¹•Ñ±•µ•¹ÑÍ	åQ…9…µ” œ¨œ¤¹±•¹Ñ °(€€€ôì(€ô¤ ¥€¤ì(€½¹ÍÐ•±…ÁÍ•‘5Ì€ôÁ•É™½Éµ…¹”¹¹½Ü ¤€´ÍÑ…ÉÑ•‘Ðì(€…Ý…¥Ð‘À¹…±° !•…ÁAÉ½™¥±•È¹½±±•Ñ…É‰…”œ¤ì(€½¹ÍÐ…™Ñ•È€ô…Ý…¥Ð‘À¹…±° IÕ¹Ñ¥µ”¹•Ñ!•…ÁUÍ…”œ¤ì(€¥˜€¡ÍÑÉ•ÍÍI•ÍÕ±Ð¹•Ù•¹Ñ½Õ¹Ð€„ôô‰•™½É•MÑ…Ñ”¹•Ù•¹Ñ½Õ¹Ð¤Ñ¡É½Ü¹•ÜÉÉ½È¡M••¬ÍÑÉ•ÍÌµÕÑ…Ñ••Ù•¹Ð½Õ¹Ð€‘í‰•™½É•MÑ…Ñ”¹•Ù•¹Ñ½Õ¹ÑôƒŠH€‘íÍÑÉ•ÍÍI•ÍÕ±Ð¹•Ù•¹Ñ½Õ¹Ñô¹€¤ì(€¥˜€¡ÍÑÉ•ÍÍI•ÍÕ±Ð¹¡•…‘¥¹œ€„ôô‰•™½É•MÑ…Ñ”¹¡•…‘¥¹œ¤Ñ¡É½Ü¹•ÜÉÉ½È M••¬ÍÑÉ•ÍÌµÕÑ…Ñ•…¹½¹¥…°Í•¹…É¥¼¥‘•¹Ñ¥Ñä½¡•…‘¥¹œ¸œ¤ì(€¥˜€¡ÍÑÉ•ÍÍI•ÍÕ±Ð¹ÍÉ½±±d€„ôô€À¤Ñ¡É½Ü¹•ÜÉÉ½È¡M••¬ÍÑÉ•ÍÌµ½Ù•‘½Õµ•¹ÐÍÉ½±±dÑ¼€‘íÍÑÉ•ÍÍI•ÍÕ±Ð¹ÍÉ½±±eô¹€¤ì(€É•ÑÕÉ¸ì(€€€å±•Ì°(€€€•Ù•¹ÑÍA•Éå±”è‰•™½É•MÑ…Ñ”¹•Ù•¹Ñ½Õ¹Ð°(€€€•±…ÁÍ•‘5Ìè9Õµ‰•È¡•±…ÁÍ•‘5Ì¹Ñ½¥á• È¤¤°(€€€‰•™½É•!•…ÁUÍ•‘	åÑ•Ìè‰•™½É”¹ÕÍ•‘M¥é”°(€€€…™Ñ•É!•…ÁUÍ•‘	åÑ•Ìè…™Ñ•È¹ÕÍ•‘M¥é”°(€€€¡•…ÁÉ½ÝÑ¡	åÑ•Ìè…™Ñ•È¹ÕÍ•‘M¥é”€´‰•™½É”¹ÕÍ•‘M¥é”°(€€€™¥¹…±±•µ•¹Ñ½Õ¹ÐèÍÑÉ•ÍÍI•ÍÕ±Ð¹•±•µ•¹Ñ½Õ¹Ð°(€€€ÍÉ½±±dèÍÑÉ•ÍÍI•ÍÕ±Ð¹ÍÉ½±±d°(€ôì)ô()™Õ¹Ñ¥½¸…‘‘	Õ‘•Ñ…¥±ÕÉ”¡™…¥±ÕÉ•Ì°½¹‘¥Ñ¥½¸°µ•ÍÍ…”¤ì(€¥˜€ …½¹‘¥Ñ¥½¸¤™…¥±ÕÉ•Ì¹ÁÕÍ ¡µ•ÍÍ…”¤ì)ô()…Íå¹Œ™Õ¹Ñ¥½¸µ…¥¸ ¤ì(€¥˜€¡ÑåÁ•½˜]•‰M½­•Ð€ôôô€Õ¹‘•™¥¹•œ¤Ñ¡É½Ü¹•ÜÉÉ½È 9½‘”€ÈÐ]•‰M½­•ÐÍÕÁÁ½ÉÐ¥ÌÉ•ÅÕ¥É•¸œ¤ì(€½¹ÍÐ…ÉÑ¥™…Ð€ôÉ•…‘AÉ½‘ÕÑ¥½¹ÉÑ¥™…Ð ¤ì(€½¹ÍÐ¡É½µ•A…Ñ €ô™¥¹‘¡É½µ” ¤ì(€±•Ð±…Õ¹ €ô¹Õ±°ì(€±•Ð‘À€ô¹Õ±°ì(€±•ÐÁÉ½‘ÕÑ¥½¸€ô¹Õ±°ì(€½¹ÍÐÉ•Á½ÉÐ€ôì(€€€Í¡•µ„èÁ¡…Í”ÑY¥ÍÕ…±I•Ù¥•Ü€ü€¡½ÁÍ½Ñ ¹Á¡…Í”Ðµ•Ù¥‘•¹”µÙ¥ÍÕ…°µÉ•Ù¥•Üœ€èÁ¡…Í”ÍY¥ÍÕ…±I•Ù¥•Ü€ü€¡½ÁÍ½Ñ ¹Á¡…Í”ÌµÙ¥ÍÕ…°µÉ•Ù¥•Üœ€è€¡½ÁÍ½Ñ ¹Á•É™½Éµ…¹”µÁÉ½™¥±”œ°(€€€Ù•ÉÍ¥½¸è€Ä°(€€€•¹•É…Ñ•‘Ðè¹•Ü…Ñ” ¤¹Ñ½%M=MÑÉ¥¹œ ¤°(€€€•¹™½É”°(€€€½µÁ…Ñ¥‰¥±¥Ñä°(€€€Ù¥ÍÕ…±I•Ù¥•Ü°(€€€ÁÕ5½‘”°(€€€‰Õ‘•Ñ½Õµ•¹Ð°(€€€‰É½ÝÍ•ÈèìÁ…Ñ è¡É½µ•A…Ñ ô°(€€€‰Õ¹‘±”è…ÉÑ¥™…Ð¹‰Õ¹‘±”°(€€€ÁÉ½™¥±•Ìèmt°(€€€Í••­MÑÉ•ÍÌè¹Õ±°°(€€€¡¥¡•¹Í¥ÑåM••­MÑÉ•ÍÌè¹Õ±°°(€€€™…¥±ÕÉ•Ìèmt°(€ôì((€ÑÉäì(€€€ÁÉ½‘ÕÑ¥½¸€ô…Ý…¥ÐÍ•ÉÙ•AÉ½‘ÕÑ¥½¹ÉÑ¥™…Ð¡‘¥ÍÑ¥È¤ì(€€€±…Õ¹ €ô…Ý…¥Ð±…Õ¹¡¡É½µ”¡¡É½µ•A…Ñ ¤ì(€€€É•Á½ÉÐ¹‰É½ÝÍ•È¹Ù•ÉÍ¥½¸€ô±…Õ¹ ¹Ù•ÉÍ¥½¸¹	É½ÝÍ•È€üü¹Õ±°ì(€€€É•Á½ÉÐ¹‰É½ÝÍ•È¹±…Õ¹¡ÑÑ•µÁÑÌ€ô±…Õ¹ ¹…ÑÑ•µÁÑÌì(€€€É•Á½ÉÐ¹‰É½ÝÍ•È¹…ÉÌ€ô±…Õ¹ ¹…ÉÌì(€€€½¹ÍÐÑ…É•ÑÌ€ô…Ý…¥Ð™•Ñ¡)Í½¸¡¡ÑÑÀè¼¼ÄÈÜ¸À¸À¸Äè‘í±…Õ¹ ¹Á½ÉÑô½©Í½¹€¤ì(€€€½¹ÍÐÁ…”€ôÑ…É•ÑÌ¹™¥¹ ¡Ñ…É•Ð¤€ôøÑ…É•Ð¹ÑåÁ”€ôôô€Á…”œ¤ì(€€€¥˜€ …Á…”ü¹Ý•‰M½­•Ñ•‰Õ•ÉUÉ°¤Ñ¡É½Ü¹•ÜÉÉ½È ¡É½µ”‘¥¹½Ð•áÁ½Í”„Á…”@Ñ…É•Ð¸œ¤ì(€€€‘À€ô¹•Ü‘Á±¥•¹Ð¡Á…”¹Ý•‰M½­•Ñ•‰Õ•ÉUÉ°¤ì(€€€…Ý…¥Ð‘À¹…±° A…”¹•¹…‰±”œ¤ì(€€€…Ý…¥Ð‘À¹…±° =4¹•¹…‰±”œ¤ì(€€€…Ý…¥Ð‘À¹…±° IÕ¹Ñ¥µ”¹•¹…‰±”œ¤ì(€€€…Ý…¥Ð‘À¹…±° 1½œ¹•¹…‰±”œ¤ì(€€€…Ý…¥Ð‘À¹…±° A•É™½Éµ…¹”¹•¹…‰±”œ¤ì(€€€…Ý…¥Ð‘À¹…±° !•…ÁAÉ½™¥±•È¹•¹…‰±”œ¤ì((€€€™½È€¡½¹ÍÐÁÉ½™¥±”½˜ÁÉ½™¥±•Ì¤É•Á½ÉÐ¹ÁÉ½™¥±•Ì¹ÁÕÍ ¡…Ý…¥Ð±½…‘AÉ½™¥±”¡‘À°ÁÉ½‘ÕÑ¥½¸¹½É¥¥¸°ÁÉ½™¥±”¤¤ì(€€€¥˜€ …½µÁ…Ñ¥‰¥±¥Ñä€˜˜€…Ù¥ÍÕ…±I•Ù¥•Ü¤ì(€€€€€É•Á½ÉÐ¹Í••­MÑÉ•ÍÌ€ô…Ý…¥ÐÍ••­MÑÉ•ÍÌ¡‘À°ÁÉ½‘ÕÑ¥½¸¹½É¥¥¸¤ì(€€€€€É•Á½ÉÐ¹¡¥¡•¹Í¥ÑåM••­MÑÉ•ÍÌ€ô…Ý…¥ÐÍ••­MÑÉ•ÍÌ¡‘À°ÁÉ½‘ÕÑ¥½¸¹½É¥¥¸°ÍÑÉ•ÍÍ	Õ‘•ÑÌ¹¡¥¡•¹Í¥ÑåM••¬ü¹å±•Ì€üü€ÄÈ°€¡¥ µ‘•¹Í¥ÑäµÍ••¬µÍÑÉ•ÍÌœ¤ì((€€€…‘‘	Õ‘•Ñ…¥±ÕÉ”¡É•Á½ÉÐ¹™…¥±ÕÉ•Ì°…ÉÑ¥™…Ð¹‰Õ¹‘±”¹©Íé¥Á	åÑ•Ì€ðô‰Õ‘•ÑÌ¹µ…á)Íé¥Á	åÑ•Ì°)Lé¥À€‘í…ÉÑ¥™…Ð¹‰Õ¹‘±”¹©Íé¥Á	åÑ•Íô•á••‘Ì€‘í‰Õ‘•ÑÌ¹µ…á)Íé¥Á	åÑ•Íô¹€¤ì(€€€…‘‘	Õ‘•Ñ…¥±ÕÉ”¡É•Á½ÉÐ¹™…¥±ÕÉ•Ì°…ÉÑ¥™…Ð¹‰Õ¹‘±”¹ÍÍé¥Á	åÑ•Ì€ðô‰Õ‘•ÑÌ¹µ…áÍÍé¥Á	åÑ•Ì°MLé¥À€‘í…ÉÑ¥™…Ð¹‰Õ¹‘±”¹ÍÍé¥Á	åÑ•Íô•á••‘Ì€‘í‰Õ‘•ÑÌ¹µ…áÍÍé¥Á	åÑ•Íô¹€¤ì(€€€™½È€¡½¹ÍÐÁÉ½™¥±”½˜É•Á½ÉÐ¹ÁÉ½™¥±•Ì¤ì(€€€€€½¹ÍÐÍÑÉ•ÍÍAÉ½™¥±•%€ôÁÉ½™¥±”¹ÍÑÉ•ÍÌü¹ÁÉ½™¥±”ì(€€€€€¥˜€¡ÍÑÉ•ÍÍAÉ½™¥±•%¤ì(€€€€€€€½¹ÍÐÍÑÉ•ÍÍ	Õ‘•Ð€ôÍÑÉ•ÍÍ	Õ‘•ÑÍmÍÑÉ•ÍÍAÉ½™¥±•%‘tì(€€€€€€€…‘‘	Õ‘•Ñ…¥±ÕÉ”¡É•Á½ÉÐ¹™…¥±ÕÉ•Ì°	½½±•…¸¡ÍÑÉ•ÍÍ	Õ‘•Ð¤°€‘íÁÉ½™¥±”¹¥‘ô¥Ìµ¥ÍÍ¥¹œ„Ù•ÉÍ¥½¹•ÍÑÉ•ÍÌ‰Õ‘•Ð¹€¤ì(€€€€€€€¥˜€¡ÍÑÉ•ÍÍ	Õ‘•Ð¤ì(€€€€€€€€€…‘‘	Õ‘•Ñ…¥±ÕÉ”¡É•Á½ÉÐ¹™…¥±ÕÉ•Ì°ÁÉ½™¥±”¹•±•µ•¹Ñ½Õ¹Ð€ðôÍÑÉ•ÍÍ	Õ‘•Ð¹µ…á½µ±•µ•¹ÑÌ°€‘íÁÉ½™¥±”¹¥‘ô=4€‘íÁÉ½™¥±”¹•±•µ•¹Ñ½Õ¹Ñô•á••‘ÌÍÑÉ•ÍÌ‰Õ‘•Ð€‘íÍÑÉ•ÍÍ	Õ‘•Ð¹µ…á½µ±•µ•¹ÑÍô¹€¤ì(€€€€€€€€€…‘‘	Õ‘•Ñ…¥±ÕÉ”¡É•Á½ÉÐ¹™…¥±ÕÉ•Ì°ÁÉ½™¥±”¹¡•…ÁUÍ•‘	åÑ•Ì€ðôÍÑÉ•ÍÍ	Õ‘•Ð¹µ…á!•…ÁUÍ•‘	åÑ•Ì°€‘íÁÉ½™¥±”¹¥‘ô¡•…À€‘íÁÉ½™¥±”¹¡•…ÁUÍ•‘	åÑ•Íô•á••‘ÌÍÑÉ•ÍÌ‰Õ‘•Ð€‘íÍÑÉ•ÍÍ	Õ‘•Ð¹µ…á!•…ÁUÍ•‘	åÑ•Íô¹€¤ì(€€€€€€€ô(€€€€€€€½¹Ñ¥¹Õ”ì(€€€€€ô(€€€€€…‘‘	Õ‘•Ñ…¥±ÕÉ”¡É•Á½ÉÐ¹™…¥±ÕÉ•Ì°ÁÉ½™¥±”¹•±•µ•¹Ñ½Õ¹Ð€ðô‰Õ‘•ÑÌ¹µ…á½µ±•µ•¹ÑÌ°€‘íÁÉ½™¥±”¹¥‘ô=4€‘íÁÉ½™¥±”¹•±•µ•¹Ñ½Õ¹Ñô•á••‘Ì€‘í‰Õ‘•ÑÌ¹µ…á½µ±•µ•¹ÑÍô¹€¤ì(€€€€€…‘‘	Õ‘•Ñ…¥±ÕÉ”¡É•Á½ÉÐ¹™…¥±ÕÉ•Ì°ÁÉ½™¥±”¹¡•…ÁUÍ•‘	åÑ•Ì€ðô‰Õ‘•ÑÌ¹µ…á!•…ÁUÍ•‘	åÑ•Ì°€‘íÁÉ½™¥±”¹¥‘ô¡•…À€‘íÁÉ½™¥±”¹¡•…ÁUÍ•‘	åÑ•Íô•á••‘Ì€‘í‰Õ‘•ÑÌ¹µ…á!•…ÁUÍ•‘	åÑ•Íô¹€¤ì(€€€ô(€€€…‘‘	Õ‘•Ñ…¥±ÕÉ”¡É•Á½ÉÐ¹™…¥±ÕÉ•Ì°É•Á½ÉÐ¹Í••­MÑÉ•ÍÌ¹™¥¹…±±•µ•¹Ñ½Õ¹Ð€ðô‰Õ‘•ÑÌ¹µ…á½µ±•µ•¹ÑÌ°Í••¬ÍÑÉ•ÍÌ=4€‘íÉ•Á½ÉÐ¹Í••­MÑÉ•ÍÌ¹™¥¹…±±•µ•¹Ñ½Õ¹Ñô•á••‘Ì€‘í‰Õ‘•ÑÌ¹µ…á½µ±•µ•¹ÑÍô¹€¤ì(€€€…‘‘	Õ‘•Ñ…¥±ÕÉ”¡É•Á½ÉÐ¹™…¥±ÕÉ•Ì°É•Á½ÉÐ¹Í••­MÑÉ•ÍÌ¹¡•…ÁÉ½ÝÑ¡	åÑ•Ì€ðô‰Õ‘•ÑÌ¹µ…á!•…ÁÉ½ÝÑ¡	åÑ•Ì°Í••¬ÍÑÉ•ÍÌ¡•…ÀÉ½ÝÑ €‘íÉ•Á½ÉÐ¹Í••­MÑÉ•ÍÌ¹¡•…ÁÉ½ÝÑ¡	åÑ•Íô•á••‘Ì€‘í‰Õ‘•ÑÌ¹µ…á!•…ÁÉ½ÝÑ¡	åÑ•Íô¹€¤ì(€€€½¹ÍÐ¡¥¡•¹Í¥ÑåM••­	Õ‘•Ð€ôÍÑÉ•ÍÍ	Õ‘•ÑÌ¹¡¥¡•¹Í¥ÑåM••¬ì(€€€…‘‘	Õ‘•Ñ…¥±ÕÉ”¡É•Á½ÉÐ¹™…¥±ÕÉ•Ì°	½½±•…¸¡¡¥¡•¹Í¥ÑåM••­	Õ‘•Ð¤°€!¥ µ‘•¹Í¥ÑäÍ••¬ÍÑÉ•ÍÌ¥Ìµ¥ÍÍ¥¹œ„Ù•ÉÍ¥½¹•ÍÑÉ•ÍÌ‰Õ‘•Ð¸œ¤ì(€€€¥˜€¡¡¥¡•¹Í¥ÑåM••­	Õ‘•Ð¤ì(€€€€€…‘‘	Õ‘•Ñ…¥±ÕÉ”¡É•Á½ÉÐ¹™…¥±ÕÉ•Ì°É•Á½ÉÐ¹¡¥¡•¹Í¥ÑåM••­MÑÉ•ÍÌ¹å±•Ì€ôôô¡¥¡•¹Í¥ÑåM••­	Õ‘•Ð¹å±•Ì°¡¥ µ‘•¹Í¥ÑäÍ••¬å±•Ì€‘íÉ•Á½ÉÐ¹¡¥¡•¹Í¥ÑåM••­MÑÉ•ÍÌ¹å±•Íô‘¼¹½Ðµ…Ñ ‰Õ‘•Ð½¹ÑÉ…Ð€‘í¡¥¡•¹Í¥ÑåM••­	Õ‘•Ð¹å±•Íô¹€¤ì(€€€€€…‘‘	Õ‘•Ñ…¥±ÕÉ”¡É•Á½ÉÐ¹™…¥±ÕÉ•Ì°É•Á½ÉÐ¹¡¥¡•¹Í¥ÑåM••­MÑÉ•ÍÌ¹•Ù•¹ÑÍA•Éå±”€ôôô¡¥¡•¹Í¥ÑåM••­	Õ‘•Ð¹•Ù•¹ÑÍA•Éå±”°¡¥ µ‘•¹Í¥ÑäÍ••¬•Ù•¹Ð½Õ¹Ð€‘íÉ•Á½ÉÐ¹¡¥¡•¹Í¥ÑåM••­MÑÉ•ÍÌ¹•Ù•¹ÑÍA•Éå±•ô‘½•Ì¹½Ðµ…Ñ ‰Õ‘•Ð½¹ÑÉ…Ð€‘í¡¥¡•¹Í¥ÑåM••­	Õ‘•Ð¹•Ù•¹ÑÍA•Éå±•ô¹€¤ì(€€€€€…‘‘	Õ‘•Ñ…¥±ÕÉ”¡É•Á½ÉÐ¹™…¥±ÕÉ•Ì°É•Á½ÉÐ¹¡¥¡•¹Í¥ÑåM••­MÑÉ•ÍÌ¹¡•…ÁÉ½ÝÑ¡	åÑ•Ì€ðô¡¥¡•¹Í¥ÑåM••­	Õ‘•Ð¹µ…á!•…ÁÉ½ÝÑ¡	åÑ•Ì°¡¥ µ‘•¹Í¥ÑäÍ••¬¡•…ÀÉ½ÝÑ €‘íÉ•Á½ÉÐ¹¡¥¡•¹Í¥ÑåM••­MÑÉ•ÍÌ¹¡•…ÁÉ½ÝÑ¡	åÑ•Íô•á••‘ÌÍÑÉ•ÍÌ‰Õ‘•Ð€‘í¡¥¡•¹Í¥ÑåM••­	Õ‘•Ð¹µ…á!•…ÁÉ½ÝÑ¡	åÑ•Íô¹€¤ì(€€€ô(€€€ô(€ô…Ñ €¡•ÉÉ½È¤ì(€€€¥˜€¡•ÉÉ½È€˜˜ÑåÁ•½˜•ÉÉ½È€ôôô€½‰©•Ðœ€˜˜€±…Õ¹¡ÑÑ•µÁÑÌœ¥¸•ÉÉ½È¤É•Á½ÉÐ¹‰É½ÝÍ•È¹±…Õ¹¡ÑÑ•µÁÑÌ€ô•ÉÉ½È¹±…Õ¹¡ÑÑ•µÁÑÌì(€€€É•Á½ÉÐ¹™…Ñ…±ÉÉ½È€ô•ÉÉ½È¥¹ÍÑ…¹•½˜ÉÉ½È€ü•ÉÉ½È¹ÍÑ…¬€üü•ÉÉ½È¹µ•ÍÍ…”€èMÑÉ¥¹œ¡•ÉÉ½È¤ì(€ô™¥¹…±±äì(€€€¥˜€¡‘À¤ì(€€€€€ÑÉäì…Ý…¥Ð‘À¹…±° 	É½ÝÍ•È¹±½Í”œ¤ìô…Ñ ì€¼¨¹½½À€¨¼ô(€€€€€…Ý…¥Ð‘À¹±½Í” ¤ì(€€€ô(€€€¥˜€¡±…Õ¹ ü¹¡É½µ”€˜˜€…±…Õ¹ ¹¡É½µ”¹­¥±±•¤±…Õ¹ ¹¡É½µ”¹­¥±° M%-%10œ¤ì(€€€¥˜€¡±…Õ¹ ü¹ÕÍ•É…Ñ…¥È¤ÉµMå¹Œ¡±…Õ¹ ¹ÕÍ•É…Ñ…¥È°ìÉ•ÕÉÍ¥Ù”èÑÉÕ”°™½É”èÑÉÕ”°µ…áI•ÑÉ¥•Ìè€Ô°É•ÑÉå•±…äè€ÄÀÀô¤ì(€€€¥˜€¡ÁÉ½‘ÕÑ¥½¸¤…Ý…¥Ð¹•ÜAÉ½µ¥Í” ¡É•Í½±Ù•AÉ½µ¥Í”¤€ôøÁÉ½‘ÕÑ¥½¸¹Í•ÉÙ•È¹±½Í”¡É•Í½±Ù•AÉ½µ¥Í”¤¤ì(€€€É•Á½ÉÐ¹‰É½ÝÍ•È¹ÍÑ‘•ÉÉQ…¥°€ô±…Õ¹ ü¹ÍÑ…Ñ”¹ÍÑ‘•ÉÈñð¹Õ±°ì(€€€µ­‘¥ÉMå¹Œ¡‘¥É¹…µ”¡É•Á½ÉÑA…Ñ ¤°ìÉ•ÕÉÍ¥Ù”èÑÉÕ”ô¤ì(€€€ÝÉ¥Ñ•¥±•Må¹Œ¡É•Á½ÉÑA…Ñ °€‘í)M=8¹ÍÑÉ¥¹¥™ä¡É•Á½ÉÐ°¹Õ±°°€È¥õq¹€¤ì(€ô((€½¹Í½±”¹±½œ¡!=AM=Q ÁÉ½‘ÕÑ¥½¸€‘íÁ¡…Í”ÑY¥ÍÕ…±I•Ù¥•Ü€ü€A¡…Í”€ÐÙ¥ÍÕ…°É•Ù¥•Üœ€èÁ¡…Í”ÍY¥ÍÕ…±I•Ù¥•Ü€ü€A¡…Í”€ÌÙ¥ÍÕ…°É•Ù¥•Üœ€è½µÁ…Ñ¥‰¥±¥Ñä€ü€½µÁ…Ñ¥‰¥±¥Ñäœ€è€Á•É™½Éµ…¹”ôÁÉ½™¥±”€ ‘íÉ•Á½ÉÐ¹‰É½ÝÍ•È¹Ù•ÉÍ¥½¸€üü€‰É½ÝÍ•ÈÕ¹­¹½Ý¸ô¥€¤ì(€½¹Í½±”¹±½œ¡ATµ½‘”è€‘íÁÕ5½‘•õ€¤ì(€½¹Í½±”¹±½œ¡	Õ¹‘±”è)L€‘íÉ•Á½ÉÐ¹‰Õ¹‘±”¹©Íé¥Á	åÑ•Íôé¥À‰åÑ•Ìƒ
+ÜML€‘íÉ•Á½ÉÐ¹‰Õ¹‘±”¹ÍÍé¥Á	åÑ•Íôé¥À‰åÑ•Í€¤ì(€™½È€¡½¹ÍÐÁÉ½™¥±”½˜É•Á½ÉÐ¹ÁÉ½™¥±•Ì¤ì(€€€½¹Í½±”¹±½œ¡€‘íÁÉ½™¥±”¹¥‘ôè=4€‘íÁÉ½™¥±”¹•±•µ•¹Ñ½Õ¹Ñôƒ
+Ü¡•…À€‘ì¡ÁÉ½™¥±”¹¡•…ÁUÍ•‘	åÑ•Ì€¼€ÄÀÐàÔÜØ¤¹Ñ½¥á• È¥ô5¥ƒ
+ÜÉ•…‘ä€‘íÁÉ½™¥±”¹É•…‘å5Ì¹Ñ½¥á• À¥ôµÌƒ
+Ü•Ù•¹ÑÌ€‘íÁÉ½™¥±”¹•Ù•¹Ñ½Õ¹Ñõ€¤ì(€ô(€¥˜€¡É•Á½ÉÐ¹Í••­MÑÉ•ÍÌ¤ì(€€€½¹Í½±”¹±½œ¡Í••¬ÍÑÉ•ÍÌè€‘íÉ•Á½ÉÐ¹Í••­MÑÉ•ÍÌ¹å±•Íôƒ\€‘íÉ•Á½ÉÐ¹Í••­MÑÉ•ÍÌ¹•Ù•¹ÑÍA•Éå±•ô•Ù•¹ÑÌƒ
+Ü¡•…ÀÉ½ÝÑ €‘ì¡É•Á½ÉÐ¹Í••­MÑÉ•ÍÌ¹¡•…ÁÉ½ÝÑ¡	åÑ•Ì€¼€ÄÀÐàÔÜØ¤¹Ñ½¥á• È¥ô5¥ƒ
+Ü€‘íÉ•Á½ÉÐ¹Í••­MÑÉ•ÍÌ¹•±…ÁÍ•‘5Ì¹Ñ½¥á• À¥ôµÌ‘¥…¹½ÍÑ¥€¤ì(€ô(€¥˜€¡É•Á½ÉÐ¹¡¥¡•¹Í¥ÑåM••­MÑÉ•ÍÌ¤ì(€€€½¹Í½±”¹±½œ¡¡¥ µ‘•¹Í¥ÑäÍ••¬ÍÑÉ•ÍÌè€‘íÉ•Á½ÉÐ¹¡¥¡•¹Í¥ÑåM••­MÑÉ•ÍÌ¹å±•Íôƒ\€‘íÉ•Á½ÉÐ¹¡¥¡•¹Í¥ÑåM••­MÑÉ•ÍÌ¹•Ù•¹ÑÍA•Éå±•ô•Ù•¹ÑÌƒ
+Ü¡•…ÀÉ½ÝÑ €‘ì¡É•Á½ÉÐ¹¡¥¡•¹Í¥ÑåM••­MÑÉ•ÍÌ¹¡•…ÁÉ½ÝÑ¡	åÑ•Ì€¼€ÄÀÐàÔÜØ¤¹Ñ½¥á• È¥ô5¥ƒ
+Ü€‘íÉ•Á½ÉÐ¹¡¥¡•¹Í¥ÑåM••­MÑÉ•ÍÌ¹•±…ÁÍ•‘5Ì¹Ñ½¥á• À¥ôµÌ‘¥…¹½ÍÑ¥€¤ì(€ô(€½¹Í½±”¹±½œ¡I•Á½ÉÐè€‘íÉ•Á½ÉÑA…Ñ¡õ€¤ì(€¥˜€¡É•Á½ÉÐ¹™…Ñ…±ÉÉ½È¤ì(€€€½¹Í½±”¹•ÉÉ½È¡É•Á½ÉÐ¹™…Ñ…±ÉÉ½È¤ì(€€€ÁÉ½•ÍÌ¹•á¥Ñ½‘”€ô€Äì(€ô•±Í”¥˜€¡É•Á½ÉÐ¹™…¥±ÕÉ•Ì¹±•¹Ñ €ø€À¤ì(€€€½¹Í½±”¹•ÉÉ½È A•É™½Éµ…¹”‰Õ‘•ÐÙ¥½±…Ñ¥½¹Ìèœ¤ì(€€€™½È€¡½¹ÍÐ™…¥±ÕÉ”½˜É•Á½ÉÐ¹™…¥±ÕÉ•Ì¤½¹Í½±”¹•ÉÉ½È¡€´€‘í™…¥±ÕÉ•õ€¤ì(€€€¥˜€¡•¹™½É”¤ÁÉ½•ÍÌ¹•á¥Ñ½‘”€ô€Äì(€ô•±Í”ì(€€€½¹Í½±”¹±½œ¡Á¡…Í”ÑY¥ÍÕ…±I•Ù¥•Ü€ü€A¡…Í”€Ð•Ù¥‘•¹”ÁÉ½‘ÕÑ¥½¸Ù¥ÍÕ…°É•Ù¥•Ü…ÁÑÕÉ”…¹•½µ•ÑÉä¡•­ÌÁ…ÍÍ•¸œ€èÁ¡…Í”ÍY¥ÍÕ…±I•Ù¥•Ü€ü€A¡…Í”€ÌÁÉ½‘ÕÑ¥½¸Ù¥ÍÕ…°É•Ù¥•Ü…ÁÑÕÉ”…¹•½µ•ÑÉä¡•­ÌÁ…ÍÍ•¸œ€è½µÁ…Ñ¥‰¥±¥Ñä€ü½µÁ…Ñ¥‰¥±¥ÑäÍ•µ…¹Ñ¥ŒÁÉ½™¥±”Á…ÍÍ•™½ÈATµ½‘”€‘íÁÕ5½‘•ô¹€€è€MÑ…‰±”Á•É™½Éµ…¹”…¹¡¥ µ‘•¹Í¥ÑäÍÑÉ•ÍÌ‰Õ‘•ÑÌÁ…ÍÍ•¸œ¤ì(€ô)ô()…Ý…¥Ðµ…¥¸ ¤ì

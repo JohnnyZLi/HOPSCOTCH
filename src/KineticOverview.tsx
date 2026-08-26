@@ -162,7 +162,10 @@ export function KineticOverview({
 
   const seekToAct = (index: number) => {
     setActiveAct(index);
-    timelineRef.current?.seek(acts[index].atMs);
+    /* Paint the requested readout before Anime.js performs the heavier SVG
+       seek. The control should acknowledge intent immediately even when the
+       cinematic scene has hundreds of animated targets to reconcile. */
+    requestAnimationFrame(() => timelineRef.current?.seek(acts[index].atMs));
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
