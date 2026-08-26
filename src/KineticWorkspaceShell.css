@@ -70,6 +70,14 @@ html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-vi
   align-items: flex-start !important;
 }
 
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar {
+  opacity: .44 !important;
+}
+
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar:is(:hover, :focus-within) {
+  opacity: .66 !important;
+}
+
 html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-identity {
   gap: 8px !important;
   min-height: 34px !important;

@@ -145,7 +145,7 @@ async function setFileInput(cdp, selector, filePath) {
 }
 
 async function clickText(cdp, selector, text) {
-  const clicked = await cdp.evaluate(`(()=>{const target=[...document.querySelectorAll(${JSON.stringify(selector)})].find((candidate)=>candidate.textContent?.includes(${JSON.stringify(text)}));if(!target)return false;target.click();return true})()`);
+  const clicked = await cdp.evaluate(`(()=>{const needle=${JSON.stringify(text)}.toLocaleUpperCase();const target=[...document.querySelectorAll(${JSON.stringify(selector)})].find((candidate)=>candidate.textContent?.toLocaleUpperCase().includes(needle));if(!target)return false;target.click();return true})()`);
   if (!clicked) throw new Error(`Unable to click ${selector} containing ${JSON.stringify(text)}`);
 }
 
@@ -222,7 +222,7 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='none'`);
-    const restored = await cdp.evaluate(`document.activeElement?.textContent?.includes('FLOWS')===true`);
+    const restored = await cdp.evaluate(`document.activeElement?.textContent?.toLocaleUpperCase().includes('FLOWS')===true`);
     if (!initialFocus || !shiftTabContained || !tabContained || !restored) throw new Error(`${profile.id} Capture Replay drawer focus lifecycle failed.`);
     focusLifecycle = { initialFocus, shiftTabContained, tabContained, restored };
   }

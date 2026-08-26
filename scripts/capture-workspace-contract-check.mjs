@@ -21,7 +21,7 @@ assert.match(workspace, /file\.size > CAPTURE_LIMITS\.maxCaptureBytes/);
 assert.match(workspace, /The previous valid capture remains active\./);
 assert.match(workspace, /parseCaptureSessionAsync\(buffer\)/);
 assert.match(workspace, /<CaptureTrackHPanel session=\{session\} conversationId=\{activeConversation\.id\}/);
-assert.match(workspace, /Track H · Captured evidence \+ replay/);
+assert.match(workspace, /Capture evidence · immutable local session/);
 assert.doesNotMatch(workspace, /parseCaptureSession\(buffer\)/, 'primary browser ingest must not silently return to synchronous parse/index work');
 
 for (const forbidden of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'sendBeacon', 'localStorage', 'sessionStorage', 'indexedDB']) {

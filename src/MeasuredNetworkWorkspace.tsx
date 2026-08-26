@@ -339,25 +339,25 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
     transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
   >
     <header className="measured-heading">
-      <div className="visual-identity"><span>LAB 09</span><strong>MEASURED NETWORK</strong></div>
+      <div className="visual-identity"><span>MEASURED NETWORK</span><strong>LOCAL EVIDENCE FIELD</strong></div>
       <span className="measured-truth-chip">LOCAL MEASURED · BOUNDED · NOT GLOBAL</span>
       <div className="measured-heading-actions">
         <VisualDrawerTabs
           active={activeDrawer}
           items={[
-            { id: 'config', label: 'SETUP', badge: bridgeStatus === 'connected' ? 'LIVE' : undefined },
-            { id: 'evidence', label: 'PROVENANCE', badge: measuredState ? String(measuredState.snapshot.warnings.length) : '—' },
+            { id: 'config', label: 'Setup', badge: bridgeStatus === 'connected' ? 'LIVE' : undefined },
+            { id: 'evidence', label: 'Provenance', badge: measuredState ? String(measuredState.snapshot.warnings.length) : '—' },
           ]}
           onSelect={(id) => setActiveDrawer((current) => current === id ? null : id)}
         />
-        <button className="lab-mode" type="button" onClick={() => inputRef.current?.click()}>{measuredState ? 'IMPORT ANOTHER' : 'IMPORT REPORT'}</button>
-        {measuredState && <button className="lab-mode measured-clear" type="button" onClick={clear}>CLEAR</button>}
-        <button className="lab-mode" type="button" onClick={onExit}>EXIT LAB</button>
+        <button className="lab-mode measured-import" type="button" onClick={() => inputRef.current?.click()}>{measuredState ? 'Import another' : 'Import report'}</button>
+        {measuredState && <button className="lab-mode measured-clear" type="button" onClick={clear}>Clear</button>}
+        <button className="lab-mode measured-exit" type="button" onClick={onExit}>Exit</button>
       </div>
       <input ref={inputRef} className="measured-file-input" type="file" accept=".json,application/json" onChange={(event) => void importFile(event)} />
     </header>
 
-    <VisualEntranceTransition entrance={{ eyebrow: 'LAB 09 · LOCAL MEASUREMENT', title: 'MEASURED HERE.', accentTitle: 'NOT EVERYWHERE.', subtitle: 'Analysis-first facts with an explicit evidence boundary.' }} />
+    <VisualEntranceTransition entrance={{ eyebrow: 'Measured network · local evidence', title: 'MEASURED HERE.', accentTitle: 'NOT EVERYWHERE.', subtitle: 'Analysis-first facts with an explicit evidence boundary.' }} />
 
     <AnimatePresence mode="wait" initial={false}>
       {error && <motion.div key={error} className="measured-error" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>

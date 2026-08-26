@@ -430,6 +430,14 @@ html body .builder-selection-card {
     display: none !important;
   }
 
+  html body .captured-packet-workspace .packet-stage-hud > div:nth-child(4) {
+    display: none !important;
+  }
+
+  html body .captured-packet-workspace .packet-stage-hud > div:nth-child(5) {
+    display: grid !important;
+  }
+
   html body .packet-visual-workspace .packet-stage {
     grid-template-rows: auto minmax(180px, .95fr) minmax(0, 1.05fr) !important;
     padding: 98px 8px 8px !important;
