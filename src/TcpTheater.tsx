@@ -190,14 +190,14 @@ export function TcpTheater({ onExit, onOpenPacket }: { onExit: () => void; onOpe
 
   return <VisualWorkspaceShell
     className="protocol-visual-workspace tcp-visual-workspace"
-    entrance={{ eyebrow: 'LAB 03A · TCP THEATER', title: 'MAKE TCP', accentTitle: 'SHOW ITS WORK.', subtitle: 'Sequence space, loss signaling, retransmission, and congestion response share one wire.' }}
+    entrance={{ eyebrow: 'TCP recovery', title: 'One missing segment', accentTitle: 'reshapes the window.', subtitle: 'Sequence space, loss signaling, retransmission, and congestion response share one wire.' }}
     stageLabel="TCP fast retransmit and recovery theater"
     activeDrawer={activeDrawer}
     drawers={drawers}
     onCloseDrawer={() => setActiveDrawer(null)}
-    toolbar={<><div className="visual-identity"><i/><span>TCP THEATER</span><strong>FAST RETRANSMIT · RENO</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'INSPECT' }, { id: 'events', label: 'EVENTS', badge: String(tcpScenario.events.length) }, { id: 'tools', label: 'MODEL' }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button protocol-link-button" onClick={onOpenPacket}>PACKET ↗</button><button type="button" className="visual-tool-button" onClick={onExit}>EXIT</button></div></>}
+    toolbar={<><div className="visual-identity"><i/><span>TCP recovery</span><strong>Fast retransmit · Reno</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'Inspect' }, { id: 'events', label: 'Events', badge: String(tcpScenario.events.length) }, { id: 'tools', label: 'Model' }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button protocol-link-button" onClick={onOpenPacket}>Packet ↗</button><button type="button" className="visual-tool-button" onClick={onExit}>Exit</button></div></>}
     hud={<><div><span>PHASE</span><strong>{state.connectionLabel}</strong></div><div><span>EXPECTED ACK</span><strong>{state.expectedAck || '—'}</strong></div><div><span>DUP ACKS</span><strong>{state.duplicateAcks} / 3</strong></div><div><span>PROVENANCE</span><strong>SIMULATED</strong></div></>}
-    timeline={<VisualTimeRail timeMs={timeMs} durationMs={tcpScenario.durationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="TCP TIME MACHINE" context={`${state.cwndMss} MSS cwnd · ${state.ssthreshMss} MSS threshold`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
+    timeline={<VisualTimeRail timeMs={timeMs} durationMs={tcpScenario.durationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="TCP trace" context={`${state.cwndMss} MSS cwnd · ${state.ssthreshMss} MSS threshold`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
   >
     <div ref={rootRef} className={`protocol-cinematic-stage tcp-cinematic-stage phase-${state.phase}`}>
       <div className="protocol-scene-kicker"><span>TCP / BYTE STREAM</span><strong>{activeEvent.direction === 'local' ? 'ENDPOINT STATE' : activeEvent.direction.replaceAll('-', ' ').toUpperCase()}</strong></div>

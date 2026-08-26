@@ -357,7 +357,7 @@ export function VisualEntranceTransition({ entrance }: {
       setVisible(false);
       return;
     }
-    const timeout = window.setTimeout(() => setVisible(false), 1280);
+    const timeout = window.setTimeout(() => setVisible(false), 920);
     return () => window.clearTimeout(timeout);
   }, [reduceMotion]);
 
@@ -365,10 +365,10 @@ export function VisualEntranceTransition({ entrance }: {
     <motion.div
       className="visual-entrance"
       aria-hidden="true"
-      initial={{ opacity: 0, scale: 1.035, filter: 'blur(16px)' }}
-      animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-      exit={{ opacity: 0, scale: 0.82, y: -84, filter: 'blur(12px)' }}
-      transition={{ duration: 0.62, ease: [0.16, 1, 0.3, 1] }}
+      initial={{ opacity: 0, x: -18 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 16 }}
+      transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
     >
       <span>{entrance.eyebrow}</span>
       <strong>{entrance.title}<em>{entrance.accentTitle}</em></strong>

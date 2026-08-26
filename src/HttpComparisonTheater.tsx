@@ -115,7 +115,7 @@ export function HttpComparisonTheater({ onExit, onOpenTls }: { onExit: () => voi
   const modelContent = <div className="protocol-model-drawer http-model-drawer">
     <section><span>WHAT THIS CLAIMS</span><strong>ORDERING COUPLING, NOT LOSS IMMUNITY</strong><p>HTTP/3 removes cross-stream transport ordering blockage: loss on Stream A does not force Stream B to wait for Stream A’s missing bytes.</p></section>
     <section><span>IMPORTANT BOUNDARY</span><p>QUIC loss recovery and congestion control remain connection-wide, so loss can still reduce overall sending rate. This deterministic trace also avoids QPACK dynamic-table dependencies.</p></section>
-    <button type="button" className="protocol-drawer-primary" onClick={onOpenTls}>OPEN TLS 1.3 THEATER ↗</button>
+    <button type="button" className="protocol-drawer-primary" onClick={onOpenTls}>Open TLS 1.3 handshake ↗</button>
   </div>;
 
   const drawers: VisualDrawerDefinition[] = [
@@ -126,14 +126,14 @@ export function HttpComparisonTheater({ onExit, onOpenTls }: { onExit: () => voi
 
   return <VisualWorkspaceShell
     className="protocol-visual-workspace http-visual-workspace"
-    entrance={{ eyebrow: 'LAB 03D · HTTP/2 VS HTTP/3', title: 'SAME LOSS.', accentTitle: 'DIFFERENT DAMAGE.', subtitle: 'Two synchronized lanes expose how TCP and QUIC couple application streams.' }}
+    entrance={{ eyebrow: 'HTTP/2 and HTTP/3', title: 'The same loss', accentTitle: 'lands differently.', subtitle: 'Two synchronized lanes expose how TCP and QUIC couple application streams.' }}
     stageLabel="HTTP/2 and HTTP/3 synchronized loss comparison"
     activeDrawer={activeDrawer}
     drawers={drawers}
     onCloseDrawer={() => setActiveDrawer(null)}
-    toolbar={<><div className="visual-identity"><i/><span>HTTP A/B THEATER</span><strong>H2/TCP × H3/QUIC</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'INSPECT' }, { id: 'events', label: 'EVENTS', badge: String(httpComparisonEvents.length) }, { id: 'tools', label: 'MODEL' }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button protocol-link-button" onClick={onOpenTls}>TLS ↗</button><button type="button" className="visual-tool-button" onClick={onExit}>EXIT</button></div></>}
+    toolbar={<><div className="visual-identity"><i/><span>HTTP loss comparison</span><strong>H2/TCP × H3/QUIC</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'Inspect' }, { id: 'events', label: 'Events', badge: String(httpComparisonEvents.length) }, { id: 'tools', label: 'Model' }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button protocol-link-button" onClick={onOpenTls}>TLS ↗</button><button type="button" className="visual-tool-button" onClick={onExit}>Exit</button></div></>}
     hud={<><div><span>PHASE</span><strong>{state.phaseLabel}</strong></div><div><span>LOSS TARGET</span><strong>{HTTP_STREAM_A}</strong></div><div><span>CONTROL</span><strong>SYNCHRONIZED A/B</strong></div><div><span>PROVENANCE</span><strong>SIMULATED</strong></div></>}
-    timeline={<VisualTimeRail timeMs={timeMs} durationMs={HTTP_COMPARISON_DURATION_MS} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="HTTP A/B TIME MACHINE" context={`${activeEvent.focus.toUpperCase()} FOCUS · SAME LOSS TRACE`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
+    timeline={<VisualTimeRail timeMs={timeMs} durationMs={HTTP_COMPARISON_DURATION_MS} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="Shared loss trace" context={`${activeEvent.focus} focus · same loss`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
   >
     <div ref={rootRef} className={`protocol-cinematic-stage http-cinematic-stage focus-${activeEvent.focus}`}>
       <div className="protocol-scene-kicker"><span>APPLICATION / TRANSPORT COUPLING</span><strong>{activeEvent.focus.toUpperCase()} FOCUS</strong></div>
