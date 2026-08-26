@@ -285,7 +285,7 @@ const profiles = [
 ];
 
 profiles.push(
-  { id: 'stress-as-canvas', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'as-density' }), readySelector: '.internet-scale', expected: ['POLICY SELECTS', 'SIMULATED BEST PATH'], stressExpected: { profile: 'as-density', asNodes: 160, asRelationships: 220 } },
+  { id: 'stress-as-canvas', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'as-density' }), readySelector: '.internet-scale', expected: ['AS routing', 'SIMULATED BEST PATH'], stressExpected: { profile: 'as-density', asNodes: 160, asRelationships: 220 } },
   { id: 'stress-builder-ceiling', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'builder-density' }), readySelector: '.builder-workspace', expected: ['32 NODES · 96 LINKS', 'PATH', 'YES · COST', 'FORWARDING', 'NO ROUTE'], stressExpected: { profile: 'builder-density', builderNodes: 32, builderLinks: 96 } },
   { id: 'stress-physical-webgl', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'physical-density' }), readySelector: '.physical-globe', expected: gpuMode === 'disabled' ? ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA', 'FALLBACK', 'WEBGL 2 UNAVAILABLE'] : ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA', 'WEBGL 2'], stressExpected: { profile: 'physical-density', physicalPoints: 2000, webgl: gpuMode !== 'disabled' }, allowExpectedWebglFailure: gpuMode === 'disabled' },
 );
@@ -858,7 +858,8 @@ async function exerciseMeasuredWorkspace(cdp, profile) {
 
 async function measuredClickButton(cdp, selector, text) {
   const clicked = await cdp.evaluate(`(()=>{
-    const button=[...document.querySelectorAll(${JSON.stringify(selector)})].find((candidate)=>candidate.textContent?.includes(${JSON.stringify(text)}));
+    const needle=${JSON.stringify(text)}.toLocaleUpperCase();
+    const button=[...document.querySelectorAll(${JSON.stringify(selector)})].find((candidate)=>candidate.textContent?.toLocaleUpperCase().includes(needle));
     if(!button)return false;
     button.click();
     return true;
