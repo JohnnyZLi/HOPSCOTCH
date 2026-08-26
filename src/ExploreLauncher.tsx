@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { ScenarioGallery } from './ScenarioGallery';
 import type { ScenarioPresetId } from './scenarios/catalog.ts';
 import {
@@ -27,35 +27,47 @@ function focusableInside(panel: HTMLElement): HTMLElement[] {
   return [...panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)].filter((element) => !element.hasAttribute('hidden') && element.getAttribute('aria-hidden') !== 'true');
 }
 
-function ExploreCard({ item, onSelect }: { item: WorkspaceDefinition; onSelect: (destination: ExploreDestination) => void }) {
+function WorkspaceRow({
+  item,
+  active,
+  onSelect,
+}: {
+  item: WorkspaceDefinition;
+  active: boolean;
+  onSelect: (destination: ExploreDestination) => void;
+}) {
   const reduceMotion = useReducedMotion();
   return (
     <motion.button
       type="button"
-      className="explore-card"
+      className={`explore-row${active ? ' active' : ''}`}
       data-explore-destination={item.id}
+      aria-current={active ? 'page' : undefined}
       onClick={() => onSelect(item.id)}
-      whileHover={reduceMotion ? undefined : { y: -4 }}
-      whileTap={reduceMotion ? undefined : { scale: 0.992 }}
-      transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+      whileHover={reduceMotion ? undefined : { x: 5 }}
+      whileTap={reduceMotion ? undefined : { scale: .995 }}
+      transition={{ type: 'spring', stiffness: 420, damping: 32 }}
     >
-      <span className="explore-card-lab">{item.lab}</span>
-      <strong>{item.exploreTitle}</strong>
-      <p>{item.description}</p>
-      <span className="explore-card-meta">{item.meta}</span>
-      <span className="explore-card-arrow" aria-hidden="true">↗</span>
+      <span><strong>{item.exploreTitle}</strong><small>{item.description}</small></span>
+      <i aria-hidden="true">→</i>
     </motion.button>
   );
 }
 
 export function ExploreLauncher({
   open,
+  activeDestination,
+  contextActions,
   onClose,
+  onHome,
   onSelect,
   onScenarioSelect,
 }: {
   open: boolean;
+  activeDestination: ExploreDestination | null;
+  contextActions?: ReactNode;
   onClose: () => void;
+  onHome: () => void;
   onSelect: (destination: ExploreDestination) => void;
   onScenarioSelect: (presetId: ScenarioPresetId) => void;
 }) {
@@ -104,7 +116,7 @@ export function ExploreLauncher({
       previousFocusRef.current?.focus({ preventScroll: true });
       previousFocusRef.current = null;
     };
-  }, [open]);
+  }, [onClose, open]);
 
   return (
     <AnimatePresence>
@@ -119,74 +131,58 @@ export function ExploreLauncher({
           initial={reduceMotion ? { opacity: 1 } : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.22 }}
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) onClose();
-          }}
+          transition={{ duration: reduceMotion ? 0 : .22 }}
+          onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
         >
-          <motion.section
+          <motion.aside
             ref={panelRef}
             className="explore-panel"
             tabIndex={-1}
-            initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 24, scale: 0.992 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.995 }}
-            transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+            initial={reduceMotion ? { opacity: 1 } : { opacity: 0, x: -42 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -34 }}
+            transition={{ duration: reduceMotion ? 0 : .42, ease: [.16, 1, .3, 1] }}
           >
             <header className="explore-heading">
-              <div>
-                <span>HOPSCOTCH · {WORKSPACE_COUNT} WORKSPACES</span>
-                <h1 id="explore-title">Pick something to do.</h1>
-                <p id="explore-description">Every major workspace is one click away. Start with a complete request, break the network, build your own, or jump directly to a protocol or evidence surface.</p>
+              <div className="explore-wordmark">
+                <span className="explore-wordmark-mark" aria-hidden="true"><i /><i /><i /></span>
+                <div><strong id="explore-title">HOPSCOTCH</strong><small>{WORKSPACE_COUNT} connected workspaces</small></div>
               </div>
-              <button ref={closeRef} type="button" className="explore-close" onClick={onClose} aria-label="Close Explore launcher">
-                CLOSE <span>ESC</span>
-              </button>
+              <button ref={closeRef} type="button" className="explore-close" onClick={onClose} aria-label="Close navigation">×</button>
+              <p id="explore-description">Follow a request end to end, or enter at the exact scale you want to inspect.</p>
             </header>
 
-            <section className="explore-featured" aria-label="Featured HOPSCOTCH experiences">
-              {FEATURED_WORKSPACE_IDS.map((id) => {
-                const item = workspaceDefinition(id);
-                const featured = item.featured;
-                if (!featured) return null;
-                return (
-                  <motion.button
-                    key={item.id}
-                    type="button"
-                    className="explore-featured-card"
-                    data-tone={featured.tone}
-                    data-explore-destination={item.id}
-                    onClick={() => onSelect(item.id)}
-                    whileHover={reduceMotion ? undefined : { y: -5 }}
-                    whileTap={reduceMotion ? undefined : { scale: 0.992 }}
-                    transition={{ type: 'spring', stiffness: 340, damping: 26 }}
-                  >
-                    <span className="explore-featured-lab">{item.lab}</span>
-                    <strong>{item.exploreTitle}</strong>
-                    <p>{item.description}</p>
-                    <span className="explore-featured-meta">{item.meta}</span>
-                    <span className="explore-featured-action">{featured.actionLabel.toUpperCase()} <i aria-hidden="true">↗</i></span>
-                  </motion.button>
-                );
-              })}
+            <nav className="explore-home-nav" aria-label="Home">
+              <button type="button" className={activeDestination === null ? 'active' : ''} aria-current={activeDestination === null ? 'page' : undefined} onClick={onHome}>
+                <span><strong>Request journey</strong><small>The kinetic overview</small></span><i aria-hidden="true">↖</i>
+              </button>
+            </nav>
+
+            {contextActions && <section className="explore-context" aria-label="Current workspace actions"><span>Current journey</span>{contextActions}</section>}
+
+            <section className="explore-section" aria-labelledby="explore-start-title">
+              <header><span id="explore-start-title">Start here</span></header>
+              <div className="explore-list">
+                {FEATURED_WORKSPACE_IDS.map((id) => <WorkspaceRow key={id} item={workspaceDefinition(id)} active={activeDestination === id} onSelect={onSelect} />)}
+              </div>
             </section>
 
-            <ScenarioGallery onSelect={onScenarioSelect} />
+            <details className="explore-scenarios">
+              <summary><span>Failure scenarios</span><i aria-hidden="true">+</i></summary>
+              <ScenarioGallery onSelect={onScenarioSelect} />
+            </details>
 
             <div className="explore-groups">
               {EXPLORE_GROUPS.map((group) => (
-                <section className="explore-group" key={group.id}>
-                  <header>
-                    <span>{group.label}</span>
-                    <p>{group.description}</p>
-                  </header>
-                  <div className="explore-grid">
-                    {group.workspaceIds.map((id) => <ExploreCard key={id} item={workspaceDefinition(id)} onSelect={onSelect} />)}
+                <section className="explore-section" key={group.id} aria-labelledby={`explore-group-${group.id}`}>
+                  <header><span id={`explore-group-${group.id}`}>{group.label}</span><p>{group.description}</p></header>
+                  <div className="explore-list">
+                    {group.workspaceIds.map((id) => <WorkspaceRow key={id} item={workspaceDefinition(id)} active={activeDestination === id} onSelect={onSelect} />)}
                   </div>
                 </section>
               ))}
             </div>
-          </motion.section>
+          </motion.aside>
         </motion.div>
       )}
     </AnimatePresence>

@@ -9,7 +9,7 @@ import { serveProductionArtifact } from './production-artifact-server.mjs';
 
 const root = process.cwd();
 const distDir = resolve(root, 'dist');
-const outputDir = resolve(root, 'artifacts/scale-inspector-visual-review');
+const outputDir = resolve(root, 'artifacts/kinetic-overview-visual-review');
 const reportPath = join(outputDir, 'report.json');
 const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 
@@ -152,58 +152,58 @@ async function main() {
     await cdp.call('Runtime.enable');
     await cdp.call('Emulation.setDeviceMetricsOverride', { width: 1600, height: 950, deviceScaleFactor: 1, mobile: false });
     await cdp.call('Page.navigate', { url: `${origin}/` });
-    await waitForExpression(cdp, `Boolean(document.querySelector('.scale-rail'))`);
+    await waitForExpression(cdp, `Boolean(document.querySelector('.kinetic-instrument') && document.querySelector('.corner-navigator'))`);
     await sleep(900);
+    await screenshot(cdp, 'kinetic-opening.png');
 
     const clickedAt = performance.now();
-    assert.equal(await cdp.evaluate(`(()=>{const button=[...document.querySelectorAll('.scale-rail button')].find((item)=>item.textContent?.includes('Routing'));if(!button)return false;button.click();return true})()`), true, 'Routing scale button not found.');
+    assert.equal(await cdp.evaluate(`(()=>{const button=[...document.querySelectorAll('.kinetic-phase-buttons button')].find((item)=>item.textContent?.includes('Assemble'));if(!button)return false;button.click();return true})()`), true, 'Assemble phase button not found.');
 
-    let descriptionReadableMs = null;
-    let statusReadableMs = null;
-    const sampleDeadline = performance.now() + 700;
-    while (performance.now() < sampleDeadline && (descriptionReadableMs === null || statusReadableMs === null)) {
-      const state = await cdp.evaluate(`(()=>{const p=document.querySelector('.layer-card-copy p');const status=document.querySelector('.layer-card-copy small');return {description:p?.textContent??'',descriptionOpacity:p?Number(getComputedStyle(p).opacity):0,status:status?.textContent??'',statusOpacity:status?Number(getComputedStyle(status).opacity):0}})()`);
+    let phaseReadableMs = null;
+    const sampleDeadline = performance.now() + 800;
+    while (performance.now() < sampleDeadline && phaseReadableMs === null) {
+      const state = await cdp.evaluate(`(()=>{const readout=document.querySelector('.kinetic-readout');return {text:readout?.textContent??'',opacity:readout?Number(getComputedStyle(readout).opacity):0}})()`);
       const elapsed = performance.now() - clickedAt;
-      if (descriptionReadableMs === null && state.description.includes('Build a weighted graph') && state.descriptionOpacity >= 0.85) descriptionReadableMs = elapsed;
-      if (statusReadableMs === null && state.status.includes('DYNAMIC NETWORK BUILDER READY') && state.statusOpacity >= 0.85) statusReadableMs = elapsed;
+      if (state.text.includes('Assemble') && state.opacity >= 0.85) phaseReadableMs = elapsed;
       await sleep(15);
     }
-
-    assert.ok(descriptionReadableMs !== null && descriptionReadableMs <= 390, `Routing description was not readable quickly enough (${descriptionReadableMs ?? 'never'} ms).`);
-    assert.ok(statusReadableMs !== null && statusReadableMs <= 470, `Routing READY status was not readable quickly enough (${statusReadableMs ?? 'never'} ms).`);
-    await sleep(180);
+    assert.ok(phaseReadableMs !== null && phaseReadableMs <= 450, `Assemble readout was not readable quickly enough (${phaseReadableMs ?? 'never'} ms).`);
+    await sleep(900);
 
     const geometry = await cdp.evaluate(`(()=>{
-      const card=document.querySelector('.layer-card');
-      const copy=document.querySelector('.layer-card-copy');
-      const description=copy?.querySelector('p');
-      const rule=copy?.querySelector('.card-rule');
-      const status=copy?.querySelector('small');
-      const rail=document.querySelector('.scale-rail');
       const box=(element)=>{if(!element)return null;const r=element.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};
-      const style=copy?getComputedStyle(copy):null;
       return {
-        activeScale:document.querySelector('.scale-inspector')?.getAttribute('data-active-scale')??null,
-        card:box(card),copy:box(copy),description:box(description),rule:box(rule),status:box(status),rail:box(rail),
-        padding:style?{top:parseFloat(style.paddingTop),right:parseFloat(style.paddingRight),bottom:parseFloat(style.paddingBottom),left:parseFloat(style.paddingLeft)}:null,
-        descriptionText:description?.textContent??'',statusText:status?.textContent??'',
+        instrument:box(document.querySelector('.kinetic-instrument')),
+        readout:box(document.querySelector('.kinetic-readout')),
+        packet:box(document.querySelector('.kinetic-packet')),
+        visibleLayers:[...document.querySelectorAll('.kinetic-packet-layer')].filter((element)=>Number(getComputedStyle(element).opacity)>.45).length,
+        activePhases:document.querySelectorAll('.kinetic-phase-buttons button.active').length,
+        readoutText:document.querySelector('.kinetic-readout')?.textContent??'',
         scrollWidth:document.documentElement.scrollWidth,innerWidth,
       };
     })()`);
 
-    assert.equal(geometry.activeScale, 'routing');
-    assert.ok(geometry.card && geometry.card.width >= 340 && geometry.card.width <= 360, `Card width is ${geometry.card?.width}.`);
-    assert.ok(geometry.padding && geometry.padding.left >= 22 && geometry.padding.right >= 22 && geometry.padding.top >= 20 && geometry.padding.bottom >= 18, `Unexpected card padding: ${JSON.stringify(geometry.padding)}`);
-    assert.ok(geometry.rule && geometry.description && geometry.rule.top - geometry.description.bottom >= 16, 'Divider is still too close to description text.');
-    assert.ok(geometry.rule && geometry.status && geometry.status.top - geometry.rule.bottom >= 12, 'READY status is still too close to divider.');
-    assert.ok(geometry.card && geometry.rail && geometry.card.right <= geometry.rail.left - 20, 'Scale detail card collides with the scale rail.');
+    assert.match(geometry.readoutText, /Assemble/);
+    assert.equal(geometry.activePhases, 1, 'Exactly one journey phase must be selected.');
+    assert.equal(geometry.visibleLayers, 5, 'All five packet envelopes must become visible during assembly.');
+    assert.ok(geometry.instrument && geometry.instrument.right <= geometry.innerWidth, 'Compact instrument escapes the viewport.');
     assert.ok(geometry.scrollWidth <= geometry.innerWidth + 1, 'Overview horizontally overflows.');
 
-    report.descriptionReadableMs = Math.round(descriptionReadableMs);
-    report.statusReadableMs = Math.round(statusReadableMs);
+    report.phaseReadableMs = Math.round(phaseReadableMs);
     report.geometry = geometry;
-    await screenshot(cdp, 'routing-scale-settled.png');
-    report.screenshot = 'routing-scale-settled.png';
+    await screenshot(cdp, 'kinetic-assembly.png');
+
+    assert.equal(await cdp.evaluate(`(()=>{const button=document.querySelector('.corner-navigator');if(!button)return false;button.click();return true})()`), true, 'Corner navigator not found.');
+    await waitForExpression(cdp, `Boolean(document.querySelector('.explore-panel'))`);
+    await sleep(450);
+    const navigation = await cdp.evaluate(`(()=>{const panel=document.querySelector('.explore-panel');const r=panel?.getBoundingClientRect();return {panel:r?{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}:null,rows:document.querySelectorAll('.explore-row').length,legacyCards:document.querySelectorAll('.explore-card,.explore-featured-card').length,activeTag:document.activeElement?.className??'',innerWidth,innerHeight}})()`);
+    assert.ok(navigation.panel && navigation.panel.left >= 0 && navigation.panel.top >= 0 && navigation.panel.bottom <= navigation.innerHeight, 'Navigation drawer escapes the viewport.');
+    assert.equal(navigation.rows, 13, 'All workspaces must remain available as simple rows.');
+    assert.equal(navigation.legacyCards, 0, 'Legacy navigation cards returned.');
+    assert.match(String(navigation.activeTag), /explore-close/, 'Navigation did not move focus inside the dialog.');
+    report.navigation = navigation;
+    await screenshot(cdp, 'corner-navigation-open.png');
+    report.screenshots = ['kinetic-opening.png', 'kinetic-assembly.png', 'corner-navigation-open.png'];
   } catch (error) {
     report.failures.push(error instanceof Error ? error.stack ?? error.message : String(error));
   } finally {
@@ -214,7 +214,7 @@ async function main() {
     writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   }
 
-  if (report.failures.length > 0) throw new Error(`Scale inspector visual review failed:\n${report.failures.join('\n')}`);
+  if (report.failures.length > 0) throw new Error(`Kinetic overview visual review failed:\n${report.failures.join('\n')}`);
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 }
 

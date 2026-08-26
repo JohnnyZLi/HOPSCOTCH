@@ -1,164 +1,26 @@
-.scenario-gallery {
-  display: grid;
-  gap: 16px;
-  padding: 22px 0 26px;
-  border-top: 1px solid rgba(255, 255, 255, 0.075);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
-}
-
-.scenario-gallery-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr);
-  align-items: end;
-  gap: 26px;
-}
-
+.scenario-gallery { display: grid; gap: 12px; padding: 5px 0 15px; }
+.scenario-gallery-heading { display: grid; gap: 5px; padding: 12px 2px 8px; }
 .scenario-gallery-heading span,
 .scenario-preset-kicker,
-.scenario-preset-meta {
-  color: #74818a;
-  font-size: 0.5rem;
-  font-weight: 840;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-}
-
-.scenario-gallery-heading h2 {
-  margin: 7px 0 0;
-  color: #eef3f5;
-  font-size: clamp(1.25rem, 2vw, 1.8rem);
-  letter-spacing: -0.035em;
-}
-
-.scenario-gallery-heading > p {
-  margin: 0;
-  color: #7f8b93;
-  font-size: 0.69rem;
-  line-height: 1.55;
-}
-
-.scenario-gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px;
-}
-
+.scenario-preset-meta { color: var(--site-ink-faint); font-size: .52rem; font-weight: 720; letter-spacing: .06em; }
+.scenario-gallery-heading h2 { margin: 3px 0 0; color: var(--site-ink-strong); font-size: 1rem; letter-spacing: -.02em; }
+.scenario-gallery-heading > p { margin: 0; color: var(--site-ink-faint); font-size: .6rem; line-height: 1.45; }
+.scenario-gallery-grid { display: grid; }
 .scenario-preset-card {
   position: relative;
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
-  min-height: 166px;
-  padding: 13px 14px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.085);
-  border-radius: 5px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 12px;
+  padding: 11px 4px;
+  border: 0;
+  border-bottom: 1px solid rgba(41, 40, 39, .09);
   text-align: left;
-  color: #dfe7eb;
-  background: rgba(7, 12, 16, 0.62);
+  color: var(--site-ink);
+  background: transparent;
   cursor: pointer;
-  transition: border-color 170ms ease, background 170ms ease;
 }
-
-.scenario-preset-card:hover,
-.scenario-preset-card:focus-visible {
-  border-color: rgba(121, 242, 218, 0.3);
-  background: rgba(9, 16, 20, 0.88);
-  outline: none;
-}
-
-.scenario-preset-card > strong {
-  margin-top: 7px;
-  padding-right: 24px;
-  color: #e7edef;
-  font-size: 0.76rem;
-  line-height: 1.25;
-}
-
-.scenario-preset-card > p {
-  margin: 8px 0 14px;
-  color: #7f8b93;
-  font-size: 0.61rem;
-  line-height: 1.5;
-}
-
-.scenario-preset-meta {
-  align-self: end;
-  padding-top: 9px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 0.43rem;
-  letter-spacing: 0.08em;
-}
-
-.scenario-preset-card > i {
-  position: absolute;
-  top: 12px;
-  right: 13px;
-  color: var(--cyan);
-  font-style: normal;
-  font-size: 0.82rem;
-}
-
-.scenario-preset-card:nth-child(3n + 2) > i {
-  color: var(--violet);
-}
-
-.scenario-preset-card:nth-child(3n) > i {
-  color: var(--blue);
-}
-
-@media (max-width: 1050px) {
-  .scenario-gallery-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 680px) {
-  .scenario-gallery {
-    gap: 13px;
-    padding: 17px 0 20px;
-  }
-
-  .scenario-gallery-heading {
-    grid-template-columns: 1fr;
-    gap: 7px;
-  }
-
-  .scenario-gallery-heading > p {
-    font-size: 0.62rem;
-  }
-
-  .scenario-gallery-grid {
-    grid-template-columns: 1fr;
-    gap: 5px;
-  }
-
-  .scenario-preset-card {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto;
-    min-height: 62px;
-    padding: 10px 13px;
-  }
-
-  .scenario-preset-kicker,
-  .scenario-preset-card > strong {
-    grid-column: 1;
-  }
-
-  .scenario-preset-card > strong {
-    margin-top: 4px;
-    padding-right: 0;
-  }
-
-  .scenario-preset-card > p,
-  .scenario-preset-meta {
-    display: none;
-  }
-
-  .scenario-preset-card > i {
-    position: static;
-    grid-column: 2;
-    grid-row: 1 / 3;
-    align-self: center;
-    padding-left: 13px;
-  }
-}
+.scenario-preset-card > strong { grid-column: 1; color: var(--site-ink-strong); font-size: .72rem; }
+.scenario-preset-card > p { grid-column: 1; margin: 3px 0 0; color: var(--site-ink-faint); font-size: .57rem; line-height: 1.4; }
+.scenario-preset-meta { display: none; }
+.scenario-preset-card > i { grid-column: 2; grid-row: 1 / 4; align-self: center; color: var(--site-coral); font-size: .8rem; font-style: normal; }
+.scenario-preset-card:is(:hover,:focus-visible) strong { color: var(--site-coral); }

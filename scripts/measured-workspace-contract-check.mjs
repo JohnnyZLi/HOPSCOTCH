@@ -4,7 +4,8 @@ import { workspaceDefinition } from '../src/workspace-catalog.ts';
 
 const workspace = readFileSync(new URL('../src/MeasuredNetworkWorkspace.tsx', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
-const home = readFileSync(new URL('../src/HomeActionDeck.tsx', import.meta.url), 'utf8');
+const launcher = readFileSync(new URL('../src/ExploreLauncher.tsx', import.meta.url), 'utf8');
+const kinetic = readFileSync(new URL('../src/KineticOverview.tsx', import.meta.url), 'utf8');
 
 assert.match(workspace, /ingestNetworkDiagnosticsReportV2/, 'workspace must use the permanent 09C ingestion path');
 assert.match(workspace, /measuredFreshnessAt/, 'workspace freshness must use the permanent 09B helper');
@@ -43,20 +44,16 @@ assert.equal(measuredProduct.status, 'LOCAL MEASURED ACTIVE', 'canonical product
 assert.equal(journeyProduct.featured?.actionLabel, 'Play URL journey', 'URL Journey must remain a first-class product action');
 assert.match(app, /workspaceDefinition/, 'App must consume canonical workspace metadata rather than duplicate measured labels');
 assert.match(app, /'measured'/, 'App active-lab model must include the measured workspace');
-assert.match(app, /onMeasured=\{openMeasuredNetwork\}/, 'overview must route the secondary measured action through the existing measured workspace opener');
-assert.match(home, /Inspect measured report/, 'overview utility row must visibly expose the measured workspace');
+assert.match(app, /measured:\s*openMeasuredNetwork/, 'corner navigation must route to the existing measured workspace opener');
+assert.match(launcher, /EXPLORE_GROUPS\.map/, 'measured must remain discoverable through catalog-backed navigation');
 assert.match(app, /useState<MeasuredSnapshotState \| null>\(null\)/, 'App may retain only the validated measured projection as session-only cross-lab evidence');
 assert.match(app, /measuredState=\{measuredSession\}/, 'App must pass the same measured session projection to presentation consumers');
 assert.match(app, /onMeasuredStateChange=\{setMeasuredSession\}/, 'Lab 09 must be the explicit replace/clear surface for the session projection');
 assert.match(app, /<MeasuredNetworkWorkspace[^>]*onExit=/, 'App must render the measured workspace with normal lab exit behavior');
-assert.match(app, /onWatch=\{openJourney\}/, 'overview must route its primary Watch action through the canonical URL Journey opener');
-assert.match(home, /FEATURED_WORKSPACE_IDS\.map/, 'home must consume catalog-backed first-class product actions');
+assert.match(app, /<KineticOverview onRunJourney=\{openJourney\}/, 'overview must route its primary action through the canonical URL Journey opener');
+assert.match(kinetic, /Run the request/, 'home must expose the canonical request journey as its primary action');
 for (const forbidden of [/localStorage/, /sessionStorage/, /NetworkDiagnosticsIngestion/, /NativeMeasurementSnapshot/]) {
   assert.doesNotMatch(app, forbidden, `App-level measured session must not persist or retain raw-ingestion type ${forbidden}`);
 }
 
-const utilitiesIndex = home.indexOf('className="home-action-utilities"');
-const measuredIndex = home.indexOf('Inspect measured report');
-assert.ok(utilitiesIndex >= 0 && measuredIndex > utilitiesIndex, 'measured report must remain in the secondary utility surface below the primary featured-action grid');
-
-console.log('Measured workspace boundary contract passed: explicit 09C import publishes only session-memory 09B state, catalog metadata owns Lab 09 identity, and no persistence/upload/Journey truth coupling is introduced.');
+console.log('Measured workspace boundary contract passed: explicit 09C import publishes only session-memory 09B state, while catalog-backed corner navigation preserves discovery without coupling overview truth.');

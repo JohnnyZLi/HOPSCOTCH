@@ -295,14 +295,14 @@ if (compatibility) profiles.push(
 { id: 'protocol-dns-mobile', width: 390, height: 844, reducedMotion: false, path: '/labs/dns', query: '', readySelector: '.dns-visual-workspace', protocolWorkspace: true, expected: ['DNS THEATER', 'www.example.test', 'NAMESPACE', 'PROVENANCE'] },
 { id: 'protocol-tls-reduced-motion', width: 1280, height: 900, reducedMotion: true, path: '/labs/tls', query: '', readySelector: '.tls-visual-workspace', protocolWorkspace: true, expected: ['TLS 1.3 THEATER', 'SYMBOLIC KEY SCHEDULE', 'WIRE VISIBILITY', 'PROVENANCE'] },
 { id: 'protocol-http-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/http2-vs-http3', query: '', readySelector: '.http-visual-workspace', protocolWorkspace: true, expected: ['HTTP A/B THEATER', 'HTTP/2', 'HTTP/3', 'SAME LOSS', 'PROVENANCE'] },
-{ id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'DERIVED FDB', 'ARP CACHE', 'STP', 'FORWARDING'] },
-{ id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'ARP CACHE', 'STP', 'FORWARDING'] },
-{ id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
-  { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
-  { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
-  { id: 'measured-sidecars-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
-  { id: 'measured-sidecars-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
-  { id: 'measured-sidecars-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.overview-scene', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
+{ id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'DERIVED FDB', 'ARP CACHE', 'STP', 'FORWARDING'] },
+{ id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'ARP CACHE', 'STP', 'FORWARDING'] },
+{ id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
+  { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
+  { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
+  { id: 'measured-sidecars-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
+  { id: 'measured-sidecars-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
+  { id: 'measured-sidecars-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
 );
 
 if (phase3VisualReview) {
@@ -369,7 +369,7 @@ async function setFileInput(cdp, selector, filePath) {
 }
 
 async function exerciseBuilderOspf(cdp, profile) {
-  await measuredClickButton(cdp, 'button', 'BUILD A NETWORK');
+  await openOverviewWorkspace(cdp, 'builder');
   await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
 
   const state = async () => cdp.evaluate(`(()=>({
@@ -783,13 +783,7 @@ async function exerciseLoopbackBridgeWorkspace(cdp, profile) {
 }
 
 async function exerciseMeasuredWorkspace(cdp, profile) {
-  const opened = await cdp.evaluate(`(()=>{
-    const button=[...document.querySelectorAll('button')].find((candidate)=>candidate.textContent?.trim()==='Inspect measured report');
-    if(!button)return false;
-    button.click();
-    return true;
-  })()`);
-  if (!opened) throw new Error(`${profile.id} could not find the measured workspace entry point.`);
+  await openOverviewWorkspace(cdp, 'measured');
   await waitForExpression(cdp, `Boolean(document.querySelector('.measured-workspace'))`);
   await waitForExpression(cdp, `document.body.innerText.includes('NO LOCAL MEASUREMENT LOADED')`);
 
@@ -870,6 +864,27 @@ async function measuredClickButton(cdp, selector, text) {
     return true;
   })()`);
   if (!clicked) throw new Error(`Unable to click ${selector} containing ${JSON.stringify(text)}.`);
+}
+
+async function openOverviewWorkspace(cdp, destination) {
+  const opened = await cdp.evaluate(`(()=>{
+    const button=document.querySelector('.corner-navigator');
+    if(!button)return false;
+    button.click();
+    return true;
+  })()`);
+  if (!opened) throw new Error(`Unable to open corner navigation for ${destination}.`);
+  await waitForExpression(cdp, `Boolean(document.querySelector('#explore-dialog'))`, 8000);
+
+  const destinationSelector = `[data-explore-destination="${destination}"]`;
+  const selected = await cdp.evaluate(`(()=>{
+    const row=document.querySelector(${JSON.stringify(destinationSelector)});
+    if(!row)return false;
+    row.click();
+    return true;
+  })()`);
+  if (!selected) throw new Error(`Unable to select ${destination} from corner navigation.`);
+  await waitForExpression(cdp, `!document.querySelector('#explore-dialog')`, 8000);
 }
 
 async function openJourneyDrawer(cdp, label) {
@@ -965,13 +980,13 @@ function assertMeasuredViewport(profile, state, label) {
 }
 
 async function exerciseMeasuredJourneySidecars(cdp, profile) {
-  await measuredClickButton(cdp, 'button', 'Inspect measured report');
+  await openOverviewWorkspace(cdp, 'measured');
   await waitForExpression(cdp, `Boolean(document.querySelector('.measured-workspace'))`);
   await setFileInput(cdp, '.measured-file-input', measuredFixturePath);
   await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
   await measuredClickButton(cdp, '.measured-heading-actions button', 'EXIT LAB');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.overview-scene'))`);
-  await measuredClickButton(cdp, 'button', 'Play URL journey');
+  await waitForExpression(cdp, `Boolean(document.querySelector('.kinetic-overview'))`);
+  await openOverviewWorkspace(cdp, 'journey');
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`, 8000);
 
   await selectJourneyEvent(cdp, 'Default gateway selected');
@@ -1017,14 +1032,14 @@ async function exerciseMeasuredJourneySidecars(cdp, profile) {
   if (mismatch.sidecar.includes('500 Mbps') || mismatch.sidecar.includes('24 ms') || mismatch.sidecar.includes('17 ms')) throw new Error(`${profile.id} rendered mismatched measured values as Journey evidence.`);
 
   await measuredClickButton(cdp, '.journey-visual-tools .visual-tool-button', 'EXIT');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.overview-scene'))`);
-  await measuredClickButton(cdp, 'button', 'Inspect measured report');
+  await waitForExpression(cdp, `Boolean(document.querySelector('.kinetic-overview'))`);
+  await openOverviewWorkspace(cdp, 'measured');
   await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
   await measuredClickButton(cdp, '.measured-clear', 'CLEAR');
   await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='false'`, 8000);
   await measuredClickButton(cdp, '.measured-heading-actions button', 'EXIT LAB');
-  await waitForExpression(cdp, `Boolean(document.querySelector('.overview-scene'))`);
-  await measuredClickButton(cdp, 'button', 'Play URL journey');
+  await waitForExpression(cdp, `Boolean(document.querySelector('.kinetic-overview'))`);
+  await openOverviewWorkspace(cdp, 'journey');
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`, 8000);
   await selectJourneyEvent(cdp, 'Default gateway selected');
   await sleep(120);
