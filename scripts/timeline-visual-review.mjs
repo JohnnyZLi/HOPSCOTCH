@@ -258,6 +258,9 @@ async function captureRepresentativeState(cdp, route, viewport) {
         lane:surface(document.querySelector('.http-lane')),
         transport:surface(document.querySelector('.http-transport-rail')),
         stream:surface(document.querySelector('.http-stream-row')),
+        lossLabel:pick(document.querySelector('.http-divergence-axis span')),
+        h2Footer:pick(document.querySelector('.lane-h2 > footer')),
+        h3Header:pick(document.querySelector('.lane-h3 > header')),
       }:null,
     };
   })()`);
@@ -267,7 +270,7 @@ async function captureRepresentativeState(cdp, route, viewport) {
   assert.equal(state.speedTrackOverlap, false, `${route.id}/${viewport.id} speed control overlaps the timeline track.`);
   assert.ok(state.scrollWidth <= state.innerWidth + 1, `${route.id}/${viewport.id} horizontally overflows (${state.scrollWidth} > ${state.innerWidth}).`);
   if (route.id === 'http') {
-    const { lane, transport, stream } = state.httpSurfaces ?? {};
+    const { lane, transport, stream, lossLabel, h2Footer, h3Header } = state.httpSurfaces ?? {};
     assert.ok(lane && transport && stream, `http/${viewport.id} transport surfaces are missing.`);
     for (const [name, surface] of Object.entries({ lane, transport, stream })) {
       assert.equal(surface.backgroundAlpha, 0, `http/${viewport.id} ${name} regained an opaque card background.`);
@@ -277,6 +280,11 @@ async function captureRepresentativeState(cdp, route, viewport) {
     assert.deepEqual([lane.borderTopWidth, lane.borderRightWidth, lane.borderBottomWidth, lane.borderLeftWidth], ['0px', '0px', '0px', '0px'], `http/${viewport.id} lane regained a panel border.`);
     assert.deepEqual([transport.borderRightWidth, transport.borderLeftWidth], ['0px', '0px'], `http/${viewport.id} transport rail regained side borders.`);
     assert.deepEqual([stream.borderRightWidth, stream.borderLeftWidth], ['0px', '0px'], `http/${viewport.id} stream regained panel side borders.`);
+    if (viewport.id === 'mobile') {
+      assert.ok(lossLabel && h2Footer && h3Header, 'http/mobile shared-loss geometry is missing.');
+      assert.ok(h2Footer.bottom <= lossLabel.top - 8, `http/mobile HTTP/2 delivery collides with the shared-loss label: ${JSON.stringify({ h2Footer, lossLabel })}.`);
+      assert.ok(h3Header.top >= lossLabel.bottom + 8, `http/mobile HTTP/3 heading collides with the shared-loss label: ${JSON.stringify({ h3Header, lossLabel })}.`);
+    }
   }
 
   await cdp.evaluate(`(()=>{

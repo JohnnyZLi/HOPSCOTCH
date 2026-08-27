@@ -253,10 +253,10 @@
   .tls-scene-annotation p { display: none; }
 
   .http-cinematic-stage { padding-inline: 8px; }
-  .http-workspace-stage .http-lanes { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; gap: 0; padding: 8px 12px; }
-  .http-workspace-stage .http-lane { gap: 8px; padding: 8px 3px 26px; }
-  .http-workspace-stage .lane-h2 { padding-right: 3px; padding-bottom: 28px; }
-  .http-workspace-stage .lane-h3 { padding-top: 28px; padding-left: 3px; }
+  .http-workspace-stage .http-lanes { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); gap: 64px 0; padding: 8px 12px; }
+  .http-workspace-stage .http-lane { gap: 8px; padding: 8px 3px; }
+  .http-workspace-stage .lane-h2 { padding-right: 3px; }
+  .http-workspace-stage .lane-h3 { padding-left: 3px; }
   .http-workspace-stage .http-lane > header span { font-size: .51rem; }
   .http-workspace-stage .http-lane > header strong { font-size: .63rem; }
   .http-workspace-stage .http-lane > header small { max-width: 120px; font-size: .38rem; }
