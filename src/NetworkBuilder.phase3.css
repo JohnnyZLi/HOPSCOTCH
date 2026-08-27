@@ -130,6 +130,36 @@
 .builder-visual-workspace .builder-canvas.is-authoring-zoomed { overflow: hidden; }
 .builder-visual-workspace .builder-canvas.is-authoring-zoomed .builder-canvas-viewport { will-change: transform; }
 
+/* This marker traverses the computed weighted path in source-to-destination
+   order. It is a route explanation, not a claim that live traffic was seen. */
+.builder-visual-workspace .builder-route-signal-track {
+  position: absolute;
+  z-index: 4;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  will-change: left, top, opacity;
+}
+
+.builder-visual-workspace .builder-route-signal-track > i {
+  position: absolute;
+  display: block;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--site-coral);
+  background: var(--site-paper-raised);
+  box-shadow: 0 0 0 5px rgba(216, 79, 73, .09), 0 4px 12px rgba(55, 49, 44, .12);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.builder-visual-workspace .builder-route-signal-track > i::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--site-coral);
+}
+
 .builder-visual-workspace .builder-canvas::after {
   right: 16px;
   bottom: 14px;

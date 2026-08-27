@@ -231,6 +231,21 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const sceneRenderState = { ...sceneState, selectedNodeId: sceneSelectedNodeId, selectedLinkId: sceneSelectedLinkId, ethernetSourceId: sceneEthernetSourceId, ethernetDestinationId: sceneEthernetDestinationId, selectedEthernetLinkId: sceneSelectedEthernetLinkId };
 
   const route = useMemo(() => findShortestPath(sceneGraph, sceneSourceId, sceneDestinationId), [sceneGraph, sceneSourceId, sceneDestinationId]);
+  const routeSignalPoints = useMemo(() => route.reachable
+    ? route.nodeIds.flatMap((nodeId) => {
+        const point = sceneLayout[nodeId];
+        return point ? [point] : [];
+      })
+    : [], [route, sceneLayout]);
+  const routeSignalDuration = Math.max(2.8, routeSignalPoints.length * .72);
+  const routeSignalTimes = useMemo(() => {
+    if (routeSignalPoints.length < 2) return [];
+    const segmentLengths = routeSignalPoints.slice(1).map((point, index) => Math.hypot(point.x - routeSignalPoints[index].x, point.y - routeSignalPoints[index].y));
+    const totalLength = segmentLengths.reduce((sum, length) => sum + length, 0);
+    if (totalLength === 0) return routeSignalPoints.map((_, index) => index / (routeSignalPoints.length - 1));
+    let elapsed = 0;
+    return [0, ...segmentLengths.map((length) => (elapsed += length) / totalLength)];
+  }, [routeSignalPoints]);
   const forwardingTrace = useMemo(() => traceBuilderForwarding(sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId, sceneFibGraph), [sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId, sceneFibGraph]);
   const policyTrace = useMemo(() => traceBuilderPolicy(sceneGraph, sceneAddressing, sceneRouting, sceneAcl, sceneSourceId, sceneDestinationId, 'icmp', null, null, sceneFibGraph), [sceneGraph, sceneAddressing, sceneRouting, sceneAcl, sceneSourceId, sceneDestinationId, sceneFibGraph]);
   const ospfState = useMemo(() => builderOspfState(sceneControlGraph, sceneAddressing, sceneRouting), [sceneControlGraph, sceneAddressing, sceneRouting]);
@@ -666,6 +681,21 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
                 </g>;
               })}
             </svg>
+            {!reduceMotion && !stressLabel && routeSignalPoints.length > 1 && <motion.div
+              className="builder-route-signal-track"
+              aria-hidden="true"
+              initial={{ left: `${routeSignalPoints[0].x}%`, top: `${routeSignalPoints[0].y}%`, opacity: 0 }}
+              animate={{
+                left: routeSignalPoints.map((point) => `${point.x}%`),
+                top: routeSignalPoints.map((point) => `${point.y}%`),
+                opacity: [0, 1, 1, 0],
+              }}
+              transition={{
+                left: { duration: routeSignalDuration, times: routeSignalTimes, ease: 'linear', repeat: Infinity, repeatDelay: .32 },
+                top: { duration: routeSignalDuration, times: routeSignalTimes, ease: 'linear', repeat: Infinity, repeatDelay: .32 },
+                opacity: { duration: routeSignalDuration, times: [0, .07, .88, 1], ease: 'linear', repeat: Infinity, repeatDelay: .32 },
+              }}
+            ><i /></motion.div>}
             {graph.nodes.map((node) => {
               const point = layout[node.id]; if (!point) return null;
               const onRoute = route.nodeIds.includes(node.id);
