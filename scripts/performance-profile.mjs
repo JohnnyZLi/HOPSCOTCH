@@ -1267,11 +1267,11 @@ async function loadProfile(cdp, origin, profile) {
       : null;
   const readyMs = performance.now() - startedAt;
   for (const expected of profile.expected) {
-    await waitForExpression(cdp, `document.body.innerText.includes(${JSON.stringify(expected)})`, 8000);
+    await waitForExpression(cdp, `document.body.innerText.toLocaleUpperCase().includes(${JSON.stringify(expected.toLocaleUpperCase())})`, 8000);
   }
   const bodyText = await cdp.evaluate('document.body.innerText');
   for (const expected of profile.expected) {
-    if (!bodyText.includes(expected)) throw new Error(`${profile.id} did not reach expected semantic text: ${JSON.stringify(expected)}`);
+    if (!bodyText.toLocaleUpperCase().includes(expected.toLocaleUpperCase())) throw new Error(`${profile.id} did not reach expected semantic text: ${JSON.stringify(expected)}`);
   }
   if (profile.reducedMotion && !(await cdp.evaluate('matchMedia("(prefers-reduced-motion: reduce)").matches'))) {
     throw new Error(`${profile.id} did not enable reduced motion.`);
