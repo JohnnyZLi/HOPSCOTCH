@@ -226,7 +226,7 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
       return {width:drawerRect?.width??0,backgroundAlpha:channels.length>=4?channels[3]:1,titleContrast,collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
     })()`);
     if (!flowDrawerGeometry.titleOnTop || flowDrawerGeometry.backgroundAlpha < .99 || flowDrawerGeometry.titleContrast < 4.5) throw new Error(`${profile.id} flow drawer is not an opaque, legible top-layer surface: ${JSON.stringify(flowDrawerGeometry)}.`);
-    if (profile.width <= 680 && flowDrawerGeometry.collision) throw new Error(`${profile.id} flow drawer title collides with corner navigation.`);
+    if (flowDrawerGeometry.collision) throw new Error(`${profile.id} flow drawer title collides with corner navigation.`);
     if (profile.width <= 680 && flowDrawerGeometry.width < profile.width * .98) throw new Error(`${profile.id} flow drawer does not own the mobile stage.`);
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', modifiers: 8 });
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', modifiers: 8 });
