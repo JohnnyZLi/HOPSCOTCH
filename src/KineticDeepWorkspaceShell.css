@@ -330,6 +330,81 @@ html body .physical-selection-card button {
   background: rgba(255,255,255,.18) !important;
 }
 
+html body .physical-visual-workspace .physical-drawer-panel {
+  gap: 0 !important;
+  color: var(--site-ink) !important;
+}
+
+html body .physical-visual-workspace .physical-drawer-panel > section {
+  gap: 12px !important;
+  padding: 18px 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--site-rule-soft) !important;
+  border-radius: 0 !important;
+  color: var(--site-ink) !important;
+  background: transparent !important;
+}
+
+html body .physical-visual-workspace .physical-drawer-panel > section:first-child {
+  padding-top: 2px !important;
+}
+
+html body .physical-visual-workspace .physical-drawer-panel > section:last-child {
+  border-bottom: 0 !important;
+}
+
+html body .physical-visual-workspace .physical-panel-title span,
+html body .physical-visual-workspace .facility-inspector dt,
+html body .physical-visual-workspace .facility-list button small,
+html body .physical-visual-workspace .physical-empty-copy,
+html body .physical-visual-workspace .physical-provenance small {
+  color: var(--site-ink-faint) !important;
+}
+
+html body .physical-visual-workspace .physical-panel-title strong,
+html body .physical-visual-workspace .facility-inspector h2,
+html body .physical-visual-workspace .facility-inspector dd,
+html body .physical-visual-workspace .facility-list button span,
+html body .physical-visual-workspace .physical-truth-ledger strong {
+  color: var(--site-ink-strong) !important;
+}
+
+html body .physical-visual-workspace .facility-inspector > p,
+html body .physical-visual-workspace .physical-provenance p {
+  color: var(--site-ink-soft) !important;
+}
+
+html body .physical-visual-workspace .facility-inspector dl > div,
+html body .physical-visual-workspace .physical-truth-ledger > div {
+  padding: 9px 0 !important;
+  border: 0 !important;
+  border-top: 1px solid var(--site-rule-soft) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+html body .physical-visual-workspace .physical-drawer-panel button {
+  border-color: var(--site-rule) !important;
+  color: var(--site-ink-soft) !important;
+  background: transparent !important;
+}
+
+html body .physical-visual-workspace .physical-drawer-panel button:is(:hover, :focus-visible, .active) {
+  border-color: var(--site-coral) !important;
+  color: var(--site-ink-strong) !important;
+  background: rgba(216,79,73,.055) !important;
+}
+
+html body .physical-visual-workspace .facility-list button {
+  padding-inline: 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--site-rule-soft) !important;
+  border-radius: 0 !important;
+}
+
+html body .physical-visual-workspace .physical-provenance p b:first-child { color: #456d64 !important; }
+html body .physical-visual-workspace .physical-provenance p b:last-child { color: #8f684f !important; }
+
 html body :is(.globe-loading, .globe-fallback) {
   color: var(--site-ink) !important;
   background: rgba(217,212,207,.94) !important;

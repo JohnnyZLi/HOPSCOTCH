@@ -315,7 +315,7 @@ if (phase3VisualReview) {
   ];
   const visualWorlds = [
     { id: 'as-routing', path: '/internet/as-routing', query: '', readySelector: '.as-visual-workspace', expected: ['SIMULATED BEST PATH', 'SOURCE'], workspaceSelector: '.as-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.internet-canvas-wrap', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.as-visual-workspace .visual-drawer-tabs button', drawerSelector: '.as-visual-workspace .visual-drawer' },
-    { id: 'physical-atlas', path: '/', query: query({ stress: 'physical-density' }), readySelector: '.physical-visual-workspace', expected: ['SIMULATED STRESS POINTS', 'WEBGL 2', 'VISIBLE'], workspaceSelector: '.physical-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.globe-viewport', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.physical-visual-workspace .visual-drawer-tabs button', drawerSelector: '.physical-visual-workspace .visual-drawer' },
+    { id: 'physical-atlas', path: '/', query: query({ stress: 'physical-density' }), readySelector: '.physical-visual-workspace', expected: ['SIMULATED STRESS POINTS', 'WEBGL 2', 'VISIBLE'], workspaceSelector: '.physical-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.globe-viewport', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.physical-visual-workspace .visual-drawer-tabs button', drawerSelector: '.physical-visual-workspace .visual-drawer', drawerSurfaceSelector: '.physical-drawer-panel > section' },
     { id: 'packet-microscope', path: '/labs/packet', query: '', readySelector: '.packet-visual-workspace', expected: ['FRAME', 'BYTES', 'ETHERNET'], workspaceSelector: '.packet-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.packet-stage', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.packet-visual-workspace .visual-drawer-tabs button', drawerSelector: '.packet-visual-workspace .visual-drawer' },
     { id: 'network-builder', path: '/labs/builder', query: '', readySelector: '.builder-visual-workspace', expected: ['Network builder', 'PATH', 'FORWARDING', 'OSPF', 'GRAPH'], workspaceSelector: '.builder-visual-workspace', stageSelector: '.builder-stage', worldSelector: '.builder-canvas', semanticSelector: '.builder-node-anchor', semanticMinWidthRatio: 0.72, semanticMinHeightRatio: 0.34, toolbarSelector: '.builder-world-toolbar', hudSelector: '.builder-stage-meta', inspectButtonSelector: '.builder-tool-inspect', drawerSelector: '.builder-context-drawer.open', drawerTitleSelector: '.builder-context-drawer__header > div' },
   ];
@@ -1231,6 +1231,16 @@ async function captureVisualReview(cdp, profile) {
       label:document.activeElement?.getAttribute('aria-label')??document.activeElement?.textContent?.trim()??null,
     }))()`);
     if (!initialFocus.inside || !String(initialFocus.label).toUpperCase().includes('CLOSE')) throw new Error(`${profile.id} drawer did not focus its close control: ${JSON.stringify(initialFocus)}.`);
+    if (profile.drawerSurfaceSelector) {
+      const drawerSurface = await cdp.evaluate(`(()=>{
+        const surface=document.querySelector(${JSON.stringify(profile.drawerSurfaceSelector)});
+        if(!surface)return null;
+        const channels=getComputedStyle(surface).backgroundColor.match(/[\\d.]+/g)?.map(Number)??[];
+        const linear=channels.slice(0,3).map((channel)=>{const normalized=channel/255;return normalized<=.04045?normalized/12.92:((normalized+.055)/1.055)**2.4});
+        return {background:getComputedStyle(surface).backgroundColor,alpha:channels.length>=4?channels[3]:1,luminance:.2126*linear[0]+.7152*linear[1]+.0722*linear[2]};
+      })()`);
+      if (!drawerSurface || (drawerSurface.alpha > .08 && drawerSurface.luminance < .45)) throw new Error(`${profile.id} drawer retains an opaque legacy-dark inner surface: ${JSON.stringify(drawerSurface)}.`);
+    }
     if (profile.width <= 680) {
       const mobileHeader = await cdp.evaluate(`(()=>{
         const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};

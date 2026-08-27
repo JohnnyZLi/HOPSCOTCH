@@ -80,7 +80,7 @@ export default function BuilderChallengePanel({
   };
 
   return <section className={`builder-challenge-panel ${score.solved ? 'is-solved' : ''}`} data-challenge-id={challenge.id} data-challenge-family={challenge.family} data-challenge-score={score.total}>
-    <div className="control-title"><span>TROUBLESHOOTING SCENARIO</span><strong>{challenge.difficulty}</strong></div>
+    <div className="control-title"><span>TROUBLESHOOTING SCENARIO</span><strong>{composed ? 'TWO CAUSAL FAULTS' : `${challenge.fault.boundary} BOUNDARY`}</strong></div>
     <div className="builder-challenge-heading">
       <span>SEED · {challenge.seed}</span>
       <strong>{challenge.title}</strong>
@@ -126,7 +126,7 @@ export default function BuilderChallengePanel({
           {composed&&<><label>SECOND BROKEN BOUNDARY<select value={secondaryBoundary} disabled={historical} onChange={(event)=>setSecondaryBoundary(event.currentTarget.value as BuilderChallengeBoundary|'')}><option value="">CHOOSE…</option>{BOUNDARIES.map((value)=><option key={value} value={value}>{value}</option>)}</select></label><label>SECOND FAULT LOCATION<select value={secondaryDeviceId} disabled={historical} onChange={(event)=>setSecondaryDeviceId(event.currentTarget.value)}><option value="">CHOOSE…</option>{secondaryDevices.map((device)=><option key={device.id} value={device.id}>{device.label} · {device.kind.toUpperCase()}</option>)}</select></label></>}
           <button type="button" disabled={historical||!boundary||!deviceId||(composed&&(!secondaryBoundary||!secondaryDeviceId))} onClick={()=>{if(!boundary||!deviceId)return;onLockHypothesis({boundary,deviceId,...(composed&&secondaryBoundary&&secondaryDeviceId?{secondaryBoundary,secondaryDeviceId}:{})});}}>LOCK HYPOTHESIS</button>
         </>}
-      <small>{composed?'Composed reasoning requires an initial failure, inspection of both fault locations, and another failed objective after exactly one canonical fault has been repaired.':'Reasoning points require both failed objective evidence and inspection of the primary fault location before the hypothesis can score.'}</small>
+      <small>{composed?'Causal support requires an initial failure, inspection of both fault locations, and another failed objective after exactly one canonical fault has been repaired.':'Causal support requires failed objective evidence and inspection of the primary fault location before the hypothesis is accepted.'}</small>
     </div>
 
     <div className="builder-challenge-evidence">
