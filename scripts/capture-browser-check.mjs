@@ -232,10 +232,21 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
   await sleep(80);
   const frameGeometry = await cdp.evaluate(`(()=>{
     const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{width:value.width,height:value.height,left:value.left,right:value.right,top:value.top,bottom:value.bottom}:null};
-    return {grid:rect('.capture-workspace-grid'),frame:rect('.capture-evidence-inspector.is-frame-stage'),bytes:document.querySelectorAll('.capture-evidence-inspector.is-frame-stage .capture-hex-grid > span').length,scrollWidth:document.documentElement.scrollWidth};
+    const sections=['.capture-specimen-mode-banner','.capture-frame-heading','.capture-frame-nav','.capture-frame-facts','.capture-byte-inspector','.capture-protocol-stack','.capture-field-list','.capture-lineage','.capture-open-microscope'].map((selector)=>({selector,rect:rect('.capture-evidence-inspector.is-frame-stage > '+selector)})).filter((entry)=>entry.rect&&entry.rect.width>0&&entry.rect.height>0);
+    const heading=rect('.capture-evidence-inspector.is-frame-stage > .capture-frame-heading > div:first-child');
+    const badge=rect('.capture-evidence-inspector.is-frame-stage .capture-frame-heading-actions');
+    return {grid:rect('.capture-workspace-grid'),frame:rect('.capture-evidence-inspector.is-frame-stage'),sections,heading,badge,bytes:document.querySelectorAll('.capture-evidence-inspector.is-frame-stage .capture-hex-grid > span').length,scrollWidth:document.documentElement.scrollWidth};
   })()`);
   if (!frameGeometry.grid || !frameGeometry.frame || frameGeometry.bytes <= 0) throw new Error(`${profile.id} frame mode did not promote an exact-byte specimen.`);
   if (frameGeometry.frame.width < frameGeometry.grid.width * 0.98 || frameGeometry.frame.height < frameGeometry.grid.height * 0.98 || frameGeometry.scrollWidth > profile.width) throw new Error(`${profile.id} frame specimen does not own the stage: ${JSON.stringify(frameGeometry)}.`);
+  if (profile.width <= 540) {
+    for (let index = 1; index < frameGeometry.sections.length; index += 1) {
+      const previous = frameGeometry.sections[index - 1];
+      const current = frameGeometry.sections[index];
+      if (current.rect.top < previous.rect.bottom - 1) throw new Error(`${profile.id} frame specimen sections overlap: ${previous.selector} → ${current.selector}.`);
+    }
+    if (frameGeometry.heading && frameGeometry.badge && frameGeometry.heading.left < frameGeometry.badge.right && frameGeometry.heading.right > frameGeometry.badge.left && frameGeometry.heading.top < frameGeometry.badge.bottom && frameGeometry.heading.bottom > frameGeometry.badge.top) throw new Error(`${profile.id} frame heading collides with its provenance badge.`);
+  }
   const frameScreenshot = await screenshot('frame-specimen');
 
   if (profile.inspectReview) {

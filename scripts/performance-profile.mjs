@@ -1266,6 +1266,9 @@ async function loadProfile(cdp, origin, profile) {
       ? await exerciseMeasuredJourneySidecars(cdp, profile)
       : null;
   const readyMs = performance.now() - startedAt;
+  for (const expected of profile.expected) {
+    await waitForExpression(cdp, `document.body.innerText.includes(${JSON.stringify(expected)})`, 8000);
+  }
   const bodyText = await cdp.evaluate('document.body.innerText');
   for (const expected of profile.expected) {
     if (!bodyText.includes(expected)) throw new Error(`${profile.id} did not reach expected semantic text: ${JSON.stringify(expected)}`);
