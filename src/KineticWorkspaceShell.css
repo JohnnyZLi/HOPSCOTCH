@@ -633,15 +633,23 @@ html body .tls-transcript-item.current { border-color: var(--kinetic-violet) !im
 html body .tls-cipher-field { opacity: .46 !important; }
 html body .tls-cipher-field span { color: var(--kinetic-violet) !important; text-shadow: none !important; }
 
-/* HTTP: two pale lanes diverge around one coral loss axis. */
-html body .http-workspace-stage .http-lane,
-html body .http-workspace-stage :is(.http-transport-rail, .http-stream-row) {
-  border-color: var(--kinetic-rule-soft) !important;
-  background: rgba(231, 227, 222, .7) !important;
+/* HTTP: one open transport field split by a shared coral loss event. */
+html body .http-workspace-stage .http-lane {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
   box-shadow: none !important;
 }
-html body .http-workspace-stage .lane-h2 { background: linear-gradient(145deg, rgba(89, 111, 130, .1), rgba(231, 227, 222, .74) 42%) !important; }
-html body .http-workspace-stage .lane-h3 { background: linear-gradient(215deg, rgba(95, 128, 109, .1), rgba(231, 227, 222, .74) 42%) !important; }
+html body .http-workspace-stage :is(.http-transport-rail, .http-stream-row) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+html body .http-workspace-stage .http-transport-rail { border-block: 1px solid var(--kinetic-rule-soft) !important; }
+html body .http-workspace-stage .http-stream-row { border-top: 1px solid var(--kinetic-rule-soft) !important; }
+html body .http-workspace-stage .http-stream-row:last-child { border-bottom: 1px solid var(--kinetic-rule-soft) !important; }
+html body .http-workspace-stage :is(.lane-h2, .lane-h3, .lane-h2.focused, .lane-h3.focused) { background: transparent !important; box-shadow: none !important; }
 html body .http-lane > header strong,
 html body .http-stream-label > strong,
 html body .http-lane > footer strong,
@@ -663,7 +671,12 @@ html body .http-divergence-axis span {
   color: var(--kinetic-coral) !important;
   background: var(--kinetic-paper-raised) !important;
 }
+html body .http-divergence-axis > i { border-color: rgba(216, 79, 73, .68) !important; }
 html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !important; color: var(--kinetic-ink-soft) !important; }
+
+@media (max-width: 680px) {
+  html body .http-workspace-stage .http-stream-row + .http-stream-row { border-left: 1px solid var(--kinetic-rule-soft) !important; }
+}
 
 @media (max-width: 900px) {
   html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail {

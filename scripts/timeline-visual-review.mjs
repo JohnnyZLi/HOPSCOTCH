@@ -242,6 +242,7 @@ async function captureRepresentativeState(cdp, route, viewport) {
     const hud=document.querySelector('.visual-workspace__hud');
     const pick=(element)=>{if(!element)return null;const r=element.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};
     const intersects=(a,b)=>Boolean(a&&b&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top);
+    const surface=(element)=>{if(!element)return null;const style=getComputedStyle(element);const color=style.backgroundColor;const alpha=color==='transparent'?0:color.startsWith('rgba')?Number(color.slice(color.lastIndexOf(',')+1,-1).trim()):1;return {backgroundAlpha:alpha,backgroundImage:style.backgroundImage,borderRadius:style.borderRadius,borderTopWidth:style.borderTopWidth,borderRightWidth:style.borderRightWidth,borderBottomWidth:style.borderBottomWidth,borderLeftWidth:style.borderLeftWidth}};
     const boxes={rail:pick(rail),controls:pick(controls),speed:pick(speed),track:pick(track),workspace:pick(workspace),toolbar:pick(toolbar),hud:pick(hud)};
     return {
       boxes,
@@ -253,6 +254,11 @@ async function captureRepresentativeState(cdp, route, viewport) {
       innerHeight,
       speedValue:speed?.value??null,
       speedOptions:speed?[...speed.options].map((option)=>option.value):[],
+      httpSurfaces:document.querySelector('.http-visual-workspace')?{
+        lane:surface(document.querySelector('.http-lane')),
+        transport:surface(document.querySelector('.http-transport-rail')),
+        stream:surface(document.querySelector('.http-stream-row')),
+      }:null,
     };
   })()`);
   assert.deepEqual(state.speedOptions, ['0.5', '1', '1.5', '2'], `${route.id}/${viewport.id} speed choices changed.`);
@@ -260,6 +266,18 @@ async function captureRepresentativeState(cdp, route, viewport) {
   assert.equal(state.controlsTrackOverlap, false, `${route.id}/${viewport.id} playback controls overlap the timeline track.`);
   assert.equal(state.speedTrackOverlap, false, `${route.id}/${viewport.id} speed control overlaps the timeline track.`);
   assert.ok(state.scrollWidth <= state.innerWidth + 1, `${route.id}/${viewport.id} horizontally overflows (${state.scrollWidth} > ${state.innerWidth}).`);
+  if (route.id === 'http') {
+    const { lane, transport, stream } = state.httpSurfaces ?? {};
+    assert.ok(lane && transport && stream, `http/${viewport.id} transport surfaces are missing.`);
+    for (const [name, surface] of Object.entries({ lane, transport, stream })) {
+      assert.equal(surface.backgroundAlpha, 0, `http/${viewport.id} ${name} regained an opaque card background.`);
+      assert.equal(surface.backgroundImage, 'none', `http/${viewport.id} ${name} regained a card gradient.`);
+      assert.equal(surface.borderRadius, '0px', `http/${viewport.id} ${name} regained rounded panel chrome.`);
+    }
+    assert.deepEqual([lane.borderTopWidth, lane.borderRightWidth, lane.borderBottomWidth, lane.borderLeftWidth], ['0px', '0px', '0px', '0px'], `http/${viewport.id} lane regained a panel border.`);
+    assert.deepEqual([transport.borderRightWidth, transport.borderLeftWidth], ['0px', '0px'], `http/${viewport.id} transport rail regained side borders.`);
+    assert.deepEqual([stream.borderRightWidth, stream.borderLeftWidth], ['0px', '0px'], `http/${viewport.id} stream regained panel side borders.`);
+  }
 
   await cdp.evaluate(`(()=>{
     const danger=document.querySelector('.visual-time-rail__events .tone-danger')||document.querySelector('.visual-time-rail__events .tone-warning');
