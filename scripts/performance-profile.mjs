@@ -1223,6 +1223,13 @@ async function captureVisualReview(cdp, profile) {
       label:document.activeElement?.getAttribute('aria-label')??document.activeElement?.textContent?.trim()??null,
     }))()`);
     if (!initialFocus.inside || !String(initialFocus.label).toUpperCase().includes('CLOSE')) throw new Error(`${profile.id} drawer did not focus its close control: ${JSON.stringify(initialFocus)}.`);
+    if (profile.width <= 680) {
+      const mobileHeader = await cdp.evaluate(`(()=>{
+        const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
+        return {corner:rect('.corner-navigator'),title:rect(${JSON.stringify(`${profile.drawerSelector} .visual-drawer__header > div`)})};
+      })()`);
+      if (mobileHeader.corner && mobileHeader.title && mobileHeader.corner.left < mobileHeader.title.right && mobileHeader.corner.right > mobileHeader.title.left && mobileHeader.corner.top < mobileHeader.title.bottom && mobileHeader.corner.bottom > mobileHeader.title.top) throw new Error(`${profile.id} mobile drawer title collides with corner navigation.`);
+    }
     await dispatchKey(cdp, 'Tab', 'Tab', 8);
     const shiftTabContained = await cdp.evaluate(`document.querySelector(${JSON.stringify(profile.drawerSelector)})?.contains(document.activeElement)===true`);
     if (!shiftTabContained) throw new Error(`${profile.id} drawer let Shift+Tab escape its modal focus scope.`);
@@ -1283,9 +1290,12 @@ async function loadProfile(cdp, origin, profile) {
       ? await captureVisualReview(cdp, profile)
       : null;
 
-  const journeyDrawer = await cdp.evaluate(`Boolean(document.querySelector('.journey-visual-workspace'))`)
-    ? await inspectJourneyDrawerArchitecture(cdp, profile)
-    : null;
+  const hasJourneyWorkspace = await cdp.evaluate(`Boolean(document.querySelector('.journey-visual-workspace'))`);
+  if (hasJourneyWorkspace) {
+    await waitForExpression(cdp, `!document.querySelector('.visual-entrance')`, 8000);
+    await sleep(80);
+  }
+  const journeyDrawer = hasJourneyWorkspace ? await inspectJourneyDrawerArchitecture(cdp, profile) : null;
 
   await cdp.call('HeapProfiler.collectGarbage');
   const heap = await cdp.call('Runtime.getHeapUsage');

@@ -378,6 +378,11 @@ html body .builder-selection-card {
     gap: 5px !important;
   }
 
+  html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace) .visual-drawer__header {
+    min-height: 68px !important;
+    padding: 12px 12px 12px 76px !important;
+  }
+
   html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace, .builder-visual-workspace) .interactive-world-toolbar__identity {
     display: none !important;
   }
