@@ -47,7 +47,7 @@ assert.match(workspace, /FOLLOW FLOW/);
 assert.match(workspace, /OPEN READ-ONLY PACKET MICROSCOPE/);
 
 for (const requiredSurface of [
-  'PROTOCOL THEATER', 'TCP STREAM + RTT', 'TRAFFIC OVERVIEW', 'COMPARE', 'SIDECAR EVIDENCE',
+  'PROTOCOL SEQUENCE', 'TCP STREAM + RTT', 'TRAFFIC OVERVIEW', 'COMPARE', 'SIDECAR EVIDENCE',
   'CAPTURE ↔ CAPTURE', 'CAPTURED ↔ SIMULATED COUNTERFACTUAL', 'PARSED DEVICE CONFIG',
 ]) assert.ok(trackHPanel.includes(requiredSurface), `Track H UI is missing ${requiredSurface}`);
 assert.match(trackHPanel, /parseCaptureSessionAsync\(await file\.arrayBuffer\(\)\)/);
