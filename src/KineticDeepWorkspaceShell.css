@@ -430,6 +430,11 @@ html body .builder-selection-card {
     display: none !important;
   }
 
+  html body .physical-visual-workspace .interactive-world-hud > div:first-child,
+  html body .physical-visual-workspace .interactive-world-hud > div:nth-child(3) {
+    display: grid !important;
+  }
+
   html body .captured-packet-workspace .packet-stage-hud > div:nth-child(4) {
     display: none !important;
   }

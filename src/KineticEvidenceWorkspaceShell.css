@@ -200,6 +200,55 @@ html body .capture-replay[data-capture-mode="frame"] .capture-cinematic-stage {
   display: none !important;
 }
 
+html body .capture-replay[data-capture-mode="frame"] .capture-flow-browser {
+  display: none !important;
+}
+
+html body .capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage {
+  box-sizing: border-box !important;
+  grid-template-columns: minmax(280px, .72fr) minmax(440px, 1.28fr) !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 104px 10px 12px !important;
+  overflow: auto !important;
+  color: var(--site-ink) !important;
+  background: var(--site-paper) !important;
+  box-shadow: none !important;
+}
+
+html body .capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > :is(.capture-specimen-mode-banner, .capture-frame-heading) {
+  grid-column: 1 / -1 !important;
+}
+
+html body .capture-replay[data-capture-mode="frame"] .capture-specimen-mode-banner {
+  border-color: rgba(41,40,39,.12) !important;
+  color: var(--site-ink-soft) !important;
+  background: transparent !important;
+}
+
+html body .capture-replay[data-capture-mode="frame"] .capture-specimen-mode-banner span { color: var(--site-coral) !important; }
+html body .capture-replay[data-capture-mode="frame"] .capture-specimen-mode-banner strong { color: var(--site-ink-strong) !important; }
+html body .capture-replay[data-capture-mode="frame"] .capture-specimen-mode-banner small { color: var(--site-ink-faint) !important; }
+
+html body .capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > :is(.capture-lineage, .capture-protocol-stack, .capture-field-list) {
+  grid-column: 1 !important;
+  margin-right: 5px !important;
+}
+
+html body .capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > .capture-byte-inspector {
+  grid-column: 2 !important;
+  grid-row: 4 / span 3 !important;
+  align-self: start !important;
+  margin-left: 5px !important;
+}
+
+html body .capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > .capture-open-microscope {
+  position: static !important;
+  grid-column: 2 !important;
+  width: calc(100% - 10px) !important;
+  margin: 0 0 0 5px !important;
+}
+
 html body .capture-flow-heading {
   padding: 0 !important;
   border: 0 !important;
@@ -846,6 +895,64 @@ html body :is(.capture-replay, .observed-internet, .measured-workspace) .visual-
   html body .capture-time-machine { right: 8px !important; bottom: 8px !important; left: 8px !important; grid-template-columns: auto minmax(0,1fr) !important; }
   html body .capture-time-readout,
   html body .capture-follow { display: none !important; }
+
+  html body .capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage {
+    position: absolute !important;
+    inset: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0,1fr) !important;
+    grid-auto-flow: row !important;
+    align-content: start !important;
+    gap: 0 !important;
+    padding: 100px 10px 18px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  html body .capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > * {
+    position: static !important;
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    width: auto !important;
+    max-width: 100% !important;
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+  }
+
+  html body .capture-replay[data-capture-mode="frame"] .capture-specimen-mode-banner small {
+    display: none !important;
+  }
+
+  html body .capture-replay[data-capture-mode="frame"] .capture-frame-heading {
+    padding: 12px 10px !important;
+  }
+
+  html body .capture-replay[data-capture-mode="frame"] .capture-frame-heading strong {
+    font-size: 1.25rem !important;
+  }
+
+  html body .capture-replay[data-capture-mode="frame"] .capture-frame-nav {
+    grid-template-columns: 56px minmax(0,1fr) 56px !important;
+    padding-inline: 0 !important;
+  }
+
+  html body .capture-replay[data-capture-mode="frame"] .capture-frame-facts {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  html body .capture-replay[data-capture-mode="frame"] :is(.capture-lineage, .capture-protocol-stack, .capture-field-list, .capture-byte-inspector) {
+    border-right: 0 !important;
+    border-left: 0 !important;
+  }
+
+  html body .capture-replay[data-capture-mode="frame"] .capture-lineage > div { max-height: 190px !important; }
+  html body .capture-replay[data-capture-mode="frame"] .capture-field-list > div { max-height: 300px !important; }
+  html body .capture-replay[data-capture-mode="frame"] .capture-hex-grid { grid-template-columns: repeat(8,minmax(0,1fr)) !important; }
+
+  html body .capture-replay[data-capture-mode="frame"] .capture-open-microscope {
+    width: 100% !important;
+    margin: 0 !important;
+  }
 
   html body .observed-internet .visual-workspace__hud { top: 58px !important; right: 12px !important; left: 12px !important; }
   html body .observed-internet .visual-workspace__hud > div:nth-child(n+3) { display: none !important; }

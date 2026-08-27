@@ -292,17 +292,19 @@ html body .journey-causal-world {
     linear-gradient(145deg, #ddd8d3, var(--kinetic-paper) 58%, #d2ccc6) !important;
 }
 
-/* The earlier causal-world pass intentionally ghosted every piece of chrome.
-   That treatment becomes illegible on paper and also weakens the floating
-   timeline. The shell already keeps these controls peripheral, so they can be
-   fully opaque without competing with the object. */
+/* Keep the causal object dominant. Chrome stays discoverable at the edge and
+   resolves to full contrast only through the existing hover/focus rules. */
 html body .journey-visual-workspace:has(.journey-causal-world) :is(.visual-workspace__toolbar, .visual-workspace__hud) {
-  opacity: 1 !important;
+  opacity: .44 !important;
   transform: none !important;
 }
 
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud {
+  opacity: .32 !important;
+}
+
 html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail {
-  opacity: 1 !important;
+  opacity: .54 !important;
   transform: translateX(-50%) !important;
 }
 
