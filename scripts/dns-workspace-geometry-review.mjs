@@ -167,12 +167,12 @@ async function screenshot(cdp, filename) {
 
 async function chooseCacheMode(cdp, mode) {
   if (mode === 'miss') return;
-  const opened = await cdp.evaluate(`(()=>{const button=[...document.querySelectorAll('button')].find((candidate)=>candidate.textContent?.trim()==='CONFIG');if(!button)return false;button.click();return true;})()`);
+  const opened = await cdp.evaluate(`(()=>{const button=[...document.querySelectorAll('button')].find((candidate)=>candidate.textContent?.trim().toLowerCase()==='configure');if(!button)return false;button.click();return true;})()`);
   assert.equal(opened, true, 'Unable to open DNS Configure drawer.');
   await waitForExpression(cdp, `Boolean(document.querySelector('.dns-config-drawer .dns-mode-toggle'))`);
   const changed = await cdp.evaluate(`(()=>{const button=[...document.querySelectorAll('.dns-config-drawer .dns-mode-toggle button')].find((candidate)=>candidate.textContent?.trim()==='CACHE HIT');if(!button)return false;button.click();return true;})()`);
   assert.equal(changed, true, 'Unable to select DNS cache-hit mode.');
-  await waitForExpression(cdp, `document.querySelector('.visual-identity strong')?.textContent?.includes('CACHE HIT')===true`);
+  await waitForExpression(cdp, `document.querySelector('.visual-identity strong')?.textContent?.toLowerCase().includes('cache hit')===true`);
 }
 
 async function measureDns(cdp, origin, width, height, mode) {
@@ -214,7 +214,7 @@ async function measureDns(cdp, origin, width, height, mode) {
     });
     return {
       viewport:{innerWidth,innerHeight,devicePixelRatio},
-      mode:document.querySelector('.visual-identity strong')?.textContent?.includes('CACHE HIT')?'hit':'miss',
+      mode:document.querySelector('.visual-identity strong')?.textContent?.toLowerCase().includes('cache hit')?'hit':'miss',
       map:{left:mapRect.left,top:mapRect.top,width:mapRect.width,height:mapRect.height},
       layer:{left:layerRect.left,top:layerRect.top,width:layerRect.width,height:layerRect.height},
       anchors:anchorData,

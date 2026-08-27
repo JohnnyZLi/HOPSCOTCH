@@ -120,20 +120,20 @@ export function ObservedInternet({ onExit, onOpenSimulated }: { onExit: () => vo
   ];
 
   const toolbar = <>
-    <div className="visual-identity"><span>LAB 05B</span><strong>INTERNET EVIDENCE</strong></div>
+    <div className="visual-identity"><span>INTERNET EVIDENCE</span><strong>OBSERVATION BOUNDARY</strong></div>
     <div className="observed-toolbar-controls">
       <VisualDrawerTabs
         active={activeDrawer}
         items={[
-          { id: 'config', label: 'QUERY' },
-          { id: 'inspect', label: 'COLLECTORS', badge: snapshot ? String(snapshot.collectorPaths.length) : '—' },
-          { id: 'evidence', label: 'EVIDENCE', badge: snapshot?.warnings.length ? String(snapshot.warnings.length) : undefined },
+          { id: 'config', label: 'Query' },
+          { id: 'inspect', label: 'Collectors', badge: snapshot ? String(snapshot.collectorPaths.length) : '—' },
+          { id: 'evidence', label: 'Evidence', badge: snapshot?.warnings.length ? String(snapshot.warnings.length) : undefined },
         ]}
         onSelect={(id) => setActiveDrawer((current) => current === id ? null : id)}
       />
       <div className="observed-workspace-actions">
-        <button type="button" onClick={onOpenSimulated}>SIMULATED AS ↗</button>
-        <button type="button" onClick={onExit}>EXIT</button>
+        <button type="button" onClick={onOpenSimulated}>Simulated AS ↗</button>
+        <button type="button" onClick={onExit}>Exit</button>
       </div>
     </div>
   </>;
@@ -147,7 +147,7 @@ export function ObservedInternet({ onExit, onOpenSimulated }: { onExit: () => vo
 
   return <VisualWorkspaceShell
     className="observed-internet"
-    entrance={{ eyebrow: 'LAB 05B · INTERNET EVIDENCE', title: 'OBSERVE WHAT', accentTitle: 'WE ACTUALLY KNOW.', subtitle: 'Evidence islands. Explicit gaps. No invented path.' }}
+    entrance={{ eyebrow: 'Internet evidence · bounded observation', title: 'OBSERVE WHAT', accentTitle: 'WE ACTUALLY KNOW.', subtitle: 'Evidence islands. Explicit gaps. No invented path.' }}
     toolbar={toolbar}
     hud={hud}
     stageLabel="Internet evidence relationship workspace"

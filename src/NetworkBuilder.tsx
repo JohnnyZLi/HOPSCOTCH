@@ -107,6 +107,7 @@ function BuilderCanvasViewport({ enabled, style, children }: { enabled: boolean;
 export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, onOpenBgpProjection, initialGraph = defaultBuilderGraph, initialLayout = defaultBuilderLayout, initialAddressing, initialRouting, initialEthernet, initialLinkProfiles, initialAcl, initialNat, initialDhcp, initialIpv6, initialServices, initialSourceId = 'client', initialDestinationId = 'app', initialScenarioName = 'My topology', stressLabel }: { onExit: () => void; onOpenFailureStory: () => void; onOpenProbePacket?: (seed: BuilderProbePacketSeed) => void; onOpenBgpProjection?: (payload: { projection: BuilderBgpAsProjection; scenario: BuilderScenarioV8 }) => void; initialGraph?: BuilderGraph; initialLayout?: BuilderLayout; initialAddressing?: BuilderAddressing; initialRouting?: BuilderRoutingConfig; initialEthernet?: BuilderEthernetConfig; initialLinkProfiles?: BuilderLinkProfiles; initialAcl?: BuilderAclConfig; initialNat?: BuilderNatConfig; initialDhcp?: BuilderDhcpConfig; initialIpv6?: BuilderIpv6Config; initialServices?: BuilderHostedService[]; initialSourceId?: string; initialDestinationId?: string; initialScenarioName?: string; stressLabel?: string }) {
   const reduceMotion = useReducedMotion();
   const canvasRef = useRef<HTMLDivElement>(null);
+  const routeSignalRef = useRef<HTMLDivElement>(null);
   const [graph, setGraph] = useState<BuilderGraph>(() => cloneBuilderGraph(initialGraph));
   const [addressing, setAddressing] = useState<BuilderAddressing>(() => cloneBuilderAddressing(initialAddressing ?? createDefaultBuilderAddressing(initialGraph)));
   const [routing, setRouting] = useState<BuilderRoutingConfig>(() => cloneBuilderRoutingConfig(initialRouting ?? createDefaultBuilderRoutingConfig()));
@@ -231,6 +232,41 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const sceneRenderState = { ...sceneState, selectedNodeId: sceneSelectedNodeId, selectedLinkId: sceneSelectedLinkId, ethernetSourceId: sceneEthernetSourceId, ethernetDestinationId: sceneEthernetDestinationId, selectedEthernetLinkId: sceneSelectedEthernetLinkId };
 
   const route = useMemo(() => findShortestPath(sceneGraph, sceneSourceId, sceneDestinationId), [sceneGraph, sceneSourceId, sceneDestinationId]);
+  const routeSignalPoints = useMemo(() => route.reachable
+    ? route.nodeIds.flatMap((nodeId) => {
+        const point = sceneLayout[nodeId];
+        return point ? [point] : [];
+      })
+    : [], [route, sceneLayout]);
+  const routeSignalDuration = Math.max(2.8, routeSignalPoints.length * .72);
+  const routeSignalTimes = useMemo(() => {
+    if (routeSignalPoints.length < 2) return [];
+    const segmentLengths = routeSignalPoints.slice(1).map((point, index) => Math.hypot(point.x - routeSignalPoints[index].x, point.y - routeSignalPoints[index].y));
+    const totalLength = segmentLengths.reduce((sum, length) => sum + length, 0);
+    if (totalLength === 0) return routeSignalPoints.map((_, index) => index / (routeSignalPoints.length - 1));
+    let elapsed = 0;
+    return [0, ...segmentLengths.map((length) => (elapsed += length) / totalLength)];
+  }, [routeSignalPoints]);
+  useEffect(() => {
+    const signal = routeSignalRef.current;
+    if (!signal || reduceMotion || stressLabel || routeSignalPoints.length < 2) return;
+    const start = routeSignalPoints[0];
+    const end = routeSignalPoints[routeSignalPoints.length - 1];
+    const keyframes: Keyframe[] = [
+      { left: `${start.x}%`, top: `${start.y}%`, opacity: 0, offset: 0 },
+      { left: `${start.x}%`, top: `${start.y}%`, opacity: 1, offset: .04 },
+      ...routeSignalPoints.slice(1, -1).map((point, index) => ({
+        left: `${point.x}%`,
+        top: `${point.y}%`,
+        opacity: 1,
+        offset: .04 + routeSignalTimes[index + 1] * .92,
+      })),
+      { left: `${end.x}%`, top: `${end.y}%`, opacity: 1, offset: .96 },
+      { left: `${end.x}%`, top: `${end.y}%`, opacity: 0, offset: 1 },
+    ];
+    const animation = signal.animate(keyframes, { duration: routeSignalDuration * 1000, iterations: Infinity, easing: 'linear' });
+    return () => animation.cancel();
+  }, [reduceMotion, routeSignalDuration, routeSignalPoints, routeSignalTimes, stressLabel]);
   const forwardingTrace = useMemo(() => traceBuilderForwarding(sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId, sceneFibGraph), [sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId, sceneFibGraph]);
   const policyTrace = useMemo(() => traceBuilderPolicy(sceneGraph, sceneAddressing, sceneRouting, sceneAcl, sceneSourceId, sceneDestinationId, 'icmp', null, null, sceneFibGraph), [sceneGraph, sceneAddressing, sceneRouting, sceneAcl, sceneSourceId, sceneDestinationId, sceneFibGraph]);
   const ospfState = useMemo(() => builderOspfState(sceneControlGraph, sceneAddressing, sceneRouting), [sceneControlGraph, sceneAddressing, sceneRouting]);
@@ -420,22 +456,22 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
       const next=createBuilderChallenge(seed);
       setChallengeReturnSnapshot(currentCanonicalSnapshot()); setChallengeReturnScenarioName(scenarioName);
       setChallenge(next); setChallengeSeed(next.seed); setChallengeEvidence([]); setChallengeHypothesis(null); setScenarioName(`Challenge ${next.id}`);
-      loadChallengeSnapshot(next.broken,`TRACK J CHALLENGE · ${next.title} · seed ${next.seed}. Diagnose with normal Builder evidence before repairing the network.`);
+      loadChallengeSnapshot(next.broken,`TROUBLESHOOTING SCENARIO · ${next.title} · seed ${next.seed}. Diagnose with normal Builder evidence before repairing the network.`);
       focusChallengeObjective(next);
-    }catch(error){setMessage(`CHALLENGE REJECTED · ${error instanceof Error?error.message:'Unable to create challenge.'}`);}
+    }catch(error){setMessage(`SCENARIO UNAVAILABLE · ${error instanceof Error?error.message:'Unable to create scenario.'}`);}
   };
   const restartChallenge = () => {
     if(!challenge||isHistorical)return;
     setChallengeEvidence([]); setChallengeHypothesis(null);
-    loadChallengeSnapshot(challenge.broken,`TRACK J CHALLENGE RESTARTED · ${challenge.title} · seed ${challenge.seed}.`);
+    loadChallengeSnapshot(challenge.broken,`TROUBLESHOOTING SCENARIO RESTARTED · ${challenge.title} · seed ${challenge.seed}.`);
     focusChallengeObjective(challenge);
   };
   const exitChallenge = () => {
     if(isHistorical)return;
     const returnSnapshot=challengeReturnSnapshot;
     setChallenge(null); setChallengeEvidence([]); setChallengeHypothesis(null); setChallengeReturnSnapshot(null);
-    if(returnSnapshot){loadChallengeSnapshot(returnSnapshot,'TRACK J CHALLENGE CLOSED · restored the Builder configuration from before the challenge.');}
-    else setMessageState('TRACK J CHALLENGE CLOSED.');
+    if(returnSnapshot){loadChallengeSnapshot(returnSnapshot,'TROUBLESHOOTING SCENARIO CLOSED · restored the Builder configuration from before the scenario.');}
+    else setMessageState('TROUBLESHOOTING SCENARIO CLOSED.');
     if(challengeReturnScenarioName!==null)setScenarioName(challengeReturnScenarioName);
     setChallengeReturnScenarioName(null);
   };
@@ -624,19 +660,19 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const renderWorkspace = ({ graph, addressing, routing, ipv6, ipv6ControlState, ipv6LifecycleState, ipv6RoutingDepth, ethernet, ethernetFlow, arpCache, arpResolutions, acl, nat, natSessions, dhcp, dhcpLeases, dhcpSequence, probeHistory, sourceId, destinationId, layout, linkProfiles, selectedNodeId, selectedLinkId, ethernetSourceId, ethernetDestinationId, selectedEthernetLinkId }: typeof sceneRenderState) => (
     <motion.section className={`builder-workspace builder-visual-workspace interactive-world-workspace ${isHistorical ? 'builder-history-mode' : ''}`} data-builder-history-sequence={historicalTimelineSnapshot?.sequence ?? 'live'} data-builder-drawer={builderDrawer ?? 'closed'} data-scene-panel={scenePanel ?? 'graph'} data-stress-label={stressLabel} data-node-count={graph.nodes.length} data-link-count={graph.links.length} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: .985 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
       <div className="builder-world-toolbar">
-        <div className="interactive-world-toolbar__identity"><span>LAB 04 · NETWORK BUILDER</span><strong>DRAW THE GRAPH · CHANGE THE ROUTE</strong></div>
+        <div className="interactive-world-toolbar__identity"><span>Network builder</span><strong>Topology · forwarding · causality</strong></div>
         <div className="builder-world-tools" role="toolbar" aria-label="Builder tools">
-          <button type="button" className={`builder-tool-inspect ${builderDrawer === 'inspect' ? 'active' : ''}`} aria-pressed={builderDrawer === 'inspect'} onClick={() => setBuilderDrawer((current) => current === 'inspect' ? null : 'inspect')}>INSPECT</button>
-          <button type="button" className={`builder-tool-topology ${builderDrawer === 'config' ? 'active' : ''}`} aria-pressed={builderDrawer === 'config'} onClick={() => setBuilderDrawer((current) => current === 'config' ? null : 'config')}>TOPOLOGY</button>
-          <button type="button" className={`builder-tool-systems ${builderDrawer === 'tools' ? 'active' : ''}`} aria-pressed={builderDrawer === 'tools'} onClick={() => setBuilderDrawer((current) => current === 'tools' ? null : 'tools')}>SYSTEMS</button>
-          <button type="button" className="builder-tool-fault" disabled={!selectedLink || isHistorical} onClick={() => { if (selectedLink) updateLink(selectedLink.id, { failed: !selectedLink.failed }); setScenePanel('forwarding'); }}>{selectedLink?.failed ? 'RESTORE LINK' : 'FAIL LINK'}</button>
+          <button type="button" className={`builder-tool-inspect ${builderDrawer === 'inspect' ? 'active' : ''}`} aria-pressed={builderDrawer === 'inspect'} onClick={() => setBuilderDrawer((current) => current === 'inspect' ? null : 'inspect')}>Inspect</button>
+          <button type="button" className={`builder-tool-topology ${builderDrawer === 'config' ? 'active' : ''}`} aria-pressed={builderDrawer === 'config'} onClick={() => setBuilderDrawer((current) => current === 'config' ? null : 'config')}>Topology</button>
+          <button type="button" className={`builder-tool-systems ${builderDrawer === 'tools' ? 'active' : ''}`} aria-pressed={builderDrawer === 'tools'} onClick={() => setBuilderDrawer((current) => current === 'tools' ? null : 'tools')}>Systems</button>
+          <button type="button" className="builder-tool-fault" disabled={!selectedLink || isHistorical} onClick={() => { if (selectedLink) updateLink(selectedLink.id, { failed: !selectedLink.failed }); setScenePanel('forwarding'); }}>{selectedLink?.failed ? 'Restore link' : 'Fail link'}</button>
           {!stressLabel && <button type="button" className="builder-tool-cli" data-builder-cli-toggle aria-expanded={cliOpen} onClick={() => { setExplainOpen(false); setCliOpen((current) => !current); }}>CLI</button>}
         </div>
-        <div className="interactive-world-toolbar__actions"><button type="button" onClick={onOpenFailureStory}>FAILURE STORY ↗</button><button type="button" onClick={onExit}>EXIT LAB</button></div>
+        <div className="interactive-world-toolbar__actions"><button type="button" onClick={onOpenFailureStory}>Failure sequence ↗</button><button type="button" onClick={onExit}>Exit</button></div>
       </div>
       <header className="builder-heading">
-        <div><p className="eyebrow">Lab 04 · Network builder</p><h1>DRAW THE GRAPH.<br/><span>CHANGE THE ROUTE.</span></h1></div>
-        <div className="builder-heading-actions">{!stressLabel&&<button className="lab-mode" type="button" data-builder-cli-toggle aria-expanded={cliOpen} aria-controls="builder-cli-terminal" onClick={()=>{setExplainOpen(false);setCliOpen((current)=>!current);}}>TERMINAL {cliOpen?'▴':'▾'}</button>}{!stressLabel&&<button className="lab-mode" type="button" data-builder-explain-toggle aria-expanded={explainOpen} aria-controls="builder-explain-panel" onClick={()=>{setCliOpen(false);setExplainOpen((current)=>!current);}}>EXPLAIN {explainOpen?'▴':'▾'}</button>}<button className="lab-mode" type="button" onClick={onOpenFailureStory}>FAILURE STORY ↗</button><button className="lab-mode" type="button" onClick={onExit}>EXIT LAB</button></div>
+        <div><p className="eyebrow">Network builder</p><h1>TOPOLOGY.<br/><span>FORWARDING. CAUSALITY.</span></h1></div>
+        <div className="builder-heading-actions">{!stressLabel&&<button className="lab-mode" type="button" data-builder-cli-toggle aria-expanded={cliOpen} aria-controls="builder-cli-terminal" onClick={()=>{setExplainOpen(false);setCliOpen((current)=>!current);}}>TERMINAL {cliOpen?'▴':'▾'}</button>}{!stressLabel&&<button className="lab-mode" type="button" data-builder-explain-toggle aria-expanded={explainOpen} aria-controls="builder-explain-panel" onClick={()=>{setCliOpen(false);setExplainOpen((current)=>!current);}}>EXPLAIN {explainOpen?'▴':'▾'}</button>}<button className="lab-mode" type="button" onClick={onOpenFailureStory}>FAILURE SEQUENCE ↗</button><button className="lab-mode" type="button" onClick={onExit}>EXIT</button></div>
       </header>
 
       <div className="builder-main">
@@ -651,7 +687,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
             {!stressLabel && <button type="button" className={scenePanel === 'application' ? 'active' : ''} onClick={() => setScenePanel((current) => current === 'application' ? null : 'application')}>APP</button>}
             <button type="button" className={scenePanel === 'lan' ? 'active' : ''} onClick={() => setScenePanel((current) => current === 'lan' ? null : 'lan')}>LAN</button>
           </nav>
-          <div className="builder-stage-meta">{isHistorical&&<div className="builder-history-meta"><span>TIME MACHINE</span><strong>HISTORY #{String(historicalTimelineSnapshot?.sequence??0).padStart(3,'0')} · READ ONLY</strong></div>}<div className="builder-meta-path"><span>PATH</span><strong>{route.reachable ? `YES · COST ${route.totalCost}` : 'NO PATH'}</strong></div><div className="builder-meta-forwarding"><span>FORWARDING</span><strong>{forwardingTrace.reachable ? 'REACHABLE' : 'NO ROUTE'}</strong></div>{!stressLabel&&<div className="builder-meta-probe"><span>PROBE</span><strong>{selectedProbe ? `${selectedProbe.kind.toUpperCase()} · ${selectedProbe.success ? 'PASS' : 'FAIL'}${selectedProbe.natApplied ? ' · NAT' : ''}` : 'IDLE'}</strong></div>}<div className="builder-meta-ospf"><span>OSPF</span><strong>{ospfState.enabledRouterIds.length === 0 ? 'OFF' : `${ospfState.enabledRouterIds.length} RTR · ${ospfState.fullAdjacencyCount} FULL`}</strong></div><div className="builder-meta-graph"><span>GRAPH</span><strong>{graph.nodes.length} NODES · {graph.links.length} LINKS</strong></div></div>
+          <div className="builder-stage-meta">{isHistorical&&<div className="builder-history-meta"><span>HISTORY</span><strong>SNAPSHOT #{String(historicalTimelineSnapshot?.sequence??0).padStart(3,'0')} · READ ONLY</strong></div>}<div className="builder-meta-path"><span>PATH</span><strong>{route.reachable ? `YES · COST ${route.totalCost}` : 'NO PATH'}</strong></div><div className="builder-meta-forwarding"><span>FORWARDING</span><strong>{forwardingTrace.reachable ? 'REACHABLE' : 'NO ROUTE'}</strong></div>{!stressLabel&&<div className="builder-meta-probe"><span>PROBE</span><strong>{selectedProbe ? `${selectedProbe.kind.toUpperCase()} · ${selectedProbe.success ? 'PASS' : 'FAIL'}${selectedProbe.natApplied ? ' · NAT' : ''}` : 'IDLE'}</strong></div>}<div className="builder-meta-ospf"><span>OSPF</span><strong>{ospfState.enabledRouterIds.length === 0 ? 'OFF' : `${ospfState.enabledRouterIds.length} RTR · ${ospfState.fullAdjacencyCount} FULL`}</strong></div><div className="builder-meta-graph"><span>GRAPH</span><strong>{graph.nodes.length} NODES · {graph.links.length} LINKS</strong></div></div>
           <div ref={canvasRef} className={`builder-canvas ${authoringView.camera.scale!==1?'is-authoring-zoomed':''}`} onPointerDown={(event)=>{if(isHistorical||stressLabel)return;const target=event.target;if(target instanceof Element&&target.closest('.builder-node,.builder-link'))return;const point=authoringCanvasPoint(event.clientX,event.clientY);if(!point)return;setAuthoringMarquee({startX:point.x,startY:point.y,endX:point.x,endY:point.y,additive:event.shiftKey||event.metaKey||event.ctrlKey});event.currentTarget.setPointerCapture(event.pointerId);}} onPointerMove={(event)=>{if(!authoringMarquee)return;const point=authoringCanvasPoint(event.clientX,event.clientY);if(point)setAuthoringMarquee((current)=>current?{...current,endX:point.x,endY:point.y}:current);}} onPointerUp={()=>{if(!authoringMarquee)return;const minX=Math.min(authoringMarquee.startX,authoringMarquee.endX),maxX=Math.max(authoringMarquee.startX,authoringMarquee.endX),minY=Math.min(authoringMarquee.startY,authoringMarquee.endY),maxY=Math.max(authoringMarquee.startY,authoringMarquee.endY);const picked=graph.nodes.filter((node)=>{const point=layout[node.id];return Boolean(point&&point.x>=minX&&point.x<=maxX&&point.y>=minY&&point.y<=maxY);}).map((node)=>node.id);setAuthoringView((current)=>({...current,selection:authoringMarquee.additive?[...new Set([...current.selection,...picked])]:picked}));setAuthoringMarquee(null);}} onPointerCancel={()=>setAuthoringMarquee(null)}>
             <BuilderCanvasViewport enabled={!stressLabel} style={{transform:`translate(${50-authoringView.camera.x*authoringView.camera.scale}%, ${50-authoringView.camera.y*authoringView.camera.scale}%) scale(${authoringView.camera.scale})`}}>
             {authoringMarquee&&<div className="builder-marquee" style={{left:`${Math.min(authoringMarquee.startX,authoringMarquee.endX)}%`,top:`${Math.min(authoringMarquee.startY,authoringMarquee.endY)}%`,width:`${Math.abs(authoringMarquee.endX-authoringMarquee.startX)}%`,height:`${Math.abs(authoringMarquee.endY-authoringMarquee.startY)}%`}}/>}
@@ -666,6 +702,12 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
                 </g>;
               })}
             </svg>
+            {!reduceMotion && !stressLabel && routeSignalPoints.length > 1 && <div
+              ref={routeSignalRef}
+              className="builder-route-signal-track"
+              aria-hidden="true"
+              style={{ left: `${routeSignalPoints[0].x}%`, top: `${routeSignalPoints[0].y}%`, opacity: 0 }}
+            ><i /></div>}
             {graph.nodes.map((node) => {
               const point = layout[node.id]; if (!point) return null;
               const onRoute = route.nodeIds.includes(node.id);
@@ -710,7 +752,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
             <button ref={builderDrawerCloseRef} type="button" onClick={() => setBuilderDrawer(null)} aria-label="Close Builder controls">×</button>
           </header>
           <nav className="builder-context-drawer__tabs" aria-label="Builder control categories"><button type="button" className={builderDrawer === 'inspect' ? 'active' : ''} onClick={() => setBuilderDrawer('inspect')}>INSPECT</button><button type="button" className={builderDrawer === 'config' ? 'active' : ''} onClick={() => setBuilderDrawer('config')}>CONFIG</button><button type="button" className={builderDrawer === 'tools' ? 'active' : ''} onClick={() => setBuilderDrawer('tools')}>SYSTEMS</button></nav>
-          {!stressLabel&&(challenge&&challengeScore?<Suspense fallback={null}><BuilderChallengePanel challenge={challenge} evidence={challengeEvidence} score={challengeScore} hypothesis={challengeHypothesis} historical={isHistorical} onLockHypothesis={(next)=>{if(challengeHypothesis||isHistorical)return;setChallengeHypothesis(next);const challengeLabel=challenge?.fault.plane==='ethernet'?(ethernet.devices.find((device)=>device.id===next.deviceId)?.label??next.deviceId.toUpperCase()):labelFor(graph,next.deviceId);setMessage(`CHALLENGE HYPOTHESIS LOCKED · ${next.boundary} · ${challengeLabel}.`);}} onRestart={restartChallenge} onExit={exitChallenge} onMessage={setMessage}/></Suspense>:<section className="builder-challenge-launcher"><div className="control-title"><span>TROUBLESHOOT</span><strong>TRACK J · SEEDED</strong></div><label>SEED / CHALLENGE TOKEN<input value={challengeSeed} maxLength={96} onChange={(event)=>setChallengeSeed(event.currentTarget.value)} /></label><div className="button-row"><button type="button" onClick={()=>setChallengeSeed('gateway-001')}>GATEWAY</button><button type="button" onClick={()=>setChallengeSeed('vlan-001')}>ACCESS VLAN</button><button type="button" onClick={()=>setChallengeSeed('trunk-001')}>TRUNK</button><button type="button" onClick={()=>setChallengeSeed('stp-001')}>STP LOOP</button><button type="button" onClick={()=>setChallengeSeed('static-001')}>STATIC ROUTE</button><button type="button" onClick={()=>setChallengeSeed('ospf-001')}>OSPF</button><button type="button" onClick={()=>setChallengeSeed('acl-001')}>ACL</button><button type="button" onClick={()=>setChallengeSeed('nat-001')}>NAT</button><button type="button" onClick={()=>setChallengeSeed('dhcp-001')}>DHCP</button><button type="button" onClick={()=>setChallengeSeed('mtu-001')}>IPV6 MTU</button><button type="button" onClick={()=>setChallengeSeed('dns-001')}>DNS</button><button type="button" onClick={()=>setChallengeSeed('transport-001')}>TRANSPORT</button><button type="button" onClick={()=>setChallengeSeed('bgp-001')}>BGP POLICY</button><button type="button" onClick={()=>setChallengeSeed('multi-001')}>MULTI-FAULT</button></div><button type="button" disabled={isHistorical} onClick={()=>startChallenge(challengeSeed)}>START CHALLENGE</button><small className="builder-routing-note">SEED PREFIX SELECTS FAMILY · GATEWAY / VLAN / TRUNK / STP / STATIC / OSPF / ACL / NAT / DHCP / IPV6 MTU / DNS / TRANSPORT / BGP POLICY / MULTI-FAULT · NORMAL BUILDER PROBES, ARP/ND, LAN FLOW, NAT FLOW, DHCP DORA, PMTUD, APPLICATION REQUESTS, BGP/POLICY/ROUTE STATE, WORKBENCH, AND CONFIG CONTROLS · SESSION-ONLY SCORE.</small></section>)}
+          {!stressLabel&&(challenge&&challengeScore?<Suspense fallback={null}><BuilderChallengePanel challenge={challenge} evidence={challengeEvidence} score={challengeScore} hypothesis={challengeHypothesis} historical={isHistorical} onLockHypothesis={(next)=>{if(challengeHypothesis||isHistorical)return;setChallengeHypothesis(next);const challengeLabel=challenge?.fault.plane==='ethernet'?(ethernet.devices.find((device)=>device.id===next.deviceId)?.label??next.deviceId.toUpperCase()):labelFor(graph,next.deviceId);setMessage(`CAUSAL HYPOTHESIS LOCKED · ${next.boundary} · ${challengeLabel}.`);}} onRestart={restartChallenge} onExit={exitChallenge} onMessage={setMessage}/></Suspense>:<section className="builder-challenge-launcher"><div className="control-title"><span>TROUBLESHOOT</span><strong>SEEDED SCENARIO</strong></div><label>SEED / SCENARIO TOKEN<input value={challengeSeed} maxLength={96} onChange={(event)=>setChallengeSeed(event.currentTarget.value)} /></label><div className="button-row"><button type="button" onClick={()=>setChallengeSeed('gateway-001')}>GATEWAY</button><button type="button" onClick={()=>setChallengeSeed('vlan-001')}>ACCESS VLAN</button><button type="button" onClick={()=>setChallengeSeed('trunk-001')}>TRUNK</button><button type="button" onClick={()=>setChallengeSeed('stp-001')}>STP LOOP</button><button type="button" onClick={()=>setChallengeSeed('static-001')}>STATIC ROUTE</button><button type="button" onClick={()=>setChallengeSeed('ospf-001')}>OSPF</button><button type="button" onClick={()=>setChallengeSeed('acl-001')}>ACL</button><button type="button" onClick={()=>setChallengeSeed('nat-001')}>NAT</button><button type="button" onClick={()=>setChallengeSeed('dhcp-001')}>DHCP</button><button type="button" onClick={()=>setChallengeSeed('mtu-001')}>IPV6 MTU</button><button type="button" onClick={()=>setChallengeSeed('dns-001')}>DNS</button><button type="button" onClick={()=>setChallengeSeed('transport-001')}>TRANSPORT</button><button type="button" onClick={()=>setChallengeSeed('bgp-001')}>BGP POLICY</button><button type="button" onClick={()=>setChallengeSeed('multi-001')}>MULTI-FAULT</button></div><button type="button" disabled={isHistorical} onClick={()=>startChallenge(challengeSeed)}>START SCENARIO</button><small className="builder-routing-note">SEED PREFIX SELECTS FAMILY · GATEWAY / VLAN / TRUNK / STP / STATIC / OSPF / ACL / NAT / DHCP / IPV6 MTU / DNS / TRANSPORT / BGP POLICY / MULTI-FAULT · USE THE NORMAL BUILDER PROBES, FLOWS, ROUTING STATE, WORKBENCH, AND CONFIGURATION CONTROLS · THE EVIDENCE RECORD IS SESSION-ONLY.</small></section>)}
           {!stressLabel&&<BuilderTimeMachine timeline={timeline} cursor={timelineCursor} onSeek={setTimelineCursor}/>}
           {!stressLabel&&workbenchSnapshot&&<BuilderDeviceWorkbench snapshot={workbenchSnapshot} options={workbenchOptions} historicalSequence={historicalTimelineSnapshot?.sequence??null} diff={workbenchTimelineDiff} onSelect={(ref)=>{setWorkbenchDevice(ref);if(ref.plane==='routed')setSelectedNodeId(ref.id);}} onInspect={(inspection)=>{if(!challenge||isHistorical)return;const kind=inspection.tab==='config'?'inspect-config':inspection.tab==='state'?'inspect-state':'inspect-events';const repaired=builderChallengeIsRepaired(challenge,addressing,ethernet,routing,acl,nat,dhcp,linkProfiles,services);const repairStage=builderChallengeRepairStage(challenge,addressing,ethernet,routing,acl,nat,dhcp,linkProfiles,services);const inspectedLabel=inspection.device.plane==='ethernet'?(ethernet.devices.find((device)=>device.id===inspection.device.id)?.label??inspection.device.id.toUpperCase()):labelFor(graph,inspection.device.id);setChallengeEvidence((current)=>appendBuilderChallengeEvidence(current,{kind,deviceId:inspection.device.id,devicePlane:inspection.device.plane,repaired,repairStage,detail:`Inspected ${inspection.tab.toUpperCase()} on ${inspectedLabel} in the normal Device Workbench.`}));}}/>}
           {!stressLabel&&!challenge&&<Suspense fallback={null}><BuilderAuthoringPanel snapshot={sceneState} view={authoringView} historical={isHistorical} onViewChange={setAuthoringView} onApplySnapshot={applyAuthoringSnapshot} onCommitGraph={commitAuthoringGraph} onCommitAddressing={commitAuthoringAddressing} onCommitEthernet={commitAuthoringEthernet} onSetLayout={setAuthoringLayout} onFocusDevice={focusAuthoringDevice} onMessage={setMessage}/></Suspense>}
@@ -735,7 +777,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
           </fieldset>
         </aside>
       </div>
-      <VisualEntranceTransition entrance={{ eyebrow: 'Lab 04 · Network builder', title: 'DRAW THE GRAPH.', accentTitle: 'CHANGE THE ROUTE.', subtitle: 'Topology, forwarding, policy, and failure stay visible in one live world.' }} />
+      <VisualEntranceTransition entrance={{ eyebrow: 'Network builder · live topology', title: 'TOPOLOGY.', accentTitle: 'FORWARDING. CAUSALITY.', subtitle: 'Topology, forwarding, policy, and failure stay visible in one live world.' }} />
     </motion.section>
   );
   return renderWorkspace(sceneRenderState);

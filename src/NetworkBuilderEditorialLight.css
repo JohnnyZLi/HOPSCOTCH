@@ -96,4 +96,7 @@
   .builder-scene-switcher button,
   .builder-world-toolbar .lab-mode{background:rgba(232,228,223,.9)!important}
   .builder-selection-card{background:rgba(238,235,231,.96)!important}
+  .builder-context-drawer,
+  .builder-context-drawer__header,
+  .builder-context-drawer__tabs{background:#e9e5e0!important}
 }

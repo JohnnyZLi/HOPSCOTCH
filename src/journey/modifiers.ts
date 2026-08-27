@@ -569,7 +569,7 @@ function routeLeakTraversal(asns: number[]): Array<'up' | 'peer' | 'down'> {
     const from = asns[index];
     const to = asns[index + 1];
     const relationship = simulatedAsGraph.relationships.find((candidate) => traversalFor(candidate, from, to) !== null);
-    if (!relationship) throw new Error(`route-leak teaching path is missing AS${from} → AS${to} from the Lab 05 graph.`);
+    if (!relationship) throw new Error(`route-leak teaching path is missing AS${from} → AS${to} from the AS Routing graph.`);
     const traversal = traversalFor(relationship, from, to);
     if (!traversal) throw new Error(`route-leak cannot derive traversal AS${from} → AS${to}.`);
     traversals.push(traversal);
@@ -585,7 +585,7 @@ function routeLeakMetricStates() {
   if (!legitimate) throw new Error('route-leak requires the existing policy-compliant AS64504 → AS65540 → AS65538 candidate.');
   const legitimateTraversal = routeLeakTraversal(legitimatePathAsns);
   const leakedTraversal = routeLeakTraversal(leakedPathAsns);
-  if (legitimateTraversal.join(',') !== 'peer,down') throw new Error('route-leak legitimate path no longer matches the Lab 05 peer → down teaching policy.');
+  if (legitimateTraversal.join(',') !== 'peer,down') throw new Error('route-leak legitimate path no longer matches the AS Routing peer → down teaching policy.');
   if (leakedTraversal.join(',') !== 'down,peer') throw new Error('route-leak leaked path must expose the down → peer valley violation.');
   if (enumeratePolicyPaths(simulatedAsGraph, 64504, 65538).some((candidate) => candidate.asns.join(',') === leakedPathAsns.join(','))) {
     throw new Error('route-leak leaked path unexpectedly passed the normal valley-free enumerator.');

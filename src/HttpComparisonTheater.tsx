@@ -31,7 +31,7 @@ function formatTime(timeMs: number): string {
 
 function Lane({ lane, state, focused }: { lane: HttpLane; state: HttpLaneState; focused: boolean }) {
   const h2 = lane === 'h2';
-  return <motion.section className={`http-lane lane-${lane}${focused ? ' focused' : ''}`} animate={{ opacity: focused ? 1 : 0.68, scale: focused ? 1.006 : 0.994 }} transition={{ duration: 0.24 }}>
+  return <motion.section className={`http-lane lane-${lane}${focused ? ' focused' : ''}`} animate={{ opacity: focused ? 1 : 0.58 }} transition={{ duration: 0.24 }}>
     <header><div><span>{h2 ? 'HTTP/2' : 'HTTP/3'}</span><strong>{state.transportLabel}</strong></div><small>{h2 ? 'ONE ORDERED TCP BYTE STREAM' : 'INDEPENDENT QUIC STREAM ORDERING'}</small></header>
     <div className="http-transport-rail"><span>{state.lossLabel.toUpperCase()}</span><div className={`http-transport-line${state.lossLabel !== 'none' && state.lossLabel !== 'repaired' ? ' has-loss' : ''}`}><i/><b/><i/><em className="http-loss-pulse"/></div><small>{state.congestionLabel}</small></div>
     <div className="http-streams"><StreamRow label="STREAM A" resource={HTTP_STREAM_A} state={state.streamA} progress={state.streamAProgress} lane={lane}/><StreamRow label="STREAM B" resource={HTTP_STREAM_B} state={state.streamB} progress={state.streamBProgress} lane={lane}/></div>
@@ -52,6 +52,7 @@ export function HttpComparisonTheater({ onExit, onOpenTls }: { onExit: () => voi
   const state = useMemo(() => httpComparisonStateAt(timeMs), [timeMs]);
   const activeEvent = useMemo(() => latestHttpComparisonEvent(timeMs), [timeMs]);
   const activeIndex = httpComparisonEvents.indexOf(activeEvent);
+  const sharedLossActive = [state.h2.lossLabel, state.h3.lossLabel].some((label) => label !== 'none' && label !== 'repaired');
   const timelineEvents: VisualTimelineEvent[] = httpComparisonEvents.map((event) => ({
     id: event.id,
     atMs: event.atMs,
@@ -70,7 +71,7 @@ export function HttpComparisonTheater({ onExit, onOpenTls }: { onExit: () => voi
   useEffect(() => {
     const root = rootRef.current;
     if (!root || reduceMotion) return;
-    const pulses = root.querySelectorAll('.http-transport-line.has-loss .http-loss-pulse');
+    const pulses = root.querySelectorAll('.http-transport-line.has-loss .http-loss-pulse, .http-divergence-axis.is-live > i');
     if (pulses.length === 0) return;
     const animation = animate(pulses, { opacity: [0, 1, 0], scale: [0.6, 1.5, 2.2], duration: 900, ease: 'outExpo' });
     return () => { animation.cancel(); };
@@ -115,7 +116,7 @@ export function HttpComparisonTheater({ onExit, onOpenTls }: { onExit: () => voi
   const modelContent = <div className="protocol-model-drawer http-model-drawer">
     <section><span>WHAT THIS CLAIMS</span><strong>ORDERING COUPLING, NOT LOSS IMMUNITY</strong><p>HTTP/3 removes cross-stream transport ordering blockage: loss on Stream A does not force Stream B to wait for Stream A’s missing bytes.</p></section>
     <section><span>IMPORTANT BOUNDARY</span><p>QUIC loss recovery and congestion control remain connection-wide, so loss can still reduce overall sending rate. This deterministic trace also avoids QPACK dynamic-table dependencies.</p></section>
-    <button type="button" className="protocol-drawer-primary" onClick={onOpenTls}>OPEN TLS 1.3 THEATER ↗</button>
+    <button type="button" className="protocol-drawer-primary" onClick={onOpenTls}>Open TLS 1.3 handshake ↗</button>
   </div>;
 
   const drawers: VisualDrawerDefinition[] = [
@@ -126,19 +127,19 @@ export function HttpComparisonTheater({ onExit, onOpenTls }: { onExit: () => voi
 
   return <VisualWorkspaceShell
     className="protocol-visual-workspace http-visual-workspace"
-    entrance={{ eyebrow: 'LAB 03D · HTTP/2 VS HTTP/3', title: 'SAME LOSS.', accentTitle: 'DIFFERENT DAMAGE.', subtitle: 'Two synchronized lanes expose how TCP and QUIC couple application streams.' }}
+    entrance={{ eyebrow: 'HTTP/2 and HTTP/3', title: 'The same loss', accentTitle: 'lands differently.', subtitle: 'Two synchronized lanes expose how TCP and QUIC couple application streams.' }}
     stageLabel="HTTP/2 and HTTP/3 synchronized loss comparison"
     activeDrawer={activeDrawer}
     drawers={drawers}
     onCloseDrawer={() => setActiveDrawer(null)}
-    toolbar={<><div className="visual-identity"><i/><span>HTTP A/B THEATER</span><strong>H2/TCP × H3/QUIC</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'INSPECT' }, { id: 'events', label: 'EVENTS', badge: String(httpComparisonEvents.length) }, { id: 'tools', label: 'MODEL' }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button protocol-link-button" onClick={onOpenTls}>TLS ↗</button><button type="button" className="visual-tool-button" onClick={onExit}>EXIT</button></div></>}
+    toolbar={<><div className="visual-identity"><i/><span>HTTP loss comparison</span><strong>H2/TCP × H3/QUIC</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'Inspect' }, { id: 'events', label: 'Events', badge: String(httpComparisonEvents.length) }, { id: 'tools', label: 'Model' }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button protocol-link-button" onClick={onOpenTls}>TLS ↗</button><button type="button" className="visual-tool-button" onClick={onExit}>Exit</button></div></>}
     hud={<><div><span>PHASE</span><strong>{state.phaseLabel}</strong></div><div><span>LOSS TARGET</span><strong>{HTTP_STREAM_A}</strong></div><div><span>CONTROL</span><strong>SYNCHRONIZED A/B</strong></div><div><span>PROVENANCE</span><strong>SIMULATED</strong></div></>}
-    timeline={<VisualTimeRail timeMs={timeMs} durationMs={HTTP_COMPARISON_DURATION_MS} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="HTTP A/B TIME MACHINE" context={`${activeEvent.focus.toUpperCase()} FOCUS · SAME LOSS TRACE`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
+    timeline={<VisualTimeRail timeMs={timeMs} durationMs={HTTP_COMPARISON_DURATION_MS} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="Shared loss trace" context={`${activeEvent.focus} focus · same loss`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
   >
     <div ref={rootRef} className={`protocol-cinematic-stage http-cinematic-stage focus-${activeEvent.focus}`}>
       <div className="protocol-scene-kicker"><span>APPLICATION / TRANSPORT COUPLING</span><strong>{activeEvent.focus.toUpperCase()} FOCUS</strong></div>
       <div className="http-stage http-workspace-stage">
-        <div className="http-divergence-axis" aria-hidden="true"><span>SAME LOSS</span><i/></div>
+        <div className={`http-divergence-axis${sharedLossActive ? ' is-live' : ''}`} aria-hidden="true"><span>SAME LOSS</span><i/></div>
         <div className="http-lanes"><Lane lane="h2" state={state.h2} focused={activeEvent.focus === 'both' || activeEvent.focus === 'h2'}/><Lane lane="h3" state={state.h3} focused={activeEvent.focus === 'both' || activeEvent.focus === 'h3'}/></div>
         <AnimatePresence mode="wait" initial={false}><motion.article key={activeEvent.id} className={`protocol-scene-annotation http-scene-annotation focus-${activeEvent.focus}`} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 9 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: reduceMotion ? 0 : 0.24 }}><i aria-hidden="true"/><div><span>{formatTime(activeEvent.atMs)} · {activeEvent.focus} focus</span><strong>{activeEvent.title}</strong><p>{activeEvent.summary}</p><div className="http-event-compare"><div><b>H2</b>{activeEvent.h2Label}</div><div><b>H3</b>{activeEvent.h3Label}</div></div></div></motion.article></AnimatePresence>
       </div>

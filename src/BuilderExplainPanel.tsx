@@ -92,7 +92,7 @@ export default function BuilderExplainPanel({
   return <section id="builder-explain-panel" className="builder-explain-panel" data-builder-explain-topic={topic} data-builder-explain-level={level} aria-label="Explain This Network">
     <header className="builder-explain-header">
       <div>
-        <span>TRACK L · CANONICAL EXPLANATION</span>
+        <span>CANONICAL EXPLANATION</span>
         <strong>EXPLAIN THIS NETWORK</strong>
         <small>{historicalSequence == null ? 'LIVE CANONICAL STATE' : `HISTORY #${String(historicalSequence).padStart(3, '0')} · READ-ONLY SNAPSHOT`}</small>
       </div>

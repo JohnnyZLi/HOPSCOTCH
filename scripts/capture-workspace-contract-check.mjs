@@ -21,7 +21,7 @@ assert.match(workspace, /file\.size > CAPTURE_LIMITS\.maxCaptureBytes/);
 assert.match(workspace, /The previous valid capture remains active\./);
 assert.match(workspace, /parseCaptureSessionAsync\(buffer\)/);
 assert.match(workspace, /<CaptureTrackHPanel session=\{session\} conversationId=\{activeConversation\.id\}/);
-assert.match(workspace, /Track H · Captured evidence \+ replay/);
+assert.match(workspace, /Capture evidence · immutable local session/);
 assert.doesNotMatch(workspace, /parseCaptureSession\(buffer\)/, 'primary browser ingest must not silently return to synchronous parse/index work');
 
 for (const forbidden of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'sendBeacon', 'localStorage', 'sessionStorage', 'indexedDB']) {
@@ -47,7 +47,7 @@ assert.match(workspace, /FOLLOW FLOW/);
 assert.match(workspace, /OPEN READ-ONLY PACKET MICROSCOPE/);
 
 for (const requiredSurface of [
-  'PROTOCOL THEATER', 'TCP STREAM + RTT', 'TRAFFIC OVERVIEW', 'COMPARE', 'SIDECAR EVIDENCE',
+  'PROTOCOL SEQUENCE', 'TCP STREAM + RTT', 'TRAFFIC OVERVIEW', 'COMPARE', 'SIDECAR EVIDENCE',
   'CAPTURE ↔ CAPTURE', 'CAPTURED ↔ SIMULATED COUNTERFACTUAL', 'PARSED DEVICE CONFIG',
 ]) assert.ok(trackHPanel.includes(requiredSurface), `Track H UI is missing ${requiredSurface}`);
 assert.match(trackHPanel, /parseCaptureSessionAsync\(await file\.arrayBuffer\(\)\)/);
@@ -69,7 +69,7 @@ assert.match(microscope, /SIMULATED FRAME/);
 assert.match(microscope, /if \(props\.capturedFrame\)/);
 
 const captureProduct = workspaceDefinition('capture');
-assert.equal(captureProduct.lab, 'TRACK H', 'current Capture Replay identity must belong to completed Track H');
+assert.equal(captureProduct.status, 'CAPTURED EVIDENCE ACTIVE', 'Capture Replay must expose its current product identity instead of an internal track number');
 assert.equal(captureProduct.path, '/capture');
 assert.equal(captureProduct.status, 'CAPTURED EVIDENCE ACTIVE');
 assert.equal(WORKSPACE_PATHS.capture, '/capture');

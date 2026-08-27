@@ -9,6 +9,7 @@ const visualWorkspace = readFileSync(new URL('../src/VisualWorkspace.tsx', impor
 const visualWorkspaceCss = readFileSync(new URL('../src/VisualWorkspace.css', import.meta.url), 'utf8');
 const journeySource = readFileSync(new URL('../src/JourneyTheaterV2.tsx', import.meta.url), 'utf8');
 const journeyCss = readFileSync(new URL('../src/JourneyTheater.css', import.meta.url), 'utf8');
+const failureSource = readFileSync(new URL('../src/FailureStoryWorkspace.tsx', import.meta.url), 'utf8');
 const tcpSource = readFileSync(new URL('../src/TcpTheater.tsx', import.meta.url), 'utf8');
 const dnsSource = readFileSync(new URL('../src/DnsTheater.tsx', import.meta.url), 'utf8');
 const tlsSource = readFileSync(new URL('../src/TlsTheater.tsx', import.meta.url), 'utf8');
@@ -18,6 +19,9 @@ const editorialCoreCss = readFileSync(new URL('../src/SiteEditorialCore.css', im
 const editorialCss = readFileSync(new URL('../src/SiteEditorialLight.css', import.meta.url), 'utf8');
 const editorialAuditCss = readFileSync(new URL('../src/SiteEditorialWorkspaceAudit.css', import.meta.url), 'utf8');
 const editorialWorkspaceSystem = readFileSync(new URL('../src/SiteEditorialWorkspaceSystem.css', import.meta.url), 'utf8');
+const kineticWorkspaceCss = readFileSync(new URL('../src/KineticWorkspaceShell.css', import.meta.url), 'utf8');
+const kineticDeepWorkspaceCss = readFileSync(new URL('../src/KineticDeepWorkspaceShell.css', import.meta.url), 'utf8');
+const kineticEvidenceWorkspaceCss = readFileSync(new URL('../src/KineticEvidenceWorkspaceShell.css', import.meta.url), 'utf8');
 const editorialWorkspaceLoader = readFileSync(new URL('../src/SiteEditorialWorkspaceLoader.ts', import.meta.url), 'utf8');
 const entry = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
 
@@ -46,6 +50,9 @@ for (const [name, source] of [['TCP', tcpSource], ['DNS', dnsSource], ['TLS', tl
   const playbackToggle = source.match(/const togglePlayback = \(\) => \{([\s\S]*?)\n  \};/)?.[1] ?? '';
   assert.ok(playbackToggle && !playbackToggle.includes('setActiveDrawer'));
 }
+for (const [name, source] of [['Journey', journeySource], ['Failure', failureSource], ['TCP', tcpSource], ['DNS', dnsSource], ['TLS', tlsSource], ['HTTP', httpSource]]) {
+  assert.ok(!source.includes('TIME MACHINE'), `${name} restored gamified timeline language`);
+}
 assert.ok(protocolCss.includes('.tls-workspace-stage') && protocolCss.includes('.http-workspace-stage') && protocolCss.includes('@media (max-width: 680px)'));
 
 for (const token of ['--site-paper: #d9d4cf', '--site-ink: #292827', '--site-coral: #d84f49', '--site-instrument: #302e2c', 'html body .app-shell']) {
@@ -54,6 +61,35 @@ for (const token of ['--site-paper: #d9d4cf', '--site-ink: #292827', '--site-cor
 for (const token of ['html body .builder-stage', 'html body .measured-workspace', 'html body .capture-replay']) assert.ok(editorialCss.includes(token));
 for (const token of ['.packet-visual-workspace .packet-stage', '.capture-replay .capture-evidence-inspector.is-frame-stage', '.observed-internet .evidence-card', '.internet-scale .as-winner-readout']) assert.ok(editorialAuditCss.includes(token));
 assert.ok(editorialWorkspaceSystem.includes("@import './SiteEditorialLight.css';") && editorialWorkspaceSystem.includes("@import './SiteEditorialWorkspaceAudit.css';"));
+assert.ok(editorialWorkspaceSystem.trimEnd().endsWith("@import './KineticEvidenceWorkspaceShell.css';"));
+for (const token of [
+  '.app-shell[data-lab="active"]:has',
+  'grid-template-rows: minmax(0, 1fr) !important',
+  '.visual-time-rail {',
+  'position: absolute !important',
+  '.failure-visual-workspace .lab-node-ring',
+  '.dns-workspace-map .dns-actor',
+  '.tcp-workspace-stage :is(.tcp-endpoint',
+  '.tls-workspace-stage :is(.tls-endpoint',
+  '.http-workspace-stage .http-lane',
+]) assert.ok(kineticWorkspaceCss.includes(token), `Missing cinematic workspace contract ${token}`);
+for (const token of [
+  '.as-visual-workspace',
+  '.physical-visual-workspace',
+  '.packet-visual-workspace',
+  '.builder-visual-workspace',
+  'height: 100dvh !important',
+  '.packet-object-wrap',
+  '.globe-viewport',
+]) assert.ok(kineticDeepWorkspaceCss.includes(token), `Missing deep workspace contract ${token}`);
+for (const token of [
+  '.capture-replay',
+  '.observed-internet.visual-workspace',
+  '.measured-workspace',
+  'height: 100dvh !important',
+  '@keyframes evidence-probe-left',
+  '@keyframes measured-fact-pulse',
+]) assert.ok(kineticEvidenceWorkspaceCss.includes(token), `Missing evidence workspace contract ${token}`);
 assert.ok(editorialWorkspaceLoader.includes("import('./SiteEditorialWorkspaceSystem.css')"));
 assert.ok(entry.includes("./SiteEditorialCore.css") && entry.includes("./SiteEditorialWorkspaceLoader"));
 assert.ok(!entry.includes('./ScaleInspectorPolish.css') && !entry.includes('./OverviewLayoutStability.css'));

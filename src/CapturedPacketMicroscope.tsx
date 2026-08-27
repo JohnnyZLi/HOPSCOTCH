@@ -153,30 +153,30 @@ export function CapturedPacketMicroscope({
     >
       <VisualWorkspaceShell
         className="packet-visual-workspace interactive-world-workspace captured-packet-workspace"
-        entrance={{ eyebrow: 'Track H · Captured packet microscope', title: 'PEEL THE EVIDENCE.', accentTitle: 'FOLLOW IT TO BYTES.', subtitle: 'Every decoded field remains anchored to immutable captured bytes.' }}
+        entrance={{ eyebrow: 'Packet evidence · immutable frame', title: 'ONE CAPTURE.', accentTitle: 'EXACT BYTES.', subtitle: 'Every decoded field remains anchored to immutable captured bytes.' }}
         stageLabel="Captured packet specimen and exact byte evidence"
         activeDrawer={activeDrawer}
         drawers={drawers}
         onCloseDrawer={() => setActiveDrawer(null)}
         timeline={null}
-        toolbar={<><div className="interactive-world-toolbar__identity"><span>TRACK H · PACKET EVIDENCE</span><strong>PEEL THE EVIDENCE · FOLLOW IT TO BYTES</strong></div><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'INSPECT', badge: selectedField ? '1' : '0' }, { id: 'tools', label: 'LAYERS', badge: String(frame.layers.length) }, { id: 'evidence', label: 'EVIDENCE' }]} onSelect={toggleDrawer} /><div className="interactive-world-toolbar__actions">{onOpenSourceEvent && <button type="button" onClick={onOpenSourceEvent}>{origin?.actionLabel ?? 'RETURN TO CAPTURE ↗'}</button>}<button type="button" onClick={onExit}>EXIT LAB</button></div></>}
+        toolbar={<><div className="interactive-world-toolbar__identity"><span>Packet evidence</span><strong>Frame {frame.record.number} · {frame.record.capturedLength} captured bytes</strong></div><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'Inspect', badge: selectedField ? '1' : '0' }, { id: 'tools', label: 'Layers', badge: String(frame.layers.length) }, { id: 'evidence', label: 'Evidence' }]} onSelect={toggleDrawer} /><div className="interactive-world-toolbar__actions">{onOpenSourceEvent && <button type="button" onClick={onOpenSourceEvent}>{origin?.actionLabel ?? 'Return to capture ↗'}</button>}<button type="button" onClick={onExit}>Exit</button></div></>}
         hud={<div className="interactive-world-hud packet-stage-hud"><div><span>FRAME</span><strong>{frame.record.number}</strong></div><div><span>CAPTURED</span><strong>{frame.record.capturedLength} BYTES</strong></div><div><span>LAYERS</span><strong>{frame.layers.length}</strong></div><div><span>FIELD</span><strong>{selectedField?.label ?? '—'}</strong></div><div className="interactive-world-hud__truth"><span>PROVENANCE</span><strong>CAPTURED · READ ONLY</strong></div></div>}
       >
       <header className="packet-heading">
         <div>
-          <p className="eyebrow">Track H · Captured packet microscope</p>
+          <p className="eyebrow">Packet evidence · Captured frame</p>
           <h1>PEEL THE EVIDENCE.<br /><span>FOLLOW IT TO BYTES.</span></h1>
         </div>
         <div className="packet-heading-actions">
           <span className="packet-captured-badge">CAPTURED · READ ONLY</span>
-          <button type="button" className="lab-mode" onClick={onExit}>EXIT LAB</button>
+          <button type="button" className="lab-mode" onClick={onExit}>EXIT</button>
         </div>
       </header>
 
       <div className="packet-stage">
         <div className="packet-origin-strip">
           <div>
-            <span>CAPTURE SOURCE</span>
+            <span>Packet evidence · capture source</span>
             <strong>{origin?.label ?? `FRAME ${frame.record.number}`}</strong>
           </div>
           <div>

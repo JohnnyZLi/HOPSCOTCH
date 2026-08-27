@@ -229,14 +229,14 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
 
   return <VisualWorkspaceShell
     className="protocol-visual-workspace dns-visual-workspace"
-    entrance={{ eyebrow: 'LAB 03B · DNS THEATER', title: 'FOLLOW THE NAME.', accentTitle: 'DESCEND THE TREE.', subtitle: 'Watch recursion, iteration, delegation, and cache state become one spatial path.' }}
+    entrance={{ eyebrow: 'DNS resolution', title: 'Follow the name', accentTitle: 'to authority.', subtitle: 'Recursion, iteration, delegation, and cache state become one spatial path.' }}
     stageLabel="DNS delegation and cache theater"
     activeDrawer={activeDrawer}
     drawers={drawers}
     onCloseDrawer={() => setActiveDrawer(null)}
-    toolbar={<><div className="visual-identity"><i/><span>DNS THEATER</span><strong>{DNS_QNAME} · CACHE {mode.toUpperCase()}</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'INSPECT' }, { id: 'config', label: 'CONFIG' }, { id: 'events', label: 'EVENTS', badge: String(scenario.events.length) }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button" onClick={onExit}>EXIT</button></div></>}
+    toolbar={<><div className="visual-identity"><i/><span>DNS resolution</span><strong>{DNS_QNAME} · cache {mode}</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'Inspect' }, { id: 'config', label: 'Configure' }, { id: 'events', label: 'Events', badge: String(scenario.events.length) }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button" onClick={onExit}>Exit</button></div></>}
     hud={<><div><span>PHASE</span><strong>{state.phaseLabel}</strong></div><div><span>QNAME</span><strong>{DNS_QNAME}</strong></div><div><span>CACHE TTL</span><strong>{state.cacheTtlSeconds === null ? '—' : `${state.cacheTtlSeconds}s`}</strong></div><div><span>PROVENANCE</span><strong>SIMULATED</strong></div></>}
-    timeline={<VisualTimeRail timeMs={timeMs} durationMs={scenario.durationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="DNS TIME MACHINE" context={`CACHE ${mode.toUpperCase()} · ${state.cacheState.toUpperCase()}`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
+    timeline={<VisualTimeRail timeMs={timeMs} durationMs={scenario.durationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="DNS trace" context={`Cache ${mode} · ${state.cacheState}`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
   >
     <div ref={rootRef} className={`protocol-cinematic-stage dns-cinematic-stage mode-${mode}`}>
       <div className="protocol-scene-kicker"><span>DNS / NAMESPACE</span><strong>{activeEvent.from.toUpperCase()} → {activeEvent.to.toUpperCase()}</strong></div>

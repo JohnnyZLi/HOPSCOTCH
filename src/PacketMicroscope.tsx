@@ -176,7 +176,7 @@ function SimulatedPacketMicroscope({
       content: <div className="packet-model-drawer">
         <div className="packet-relations packet-drawer-relations"><div><span>FRAME BYTES</span><strong>{snapshot.frameBytes}</strong><small>Ethernet + network + transport + payload</small></div><div><span>{config.family === 'ipv4' ? 'IP TOTAL LENGTH' : 'IPV6 PAYLOAD LENGTH'}</span><strong>{config.family === 'ipv4' ? snapshot.networkBytes : snapshot.transportBytes}</strong><small>{config.family === 'ipv4' ? 'Network header through payload' : 'Transport header + payload'}</small></div><div><span>NETWORK CHECKSUM</span><strong>{snapshot.networkChecksum === null ? 'NONE' : hex16(snapshot.networkChecksum)}</strong><small>{config.family === 'ipv4' ? 'Recomputed from IPv4 header' : 'IPv6 removed this checksum'}</small></div><div><span>{config.transport.toUpperCase()} CHECKSUM</span><strong>{hex16(snapshot.transportChecksum)}</strong><small>Pseudo-header and payload dependent</small></div></div>
         <div className="packet-causality-note"><span>CHANGE PROPAGATION</span><p>Payload size changes propagate into network length fields and the {config.transport.toUpperCase()} checksum. {config.family === 'ipv4' ? 'IPv4 Total Length also changes its header checksum.' : 'IPv6 changes Payload Length but has no network-header checksum.'}</p></div>
-        <div className="packet-origin-card"><span>SCENARIO SOURCE</span><strong>{origin?.label ?? 'LAB 01 · TRAFFIC RECOVERS'}</strong><small>{origin?.timestamp ?? '00:05.400'} · SIMULATED</small></div>
+        <div className="packet-origin-card"><span>SCENARIO SOURCE</span><strong>{origin?.label ?? 'FAILURE SEQUENCE · TRAFFIC RECOVERS'}</strong><small>{origin?.timestamp ?? '00:05.400'} · SIMULATED</small></div>
       </div>,
     },
   ];
@@ -189,19 +189,19 @@ function SimulatedPacketMicroscope({
     >
       <VisualWorkspaceShell
         className="packet-visual-workspace interactive-world-workspace"
-        entrance={{ eyebrow: 'Lab 02 · Packet microscope', title: 'PEEL THE PACKET.', accentTitle: 'WATCH THE MATH MOVE.', subtitle: 'Move from layer to field to the exact bytes that carry it.' }}
+        entrance={{ eyebrow: 'Packet microscope · simulated frame', title: 'ONE FRAME.', accentTitle: 'EVERY DEPENDENCY.', subtitle: 'Move from layer to field to the exact bytes that carry it.' }}
         stageLabel="Simulated packet specimen and exact byte map"
         activeDrawer={activeDrawer}
         drawers={drawers}
         onCloseDrawer={() => setActiveDrawer(null)}
         timeline={null}
-        toolbar={<><div className="interactive-world-toolbar__identity"><span>LAB 02 · PACKET MICROSCOPE</span><strong>PEEL THE PACKET · WATCH THE MATH MOVE</strong></div><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'INSPECT', badge: selectedField ? '1' : '0' }, { id: 'config', label: 'CONFIGURE' }, { id: 'evidence', label: 'MODEL' }]} onSelect={toggleDrawer} /><div className="interactive-world-toolbar__actions">{onOpenSourceEvent && <button type="button" onClick={onOpenSourceEvent}>{origin?.actionLabel ?? 'SOURCE ↗'}</button>}<button type="button" onClick={onExit}>EXIT LAB</button></div></>}
+        toolbar={<><div className="interactive-world-toolbar__identity"><span>Packet microscope</span><strong>{config.family.toUpperCase()} · {config.transport.toUpperCase()} · {snapshot.frameBytes} bytes</strong></div><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'Inspect', badge: selectedField ? '1' : '0' }, { id: 'config', label: 'Configure' }, { id: 'evidence', label: 'Model' }]} onSelect={toggleDrawer} /><div className="interactive-world-toolbar__actions">{onOpenSourceEvent && <button type="button" onClick={onOpenSourceEvent}>{origin?.actionLabel ?? 'Source event ↗'}</button>}<button type="button" onClick={onExit}>Exit</button></div></>}
         hud={<div className="interactive-world-hud packet-stage-hud"><div><span>FRAME</span><strong>{snapshot.frameBytes} BYTES</strong></div><div><span>NETWORK</span><strong>{config.family.toUpperCase()}</strong></div><div><span>TRANSPORT</span><strong>{config.transport.toUpperCase()}</strong></div><div><span>FIELD</span><strong>{selectedField?.label ?? '—'}</strong></div><div className="interactive-world-hud__truth"><span>PROVENANCE</span><strong>SIMULATED · RECOMPUTED</strong></div></div>}
       >
       <header className="packet-heading">
         <div>
-          <p className="eyebrow">Lab 02 · Packet microscope</p>
-          <h1>PEEL THE PACKET.<br /><span>WATCH THE MATH MOVE.</span></h1>
+          <p className="eyebrow">Packet microscope</p>
+          <h1>ONE FRAME.<br /><span>EVERY DEPENDENCY.</span></h1>
         </div>
         <div className="packet-heading-actions">
           <div className="packet-toggle-group" aria-label="Network family">
@@ -228,7 +228,7 @@ function SimulatedPacketMicroscope({
               </button>
             ))}
           </div>
-          <button type="button" className="lab-mode" onClick={onExit}>EXIT LAB</button>
+          <button type="button" className="lab-mode" onClick={onExit}>EXIT</button>
         </div>
       </header>
 
@@ -236,7 +236,7 @@ function SimulatedPacketMicroscope({
         <div className="packet-origin-strip">
           <div>
             <span>SCENARIO SOURCE</span>
-            <strong>{origin?.label ?? 'LAB 01 · TRAFFIC RECOVERS'}</strong>
+            <strong>{origin?.label ?? 'FAILURE SEQUENCE · TRAFFIC RECOVERS'}</strong>
             <small className="packet-origin-route">{networkSegment.label} · {transportSegment.label} · {sourceAddress} → {destinationAddress}</small>
           </div>
           <div>

@@ -138,25 +138,25 @@ export function TlsTheater({
 
   const modelContent = <div className="protocol-model-drawer tls-model-drawer">
     <section><span>MODEL BOUNDARY</span><strong>SYMBOLIC SECRETS · NO KEY BYTES</strong><p>The key schedule names real TLS 1.3 stages but never invents or exposes secret material. The certificate chain and signatures are explicitly simulated.</p></section>
-    <section><span>CONNECTED LABS</span><div className="protocol-link-grid"><button type="button" onClick={onOpenDns}>DNS THEATER ↗</button><button type="button" onClick={onOpenTcp}>TCP THEATER ↗</button><button type="button" onClick={onOpenPacket}>PACKET MICROSCOPE ↗</button></div></section>
+    <section><span>RELATED WORKSPACES</span><div className="protocol-link-grid"><button type="button" onClick={onOpenDns}>DNS resolution ↗</button><button type="button" onClick={onOpenTcp}>TCP recovery ↗</button><button type="button" onClick={onOpenPacket}>Packet microscope ↗</button></div></section>
   </div>;
 
   const drawers: VisualDrawerDefinition[] = [
     { id: 'inspect', label: 'Inspect', title: 'Current TLS state', eyebrow: `${state.phase.toUpperCase()} · ${formatTime(timeMs)}`, content: inspectContent },
     { id: 'events', label: 'Events', title: 'Handshake event chain', eyebrow: `${tlsEvents.length} DETERMINISTIC EVENTS`, content: eventsContent },
-    { id: 'tools', label: 'Model', title: 'Truth boundary and related labs', eyebrow: 'CURATED TLS 1.3', content: modelContent },
+    { id: 'tools', label: 'Model', title: 'Truth boundary and related workspaces', eyebrow: 'CURATED TLS 1.3', content: modelContent },
   ];
 
   return <VisualWorkspaceShell
     className="protocol-visual-workspace tls-visual-workspace"
-    entrance={{ eyebrow: 'LAB 03C · TLS 1.3 THEATER', title: 'WATCH TLS', accentTitle: 'BECOME CIPHERTEXT.', subtitle: 'Negotiation, identity, transcript, and key stages cross the encryption boundary in one scene.' }}
+    entrance={{ eyebrow: 'TLS 1.3 handshake', title: 'The transcript', accentTitle: 'becomes protected.', subtitle: 'Negotiation, identity, transcript, and key stages cross the encryption boundary in one scene.' }}
     stageLabel="TLS 1.3 handshake and encryption theater"
     activeDrawer={activeDrawer}
     drawers={drawers}
     onCloseDrawer={() => setActiveDrawer(null)}
-    toolbar={<><div className="visual-identity"><i/><span>TLS 1.3 THEATER</span><strong>{TLS_HOST} · {protectionLabel}</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'INSPECT' }, { id: 'events', label: 'EVENTS', badge: String(tlsEvents.length) }, { id: 'tools', label: 'MODEL' }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button" onClick={onExit}>EXIT</button></div></>}
+    toolbar={<><div className="visual-identity"><i/><span>TLS 1.3 handshake</span><strong>{TLS_HOST} · {protectionLabel}</strong></div><div className="protocol-visual-tools"><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'Inspect' }, { id: 'events', label: 'Events', badge: String(tlsEvents.length) }, { id: 'tools', label: 'Model' }]} onSelect={openDrawer}/><button type="button" className="visual-tool-button" onClick={onExit}>Exit</button></div></>}
     hud={<><div><span>PHASE</span><strong>{state.phaseLabel}</strong></div><div><span>WIRE</span><strong>{protectionLabel}</strong></div><div><span>ALPN</span><strong>{state.negotiatedAlpn ?? 'OFFERING h2'}</strong></div><div><span>PROVENANCE</span><strong>SIMULATED</strong></div></>}
-    timeline={<VisualTimeRail timeMs={timeMs} durationMs={tlsDurationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="TLS TIME MACHINE" context={`${state.transcript.length} transcript messages · ${state.activeKeys.length} key stages`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
+    timeline={<VisualTimeRail timeMs={timeMs} durationMs={tlsDurationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="TLS handshake" context={`${state.transcript.length} transcript messages · ${state.activeKeys.length} key stages`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
   >
     <div ref={rootRef} className={`protocol-cinematic-stage tls-cinematic-stage protection-${wireProtection}`}>
       <div className="protocol-scene-kicker"><span>TLS 1.3 / RECORD LAYER</span><strong>{activeEvent.direction === 'local' ? 'LOCAL DERIVATION' : activeEvent.direction.replaceAll('-', ' ').toUpperCase()}</strong></div>

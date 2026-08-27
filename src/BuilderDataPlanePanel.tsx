@@ -97,11 +97,11 @@ export function BuilderDataPlanePanel({ transaction, context, historical, onIpv6
 
   return <section className="builder-data-plane" data-track-e="canonical-data-plane">
     <header className="builder-data-plane-heading">
-      <div><span>TRACK E · DATA PLANE</span><strong>QUEUES · CAPACITY · PMTU · TRANSPORT RESPONSE</strong><p>Runs only on the canonical path produced by the application transaction. Routing, policy, NAT, and L2 truth are not recomputed here.</p></div>
+      <div><span>DATA PLANE</span><strong>QUEUES · CAPACITY · PMTU · TRANSPORT RESPONSE</strong><p>Runs only on the canonical path produced by the application transaction. Routing, policy, NAT, and L2 truth are not recomputed here.</p></div>
       <span className="builder-data-plane-boundary">SIMULATED · DETERMINISTIC</span>
     </header>
 
-    {!usable ? <div className="builder-data-plane-empty"><strong>RUN A SUCCESSFUL APPLICATION TRANSACTION FIRST</strong><p>Track E needs the exact routed link IDs from Track D. It does not invent a path just to demonstrate congestion.</p></div> : <>
+    {!usable ? <div className="builder-data-plane-empty"><strong>RUN A SUCCESSFUL APPLICATION TRANSACTION FIRST</strong><p>The data-plane model needs the exact routed link IDs from that transaction. It does not invent a path just to demonstrate congestion.</p></div> : <>
       <div className="builder-data-plane-path"><span>CANONICAL PATH · {family.toUpperCase()}</span><code>{pathLinkIds.join(' → ')}</code></div>
       <div className="builder-data-plane-grid">
         <article className="builder-data-plane-card">

@@ -145,7 +145,7 @@ async function setFileInput(cdp, selector, filePath) {
 }
 
 async function clickText(cdp, selector, text) {
-  const clicked = await cdp.evaluate(`(()=>{const target=[...document.querySelectorAll(${JSON.stringify(selector)})].find((candidate)=>candidate.textContent?.includes(${JSON.stringify(text)}));if(!target)return false;target.click();return true})()`);
+  const clicked = await cdp.evaluate(`(()=>{const needle=${JSON.stringify(text)}.toLocaleUpperCase();const target=[...document.querySelectorAll(${JSON.stringify(selector)})].find((candidate)=>candidate.textContent?.toLocaleUpperCase().includes(needle));if(!target)return false;target.click();return true})()`);
   if (!clicked) throw new Error(`Unable to click ${selector} containing ${JSON.stringify(text)}`);
 }
 
@@ -212,6 +212,22 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='flows'`);
     await sleep(80);
     const initialFocus = await cdp.evaluate(`document.activeElement?.classList.contains('capture-drawer-close')===true`);
+    const flowDrawerGeometry = await cdp.evaluate(`(()=>{
+      const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
+      const drawer=document.querySelector('.capture-flow-browser');
+      const drawerRect=drawer?.getBoundingClientRect();
+      const titleElement=document.querySelector('.capture-flow-browser > header > div');
+      const title=titleElement?.getBoundingClientRect();
+      const topElement=title?document.elementFromPoint((title.left+title.right)/2,(title.top+title.bottom)/2):null;
+      const channels=drawer?getComputedStyle(drawer).backgroundColor.match(/[\\d.]+/g)?.map(Number)??[]:[];
+      const rgb=(value)=>{const values=value.match(/[\\d.]+/g)?.map(Number)??[];return values.slice(0,3).map((channel)=>{const normalized=channel/255;return normalized<=.04045?normalized/12.92:((normalized+.055)/1.055)**2.4})};
+      const contrast=(foreground,background)=>{const a=rgb(foreground);const b=rgb(background);const first=.2126*a[0]+.7152*a[1]+.0722*a[2];const second=.2126*b[0]+.7152*b[1]+.0722*b[2];return (Math.max(first,second)+.05)/(Math.min(first,second)+.05)};
+      const titleContrast=titleElement&&drawer?contrast(getComputedStyle(titleElement.querySelector('strong')??titleElement).color,getComputedStyle(drawer).backgroundColor):0;
+      return {width:drawerRect?.width??0,backgroundAlpha:channels.length>=4?channels[3]:1,titleContrast,collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
+    })()`);
+    if (!flowDrawerGeometry.titleOnTop || flowDrawerGeometry.backgroundAlpha < .99 || flowDrawerGeometry.titleContrast < 4.5) throw new Error(`${profile.id} flow drawer is not an opaque, legible top-layer surface: ${JSON.stringify(flowDrawerGeometry)}.`);
+    if (flowDrawerGeometry.collision) throw new Error(`${profile.id} flow drawer title collides with corner navigation.`);
+    if (profile.width <= 680 && flowDrawerGeometry.width < profile.width * .98) throw new Error(`${profile.id} flow drawer does not own the mobile stage.`);
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', modifiers: 8 });
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', modifiers: 8 });
     const shiftTabContained = await cdp.evaluate(`document.querySelector('.capture-flow-browser')?.contains(document.activeElement)===true`);
@@ -222,7 +238,7 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='none'`);
-    const restored = await cdp.evaluate(`document.activeElement?.textContent?.includes('FLOWS')===true`);
+    const restored = await cdp.evaluate(`document.activeElement?.textContent?.toLocaleUpperCase().includes('FLOWS')===true`);
     if (!initialFocus || !shiftTabContained || !tabContained || !restored) throw new Error(`${profile.id} Capture Replay drawer focus lifecycle failed.`);
     focusLifecycle = { initialFocus, shiftTabContained, tabContained, restored };
   }
@@ -232,16 +248,48 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
   await sleep(80);
   const frameGeometry = await cdp.evaluate(`(()=>{
     const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{width:value.width,height:value.height,left:value.left,right:value.right,top:value.top,bottom:value.bottom}:null};
-    return {grid:rect('.capture-workspace-grid'),frame:rect('.capture-evidence-inspector.is-frame-stage'),bytes:document.querySelectorAll('.capture-evidence-inspector.is-frame-stage .capture-hex-grid > span').length,scrollWidth:document.documentElement.scrollWidth};
+    const alpha=(selector)=>{const value=document.querySelector(selector);if(!value)return null;const channels=getComputedStyle(value).backgroundColor.match(/[\\d.]+/g)?.map(Number)??[];return channels.length>=4?channels[3]:1};
+    const sections=['.capture-specimen-mode-banner','.capture-frame-heading','.capture-frame-nav','.capture-frame-facts','.capture-byte-inspector','.capture-protocol-stack','.capture-field-list','.capture-lineage','.capture-open-microscope'].map((selector)=>({selector,rect:rect('.capture-evidence-inspector.is-frame-stage > '+selector)})).filter((entry)=>entry.rect&&entry.rect.width>0&&entry.rect.height>0);
+    const heading=rect('.capture-evidence-inspector.is-frame-stage > .capture-frame-heading > div:first-child');
+    const badge=rect('.capture-evidence-inspector.is-frame-stage .capture-frame-heading-actions');
+    return {grid:rect('.capture-workspace-grid'),frame:rect('.capture-evidence-inspector.is-frame-stage'),sections,heading,badge,flatSurfaceAlpha:[alpha('.capture-frame-facts > div'),alpha('.capture-protocol-stack button')],bytes:document.querySelectorAll('.capture-evidence-inspector.is-frame-stage .capture-hex-grid > span').length,scrollWidth:document.documentElement.scrollWidth};
   })()`);
   if (!frameGeometry.grid || !frameGeometry.frame || frameGeometry.bytes <= 0) throw new Error(`${profile.id} frame mode did not promote an exact-byte specimen.`);
   if (frameGeometry.frame.width < frameGeometry.grid.width * 0.98 || frameGeometry.frame.height < frameGeometry.grid.height * 0.98 || frameGeometry.scrollWidth > profile.width) throw new Error(`${profile.id} frame specimen does not own the stage: ${JSON.stringify(frameGeometry)}.`);
+  if (frameGeometry.flatSurfaceAlpha.some((value) => value === null || value > 0.02)) throw new Error(`${profile.id} frame specimen regressed to nested card surfaces: ${JSON.stringify(frameGeometry.flatSurfaceAlpha)}.`);
+  if (profile.width <= 540) {
+    for (let index = 1; index < frameGeometry.sections.length; index += 1) {
+      const previous = frameGeometry.sections[index - 1];
+      const current = frameGeometry.sections[index];
+      if (current.rect.top < previous.rect.bottom - 1) throw new Error(`${profile.id} frame specimen sections overlap: ${previous.selector} → ${current.selector}.`);
+    }
+    if (frameGeometry.heading && frameGeometry.badge && frameGeometry.heading.left < frameGeometry.badge.right && frameGeometry.heading.right > frameGeometry.badge.left && frameGeometry.heading.top < frameGeometry.badge.bottom && frameGeometry.heading.bottom > frameGeometry.badge.top) throw new Error(`${profile.id} frame heading collides with its provenance badge.`);
+  }
   const frameScreenshot = await screenshot('frame-specimen');
 
   if (profile.inspectReview) {
     await clickText(cdp, '.capture-heading-actions .capture-action', 'ANALYSIS');
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='analysis'`);
     await sleep(100);
+    const analysisDrawerGeometry = await cdp.evaluate(`(()=>{
+      const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
+      const drawer=document.querySelector('.capture-analysis-drawer');
+      const drawerRect=drawer?.getBoundingClientRect();
+      const titleElement=document.querySelector('.capture-analysis-drawer > header > div');
+      const title=titleElement?.getBoundingClientRect();
+      const topElement=title?document.elementFromPoint((title.left+title.right)/2,(title.top+title.bottom)/2):null;
+      const channels=drawer?getComputedStyle(drawer).backgroundColor.match(/[\\d.]+/g)?.map(Number)??[]:[];
+      const header=document.querySelector('.capture-analysis-drawer > header');
+      const rgb=(value)=>{const values=value.match(/[\\d.]+/g)?.map(Number)??[];return values.slice(0,3).map((channel)=>{const normalized=channel/255;return normalized<=.04045?normalized/12.92:((normalized+.055)/1.055)**2.4})};
+      const contrast=(foreground,background)=>{const a=rgb(foreground);const b=rgb(background);const first=.2126*a[0]+.7152*a[1]+.0722*a[2];const second=.2126*b[0]+.7152*b[1]+.0722*b[2];return (Math.max(first,second)+.05)/(Math.min(first,second)+.05)};
+      const titleContrast=titleElement&&header?contrast(getComputedStyle(titleElement.querySelector('strong')??titleElement).color,getComputedStyle(header).backgroundColor):0;
+      const alpha=(selector)=>{const value=document.querySelector(selector);if(!value)return null;const values=getComputedStyle(value).backgroundColor.match(/[\\d.]+/g)?.map(Number)??[];return values.length>=4?values[3]:1};
+      return {width:drawerRect?.width??0,backgroundAlpha:channels.length>=4?channels[3]:1,titleContrast,ledgerSurfaceAlpha:[alpha('.capture-track-h-summary > div'),alpha('.capture-theater-stages article')],collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
+    })()`);
+    if (!analysisDrawerGeometry.titleOnTop || analysisDrawerGeometry.backgroundAlpha < .99 || analysisDrawerGeometry.titleContrast < 4.5) throw new Error(`${profile.id} analysis drawer is not an opaque, legible top-layer surface: ${JSON.stringify(analysisDrawerGeometry)}.`);
+    if (profile.width <= 680 && analysisDrawerGeometry.collision) throw new Error(`${profile.id} analysis drawer title collides with corner navigation.`);
+    if (profile.width <= 680 && analysisDrawerGeometry.width < profile.width * .98) throw new Error(`${profile.id} analysis drawer does not own the mobile stage.`);
+    if (analysisDrawerGeometry.ledgerSurfaceAlpha.some((value) => value === null || value > 0.02)) throw new Error(`${profile.id} analysis drawer regressed to nested card surfaces: ${JSON.stringify(analysisDrawerGeometry.ledgerSurfaceAlpha)}.`);
     analysisScreenshot = await screenshot('analysis');
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
@@ -310,7 +358,7 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
   if (microscope.provenance !== 'CAPTURED' || microscope.rangeControls !== 0 || microscope.highlighted <= 0 || !microscope.text.includes('CAPTURED · READ ONLY')) {
     throw new Error(`${profile.id} captured Packet Microscope crossed the read-only boundary.`);
   }
-  if (!microscope.text.includes('TRACK H · PACKET EVIDENCE') || /TRACK T · PACKET EVIDENCE/.test(microscope.text)) throw new Error(`${profile.id} captured Packet Microscope exposed stale product-track identity.`);
+  if (!microscope.text.toLocaleUpperCase().includes('PACKET EVIDENCE') || /TRACK T · PACKET EVIDENCE/i.test(microscope.text)) throw new Error(`${profile.id} captured Packet Microscope exposed stale product-track identity.`);
 
   if (profile.visualReview) {
     await waitForExpression(cdp, `!document.querySelector('.packet-visual-workspace .visual-entrance')`, 5000);

@@ -469,22 +469,22 @@ export function CaptureReplayWorkspace({
         onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void loadFile(file); }}
       />
       <header className="capture-heading">
-        <div className="visual-identity"><span>TRACK H</span><strong>CAPTURE REPLAY</strong></div>
+        <div className="visual-identity"><span>CAPTURE EVIDENCE</span><strong>REPLAY</strong></div>
         <span className="capture-local-badge">CAPTURED · LOCAL ONLY · SESSION MEMORY</span>
         <div className="capture-heading-actions">
           {session && <div className="capture-mode-switch" role="group" aria-label="Capture workspace mode">
-            <button type="button" className={workspaceMode === 'replay' ? 'active' : ''} aria-pressed={workspaceMode === 'replay'} onClick={() => selectWorkspaceMode('replay')}>REPLAY</button>
-            <button type="button" className={workspaceMode === 'frame' ? 'active' : ''} aria-pressed={workspaceMode === 'frame'} onClick={() => selectWorkspaceMode('frame')}>FRAME SPECIMEN</button>
+            <button type="button" className={workspaceMode === 'replay' ? 'active' : ''} aria-pressed={workspaceMode === 'replay'} onClick={() => selectWorkspaceMode('replay')}>Replay</button>
+            <button type="button" className={workspaceMode === 'frame' ? 'active' : ''} aria-pressed={workspaceMode === 'frame'} onClick={() => selectWorkspaceMode('frame')}>Frame specimen</button>
           </div>}
-          {session && <button type="button" className={activeDrawer === 'flows' ? 'capture-action active' : 'capture-action'} aria-pressed={activeDrawer === 'flows'} onClick={() => openContextDrawer('flows')}>FLOWS <span>{session.metadata.conversationCount}</span></button>}
-          {session && workspaceMode === 'replay' && <button type="button" className={activeDrawer === 'inspect' ? 'capture-action active' : 'capture-action'} aria-pressed={activeDrawer === 'inspect'} onClick={() => openContextDrawer('inspect')}>FRAME DETAILS</button>}
-          {session && <button type="button" className={activeDrawer === 'analysis' ? 'capture-action active' : 'capture-action'} aria-pressed={activeDrawer === 'analysis'} onClick={() => openContextDrawer('analysis')}>ANALYSIS</button>}
-          <button type="button" className="capture-action" onClick={() => fileInputRef.current?.click()} disabled={parsing}>{session ? 'REPLACE CAPTURE' : 'IMPORT CAPTURE'}</button>
-          {session && <button type="button" className="capture-action capture-clear" onClick={() => { setPlaying(false); setActiveDrawer(null); setWorkspaceMode('replay'); setError(null); onContextChange(null); onSessionChange(null, null); }}>CLEAR</button>}
-          <button type="button" className="lab-mode" onClick={onExit}>EXIT</button>
+          {session && <button type="button" className={activeDrawer === 'flows' ? 'capture-action active' : 'capture-action'} aria-pressed={activeDrawer === 'flows'} onClick={() => openContextDrawer('flows')}>Flows <span>{session.metadata.conversationCount}</span></button>}
+          {session && workspaceMode === 'replay' && <button type="button" className={activeDrawer === 'inspect' ? 'capture-action active' : 'capture-action'} aria-pressed={activeDrawer === 'inspect'} onClick={() => openContextDrawer('inspect')}>Frame details</button>}
+          {session && <button type="button" className={activeDrawer === 'analysis' ? 'capture-action active' : 'capture-action'} aria-pressed={activeDrawer === 'analysis'} onClick={() => openContextDrawer('analysis')}>Analysis</button>}
+          <button type="button" className="capture-action capture-replace" onClick={() => fileInputRef.current?.click()} disabled={parsing}>{session ? 'Replace capture' : 'Import capture'}</button>
+          {session && <button type="button" className="capture-action capture-clear" onClick={() => { setPlaying(false); setActiveDrawer(null); setWorkspaceMode('replay'); setError(null); onContextChange(null); onSessionChange(null, null); }}>Clear</button>}
+          <button type="button" className="lab-mode capture-exit" onClick={onExit}>Exit</button>
         </div>
       </header>
-      <VisualEntranceTransition entrance={{ eyebrow: 'Track H · Captured evidence + replay', title: 'REPLAY THE EVIDENCE.', accentTitle: 'DESCEND TO THE BYTES.', subtitle: 'Conversation playback and exact frame inspection remain capture-bounded.' }} />
+      <VisualEntranceTransition entrance={{ eyebrow: 'Capture evidence · immutable local session', title: 'REPLAY THE EVIDENCE.', accentTitle: 'DESCEND TO THE BYTES.', subtitle: 'Conversation motion and exact frame inspection remain capture-bounded.' }} />
 
       {!session ? (
         <EmptyCapture parsing={parsing} dragging={dragging} error={error} onChoose={() => fileInputRef.current?.click()} onDrop={(file) => void loadFile(file)} onDragState={setDragging} />
@@ -501,19 +501,18 @@ export function CaptureReplayWorkspace({
             <details className="capture-warnings"><summary>{session.warnings.length} capture limitation{session.warnings.length === 1 ? '' : 's'} / decoder note{session.warnings.length === 1 ? '' : 's'}</summary><ul>{session.warnings.slice(0, 20).map((warning) => <li key={warning}>{warning}</li>)}</ul></details>
           )}
 
-          <AnimatePresence>
-            {activeDrawer && <motion.button
-              type="button"
-              className="capture-context-backdrop"
-              aria-label={`Close ${activeDrawer} drawer`}
-              onClick={() => setActiveDrawer(null)}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />}
-          </AnimatePresence>
-
           <div className="capture-workspace-grid">
+            <AnimatePresence>
+              {activeDrawer && <motion.button
+                type="button"
+                className="capture-context-backdrop"
+                aria-label={`Close ${activeDrawer} drawer`}
+                onClick={() => setActiveDrawer(null)}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              />}
+            </AnimatePresence>
             <aside
               ref={activeDrawer === 'flows' ? drawerRef : undefined}
               className={`capture-flow-browser${activeDrawer === 'flows' ? ' is-open' : ''}`}
@@ -717,7 +716,7 @@ export function CaptureReplayWorkspace({
               aria-hidden={activeDrawer !== 'analysis'}
               inert={activeDrawer !== 'analysis'}
             >
-              <header><div><span>TRACK H · DEEP ANALYSIS</span><strong id="capture-analysis-drawer-title">Capture-bounded analysis</strong></div><button ref={activeDrawer === 'analysis' ? initialFocusRef : undefined} type="button" className="capture-drawer-close" onClick={() => setActiveDrawer(null)} aria-label="Close capture analysis">×</button></header>
+              <header><div><span>CAPTURE-BOUNDED ANALYSIS</span><strong id="capture-analysis-drawer-title">Conversation evidence</strong></div><button ref={activeDrawer === 'analysis' ? initialFocusRef : undefined} type="button" className="capture-drawer-close" onClick={() => setActiveDrawer(null)} aria-label="Close capture analysis">×</button></header>
               <div className="capture-analysis-drawer-body">{activeConversation ? <CaptureTrackHPanel session={session} conversationId={activeConversation.id} /> : <div className="capture-inspector-empty"><strong>NO RECOGNIZED CONVERSATION</strong><p>Analysis remains empty rather than inventing a flow.</p></div>}</div>
             </aside>
           </div>

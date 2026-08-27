@@ -216,11 +216,13 @@ async function inspectState(cdp) {
     const toolbar=document.querySelector('.visual-workspace__toolbar');
     const rail=document.querySelector('.visual-time-rail');
     const depth=document.querySelector('.journey-depth-overlay');
+    const causalObject=document.querySelector('[data-causal-object="request-01"]');
     const packetObject=document.querySelector('[data-phase5-packet-object="true"]');
     const physicalObject=document.querySelector('[data-phase5b-physical="true"]');
     const boxes={callout:pick(callout),scene:pick(scene),stage:pick(stage),hud:pick(hud),toolbar:pick(toolbar),rail:pick(rail),depth:pick(depth)};
     const markers=[...document.querySelectorAll('.visual-time-rail__events button')].map((button)=>{const r=button.getBoundingClientRect();return {label:button.getAttribute('aria-label')||'',width:r.width,height:r.height}});
     const hudValues=[...document.querySelectorAll('.visual-workspace__hud strong')].map((value)=>({text:value.textContent?.trim()||'',clientWidth:value.clientWidth,scrollWidth:value.scrollWidth,whiteSpace:getComputedStyle(value).whiteSpace}));
+    const causal=causalObject?(()=>{const style=getComputedStyle(causalObject);const color=style.backgroundColor;const backgroundAlpha=color==='transparent'?0:color.startsWith('rgba')?Number(color.slice(color.lastIndexOf(',')+1,-1).trim()):1;return {backgroundAlpha,backgroundImage:style.backgroundImage,borderRadius:style.borderRadius,borderWidths:[style.borderTopWidth,style.borderRightWidth,style.borderBottomWidth,style.borderLeftWidth],protectionNodeCount:causalObject.querySelectorAll('.node-protection').length}})():null;
     const packet=packetObject?{
       stage:packetObject.getAttribute('data-phase5-stage')||'',
       signature:packetObject.getAttribute('data-phase5-signature')||'',
@@ -269,6 +271,7 @@ async function inspectState(cdp) {
       sceneDepthOverlap:intersects(boxes.scene,boxes.depth),
       markers,
       hudValues,
+      causal,
       packet,
       physical,
       innerWidth,
@@ -401,6 +404,13 @@ async function auditViewport(cdp, origin, viewport) {
     assert.ok(state.markers.every((marker) => marker.width >= 14 && marker.height >= 18), `${viewport.id}/${labels[index]}: timeline hit target regressed: ${JSON.stringify(state.markers)}`);
     if (viewport.id === 'mobile') {
       assert.ok(state.hudValues.every((value) => value.whiteSpace !== 'nowrap'), `${viewport.id}/${labels[index]}: HUD value is forced to nowrap.`);
+    }
+    if (state.causal) {
+      assert.equal(state.causal.backgroundAlpha, 0, `${viewport.id}/${labels[index]}: the request mechanism regained an opaque card background.`);
+      assert.equal(state.causal.backgroundImage, 'none', `${viewport.id}/${labels[index]}: the request mechanism regained a card gradient.`);
+      assert.equal(state.causal.borderRadius, '0px', `${viewport.id}/${labels[index]}: the request mechanism regained rounded card chrome.`);
+      assert.deepEqual(state.causal.borderWidths, ['0px', '0px', '0px', '0px'], `${viewport.id}/${labels[index]}: the request mechanism regained a panel border.`);
+      assert.equal(state.causal.protectionNodeCount, 1, `${viewport.id}/${labels[index]}: the TLS protection node is duplicated.`);
     }
     if (state.packet) {
       const visibleLayers = state.packet.layers.filter((layer) => layer.visible);

@@ -73,14 +73,14 @@ export default function BuilderChallengePanel({
   const copyToken = async () => {
     try {
       await navigator.clipboard.writeText(token);
-      onMessage(`CHALLENGE TOKEN COPIED · ${token}`);
+      onMessage(`SCENARIO TOKEN COPIED · ${token}`);
     } catch {
-      onMessage(`CHALLENGE TOKEN · ${token}`);
+      onMessage(`SCENARIO TOKEN · ${token}`);
     }
   };
 
   return <section className={`builder-challenge-panel ${score.solved ? 'is-solved' : ''}`} data-challenge-id={challenge.id} data-challenge-family={challenge.family} data-challenge-score={score.total}>
-    <div className="control-title"><span>TROUBLESHOOTING CHALLENGE</span><strong>TRACK J · {challenge.difficulty}</strong></div>
+    <div className="control-title"><span>TROUBLESHOOTING SCENARIO</span><strong>{composed ? 'TWO CAUSAL FAULTS' : `${challenge.fault.boundary} BOUNDARY`}</strong></div>
     <div className="builder-challenge-heading">
       <span>SEED · {challenge.seed}</span>
       <strong>{challenge.title}</strong>
@@ -88,15 +88,15 @@ export default function BuilderChallengePanel({
     </div>
 
     <div className="builder-challenge-status">
-      <div><span>SCORE</span><strong>{score.total}<small>/100</small></strong></div>
+      <div><span>DIAGNOSIS</span><strong>{score.solved ? 'CLOSED' : 'IN PROGRESS'}</strong></div>
       <div><span>REPAIR</span><strong>{score.repaired?'CANONICAL FIX':composed?'FAULTS ACTIVE':'FAULT ACTIVE'}</strong></div>
-      <div><span>VERIFY</span><strong>{score.verified ? 'PROVEN' : 'NOT PROVEN'}</strong></div>
+      <div><span>VERIFICATION</span><strong>{score.verified ? 'PROVEN' : 'NOT PROVEN'}</strong></div>
     </div>
     <div className="builder-challenge-scoreline">
-      <span>EVIDENCE <b>{score.evidence}/40</b></span>
-      <span>REASONING <b>{score.reasoning}/20</b></span>
-      <span>REPAIR <b>{score.repair}/25</b></span>
-      <span>VERIFY <b>{score.verification}/15</b></span>
+      <span>EVIDENCE <b>{score.evidence > 0 ? 'RECORDED' : 'PENDING'}</b></span>
+      <span>REASONING <b>{score.reasoning >= 20 ? 'SUPPORTED' : 'PENDING'}</b></span>
+      <span>REPAIR <b>{score.repaired ? 'CANONICAL' : 'PENDING'}</b></span>
+      <span>VERIFY <b>{score.verified ? 'PROVEN' : 'PENDING'}</b></span>
     </div>
 
     <div className="builder-challenge-instructions">
@@ -126,7 +126,7 @@ export default function BuilderChallengePanel({
           {composed&&<><label>SECOND BROKEN BOUNDARY<select value={secondaryBoundary} disabled={historical} onChange={(event)=>setSecondaryBoundary(event.currentTarget.value as BuilderChallengeBoundary|'')}><option value="">CHOOSE…</option>{BOUNDARIES.map((value)=><option key={value} value={value}>{value}</option>)}</select></label><label>SECOND FAULT LOCATION<select value={secondaryDeviceId} disabled={historical} onChange={(event)=>setSecondaryDeviceId(event.currentTarget.value)}><option value="">CHOOSE…</option>{secondaryDevices.map((device)=><option key={device.id} value={device.id}>{device.label} · {device.kind.toUpperCase()}</option>)}</select></label></>}
           <button type="button" disabled={historical||!boundary||!deviceId||(composed&&(!secondaryBoundary||!secondaryDeviceId))} onClick={()=>{if(!boundary||!deviceId)return;onLockHypothesis({boundary,deviceId,...(composed&&secondaryBoundary&&secondaryDeviceId?{secondaryBoundary,secondaryDeviceId}:{})});}}>LOCK HYPOTHESIS</button>
         </>}
-      <small>{composed?'Composed reasoning requires an initial failure, inspection of both fault locations, and another failed objective after exactly one canonical fault has been repaired.':'Reasoning points require both failed objective evidence and inspection of the primary fault location before the hypothesis can score.'}</small>
+      <small>{composed?'Causal support requires an initial failure, inspection of both fault locations, and another failed objective after exactly one canonical fault has been repaired.':'Causal support requires failed objective evidence and inspection of the primary fault location before the hypothesis is accepted.'}</small>
     </div>
 
     <div className="builder-challenge-evidence">
@@ -148,9 +148,9 @@ export default function BuilderChallengePanel({
 
     <div className="builder-challenge-actions">
       <button type="button" disabled={historical} onClick={onRestart}>RESTART SAME SEED</button>
-      <button type="button" onClick={() => void copyToken()}>COPY CHALLENGE TOKEN</button>
-      <button type="button" disabled={historical} onClick={onExit}>EXIT CHALLENGE</button>
+      <button type="button" onClick={() => void copyToken()}>COPY SCENARIO TOKEN</button>
+      <button type="button" disabled={historical} onClick={onExit}>EXIT SCENARIO</button>
     </div>
-    <small className="builder-routing-note">TOKEN {token} · CHALLENGE STATE IS DETERMINISTIC. EVIDENCE / SCORE ARE SESSION-ONLY AND NEVER BECOME NETWORK TRUTH.</small>
+    <small className="builder-routing-note">TOKEN {token} · SCENARIO STATE IS DETERMINISTIC. THE EVIDENCE RECORD IS SESSION-ONLY AND NEVER BECOMES NETWORK TRUTH.</small>
   </section>;
 }

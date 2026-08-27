@@ -115,26 +115,44 @@
   width: 100%;
   height: 100%;
   min-height: 0;
-  gap: 14px;
-  padding: 14px;
+  gap: 0;
+  padding: 26px 20px;
 }
 
 .http-workspace-stage .http-lane {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
-  gap: 20px;
+  gap: 24px;
   min-height: 0;
-  padding: 22px;
-  border-color: rgba(255, 255, 255, .09);
-  background: rgba(3, 7, 11, .58);
+  padding: 18px clamp(22px, 3vw, 48px) 26px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-.http-workspace-stage .lane-h2 { background: linear-gradient(145deg, rgba(122, 156, 255, .055), rgba(3, 7, 11, .66) 42%); }
-.http-workspace-stage .lane-h3 { background: linear-gradient(215deg, rgba(121, 242, 218, .05), rgba(3, 7, 11, .66) 42%); }
+.http-workspace-stage .lane-h2 { padding-right: clamp(34px, 4vw, 68px); }
+.http-workspace-stage .lane-h3 { padding-left: clamp(34px, 4vw, 68px); }
+.http-workspace-stage :is(.lane-h2.focused, .lane-h3.focused) { box-shadow: none; }
 .http-workspace-stage .http-lane > header span { font-size: .72rem; }
 .http-workspace-stage .http-lane > header strong { font-size: .94rem; }
-.http-workspace-stage .http-transport-rail { min-height: 52px; padding: 11px 12px; }
-.http-workspace-stage .http-streams { align-content: center; gap: 16px; }
-.http-workspace-stage .http-stream-row { min-height: 72px; padding: 14px; }
+.http-workspace-stage .http-transport-rail {
+  min-height: 52px;
+  padding: 11px 0;
+  border: 0;
+  border-block: 1px solid rgba(255, 255, 255, .09);
+  border-radius: 0;
+  background: transparent;
+}
+.http-workspace-stage .http-streams { align-content: center; gap: 0; }
+.http-workspace-stage .http-stream-row {
+  min-height: 82px;
+  padding: 14px 0;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 0;
+  background: transparent;
+}
+.http-workspace-stage .http-stream-row:last-child { border-bottom: 1px solid rgba(255, 255, 255, .08); }
 .http-workspace-stage .http-progress-track { height: 9px; }
 .http-workspace-stage .http-progress-value { font-size: .7rem; }
 
@@ -163,6 +181,18 @@
   letter-spacing: .11em;
   transform: translate(-50%, -50%) rotate(-90deg);
   white-space: nowrap;
+}
+
+.http-divergence-axis > i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 54px;
+  height: 54px;
+  border: 1px solid rgba(255, 94, 112, .72);
+  border-radius: 50%;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(.35);
 }
 
 .http-scene-annotation {
@@ -223,15 +253,18 @@
   .tls-scene-annotation p { display: none; }
 
   .http-cinematic-stage { padding-inline: 8px; }
-  .http-workspace-stage .http-lanes { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; gap: 7px; padding: 7px; }
-  .http-workspace-stage .http-lane { gap: 7px; padding: 9px; }
+  .http-workspace-stage .http-lanes { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); gap: 96px 0; padding: 8px 12px; }
+  .http-workspace-stage .http-lane { gap: 8px; padding: 8px 3px; }
+  .http-workspace-stage .lane-h2 { padding-right: 3px; }
+  .http-workspace-stage .lane-h3 { padding-left: 3px; }
   .http-workspace-stage .http-lane > header span { font-size: .51rem; }
   .http-workspace-stage .http-lane > header strong { font-size: .63rem; }
   .http-workspace-stage .http-lane > header small { max-width: 120px; font-size: .38rem; }
-  .http-workspace-stage .http-transport-rail { min-height: 0; grid-template-columns: 88px minmax(50px, 1fr); padding: 6px 7px; }
+  .http-workspace-stage .http-transport-rail { min-height: 0; grid-template-columns: 88px minmax(50px, 1fr); padding: 6px 0; }
   .http-workspace-stage .http-transport-rail > small { display: none; }
-  .http-workspace-stage .http-streams { grid-template-columns: 1fr 1fr; gap: 5px; }
-  .http-workspace-stage .http-stream-row { grid-template-columns: 72px minmax(0, 1fr) 28px; min-height: 48px; padding: 6px; }
+  .http-workspace-stage .http-streams { grid-template-columns: 1fr 1fr; gap: 0; }
+  .http-workspace-stage .http-stream-row { grid-template-columns: 72px minmax(0, 1fr) 28px; min-height: 48px; padding: 6px 8px 6px 0; }
+  .http-workspace-stage .http-stream-row + .http-stream-row { padding-right: 0; padding-left: 8px; border-left: 1px solid rgba(255, 255, 255, .08); }
   .http-workspace-stage .http-stream-label > strong { font-size: .5rem; }
   .http-workspace-stage .http-stream-label > span,
   .http-workspace-stage .http-stream-label > small { font-size: .37rem; }

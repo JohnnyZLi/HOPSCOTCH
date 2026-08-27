@@ -13,8 +13,8 @@ for (const id of WORKSPACE_IDS) {
   assert.equal(resolveAppRoute(workspace.path, '').destination, id);
   assert.ok(workspace.name.trim() && workspace.exploreTitle.trim());
 }
-assert.equal(WORKSPACE_CATALOG.capture.lab, 'TRACK H');
-assert.equal(WORKSPACE_CATALOG.journey.lab, 'LAB 06 + 07');
+assert.equal(WORKSPACE_CATALOG.capture.status, 'CAPTURED EVIDENCE ACTIVE');
+assert.equal(WORKSPACE_CATALOG.journey.name, 'URL Journey');
 assert.ok(!WORKSPACE_CATALOG.journey.meta.includes('GOD MODE'));
 
 const featured = new Set(FEATURED_WORKSPACE_IDS);

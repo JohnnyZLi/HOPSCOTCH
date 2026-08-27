@@ -163,6 +163,7 @@ function SemanticGlyph({ category }: { category: NativeMeasurementCategory }) {
 export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange, onExit }: { measuredState: MeasuredSnapshotState | null; onMeasuredStateChange: (state: MeasuredSnapshotState | null) => void; onExit: () => void }) {
   const reduceMotion = useReducedMotion();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const categoriesRef = useRef<HTMLElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<NativeMeasurementCategory>('interface');
@@ -195,6 +196,17 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
   const freshness = measuredState ? measuredFreshnessAt(measuredState, nowMs) : null;
   const categoryCopy = CATEGORY_COPY[selectedCategory];
   const skippedSections = measuredState?.snapshot.warnings.filter((warning) => warning.includes(':') || warning.startsWith('unknown root fields ignored:')) ?? [];
+
+  useEffect(() => {
+    const categories = categoriesRef.current;
+    if (!categories || !window.matchMedia('(max-width: 680px)').matches) return;
+    const active = categories.querySelector<HTMLButtonElement>('button.active');
+    if (!active) return;
+    const frame = window.requestAnimationFrame(() => {
+      categories.scrollTo({ left: Math.max(0, active.offsetLeft - ((categories.clientWidth - active.offsetWidth) / 2)), behavior: 'auto' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [measuredState, selectedCategory]);
 
   const chooseBestCategory = (next: MeasuredSnapshotState) => {
     const preferred: NativeMeasurementCategory[] = ['transport', 'route', 'interface', 'dns', 'icmp', 'traceroute', 'packet-capture'];
@@ -339,25 +351,25 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
     transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
   >
     <header className="measured-heading">
-      <div className="visual-identity"><span>LAB 09</span><strong>MEASURED NETWORK</strong></div>
+      <div className="visual-identity"><span>MEASURED NETWORK</span><strong>LOCAL EVIDENCE FIELD</strong></div>
       <span className="measured-truth-chip">LOCAL MEASURED · BOUNDED · NOT GLOBAL</span>
       <div className="measured-heading-actions">
         <VisualDrawerTabs
           active={activeDrawer}
           items={[
-            { id: 'config', label: 'SETUP', badge: bridgeStatus === 'connected' ? 'LIVE' : undefined },
-            { id: 'evidence', label: 'PROVENANCE', badge: measuredState ? String(measuredState.snapshot.warnings.length) : '—' },
+            { id: 'config', label: 'Setup', badge: bridgeStatus === 'connected' ? 'LIVE' : undefined },
+            { id: 'evidence', label: 'Provenance', badge: measuredState ? String(measuredState.snapshot.warnings.length) : '—' },
           ]}
           onSelect={(id) => setActiveDrawer((current) => current === id ? null : id)}
         />
-        <button className="lab-mode" type="button" onClick={() => inputRef.current?.click()}>{measuredState ? 'IMPORT ANOTHER' : 'IMPORT REPORT'}</button>
-        {measuredState && <button className="lab-mode measured-clear" type="button" onClick={clear}>CLEAR</button>}
-        <button className="lab-mode" type="button" onClick={onExit}>EXIT LAB</button>
+        <button className="lab-mode measured-import" type="button" onClick={() => inputRef.current?.click()}>{measuredState ? 'Import another' : 'Import report'}</button>
+        {measuredState && <button className="lab-mode measured-clear" type="button" onClick={clear}>Clear</button>}
+        <button className="lab-mode measured-exit" type="button" onClick={onExit}>Exit</button>
       </div>
       <input ref={inputRef} className="measured-file-input" type="file" accept=".json,application/json" onChange={(event) => void importFile(event)} />
     </header>
 
-    <VisualEntranceTransition entrance={{ eyebrow: 'LAB 09 · LOCAL MEASUREMENT', title: 'MEASURED HERE.', accentTitle: 'NOT EVERYWHERE.', subtitle: 'Analysis-first facts with an explicit evidence boundary.' }} />
+    <VisualEntranceTransition entrance={{ eyebrow: 'Measured network · local evidence', title: 'MEASURED HERE.', accentTitle: 'NOT EVERYWHERE.', subtitle: 'Analysis-first facts with an explicit evidence boundary.' }} />
 
     <AnimatePresence mode="wait" initial={false}>
       {error && <motion.div key={error} className="measured-error" initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
@@ -371,7 +383,7 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
       <button type="button" onClick={() => inputRef.current?.click()}>CHOOSE JSON REPORT <span>↗</span></button>
     </section> : <>
       <section className="measured-capture-strip" aria-label="Imported measurement capture">
-        <div className="capture-source"><span className="provenance measured">LOCAL MEASURED</span><div><small>SOURCE</small><strong>{measuredState.snapshot.source.tool}</strong><span>{measuredState.snapshot.source.platform.toUpperCase()} · ADAPTER {measuredState.snapshot.source.adapterVersion}</span></div></div>
+        <div className="capture-source"><span className="provenance measured">LOCAL MEASURED</span><div><small>SOURCE</small><strong>{measuredState.snapshot.source.tool}</strong><span>{measuredState.snapshot.source.platform.toUpperCase()} · ADAPTER {measuredState.snapshot.source.adapterVersion}</span><small className="measured-source-report">{fileName ?? 'IMPORTED JSON'}</small></div></div>
         <div><span>REPORT</span><strong>{fileName ?? 'IMPORTED JSON'}</strong></div>
         <div><span>FACTS</span><strong>{measuredState.availability.total}</strong><small>{measuredState.availability.available} available · {measuredState.availability.partial} partial · {measuredState.availability.unavailable} unavailable</small></div>
         <div className={`capture-freshness state-${freshness?.classification ?? 'fresh'}`}><span>CAPTURE AGE</span><strong>{freshness ? freshnessLabel(freshness.classification) : '—'}</strong><small>{freshness ? captureAgeLabel(freshness.ageMs) : '—'}</small></div>
@@ -379,7 +391,7 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
       </section>
 
       <div className="measured-main">
-        <nav className="measured-categories" aria-label="Measured fact categories">
+        <nav ref={categoriesRef} className="measured-categories" aria-label="Measured fact categories">
           <header><span>MEASURED DOMAINS</span><small>SELECT ONE</small></header>
           {CATEGORY_ORDER.map((category) => {
             const count = categoryCounts.get(category) ?? 0;

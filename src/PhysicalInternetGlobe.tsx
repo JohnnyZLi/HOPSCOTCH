@@ -192,12 +192,12 @@ export function PhysicalInternetGlobe({
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.setClearColor(0x020508, 0);
+    renderer.setClearColor(0xd9d4cf, 0);
     host.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x020508, 0.055);
+    scene.fog = new THREE.FogExp2(0xd9d4cf, 0.055);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 40);
@@ -212,27 +212,27 @@ export function PhysicalInternetGlobe({
 
     const planet = new THREE.Mesh(
       new THREE.SphereGeometry(1, 72, 48),
-      new THREE.MeshBasicMaterial({ color: 0x07131a, transparent: true, opacity: 0.96 }),
+      new THREE.MeshBasicMaterial({ color: 0xd4cec8, transparent: true, opacity: 0.98 }),
     );
     globe.add(planet);
 
     const shell = new THREE.Mesh(
       new THREE.SphereGeometry(1.007, 36, 24),
-      new THREE.MeshBasicMaterial({ color: 0x51717f, wireframe: true, transparent: true, opacity: 0.045 }),
+      new THREE.MeshBasicMaterial({ color: 0x292827, wireframe: true, transparent: true, opacity: 0.075 }),
     );
     globe.add(shell);
     globe.add(createReferenceGrid());
 
     const atmosphere = new THREE.Mesh(
       new THREE.SphereGeometry(1.09, 56, 36),
-      new THREE.MeshBasicMaterial({ color: 0x79f2da, transparent: true, opacity: 0.055, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: 0xd84f49, transparent: true, opacity: 0.07, side: THREE.BackSide, depthWrite: false }),
     );
     globe.add(atmosphere);
     scene.add(createStars());
 
     const selectionMarker = new THREE.Mesh(
       new THREE.SphereGeometry(0.026, 16, 12),
-      new THREE.MeshBasicMaterial({ color: 0xf2c879, transparent: true, opacity: 0.98 }),
+      new THREE.MeshBasicMaterial({ color: 0xd84f49, transparent: true, opacity: 0.98 }),
     );
     selectionMarker.visible = false;
     globe.add(selectionMarker);
@@ -240,7 +240,7 @@ export function PhysicalInternetGlobe({
 
     const pulse = new THREE.Mesh(
       new THREE.SphereGeometry(0.022, 12, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffdf9c }),
+      new THREE.MeshBasicMaterial({ color: 0xd84f49 }),
     );
     pulse.visible = false;
     globe.add(pulse);
@@ -389,7 +389,7 @@ export function PhysicalInternetGlobe({
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     const points = new THREE.Points(
       geometry,
-      new THREE.PointsMaterial({ color: 0x79f2da, size: 0.028, transparent: true, opacity: 0.86, sizeAttenuation: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.PointsMaterial({ color: 0x596f82, size: 0.028, transparent: true, opacity: 0.78, sizeAttenuation: true, depthWrite: false }),
     );
     points.renderOrder = 3;
     globe.add(points);
@@ -423,7 +423,7 @@ export function PhysicalInternetGlobe({
     corridorPathRef.current = path;
     const line = new THREE.Line(
       lineGeometry(path),
-      new THREE.LineBasicMaterial({ color: 0xf2c879, transparent: true, opacity: 0.82, blending: THREE.AdditiveBlending, depthWrite: false }),
+      new THREE.LineBasicMaterial({ color: 0xd84f49, transparent: true, opacity: 0.82, depthWrite: false }),
     );
     line.renderOrder = 4;
     globe.add(line);
@@ -486,7 +486,7 @@ export function PhysicalInternetGlobe({
         <section className="physical-provenance">
           <div className="physical-panel-title"><span>PROVENANCE</span><strong>TRUTH BOUNDARY</strong></div>
           <p>{stressMode ? <><b>SIMULATED</b> points exist only to load-test the real WebGL renderer. They are not PeeringDB records, facilities, routes, or measured infrastructure.</> : <><b>PUBLIC DATA</b> points are PeeringDB facility locations. The yellow corridor is <b>INFERRED</b> geometry only. No submarine cable, IX relationship, or packet path is claimed by this scene.</>}</p>
-          <small>{stressMode ? 'LAB 08B · deterministic renderer fixture' : snapshot?.note ?? 'Waiting for public infrastructure data.'}</small>
+          <small>{stressMode ? 'RENDERER STRESS FIXTURE · DETERMINISTIC' : snapshot?.note ?? 'Waiting for public infrastructure data.'}</small>
         </section>
         <section className="physical-truth-ledger">
           <div><span>PUBLIC DATA</span><strong>Facility identity, coordinates, counts</strong></div>
@@ -501,20 +501,20 @@ export function PhysicalInternetGlobe({
     <div className="physical-globe physical-world-root" data-stress-mode={stressMode ? 'true' : 'false'} data-point-count={visibleFacilities.length}>
       <VisualWorkspaceShell
         className="physical-visual-workspace interactive-world-workspace"
-        entrance={{ eyebrow: 'Lab 05C · Physical Internet atlas', title: 'THE INTERNET', accentTitle: 'HAS A BODY.', subtitle: 'Public coordinates become a navigable physical atlas—without inventing a forwarding path.' }}
+        entrance={{ eyebrow: 'Physical Internet · public facilities', title: 'GEOGRAPHY BECOMES', accentTitle: 'A FIELD.', subtitle: 'Public coordinates become a navigable physical atlas—without inventing a forwarding path.' }}
         stageLabel="Interactive globe of Internet interconnection facilities"
         activeDrawer={activeDrawer}
         drawers={drawers}
         onCloseDrawer={() => setActiveDrawer(null)}
         timeline={null}
         toolbar={<>
-          <div className="interactive-world-toolbar__identity"><span>LAB 05C · PHYSICAL ATLAS</span><strong>THE INTERNET HAS A BODY</strong></div>
+          <div className="interactive-world-toolbar__identity"><span>Physical Internet</span><strong>Facility atlas</strong></div>
           <VisualDrawerTabs active={activeDrawer} items={[
-            { id: 'inspect', label: 'INSPECT', badge: selectedFacility ? '1' : '0' },
-            { id: 'tools', label: 'FACILITIES', badge: String(visibleFacilities.length) },
-            { id: 'evidence', label: 'EVIDENCE' },
+            { id: 'inspect', label: 'Inspect', badge: selectedFacility ? '1' : '0' },
+            { id: 'tools', label: 'Facilities', badge: String(visibleFacilities.length) },
+            { id: 'evidence', label: 'Evidence' },
           ]} onSelect={toggleDrawer} />
-          <div className="interactive-world-toolbar__actions"><button type="button" onClick={onOpenSimulated}>AS POLICY ↗</button><button type="button" onClick={onOpenObserved}>EVIDENCE ↗</button><button type="button" onClick={onExit}>EXIT LAB</button></div>
+          <div className="interactive-world-toolbar__actions"><button type="button" onClick={onOpenSimulated}>AS policy ↗</button><button type="button" onClick={onOpenObserved}>Evidence ↗</button><button type="button" onClick={onExit}>Exit</button></div>
         </>}
         hud={<div className="interactive-world-hud physical-stage-meta">
           <div><span>RENDERER</span><strong>{webglError ? 'FALLBACK' : 'WEBGL 2'}</strong></div>

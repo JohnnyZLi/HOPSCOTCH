@@ -285,24 +285,24 @@ const profiles = [
 ];
 
 profiles.push(
-  { id: 'stress-as-canvas', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'as-density' }), readySelector: '.internet-scale', expected: ['POLICY MAKES', 'SIMULATED WINNER'], stressExpected: { profile: 'as-density', asNodes: 160, asRelationships: 220 } },
+  { id: 'stress-as-canvas', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'as-density' }), readySelector: '.internet-scale', expected: ['AS routing', 'SIMULATED BEST PATH'], stressExpected: { profile: 'as-density', asNodes: 160, asRelationships: 220 } },
   { id: 'stress-builder-ceiling', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'builder-density' }), readySelector: '.builder-workspace', expected: ['32 NODES · 96 LINKS', 'PATH', 'YES · COST', 'FORWARDING', 'NO ROUTE'], stressExpected: { profile: 'builder-density', builderNodes: 32, builderLinks: 96 } },
   { id: 'stress-physical-webgl', stress: true, width: 1440, height: 1000, reducedMotion: true, query: query({ stress: 'physical-density' }), readySelector: '.physical-globe', expected: gpuMode === 'disabled' ? ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA', 'FALLBACK', 'WEBGL 2 UNAVAILABLE'] : ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA', 'WEBGL 2'], stressExpected: { profile: 'physical-density', physicalPoints: 2000, webgl: gpuMode !== 'disabled' }, allowExpectedWebglFailure: gpuMode === 'disabled' },
 );
 
 if (compatibility) profiles.push(
-{ id: 'protocol-tcp-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/tcp', query: '', readySelector: '.tcp-visual-workspace', protocolWorkspace: true, expected: ['TCP THEATER', 'CLIENT SEQUENCE SPACE', 'CONGESTION WINDOW', 'PROVENANCE'] },
-{ id: 'protocol-dns-mobile', width: 390, height: 844, reducedMotion: false, path: '/labs/dns', query: '', readySelector: '.dns-visual-workspace', protocolWorkspace: true, expected: ['DNS THEATER', 'www.example.test', 'NAMESPACE', 'PROVENANCE'] },
-{ id: 'protocol-tls-reduced-motion', width: 1280, height: 900, reducedMotion: true, path: '/labs/tls', query: '', readySelector: '.tls-visual-workspace', protocolWorkspace: true, expected: ['TLS 1.3 THEATER', 'SYMBOLIC KEY SCHEDULE', 'WIRE VISIBILITY', 'PROVENANCE'] },
-{ id: 'protocol-http-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/http2-vs-http3', query: '', readySelector: '.http-visual-workspace', protocolWorkspace: true, expected: ['HTTP A/B THEATER', 'HTTP/2', 'HTTP/3', 'SAME LOSS', 'PROVENANCE'] },
+{ id: 'protocol-tcp-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/tcp', query: '', readySelector: '.tcp-visual-workspace', protocolWorkspace: true, expected: ['TCP recovery', 'CLIENT SEQUENCE SPACE', 'CONGESTION WINDOW', 'PROVENANCE'] },
+{ id: 'protocol-dns-mobile', width: 390, height: 844, reducedMotion: false, path: '/labs/dns', query: '', readySelector: '.dns-visual-workspace', protocolWorkspace: true, expected: ['www.example.test', 'NAMESPACE', 'STUB'] },
+{ id: 'protocol-tls-reduced-motion', width: 1280, height: 900, reducedMotion: true, path: '/labs/tls', query: '', readySelector: '.tls-visual-workspace', protocolWorkspace: true, expected: ['TLS 1.3 handshake', 'SYMBOLIC KEY SCHEDULE', 'WIRE VISIBILITY', 'PROVENANCE'] },
+{ id: 'protocol-http-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/http2-vs-http3', query: '', readySelector: '.http-visual-workspace', protocolWorkspace: true, expected: ['HTTP loss comparison', 'HTTP/2', 'HTTP/3', 'SAME LOSS', 'PROVENANCE'] },
 { id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'DERIVED FDB', 'ARP CACHE', 'STP', 'FORWARDING'] },
 { id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'ARP CACHE', 'STP', 'FORWARDING'] },
 { id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
-  { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
+  { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
   { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
-  { id: 'measured-sidecars-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
-  { id: 'measured-sidecars-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
-  { id: 'measured-sidecars-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['URL JOURNEY', 'PROVENANCE'] },
+  { id: 'measured-sidecars-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['192.0.2.1'] },
+  { id: 'measured-sidecars-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['192.0.2.1'] },
+  { id: 'measured-sidecars-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['192.0.2.1'] },
 );
 
 if (phase3VisualReview) {
@@ -314,10 +314,10 @@ if (phase3VisualReview) {
     { id: 'mobile', width: 390, height: 844 },
   ];
   const visualWorlds = [
-    { id: 'as-routing', path: '/internet/as-routing', query: '', readySelector: '.as-visual-workspace', expected: ['LAB 05A · AS ROUTING', 'SIMULATED WINNER', 'PROVENANCE'], workspaceSelector: '.as-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.internet-canvas-wrap', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.as-visual-workspace .visual-drawer-tabs button', drawerSelector: '.as-visual-workspace .visual-drawer' },
-    { id: 'physical-atlas', path: '/', query: query({ stress: 'physical-density' }), readySelector: '.physical-visual-workspace', expected: ['LAB 05C · PHYSICAL ATLAS', 'SIMULATED STRESS POINTS', 'PROVENANCE'], workspaceSelector: '.physical-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.globe-viewport', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.physical-visual-workspace .visual-drawer-tabs button', drawerSelector: '.physical-visual-workspace .visual-drawer' },
-    { id: 'packet-microscope', path: '/labs/packet', query: '', readySelector: '.packet-visual-workspace', expected: ['LAB 02 · PACKET MICROSCOPE', 'SIMULATED', 'PROVENANCE'], workspaceSelector: '.packet-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.packet-stage', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.packet-visual-workspace .visual-drawer-tabs button', drawerSelector: '.packet-visual-workspace .visual-drawer' },
-    { id: 'network-builder', path: '/labs/builder', query: '', readySelector: '.builder-visual-workspace', expected: ['LAB 04 · NETWORK BUILDER', 'PATH', 'FORWARDING', 'OSPF', 'GRAPH'], workspaceSelector: '.builder-visual-workspace', stageSelector: '.builder-stage', worldSelector: '.builder-canvas', semanticSelector: '.builder-node-anchor', semanticMinWidthRatio: 0.72, semanticMinHeightRatio: 0.34, toolbarSelector: '.builder-world-toolbar', hudSelector: '.builder-stage-meta', inspectButtonSelector: '.builder-tool-inspect', drawerSelector: '.builder-context-drawer.open' },
+    { id: 'as-routing', path: '/internet/as-routing', query: '', readySelector: '.as-visual-workspace', expected: ['SIMULATED BEST PATH', 'SOURCE'], workspaceSelector: '.as-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.internet-canvas-wrap', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.as-visual-workspace .visual-drawer-tabs button', drawerSelector: '.as-visual-workspace .visual-drawer' },
+    { id: 'physical-atlas', path: '/', query: query({ stress: 'physical-density' }), readySelector: '.physical-visual-workspace', expected: ['SIMULATED STRESS POINTS', 'WEBGL 2', 'VISIBLE'], workspaceSelector: '.physical-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.globe-viewport', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.physical-visual-workspace .visual-drawer-tabs button', drawerSelector: '.physical-visual-workspace .visual-drawer', drawerSurfaceSelector: '.physical-drawer-panel > section' },
+    { id: 'packet-microscope', path: '/labs/packet', query: '', readySelector: '.packet-visual-workspace', expected: ['FRAME', 'BYTES', 'ETHERNET'], workspaceSelector: '.packet-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.packet-stage', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.packet-visual-workspace .visual-drawer-tabs button', drawerSelector: '.packet-visual-workspace .visual-drawer' },
+    { id: 'network-builder', path: '/labs/builder', query: '', readySelector: '.builder-visual-workspace', expected: ['Network builder', 'PATH', 'FORWARDING', 'OSPF', 'GRAPH'], workspaceSelector: '.builder-visual-workspace', stageSelector: '.builder-stage', worldSelector: '.builder-canvas', semanticSelector: '.builder-node-anchor', semanticMinWidthRatio: 0.72, semanticMinHeightRatio: 0.34, motionSelector: '.builder-route-signal-track', hiddenHitSelector: '.builder-link .hit', toolbarSelector: '.builder-world-toolbar', hudSelector: '.builder-stage-meta', inspectButtonSelector: '.builder-tool-inspect', drawerSelector: '.builder-context-drawer.open', drawerTitleSelector: '.builder-context-drawer__header > div' },
   ];
   profiles.splice(0, profiles.length, ...visualWorlds.flatMap((world) => visualViewports.map((viewport) => ({
     ...world,
@@ -339,7 +339,7 @@ if (phase4VisualReview) {
   ];
   const evidenceWorlds = [
     { id: 'internet-evidence', path: '/internet/observed', query: '', readySelector: '.observed-internet', phase4Observed: true, expected: ['NO ROUTE CLAIM', 'NO CONTINUOUS OBSERVATION', 'PUBLIC COLLECTOR'] },
-    { id: 'measured-network', path: '/measured', query: '', readySelector: '.measured-workspace', phase4Measured: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine', 'NO CROSS-TARGET MERGE'] },
+    { id: 'measured-network', path: '/measured', query: '', readySelector: '.measured-workspace', phase4Measured: true, expected: ['LOCAL MEASURED', 'Network Diagnostics Engine', 'NO CROSS-TARGET MERGE'] },
   ];
   profiles.splice(0, profiles.length, ...evidenceWorlds.flatMap((world) => evidenceViewports.map((viewport) => ({
     ...world,
@@ -481,7 +481,7 @@ async function exerciseBuilderOspf(cdp, profile) {
   await measuredClickButton(cdp, '.builder-probe-section button', 'OPEN ICMP PACKET');
   await waitForExpression(cdp, `Boolean(document.querySelector('.packet-microscope'))`, 8000);
   const packetText = await cdp.evaluate(`document.querySelector('.packet-microscope')?.innerText??''`);
-  if (!packetText.includes('LAB 11D · ICMP TRACE TTL') || !packetText.includes('ICMP') || !packetText.includes('TTL')) throw new Error(`${profile.id} probe packet did not seed Lab 02 ICMP state.`);
+  if (!packetText.includes('BUILDER IPV4 · ICMP TRACE TTL') || !packetText.includes('ICMP') || !packetText.includes('TTL')) throw new Error(`${profile.id} probe packet did not seed the Packet Microscope ICMP state.`);
   await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN TO BUILDER');
   await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
 
@@ -508,7 +508,7 @@ async function exerciseBuilderOspf(cdp, profile) {
   await measuredClickButton(cdp, '.builder-probe-section button', 'OPEN ICMP PACKET');
   await waitForExpression(cdp, `Boolean(document.querySelector('.packet-microscope'))`, 8000);
   const packet6Text = await cdp.evaluate(`document.querySelector('.packet-microscope')?.innerText??''`);
-  if (!packet6Text.includes('LAB 11N · ICMPV6 TRACE HOP LIMIT') || !packet6Text.includes('IPv6') || !packet6Text.includes('ICMPv6') || !packet6Text.toLowerCase().includes('2001:db8:')) throw new Error(`${profile.id} IPv6 probe packet did not seed actual Builder ICMPv6 state into Lab 02.`);
+  if (!packet6Text.includes('BUILDER IPV6 · ICMPV6 TRACE HOP LIMIT') || !packet6Text.includes('IPv6') || !packet6Text.includes('ICMPv6') || !packet6Text.toLowerCase().includes('2001:db8:')) throw new Error(`${profile.id} IPv6 probe packet did not seed actual Builder ICMPv6 state into the Packet Microscope.`);
   await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN TO BUILDER');
   await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
   const ipv4FamilyRestored = await cdp.evaluate(`(()=>{
@@ -858,7 +858,8 @@ async function exerciseMeasuredWorkspace(cdp, profile) {
 
 async function measuredClickButton(cdp, selector, text) {
   const clicked = await cdp.evaluate(`(()=>{
-    const button=[...document.querySelectorAll(${JSON.stringify(selector)})].find((candidate)=>candidate.textContent?.includes(${JSON.stringify(text)}));
+    const needle=${JSON.stringify(text)}.toLocaleUpperCase();
+    const button=[...document.querySelectorAll(${JSON.stringify(selector)})].find((candidate)=>candidate.textContent?.toLocaleUpperCase().includes(needle));
     if(!button)return false;
     button.click();
     return true;
@@ -910,7 +911,7 @@ async function closeJourneyDrawer(cdp) {
 }
 
 async function selectJourneyEvent(cdp, title) {
-  await openJourneyDrawer(cdp, 'EVENTS');
+  await openJourneyDrawer(cdp, 'Events');
   await measuredClickButton(cdp, '.journey-event', title);
   await waitForExpression(cdp, `document.querySelector('.journey-callout-overlay h2')?.textContent?.includes(${JSON.stringify(title)})`, 8000);
   await closeJourneyDrawer(cdp);
@@ -919,14 +920,14 @@ async function selectJourneyEvent(cdp, title) {
 async function inspectJourneyDrawerArchitecture(cdp, profile) {
   const before = await cdp.evaluate(`(()=>{
     const stage=document.querySelector('.journey-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
-    const exit=[...document.querySelectorAll('.journey-visual-tools .visual-tool-button')].find((button)=>button.textContent?.includes('EXIT'))?.getBoundingClientRect();
+    const exit=[...document.querySelectorAll('.journey-visual-tools .visual-tool-button')].find((button)=>button.textContent?.includes('Exit'))?.getBoundingClientRect();
     return {stage:stage?{x:stage.x,y:stage.y,width:stage.width,height:stage.height}:null,exit:exit?{x:exit.x,y:exit.y,width:exit.width,height:exit.height}:null};
   })()`);
   if (!before.stage) throw new Error(`${profile.id} is missing the Journey visual stage.`);
   if (!before.exit || before.exit.width <= 0 || before.exit.height <= 0) throw new Error(`${profile.id} does not expose a visible Journey Exit action.`);
   if (before.exit.x < before.stage.x || before.exit.x + before.exit.width > before.stage.x + before.stage.width + 1) throw new Error(`${profile.id} Journey Exit action is outside the visible stage.`);
 
-  await openJourneyDrawer(cdp, 'CONFIG');
+  await openJourneyDrawer(cdp, 'Configure');
   const opened = await cdp.evaluate(`(()=>{
     const stage=document.querySelector('.journey-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
     const drawer=document.querySelector('.journey-visual-workspace .visual-drawer')?.getBoundingClientRect();
@@ -984,7 +985,7 @@ async function exerciseMeasuredJourneySidecars(cdp, profile) {
   await waitForExpression(cdp, `Boolean(document.querySelector('.measured-workspace'))`);
   await setFileInput(cdp, '.measured-file-input', measuredFixturePath);
   await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
-  await measuredClickButton(cdp, '.measured-heading-actions button', 'EXIT LAB');
+  await measuredClickButton(cdp, '.measured-heading-actions button', 'Exit');
   await waitForExpression(cdp, `Boolean(document.querySelector('.kinetic-overview'))`);
   await openOverviewWorkspace(cdp, 'journey');
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`, 8000);
@@ -1010,7 +1011,7 @@ async function exerciseMeasuredJourneySidecars(cdp, profile) {
   if (transport.sidecar.includes('500 Mbps')) throw new Error(`${profile.id} leaked other-target speed-test throughput into matched Journey transport evidence.`);
   if (!transport.sidecar.includes('OTHER-TARGET FACT')) throw new Error(`${profile.id} did not disclose that other-target transport facts were hidden.`);
 
-  await openJourneyDrawer(cdp, 'CONFIG');
+  await openJourneyDrawer(cdp, 'Configure');
   const changedHost = await cdp.evaluate(`(()=>{
     const input=document.querySelector('.journey-drawer-form input');
     const form=document.querySelector('.journey-drawer-form');
@@ -1031,13 +1032,13 @@ async function exerciseMeasuredJourneySidecars(cdp, profile) {
   if (!mismatch.sidecar?.includes('NO COMPATIBLE TRANSPORT TARGET') || !mismatch.sidecar.includes('OTHER TARGET')) throw new Error(`${profile.id} mismatched target did not fail closed visibly.`);
   if (mismatch.sidecar.includes('500 Mbps') || mismatch.sidecar.includes('24 ms') || mismatch.sidecar.includes('17 ms')) throw new Error(`${profile.id} rendered mismatched measured values as Journey evidence.`);
 
-  await measuredClickButton(cdp, '.journey-visual-tools .visual-tool-button', 'EXIT');
+  await measuredClickButton(cdp, '.journey-visual-tools .visual-tool-button', 'Exit');
   await waitForExpression(cdp, `Boolean(document.querySelector('.kinetic-overview'))`);
   await openOverviewWorkspace(cdp, 'measured');
   await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='true'`, 8000);
   await measuredClickButton(cdp, '.measured-clear', 'CLEAR');
   await waitForExpression(cdp, `document.querySelector('.measured-workspace')?.getAttribute('data-measured-loaded')==='false'`, 8000);
-  await measuredClickButton(cdp, '.measured-heading-actions button', 'EXIT LAB');
+  await measuredClickButton(cdp, '.measured-heading-actions button', 'Exit');
   await waitForExpression(cdp, `Boolean(document.querySelector('.kinetic-overview'))`);
   await openOverviewWorkspace(cdp, 'journey');
   await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`, 8000);
@@ -1113,6 +1114,7 @@ async function capturePhase4EvidenceReview(cdp, profile) {
   const observed = profile.phase4Observed === true;
   const geometry = await cdp.evaluate(`(()=>{
     const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
+    const scrollGeometry=(selector)=>{const value=document.querySelector(selector);return value?{clientWidth:value.clientWidth,scrollWidth:value.scrollWidth}:null};
     const toolbar=rect(${JSON.stringify(observed ? '.observed-internet .visual-workspace__toolbar' : '.measured-heading')});
     const hud=rect(${JSON.stringify(observed ? '.observed-internet .visual-workspace__hud' : '.measured-capture-strip')});
     return {
@@ -1121,6 +1123,8 @@ async function capturePhase4EvidenceReview(cdp, profile) {
       stage:rect(${JSON.stringify(observed ? '.observed-internet .visual-workspace__stage' : '.measured-main')}),
       world:rect(${JSON.stringify(observed ? '.observed-main' : '.measured-scene')}),
       categories:rect('.measured-categories'),toolbar,hud,
+      stageScroll:scrollGeometry(${JSON.stringify(observed ? '.observed-main' : '.measured-main')}),
+      worldScroll:scrollGeometry(${JSON.stringify(observed ? '.evidence-flow' : '.measured-scene')}),
       toolbarHudOverlap:Boolean(toolbar&&hud&&toolbar.left<hud.right&&toolbar.right>hud.left&&toolbar.top<hud.bottom&&toolbar.bottom>hud.top),
       scrollWidth:document.documentElement.scrollWidth,scrollY,
       permanentProvenance:document.querySelectorAll('.measured-main > .measured-provenance-panel').length,
@@ -1132,6 +1136,8 @@ async function capturePhase4EvidenceReview(cdp, profile) {
   if (geometry.world.width < geometry.stage.width * (observed ? 0.94 : 0.68)) throw new Error(`${profile.id} central evidence content is too narrow: ${JSON.stringify(geometry)}.`);
   if (geometry.world.height < geometry.stage.height * (observed ? 0.62 : 0.72)) throw new Error(`${profile.id} central evidence content is too short: ${JSON.stringify(geometry)}.`);
   if (geometry.scrollWidth > geometry.viewport.width || geometry.scrollY !== 0) throw new Error(`${profile.id} overflows or moves the document viewport.`);
+  if (profile.width <= 680 && geometry.stageScroll && geometry.stageScroll.scrollWidth > geometry.stageScroll.clientWidth + 1) throw new Error(`${profile.id} mobile evidence stage retains a horizontal scroll rail: ${JSON.stringify(geometry.stageScroll)}.`);
+  if (profile.width <= 680 && geometry.worldScroll && geometry.worldScroll.scrollWidth > geometry.worldScroll.clientWidth + 1) throw new Error(`${profile.id} mobile evidence world exceeds its readable width: ${JSON.stringify(geometry.worldScroll)}.`);
   if (observed && geometry.collectorPanelInWorld !== 0) throw new Error(`${profile.id} retained a permanent collector panel in the world.`);
   if (!observed && geometry.permanentProvenance !== 0) throw new Error(`${profile.id} retained a permanent provenance column.`);
   if (observed && geometry.toolbarHudOverlap) throw new Error(`${profile.id} toolbar collides with its truth HUD.`);
@@ -1153,6 +1159,14 @@ async function capturePhase4EvidenceReview(cdp, profile) {
     await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(observed ? '.observed-internet .visual-drawer' : '.measured-workspace .visual-drawer')}))`, 8000);
     const drawerSelector = observed ? '.observed-internet .visual-drawer' : '.measured-workspace .visual-drawer';
     const initialFocus = await cdp.evaluate(`document.activeElement?.classList.contains('visual-drawer__close')===true`);
+    if (profile.width <= 680) {
+      const headerCollision = await cdp.evaluate(`(()=>{
+        const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
+        const title=document.querySelector(${JSON.stringify(`${drawerSelector} .visual-drawer__header > div`)})?.getBoundingClientRect();
+        return Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top);
+      })()`);
+      if (headerCollision) throw new Error(`${profile.id} contextual drawer title collides with corner navigation.`);
+    }
     await dispatchKey(cdp, 'Tab', 'Tab', 8);
     const shiftTabContained = await cdp.evaluate(`document.querySelector(${JSON.stringify(drawerSelector)})?.contains(document.activeElement)===true`);
     await dispatchKey(cdp, 'Tab', 'Tab');
@@ -1203,6 +1217,17 @@ async function captureVisualReview(cdp, profile) {
   if (geometry.toolbarHudOverlap) throw new Error(`${profile.id} toolbar collides with its persistent HUD.`);
   if (profile.semanticMinWidthRatio && (!geometry.semanticBounds || geometry.semanticBounds.width < geometry.world.width * profile.semanticMinWidthRatio)) throw new Error(`${profile.id} semantic content is compressed horizontally inside its stage: ${JSON.stringify(geometry)}.`);
   if (profile.semanticMinHeightRatio && (!geometry.semanticBounds || geometry.semanticBounds.height < geometry.world.height * profile.semanticMinHeightRatio)) throw new Error(`${profile.id} semantic content is compressed vertically inside its stage: ${JSON.stringify(geometry)}.`);
+  if (profile.hiddenHitSelector) {
+    const hitTarget = await cdp.evaluate(`(()=>{const value=document.querySelector(${JSON.stringify(profile.hiddenHitSelector)});if(!value)return null;const stroke=getComputedStyle(value).stroke;const channels=stroke.match(/[\\d.]+/g)?.map(Number)??[];return {stroke,transparent:stroke==='none'||stroke==='transparent'||(channels.length>=4&&channels[3]===0)}})()`);
+    if (!hitTarget?.transparent) throw new Error(`${profile.id} exposes an interaction hit target as visible topology: ${JSON.stringify(hitTarget)}.`);
+  }
+  if (profile.motionSelector) {
+    const motionStart = await cdp.evaluate(`(()=>{const value=document.querySelector(${JSON.stringify(profile.motionSelector)})?.getBoundingClientRect();return value?{left:value.left,top:value.top}:null})()`);
+    await sleep(180);
+    const motionEnd = await cdp.evaluate(`(()=>{const value=document.querySelector(${JSON.stringify(profile.motionSelector)})?.getBoundingClientRect();return value?{left:value.left,top:value.top}:null})()`);
+    if (!motionStart || !motionEnd || Math.hypot(motionEnd.left - motionStart.left, motionEnd.top - motionStart.top) < 1) throw new Error(`${profile.id} semantic route signal is absent or static: ${JSON.stringify({ motionStart, motionEnd })}.`);
+    if (motionEnd.left < geometry.world.left || motionEnd.left > geometry.world.right || motionEnd.top < geometry.world.top || motionEnd.top > geometry.world.bottom) throw new Error(`${profile.id} semantic route signal escaped its topology: ${JSON.stringify({ motionEnd, world: geometry.world })}.`);
+  }
 
   const capture = async (suffix = '') => {
     const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });
@@ -1222,6 +1247,28 @@ async function captureVisualReview(cdp, profile) {
       label:document.activeElement?.getAttribute('aria-label')??document.activeElement?.textContent?.trim()??null,
     }))()`);
     if (!initialFocus.inside || !String(initialFocus.label).toUpperCase().includes('CLOSE')) throw new Error(`${profile.id} drawer did not focus its close control: ${JSON.stringify(initialFocus)}.`);
+    if (profile.drawerSurfaceSelector) {
+      const drawerSurface = await cdp.evaluate(`(()=>{
+        const surface=document.querySelector(${JSON.stringify(profile.drawerSurfaceSelector)});
+        if(!surface)return null;
+        const channels=getComputedStyle(surface).backgroundColor.match(/[\\d.]+/g)?.map(Number)??[];
+        const linear=channels.slice(0,3).map((channel)=>{const normalized=channel/255;return normalized<=.04045?normalized/12.92:((normalized+.055)/1.055)**2.4});
+        return {background:getComputedStyle(surface).backgroundColor,alpha:channels.length>=4?channels[3]:1,luminance:.2126*linear[0]+.7152*linear[1]+.0722*linear[2]};
+      })()`);
+      if (!drawerSurface || (drawerSurface.alpha > .08 && drawerSurface.luminance < .45)) throw new Error(`${profile.id} drawer retains an opaque legacy-dark inner surface: ${JSON.stringify(drawerSurface)}.`);
+    }
+    if (profile.width <= 680) {
+      const mobileHeader = await cdp.evaluate(`(()=>{
+        const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
+        const drawer=document.querySelector(${JSON.stringify(profile.drawerSelector)});
+        const title=rect(${JSON.stringify(profile.drawerTitleSelector ?? `${profile.drawerSelector} .visual-drawer__header > div`)});
+        const topElement=title?document.elementFromPoint((title.left+title.right)/2,(title.top+title.bottom)/2):null;
+        const channels=drawer?getComputedStyle(drawer).backgroundColor.match(/[\\d.]+/g)?.map(Number)??[]:[];
+        return {corner:rect('.corner-navigator'),title,backgroundAlpha:channels.length>=4?channels[3]:1,titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
+      })()`);
+      if (mobileHeader.corner && mobileHeader.title && mobileHeader.corner.left < mobileHeader.title.right && mobileHeader.corner.right > mobileHeader.title.left && mobileHeader.corner.top < mobileHeader.title.bottom && mobileHeader.corner.bottom > mobileHeader.title.top) throw new Error(`${profile.id} mobile drawer title collides with corner navigation.`);
+      if (!mobileHeader.titleOnTop || mobileHeader.backgroundAlpha < .99) throw new Error(`${profile.id} mobile drawer is not an opaque top-layer surface: ${JSON.stringify(mobileHeader)}.`);
+    }
     await dispatchKey(cdp, 'Tab', 'Tab', 8);
     const shiftTabContained = await cdp.evaluate(`document.querySelector(${JSON.stringify(profile.drawerSelector)})?.contains(document.activeElement)===true`);
     if (!shiftTabContained) throw new Error(`${profile.id} drawer let Shift+Tab escape its modal focus scope.`);
@@ -1265,9 +1312,12 @@ async function loadProfile(cdp, origin, profile) {
       ? await exerciseMeasuredJourneySidecars(cdp, profile)
       : null;
   const readyMs = performance.now() - startedAt;
+  for (const expected of profile.expected) {
+    await waitForExpression(cdp, `document.body.innerText.toLocaleUpperCase().includes(${JSON.stringify(expected.toLocaleUpperCase())})`, 8000);
+  }
   const bodyText = await cdp.evaluate('document.body.innerText');
   for (const expected of profile.expected) {
-    if (!bodyText.includes(expected)) throw new Error(`${profile.id} did not reach expected semantic text: ${JSON.stringify(expected)}`);
+    if (!bodyText.toLocaleUpperCase().includes(expected.toLocaleUpperCase())) throw new Error(`${profile.id} did not reach expected semantic text: ${JSON.stringify(expected)}`);
   }
   if (profile.reducedMotion && !(await cdp.evaluate('matchMedia("(prefers-reduced-motion: reduce)").matches'))) {
     throw new Error(`${profile.id} did not enable reduced motion.`);
@@ -1279,9 +1329,12 @@ async function loadProfile(cdp, origin, profile) {
       ? await captureVisualReview(cdp, profile)
       : null;
 
-  const journeyDrawer = await cdp.evaluate(`Boolean(document.querySelector('.journey-visual-workspace'))`)
-    ? await inspectJourneyDrawerArchitecture(cdp, profile)
-    : null;
+  const hasJourneyWorkspace = await cdp.evaluate(`Boolean(document.querySelector('.journey-visual-workspace'))`);
+  if (hasJourneyWorkspace) {
+    await waitForExpression(cdp, `!document.querySelector('.visual-entrance')`, 8000);
+    await sleep(80);
+  }
+  const journeyDrawer = hasJourneyWorkspace ? await inspectJourneyDrawerArchitecture(cdp, profile) : null;
 
   await cdp.call('HeapProfiler.collectGarbage');
   const heap = await cdp.call('Runtime.getHeapUsage');

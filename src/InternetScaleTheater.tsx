@@ -169,7 +169,7 @@ export function InternetScaleTheater({ onExit, onOpenObserved, graph: inputGraph
           <div className="internet-panel-title"><span>RELATIONSHIP</span><strong>{selectedRelationship?.id.toUpperCase() ?? '—'}</strong></div>
           {selectedRelationship && <>
             <p className="relationship-copy">{relationshipEndpoints(selectedRelationship).map(asLabel).join(' ↔ ')} · {relationshipLabel(selectedRelationship)}</p>
-            <dl className="internet-inspect-grid"><div><dt>STATE</dt><dd>{failed.has(selectedRelationship.id) ? 'FAILED' : 'AVAILABLE'}</dd></div><div><dt>PATH</dt><dd>{activeRelationships.has(selectedRelationship.id) ? 'WINNER' : 'ALTERNATE'}</dd></div></dl>
+            <dl className="internet-inspect-grid"><div><dt>STATE</dt><dd>{failed.has(selectedRelationship.id) ? 'FAILED' : 'AVAILABLE'}</dd></div><div><dt>PATH</dt><dd>{activeRelationships.has(selectedRelationship.id) ? 'SELECTED' : 'ALTERNATE'}</dd></div></dl>
             {projectionLocked
               ? <small>READ ONLY · return to Builder to mutate sessions, relationships, or policy.</small>
               : <button className={failed.has(selectedRelationship.id) ? 'restore' : ''} type="button" onClick={() => toggleRelationship(selectedRelationship)}>{failed.has(selectedRelationship.id) ? 'RESTORE RELATIONSHIP' : 'FAIL RELATIONSHIP'}</button>}
@@ -220,9 +220,9 @@ export function InternetScaleTheater({ onExit, onOpenObserved, graph: inputGraph
     <VisualWorkspaceShell
       className="as-visual-workspace interactive-world-workspace"
       entrance={{
-        eyebrow: projectionLocked ? 'Lab 11O → 05A · BGP projection' : 'Lab 05A · Internet scale',
-        title: projectionLocked ? 'BUILDER BGP.' : 'POLICY MAKES',
-        accentTitle: projectionLocked ? 'AS SCALE.' : 'THE PATH.',
+        eyebrow: projectionLocked ? 'Builder projection · BGP policy' : 'Internet scale · AS routing',
+        title: projectionLocked ? 'ONE DECISION.' : 'POLICY SELECTS',
+        accentTitle: projectionLocked ? 'EVERY HOP.' : 'THE PATH.',
         subtitle: projectionLocked ? 'Builder-selected truth, projected without recomputation.' : 'Policy, relationship, and failure shape every route.',
       }}
       stageLabel="Autonomous system routing graph"
@@ -231,16 +231,16 @@ export function InternetScaleTheater({ onExit, onOpenObserved, graph: inputGraph
       onCloseDrawer={() => setActiveDrawer(null)}
       timeline={null}
       toolbar={<>
-        <div className="interactive-world-toolbar__identity"><span>{projectionLocked ? 'LAB 11O → 05A' : 'LAB 05A · AS ROUTING'}</span><strong>{projectionLocked ? 'BUILDER BGP · AS SCALE' : 'POLICY MAKES THE PATH'}</strong></div>
+        <div className="interactive-world-toolbar__identity"><span>{projectionLocked ? 'Builder projection' : 'AS routing'}</span><strong>{projectionLocked ? 'BGP policy · projected path' : 'Policy-selected path'}</strong></div>
         <VisualDrawerTabs active={activeDrawer} items={[
-          { id: 'inspect', label: 'INSPECT', badge: selectedRelationship ? '1' : '0' },
-          { id: 'config', label: projectionLocked ? 'TRUTH' : 'ENDPOINTS' },
-          { id: 'tools', label: 'PATHS', badge: String(candidates.length) },
+          { id: 'inspect', label: 'Inspect', badge: selectedRelationship ? '1' : '0' },
+          { id: 'config', label: projectionLocked ? 'Truth' : 'Endpoints' },
+          { id: 'tools', label: 'Paths', badge: String(candidates.length) },
         ]} onSelect={toggleDrawer} />
         <div className="interactive-world-toolbar__actions">
-          {projectionLocked && onReturnToBuilder && <button type="button" onClick={onReturnToBuilder}>RETURN TO BUILDER ↗</button>}
-          {!projectionLocked && <button type="button" onClick={onOpenObserved}>OBSERVED / INFERRED ↗</button>}
-          <button type="button" onClick={onExit}>EXIT LAB</button>
+          {projectionLocked && onReturnToBuilder && <button type="button" onClick={onReturnToBuilder}>Return to Builder ↗</button>}
+          {!projectionLocked && <button type="button" onClick={onOpenObserved}>Observed evidence ↗</button>}
+          <button type="button" onClick={onExit}>Exit</button>
         </div>
       </>}
       hud={<div className="interactive-world-hud internet-stage-meta">
@@ -257,7 +257,7 @@ export function InternetScaleTheater({ onExit, onOpenObserved, graph: inputGraph
           <div className="internet-canvas-note">{projectionLocked ? 'CLICK A RELATIONSHIP TO INSPECT · RETURN TO BUILDER TO MUTATE' : pickMode ? `CLICK AN AS TO SET ${pickMode.toUpperCase()}` : 'CLICK A RELATIONSHIP TO SELECT · OPEN INSPECT TO FAIL IT'}</div>
         </div>
         <article className={`as-winner-readout ${winner ? '' : 'unreachable'}`}>
-          <span>{projectionLocked ? 'BUILDER BGP BEST PATH' : 'SIMULATED WINNER'}</span>
+          <span>{projectionLocked ? 'BUILDER BGP BEST PATH' : 'SIMULATED BEST PATH'}</span>
           <strong>{winner ? winner.asns.map(asLabel).join(' → ') : projectionLocked ? 'NO PROJECTABLE BEST PATH' : 'NO POLICY-COMPLIANT PATH'}</strong>
           <p>{winner ? projectionLocked ? 'Exact Builder decision · no alternate winner computed here.' : winner.scoreLabel : projectionLocked ? 'Return to Builder and select a concrete BEST BGP route.' : 'Failed relationships partition these endpoints under the teaching policy.'}</p>
         </article>

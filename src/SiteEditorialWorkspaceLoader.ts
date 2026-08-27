@@ -7,7 +7,8 @@ function loadWorkspaceEditorialTheme(): Promise<unknown> {
 
 function routeNeedsWorkspaceTheme(): boolean {
   if (typeof window === 'undefined') return false;
-  if (new URLSearchParams(window.location.search).has('stress')) return true;
+  const search = new URLSearchParams(window.location.search);
+  if (search.has('stress') || search.has('journey')) return true;
   return window.location.pathname !== '/';
 }
 

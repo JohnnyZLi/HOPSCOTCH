@@ -3,3 +3,6 @@
    allowing the complete editorial migration to apply to lazy workspaces. */
 @import './SiteEditorialLight.css';
 @import './SiteEditorialWorkspaceAudit.css';
+@import './KineticWorkspaceShell.css';
+@import './KineticDeepWorkspaceShell.css';
+@import './KineticEvidenceWorkspaceShell.css';
