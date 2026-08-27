@@ -55,10 +55,9 @@
 .corner-navigator-symbol { color: var(--site-coral); font-size: 1rem; font-weight: 500; transition: transform 300ms ease; }
 .corner-navigator[aria-expanded="true"] .corner-navigator-symbol { transform: rotate(45deg); }
 
-.app-shell[data-lab="active"] { padding-top: 64px; }
+.app-shell[data-lab="active"] { padding-top: 0; }
 
 @media (max-width: 640px) {
-  .app-shell[data-lab="active"] { padding-top: 58px; }
   .corner-navigator { top: 12px; left: 12px; width: 46px; height: 46px; padding: 8px; }
   .corner-navigator:hover,
   .corner-navigator:focus-visible,
