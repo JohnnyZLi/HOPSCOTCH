@@ -134,7 +134,7 @@
    order. It is a route explanation, not a claim that live traffic was seen. */
 .builder-visual-workspace .builder-route-signal-track {
   position: absolute;
-  z-index: 4;
+  z-index: 1;
   width: 0;
   height: 0;
   pointer-events: none;
