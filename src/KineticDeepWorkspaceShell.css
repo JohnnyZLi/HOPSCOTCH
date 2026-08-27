@@ -46,6 +46,12 @@ html body .builder-visual-workspace .builder-stage::before {
   background-size: 42px 42px !important;
 }
 
+/* The wide SVG strokes are pointer hit areas, not visible topology. */
+html body .builder-visual-workspace .builder-link .hit {
+  stroke: transparent !important;
+  filter: none !important;
+}
+
 /* Edge chrome: identity is a caption, the contextual tools are one floating
    pill, and cross-workspace actions no longer form a full-width menu bar. */
 html body :is(.as-visual-workspace, .physical-visual-workspace, .packet-visual-workspace) .visual-workspace__toolbar,
