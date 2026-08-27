@@ -432,6 +432,78 @@ html body .capture-flow-browser > header {
 
 html body .capture-context-backdrop { background: rgba(41,40,39,.18) !important; backdrop-filter: blur(4px) !important; }
 
+/* Context tools read as evidence ledgers, not a second dashboard layered over
+   the packet world. Exact bytes keep their dark instrument surface; every
+   surrounding fact stays on the drawer's continuous sheet. */
+html body .capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > :is(
+  .capture-specimen-mode-banner,
+  .capture-frame-heading,
+  .capture-frame-nav,
+  .capture-frame-facts,
+  .capture-lineage,
+  .capture-protocol-stack,
+  .capture-field-list,
+  .capture-byte-inspector
+) {
+  border-right: 0 !important;
+  border-left: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body .capture-replay[data-capture-mode="frame"] .capture-frame-facts > div,
+html body .capture-replay[data-capture-mode="frame"] .capture-protocol-stack button,
+html body .capture-replay[data-capture-mode="frame"] :is(.capture-lineage, .capture-field-list) button {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body .capture-analysis-drawer :is(
+  .capture-track-h-heading,
+  .capture-track-h-body,
+  .capture-track-h-summary > div,
+  .capture-compare-summary > div,
+  .capture-theater-stages article,
+  .capture-stream-summary,
+  .capture-stream-window,
+  .capture-rtt-panel,
+  .capture-traffic-chart,
+  .capture-traffic-columns > section,
+  .capture-compare-import,
+  .capture-compare-flows article,
+  .capture-counterfactual,
+  .capture-counterfactual article,
+  .capture-evidence-import-grid section,
+  .capture-sidecar-results,
+  .capture-sidecar-results article,
+  .capture-config-results
+) {
+  border-color: rgba(41,40,39,.12) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body .capture-analysis-drawer .capture-track-h-summary > div {
+  border-width: 1px 0 !important;
+}
+
+html body .capture-analysis-drawer .capture-theater-stages {
+  gap: 0 !important;
+}
+
+html body .capture-analysis-drawer .capture-theater-stages article {
+  min-height: 158px !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(41,40,39,.12) !important;
+}
+
+html body .capture-analysis-drawer .capture-track-h-footnote {
+  border-top: 1px dashed rgba(41,40,39,.16) !important;
+  background: transparent !important;
+}
+
 /* Internet Evidence ----------------------------------------------------- */
 
 html body .observed-internet.visual-workspace { grid-template-rows: minmax(0,1fr) auto !important; }
@@ -1014,6 +1086,58 @@ html body :is(.capture-replay, .observed-internet, .measured-workspace) .visual-
   html body .capture-replay[data-capture-mode="frame"] .capture-open-microscope {
     width: 100% !important;
     margin: 0 !important;
+  }
+
+  html body .capture-replay[data-capture-mode="frame"] .capture-frame-facts {
+    gap: 0 !important;
+    border-top: 1px solid rgba(41,40,39,.12) !important;
+    border-bottom: 1px solid rgba(41,40,39,.12) !important;
+  }
+
+  html body .capture-replay[data-capture-mode="frame"] .capture-frame-facts > div {
+    padding-inline: 10px !important;
+  }
+
+  html body .capture-replay[data-capture-mode="frame"] .capture-protocol-stack > div {
+    gap: 0 !important;
+  }
+
+  html body .capture-replay[data-capture-mode="frame"] .capture-protocol-stack button {
+    border-top: 1px solid rgba(41,40,39,.12) !important;
+    border-right: 1px solid rgba(41,40,39,.12) !important;
+    border-bottom: 1px solid rgba(41,40,39,.12) !important;
+    border-left: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  html body .capture-analysis-drawer-body {
+    scrollbar-color: rgba(41,40,39,.24) transparent !important;
+    scrollbar-width: thin !important;
+  }
+
+  html body .capture-analysis-drawer-body::-webkit-scrollbar { width: 3px !important; height: 0 !important; }
+  html body .capture-analysis-drawer .capture-track-h-heading { padding: 18px 14px !important; }
+  html body .capture-analysis-drawer .capture-track-h-body { padding: 16px 14px !important; }
+  html body .capture-analysis-drawer .capture-track-h-tabs {
+    position: sticky !important;
+    z-index: 3 !important;
+    top: 0 !important;
+    background: rgba(233,229,224,.96) !important;
+    backdrop-filter: blur(12px) !important;
+  }
+  html body .capture-analysis-drawer .capture-track-h-summary {
+    gap: 0 !important;
+  }
+  html body .capture-analysis-drawer .capture-track-h-summary > div {
+    padding: 12px 4px !important;
+  }
+  html body .capture-analysis-drawer .capture-track-h-summary > div + div {
+    padding-left: 14px !important;
+    border-left: 1px solid rgba(41,40,39,.12) !important;
+  }
+  html body .capture-analysis-drawer .capture-theater-stages article {
+    min-height: 150px !important;
+    padding: 22px 8px 28px 22px !important;
   }
 
   html body .observed-internet .visual-workspace__hud { top: 58px !important; right: 12px !important; left: 12px !important; }

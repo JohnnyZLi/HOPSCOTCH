@@ -248,13 +248,15 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
   await sleep(80);
   const frameGeometry = await cdp.evaluate(`(()=>{
     const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{width:value.width,height:value.height,left:value.left,right:value.right,top:value.top,bottom:value.bottom}:null};
+    const alpha=(selector)=>{const value=document.querySelector(selector);if(!value)return null;const channels=getComputedStyle(value).backgroundColor.match(/[\\d.]+/g)?.map(Number)??[];return channels.length>=4?channels[3]:1};
     const sections=['.capture-specimen-mode-banner','.capture-frame-heading','.capture-frame-nav','.capture-frame-facts','.capture-byte-inspector','.capture-protocol-stack','.capture-field-list','.capture-lineage','.capture-open-microscope'].map((selector)=>({selector,rect:rect('.capture-evidence-inspector.is-frame-stage > '+selector)})).filter((entry)=>entry.rect&&entry.rect.width>0&&entry.rect.height>0);
     const heading=rect('.capture-evidence-inspector.is-frame-stage > .capture-frame-heading > div:first-child');
     const badge=rect('.capture-evidence-inspector.is-frame-stage .capture-frame-heading-actions');
-    return {grid:rect('.capture-workspace-grid'),frame:rect('.capture-evidence-inspector.is-frame-stage'),sections,heading,badge,bytes:document.querySelectorAll('.capture-evidence-inspector.is-frame-stage .capture-hex-grid > span').length,scrollWidth:document.documentElement.scrollWidth};
+    return {grid:rect('.capture-workspace-grid'),frame:rect('.capture-evidence-inspector.is-frame-stage'),sections,heading,badge,flatSurfaceAlpha:[alpha('.capture-frame-facts > div'),alpha('.capture-protocol-stack button')],bytes:document.querySelectorAll('.capture-evidence-inspector.is-frame-stage .capture-hex-grid > span').length,scrollWidth:document.documentElement.scrollWidth};
   })()`);
   if (!frameGeometry.grid || !frameGeometry.frame || frameGeometry.bytes <= 0) throw new Error(`${profile.id} frame mode did not promote an exact-byte specimen.`);
   if (frameGeometry.frame.width < frameGeometry.grid.width * 0.98 || frameGeometry.frame.height < frameGeometry.grid.height * 0.98 || frameGeometry.scrollWidth > profile.width) throw new Error(`${profile.id} frame specimen does not own the stage: ${JSON.stringify(frameGeometry)}.`);
+  if (frameGeometry.flatSurfaceAlpha.some((value) => value === null || value > 0.02)) throw new Error(`${profile.id} frame specimen regressed to nested card surfaces: ${JSON.stringify(frameGeometry.flatSurfaceAlpha)}.`);
   if (profile.width <= 540) {
     for (let index = 1; index < frameGeometry.sections.length; index += 1) {
       const previous = frameGeometry.sections[index - 1];
@@ -281,11 +283,13 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
       const rgb=(value)=>{const values=value.match(/[\\d.]+/g)?.map(Number)??[];return values.slice(0,3).map((channel)=>{const normalized=channel/255;return normalized<=.04045?normalized/12.92:((normalized+.055)/1.055)**2.4})};
       const contrast=(foreground,background)=>{const a=rgb(foreground);const b=rgb(background);const first=.2126*a[0]+.7152*a[1]+.0722*a[2];const second=.2126*b[0]+.7152*b[1]+.0722*b[2];return (Math.max(first,second)+.05)/(Math.min(first,second)+.05)};
       const titleContrast=titleElement&&header?contrast(getComputedStyle(titleElement.querySelector('strong')??titleElement).color,getComputedStyle(header).backgroundColor):0;
-      return {width:drawerRect?.width??0,backgroundAlpha:channels.length>=4?channels[3]:1,titleContrast,collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
+      const alpha=(selector)=>{const value=document.querySelector(selector);if(!value)return null;const values=getComputedStyle(value).backgroundColor.match(/[\\d.]+/g)?.map(Number)??[];return values.length>=4?values[3]:1};
+      return {width:drawerRect?.width??0,backgroundAlpha:channels.length>=4?channels[3]:1,titleContrast,ledgerSurfaceAlpha:[alpha('.capture-track-h-summary > div'),alpha('.capture-theater-stages article')],collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
     })()`);
     if (!analysisDrawerGeometry.titleOnTop || analysisDrawerGeometry.backgroundAlpha < .99 || analysisDrawerGeometry.titleContrast < 4.5) throw new Error(`${profile.id} analysis drawer is not an opaque, legible top-layer surface: ${JSON.stringify(analysisDrawerGeometry)}.`);
     if (profile.width <= 680 && analysisDrawerGeometry.collision) throw new Error(`${profile.id} analysis drawer title collides with corner navigation.`);
     if (profile.width <= 680 && analysisDrawerGeometry.width < profile.width * .98) throw new Error(`${profile.id} analysis drawer does not own the mobile stage.`);
+    if (analysisDrawerGeometry.ledgerSurfaceAlpha.some((value) => value === null || value > 0.02)) throw new Error(`${profile.id} analysis drawer regressed to nested card surfaces: ${JSON.stringify(analysisDrawerGeometry.ledgerSurfaceAlpha)}.`);
     analysisScreenshot = await screenshot('analysis');
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
