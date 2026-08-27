@@ -69,7 +69,7 @@ assert.match(microscope, /SIMULATED FRAME/);
 assert.match(microscope, /if \(props\.capturedFrame\)/);
 
 const captureProduct = workspaceDefinition('capture');
-assert.equal(captureProduct.lab, 'TRACK H', 'current Capture Replay identity must belong to completed Track H');
+assert.equal(captureProduct.status, 'CAPTURED EVIDENCE ACTIVE', 'Capture Replay must expose its current product identity instead of an internal track number');
 assert.equal(captureProduct.path, '/capture');
 assert.equal(captureProduct.status, 'CAPTURED EVIDENCE ACTIVE');
 assert.equal(WORKSPACE_PATHS.capture, '/capture');

@@ -39,7 +39,7 @@ for (const forbidden of [
 
 const measuredProduct = workspaceDefinition('measured');
 const journeyProduct = workspaceDefinition('journey');
-assert.equal(measuredProduct.lab, 'LAB 09', 'canonical product metadata must identify measured workspace as Lab 09');
+assert.equal(measuredProduct.meta, 'LOCAL MEASURED · EXPLICIT VANTAGE', 'canonical product metadata must identify the measured workspace by its evidence boundary, not an internal lab number');
 assert.equal(measuredProduct.status, 'LOCAL MEASURED ACTIVE', 'canonical product metadata must identify measured state concisely');
 assert.equal(journeyProduct.featured?.actionLabel, 'Play URL journey', 'URL Journey must remain a first-class product action');
 assert.match(app, /workspaceDefinition/, 'App must consume canonical workspace metadata rather than duplicate measured labels');

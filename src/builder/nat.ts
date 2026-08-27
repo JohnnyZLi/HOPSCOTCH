@@ -100,7 +100,7 @@ function primaryAddress(addressing: BuilderAddressing, nodeId: string): string |
 
 function normalizePort(value: number | null, protocol: BuilderNatProtocol, label: string): number | null {
   if (protocol === 'icmp') {
-    if (value != null) throw new Error(`${label} must be empty for ICMP in the Lab 11K teaching model.`);
+    if (value != null) throw new Error(`${label} must be empty for ICMP in the HOPSCOTCH teaching model.`);
     return null;
   }
   if (!Number.isInteger(value) || value == null || value < 1 || value > 65535) throw new Error(`${label} must be 1–65535 for TCP/UDP.`);
