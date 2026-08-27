@@ -1114,6 +1114,7 @@ async function capturePhase4EvidenceReview(cdp, profile) {
   const observed = profile.phase4Observed === true;
   const geometry = await cdp.evaluate(`(()=>{
     const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
+    const scrollGeometry=(selector)=>{const value=document.querySelector(selector);return value?{clientWidth:value.clientWidth,scrollWidth:value.scrollWidth}:null};
     const toolbar=rect(${JSON.stringify(observed ? '.observed-internet .visual-workspace__toolbar' : '.measured-heading')});
     const hud=rect(${JSON.stringify(observed ? '.observed-internet .visual-workspace__hud' : '.measured-capture-strip')});
     return {
@@ -1122,6 +1123,8 @@ async function capturePhase4EvidenceReview(cdp, profile) {
       stage:rect(${JSON.stringify(observed ? '.observed-internet .visual-workspace__stage' : '.measured-main')}),
       world:rect(${JSON.stringify(observed ? '.observed-main' : '.measured-scene')}),
       categories:rect('.measured-categories'),toolbar,hud,
+      stageScroll:scrollGeometry(${JSON.stringify(observed ? '.observed-main' : '.measured-main')}),
+      worldScroll:scrollGeometry(${JSON.stringify(observed ? '.evidence-flow' : '.measured-scene')}),
       toolbarHudOverlap:Boolean(toolbar&&hud&&toolbar.left<hud.right&&toolbar.right>hud.left&&toolbar.top<hud.bottom&&toolbar.bottom>hud.top),
       scrollWidth:document.documentElement.scrollWidth,scrollY,
       permanentProvenance:document.querySelectorAll('.measured-main > .measured-provenance-panel').length,
@@ -1133,6 +1136,8 @@ async function capturePhase4EvidenceReview(cdp, profile) {
   if (geometry.world.width < geometry.stage.width * (observed ? 0.94 : 0.68)) throw new Error(`${profile.id} central evidence content is too narrow: ${JSON.stringify(geometry)}.`);
   if (geometry.world.height < geometry.stage.height * (observed ? 0.62 : 0.72)) throw new Error(`${profile.id} central evidence content is too short: ${JSON.stringify(geometry)}.`);
   if (geometry.scrollWidth > geometry.viewport.width || geometry.scrollY !== 0) throw new Error(`${profile.id} overflows or moves the document viewport.`);
+  if (profile.width <= 680 && geometry.stageScroll && geometry.stageScroll.scrollWidth > geometry.stageScroll.clientWidth + 1) throw new Error(`${profile.id} mobile evidence stage retains a horizontal scroll rail: ${JSON.stringify(geometry.stageScroll)}.`);
+  if (profile.width <= 680 && geometry.worldScroll && geometry.worldScroll.scrollWidth > geometry.worldScroll.clientWidth + 1) throw new Error(`${profile.id} mobile evidence world exceeds its readable width: ${JSON.stringify(geometry.worldScroll)}.`);
   if (observed && geometry.collectorPanelInWorld !== 0) throw new Error(`${profile.id} retained a permanent collector panel in the world.`);
   if (!observed && geometry.permanentProvenance !== 0) throw new Error(`${profile.id} retained a permanent provenance column.`);
   if (observed && geometry.toolbarHudOverlap) throw new Error(`${profile.id} toolbar collides with its truth HUD.`);

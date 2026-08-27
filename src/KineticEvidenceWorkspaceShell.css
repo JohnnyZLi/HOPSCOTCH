@@ -812,7 +812,7 @@ html body .measured-target-groups { padding: 0 !important; }
 html body .measured-target-group {
   border: 0 !important;
   border-radius: 0 !important;
-  background: rgba(232,228,223,.35) !important;
+  background: transparent !important;
 }
 html body .measured-target-group > header {
   padding: 11px 0 !important;
@@ -1018,17 +1018,57 @@ html body :is(.capture-replay, .observed-internet, .measured-workspace) .visual-
 
   html body .observed-internet .visual-workspace__hud { top: 58px !important; right: 12px !important; left: 12px !important; }
   html body .observed-internet .visual-workspace__hud > div:nth-child(n+3) { display: none !important; }
-  html body .observed-main { inset: 100px 10px 56px !important; overflow-y: auto !important; }
-  html body .evidence-flow { display: flex !important; flex-direction: column !important; height: auto !important; gap: 38px !important; padding-bottom: 30px !important; }
-  html body .evidence-card { min-height: 220px !important; overflow: visible !important; padding: 20px 8px 14px 12px !important; }
-  html body .inferred-bridge { order: 2 !important; min-height: 210px !important; }
+  html body .observed-main {
+    inset: 100px 10px 56px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    scrollbar-color: rgba(41,40,39,.24) transparent !important;
+    scrollbar-width: thin !important;
+  }
+  html body .observed-main::-webkit-scrollbar { width: 3px !important; height: 0 !important; }
+  html body .observed-main::-webkit-scrollbar-track { background: transparent !important; }
+  html body .observed-main::-webkit-scrollbar-thumb { background: rgba(41,40,39,.24) !important; }
+  html body .evidence-flow {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    gap: 0 !important;
+    padding: 0 0 36px !important;
+  }
+  html body .evidence-card {
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 28px 8px 30px 12px !important;
+    background: transparent !important;
+  }
+  html body .inferred-bridge {
+    order: 2 !important;
+    min-height: 250px !important;
+    margin: 34px 0 !important;
+    padding-block: 38px !important;
+    border-top: 1px dashed rgba(154,116,65,.24) !important;
+    border-bottom: 1px dashed rgba(154,116,65,.24) !important;
+  }
   html body .evidence-destination-island { order: 3 !important; }
-  html body .evidence-routing-island { order: 4 !important; }
+  html body .evidence-routing-island {
+    order: 4 !important;
+    border-top: 1px solid rgba(41,40,39,.1) !important;
+  }
   html body .observed-evidence-rail { min-height: 48px !important; padding: 0 10px !important; font-size: .34rem !important; }
   html body .observed-evidence-rail span:last-child,
   html body .observed-evidence-rail i:last-of-type { display: none !important; }
 
-  html body .measured-main { inset: 100px 10px 10px !important; display: block !important; overflow-y: auto !important; }
+  html body .measured-main {
+    inset: 100px 10px 10px !important;
+    display: block !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    scrollbar-color: rgba(41,40,39,.24) transparent !important;
+    scrollbar-width: thin !important;
+  }
+  html body .measured-main::-webkit-scrollbar { width: 3px !important; height: 0 !important; }
+  html body .measured-main::-webkit-scrollbar-track { background: transparent !important; }
+  html body .measured-main::-webkit-scrollbar-thumb { background: rgba(41,40,39,.24) !important; }
   html body .measured-categories {
     position: sticky !important;
     z-index: 6 !important;
@@ -1040,7 +1080,10 @@ html body :is(.capture-replay, .observed-internet, .measured-workspace) .visual-
     overflow-x: auto !important;
     background: rgba(217,212,207,.94) !important;
     backdrop-filter: blur(12px) !important;
+    scrollbar-width: none !important;
   }
+  html body .measured-categories::-webkit-scrollbar,
+  html body .measured-target-selector::-webkit-scrollbar { display: none !important; }
   html body .measured-categories > header,
   html body .measured-categories > footer { display: none !important; }
   html body .measured-categories > button { flex: 0 0 96px !important; padding: 9px 7px !important; border-left: 0 !important; border-bottom: 1px solid rgba(41,40,39,.12) !important; }
@@ -1049,11 +1092,17 @@ html body :is(.capture-replay, .observed-internet, .measured-workspace) .visual-
   html body .measured-categories > button b { display: none !important; }
   html body .measured-scene { overflow: visible !important; }
   html body .measured-scene-heading { display: grid !important; padding: 24px 4px 18px !important; }
-  html body .measured-scene-heading h2 { max-width: 100% !important; font-size: clamp(2.2rem,15vw,3.65rem) !important; }
+  html body .measured-scene-heading h2 { max-width: 100% !important; font-size: clamp(2.05rem,13.2vw,3.2rem) !important; }
   html body .measured-scene-heading-side { justify-items: start !important; }
   html body .measured-glyph { width: 100% !important; }
+  html body .measured-target-selector {
+    max-width: 100% !important;
+    scrollbar-width: none !important;
+    mask-image: linear-gradient(90deg,#000 0,#000 calc(100% - 24px),transparent 100%) !important;
+  }
+  html body .measured-target-group { background: transparent !important; }
   html body .measured-fact-list { grid-template-columns: 1fr !important; }
-  html body .measured-fact { min-height: 112px !important; border-right: 0 !important; border-bottom: 1px solid rgba(41,40,39,.09) !important; }
+  html body .measured-fact { min-height: 112px !important; padding-right: 4px !important; border-right: 0 !important; border-bottom: 1px solid rgba(41,40,39,.09) !important; }
 
   html body .app-shell[data-lab="active"] :is(
     .visual-drawer,
