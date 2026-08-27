@@ -212,19 +212,22 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='flows'`);
     await sleep(80);
     const initialFocus = await cdp.evaluate(`document.activeElement?.classList.contains('capture-drawer-close')===true`);
-    if (profile.width <= 680) {
-      const drawerGeometry = await cdp.evaluate(`(()=>{
-        const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
-        const drawer=document.querySelector('.capture-flow-browser');
-        const drawerRect=drawer?.getBoundingClientRect();
-        const titleElement=document.querySelector('.capture-flow-browser > header > div');
-        const title=titleElement?.getBoundingClientRect();
-        const topElement=title?document.elementFromPoint((title.left+title.right)/2,(title.top+title.bottom)/2):null;
-        return {width:drawerRect?.width??0,collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
-      })()`);
-      if (drawerGeometry.collision) throw new Error(`${profile.id} flow drawer title collides with corner navigation.`);
-      if (drawerGeometry.width < profile.width * .98 || !drawerGeometry.titleOnTop) throw new Error(`${profile.id} flow drawer does not own the mobile stage.`);
-    }
+    const flowDrawerGeometry = await cdp.evaluate(`(()=>{
+      const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
+      const drawer=document.querySelector('.capture-flow-browser');
+      const drawerRect=drawer?.getBoundingClientRect();
+      const titleElement=document.querySelector('.capture-flow-browser > header > div');
+      const title=titleElement?.getBoundingClientRect();
+      const topElement=title?document.elementFromPoint((title.left+title.right)/2,(title.top+title.bottom)/2):null;
+      const channels=drawer?getComputedStyle(drawer).backgroundColor.match(/[\\d.]+/g)?.map(Number)??[]:[];
+      const rgb=(value)=>{const values=value.match(/[\\d.]+/g)?.map(Number)??[];return values.slice(0,3).map((channel)=>{const normalized=channel/255;return normalized<=.04045?normalized/12.92:((normalized+.055)/1.055)**2.4})};
+      const contrast=(foreground,background)=>{const a=rgb(foreground);const b=rgb(background);const first=.2126*a[0]+.7152*a[1]+.0722*a[2];const second=.2126*b[0]+.7152*b[1]+.0722*b[2];return (Math.max(first,second)+.05)/(Math.min(first,second)+.05)};
+      const titleContrast=titleElement&&drawer?contrast(getComputedStyle(titleElement.querySelector('strong')??titleElement).color,getComputedStyle(drawer).backgroundColor):0;
+      return {width:drawerRect?.width??0,backgroundAlpha:channels.length>=4?channels[3]:1,titleContrast,collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
+    })()`);
+    if (!flowDrawerGeometry.titleOnTop || flowDrawerGeometry.backgroundAlpha < .99 || flowDrawerGeometry.titleContrast < 4.5) throw new Error(`${profile.id} flow drawer is not an opaque, legible top-layer surface: ${JSON.stringify(flowDrawerGeometry)}.`);
+    if (profile.width <= 680 && flowDrawerGeometry.collision) throw new Error(`${profile.id} flow drawer title collides with corner navigation.`);
+    if (profile.width <= 680 && flowDrawerGeometry.width < profile.width * .98) throw new Error(`${profile.id} flow drawer does not own the mobile stage.`);
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', modifiers: 8 });
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', modifiers: 8 });
     const shiftTabContained = await cdp.evaluate(`document.querySelector('.capture-flow-browser')?.contains(document.activeElement)===true`);
@@ -266,19 +269,23 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     await clickText(cdp, '.capture-heading-actions .capture-action', 'ANALYSIS');
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='analysis'`);
     await sleep(100);
-    if (profile.width <= 680) {
-      const drawerGeometry = await cdp.evaluate(`(()=>{
-        const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
-        const drawer=document.querySelector('.capture-analysis-drawer');
-        const drawerRect=drawer?.getBoundingClientRect();
-        const titleElement=document.querySelector('.capture-analysis-drawer > header > div');
-        const title=titleElement?.getBoundingClientRect();
-        const topElement=title?document.elementFromPoint((title.left+title.right)/2,(title.top+title.bottom)/2):null;
-        return {width:drawerRect?.width??0,collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
-      })()`);
-      if (drawerGeometry.collision) throw new Error(`${profile.id} analysis drawer title collides with corner navigation.`);
-      if (drawerGeometry.width < profile.width * .98 || !drawerGeometry.titleOnTop) throw new Error(`${profile.id} analysis drawer does not own the mobile stage.`);
-    }
+    const analysisDrawerGeometry = await cdp.evaluate(`(()=>{
+      const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
+      const drawer=document.querySelector('.capture-analysis-drawer');
+      const drawerRect=drawer?.getBoundingClientRect();
+      const titleElement=document.querySelector('.capture-analysis-drawer > header > div');
+      const title=titleElement?.getBoundingClientRect();
+      const topElement=title?document.elementFromPoint((title.left+title.right)/2,(title.top+title.bottom)/2):null;
+      const channels=drawer?getComputedStyle(drawer).backgroundColor.match(/[\\d.]+/g)?.map(Number)??[]:[];
+      const header=document.querySelector('.capture-analysis-drawer > header');
+      const rgb=(value)=>{const values=value.match(/[\\d.]+/g)?.map(Number)??[];return values.slice(0,3).map((channel)=>{const normalized=channel/255;return normalized<=.04045?normalized/12.92:((normalized+.055)/1.055)**2.4})};
+      const contrast=(foreground,background)=>{const a=rgb(foreground);const b=rgb(background);const first=.2126*a[0]+.7152*a[1]+.0722*a[2];const second=.2126*b[0]+.7152*b[1]+.0722*b[2];return (Math.max(first,second)+.05)/(Math.min(first,second)+.05)};
+      const titleContrast=titleElement&&header?contrast(getComputedStyle(titleElement.querySelector('strong')??titleElement).color,getComputedStyle(header).backgroundColor):0;
+      return {width:drawerRect?.width??0,backgroundAlpha:channels.length>=4?channels[3]:1,titleContrast,collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
+    })()`);
+    if (!analysisDrawerGeometry.titleOnTop || analysisDrawerGeometry.backgroundAlpha < .99 || analysisDrawerGeometry.titleContrast < 4.5) throw new Error(`${profile.id} analysis drawer is not an opaque, legible top-layer surface: ${JSON.stringify(analysisDrawerGeometry)}.`);
+    if (profile.width <= 680 && analysisDrawerGeometry.collision) throw new Error(`${profile.id} analysis drawer title collides with corner navigation.`);
+    if (profile.width <= 680 && analysisDrawerGeometry.width < profile.width * .98) throw new Error(`${profile.id} analysis drawer does not own the mobile stage.`);
     analysisScreenshot = await screenshot('analysis');
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });

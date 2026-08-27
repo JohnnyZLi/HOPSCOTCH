@@ -501,19 +501,18 @@ export function CaptureReplayWorkspace({
             <details className="capture-warnings"><summary>{session.warnings.length} capture limitation{session.warnings.length === 1 ? '' : 's'} / decoder note{session.warnings.length === 1 ? '' : 's'}</summary><ul>{session.warnings.slice(0, 20).map((warning) => <li key={warning}>{warning}</li>)}</ul></details>
           )}
 
-          <AnimatePresence>
-            {activeDrawer && <motion.button
-              type="button"
-              className="capture-context-backdrop"
-              aria-label={`Close ${activeDrawer} drawer`}
-              onClick={() => setActiveDrawer(null)}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />}
-          </AnimatePresence>
-
           <div className="capture-workspace-grid">
+            <AnimatePresence>
+              {activeDrawer && <motion.button
+                type="button"
+                className="capture-context-backdrop"
+                aria-label={`Close ${activeDrawer} drawer`}
+                onClick={() => setActiveDrawer(null)}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              />}
+            </AnimatePresence>
             <aside
               ref={activeDrawer === 'flows' ? drawerRef : undefined}
               className={`capture-flow-browser${activeDrawer === 'flows' ? ' is-open' : ''}`}

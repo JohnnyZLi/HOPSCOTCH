@@ -45,11 +45,10 @@
   .journey-visual-workspace .journey-cinematic-stage .journey-scene-transition { inset: 280px 22px 72px; }
 }
 
-/* The Track H panel is dark; do not let the browser's default bright scrollbar become
-   the highest-contrast object in the entire drawer. */
+/* Keep the evidence drawer's scrollbar quiet inside the editorial surface. */
 .capture-analysis-drawer .capture-analysis-drawer-body {
   scrollbar-width: thin;
-  scrollbar-color: rgba(121, 242, 218, 0.26) transparent;
+  scrollbar-color: rgba(41, 40, 39, 0.22) transparent;
 }
 
 .capture-analysis-drawer .capture-analysis-drawer-body::-webkit-scrollbar { width: 8px; }
@@ -57,7 +56,7 @@
 .capture-analysis-drawer .capture-analysis-drawer-body::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: rgba(121, 242, 218, 0.24);
+  background: rgba(41, 40, 39, 0.2);
   background-clip: padding-box;
 }
 

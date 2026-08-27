@@ -1234,9 +1234,14 @@ async function captureVisualReview(cdp, profile) {
     if (profile.width <= 680) {
       const mobileHeader = await cdp.evaluate(`(()=>{
         const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
-        return {corner:rect('.corner-navigator'),title:rect(${JSON.stringify(profile.drawerTitleSelector ?? `${profile.drawerSelector} .visual-drawer__header > div`)})};
+        const drawer=document.querySelector(${JSON.stringify(profile.drawerSelector)});
+        const title=rect(${JSON.stringify(profile.drawerTitleSelector ?? `${profile.drawerSelector} .visual-drawer__header > div`)});
+        const topElement=title?document.elementFromPoint((title.left+title.right)/2,(title.top+title.bottom)/2):null;
+        const channels=drawer?getComputedStyle(drawer).backgroundColor.match(/[\\d.]+/g)?.map(Number)??[]:[];
+        return {corner:rect('.corner-navigator'),title,backgroundAlpha:channels.length>=4?channels[3]:1,titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
       })()`);
       if (mobileHeader.corner && mobileHeader.title && mobileHeader.corner.left < mobileHeader.title.right && mobileHeader.corner.right > mobileHeader.title.left && mobileHeader.corner.top < mobileHeader.title.bottom && mobileHeader.corner.bottom > mobileHeader.title.top) throw new Error(`${profile.id} mobile drawer title collides with corner navigation.`);
+      if (!mobileHeader.titleOnTop || mobileHeader.backgroundAlpha < .99) throw new Error(`${profile.id} mobile drawer is not an opaque top-layer surface: ${JSON.stringify(mobileHeader)}.`);
     }
     await dispatchKey(cdp, 'Tab', 'Tab', 8);
     const shiftTabContained = await cdp.evaluate(`document.querySelector(${JSON.stringify(profile.drawerSelector)})?.contains(document.activeElement)===true`);
