@@ -50,10 +50,10 @@ export function MeasuredNativeCorrelationPanel({ measuredState }: { measuredStat
     setError(null);
   };
 
-  return <section className="native-correlation" aria-label="Native companion and public evidence correlation">
+  return <section className="native-correlation" aria-label="Local and public evidence correlation">
     <header className="native-correlation-heading">
       <div>
-        <span>TRACK I · NATIVE COMPANION</span>
+        <span>LOCAL / PUBLIC CORRELATION</span>
         <strong>LOCAL → PUBLIC, WITHOUT BLENDING TRUTH</strong>
         <p>The Network Diagnostics report remains local measured evidence. Public routing, edge, and facility context is requested separately and keeps its own provenance.</p>
       </div>

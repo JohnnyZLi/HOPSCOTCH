@@ -138,13 +138,13 @@ export function TlsTheater({
 
   const modelContent = <div className="protocol-model-drawer tls-model-drawer">
     <section><span>MODEL BOUNDARY</span><strong>SYMBOLIC SECRETS · NO KEY BYTES</strong><p>The key schedule names real TLS 1.3 stages but never invents or exposes secret material. The certificate chain and signatures are explicitly simulated.</p></section>
-    <section><span>CONNECTED LABS</span><div className="protocol-link-grid"><button type="button" onClick={onOpenDns}>DNS resolution ↗</button><button type="button" onClick={onOpenTcp}>TCP recovery ↗</button><button type="button" onClick={onOpenPacket}>Packet microscope ↗</button></div></section>
+    <section><span>RELATED WORKSPACES</span><div className="protocol-link-grid"><button type="button" onClick={onOpenDns}>DNS resolution ↗</button><button type="button" onClick={onOpenTcp}>TCP recovery ↗</button><button type="button" onClick={onOpenPacket}>Packet microscope ↗</button></div></section>
   </div>;
 
   const drawers: VisualDrawerDefinition[] = [
     { id: 'inspect', label: 'Inspect', title: 'Current TLS state', eyebrow: `${state.phase.toUpperCase()} · ${formatTime(timeMs)}`, content: inspectContent },
     { id: 'events', label: 'Events', title: 'Handshake event chain', eyebrow: `${tlsEvents.length} DETERMINISTIC EVENTS`, content: eventsContent },
-    { id: 'tools', label: 'Model', title: 'Truth boundary and related labs', eyebrow: 'CURATED TLS 1.3', content: modelContent },
+    { id: 'tools', label: 'Model', title: 'Truth boundary and related workspaces', eyebrow: 'CURATED TLS 1.3', content: modelContent },
   ];
 
   return <VisualWorkspaceShell

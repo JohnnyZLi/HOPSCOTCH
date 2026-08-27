@@ -151,8 +151,8 @@ export function CaptureTrackHPanel({ session, conversationId }: { session: Captu
     <section className="capture-track-h" data-track-h="complete-surface">
       <header className="capture-track-h-heading">
         <div>
-          <span>CAPTURE EVIDENCE LAB</span>
-          <strong>STREAMS · RTT · THEATER · TRAFFIC · COMPARE · IMPORT</strong>
+          <span>CAPTURE ANALYSIS</span>
+          <strong>STREAMS · RTT · PROTOCOL SEQUENCE · TRAFFIC · COMPARE · IMPORT</strong>
           <p>Every surface stays downstream of immutable capture bytes. Missing evidence remains missing; sidecars and parsed configuration never become captured runtime truth.</p>
         </div>
         <span className="capture-track-h-boundary">SESSION ONLY · NO UPLOAD</span>
@@ -160,7 +160,7 @@ export function CaptureTrackHPanel({ session, conversationId }: { session: Captu
 
       <nav className="capture-track-h-tabs" aria-label="Capture evidence analysis">
         {([
-          ['theater', 'PROTOCOL THEATER'],
+          ['theater', 'PROTOCOL SEQUENCE'],
           ['stream', 'TCP STREAM + RTT'],
           ['traffic', 'TRAFFIC OVERVIEW'],
           ['compare', 'COMPARE'],

@@ -73,9 +73,9 @@ export default function BuilderChallengePanel({
   const copyToken = async () => {
     try {
       await navigator.clipboard.writeText(token);
-      onMessage(`CHALLENGE TOKEN COPIED · ${token}`);
+      onMessage(`SCENARIO TOKEN COPIED · ${token}`);
     } catch {
-      onMessage(`CHALLENGE TOKEN · ${token}`);
+      onMessage(`SCENARIO TOKEN · ${token}`);
     }
   };
 
@@ -88,15 +88,15 @@ export default function BuilderChallengePanel({
     </div>
 
     <div className="builder-challenge-status">
-      <div><span>SCORE</span><strong>{score.total}<small>/100</small></strong></div>
+      <div><span>DIAGNOSIS</span><strong>{score.solved ? 'CLOSED' : 'IN PROGRESS'}</strong></div>
       <div><span>REPAIR</span><strong>{score.repaired?'CANONICAL FIX':composed?'FAULTS ACTIVE':'FAULT ACTIVE'}</strong></div>
-      <div><span>VERIFY</span><strong>{score.verified ? 'PROVEN' : 'NOT PROVEN'}</strong></div>
+      <div><span>VERIFICATION</span><strong>{score.verified ? 'PROVEN' : 'NOT PROVEN'}</strong></div>
     </div>
     <div className="builder-challenge-scoreline">
-      <span>EVIDENCE <b>{score.evidence}/40</b></span>
-      <span>REASONING <b>{score.reasoning}/20</b></span>
-      <span>REPAIR <b>{score.repair}/25</b></span>
-      <span>VERIFY <b>{score.verification}/15</b></span>
+      <span>EVIDENCE <b>{score.evidence > 0 ? 'RECORDED' : 'PENDING'}</b></span>
+      <span>REASONING <b>{score.reasoning >= 20 ? 'SUPPORTED' : 'PENDING'}</b></span>
+      <span>REPAIR <b>{score.repaired ? 'CANONICAL' : 'PENDING'}</b></span>
+      <span>VERIFY <b>{score.verified ? 'PROVEN' : 'PENDING'}</b></span>
     </div>
 
     <div className="builder-challenge-instructions">
@@ -148,9 +148,9 @@ export default function BuilderChallengePanel({
 
     <div className="builder-challenge-actions">
       <button type="button" disabled={historical} onClick={onRestart}>RESTART SAME SEED</button>
-      <button type="button" onClick={() => void copyToken()}>COPY CHALLENGE TOKEN</button>
-      <button type="button" disabled={historical} onClick={onExit}>EXIT CHALLENGE</button>
+      <button type="button" onClick={() => void copyToken()}>COPY SCENARIO TOKEN</button>
+      <button type="button" disabled={historical} onClick={onExit}>EXIT SCENARIO</button>
     </div>
-    <small className="builder-routing-note">TOKEN {token} · CHALLENGE STATE IS DETERMINISTIC. EVIDENCE / SCORE ARE SESSION-ONLY AND NEVER BECOME NETWORK TRUTH.</small>
+    <small className="builder-routing-note">TOKEN {token} · SCENARIO STATE IS DETERMINISTIC. THE EVIDENCE RECORD IS SESSION-ONLY AND NEVER BECOMES NETWORK TRUTH.</small>
   </section>;
 }
