@@ -213,12 +213,17 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     await sleep(80);
     const initialFocus = await cdp.evaluate(`document.activeElement?.classList.contains('capture-drawer-close')===true`);
     if (profile.width <= 680) {
-      const headerCollision = await cdp.evaluate(`(()=>{
+      const drawerGeometry = await cdp.evaluate(`(()=>{
         const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
-        const title=document.querySelector('.capture-flow-browser > header > div')?.getBoundingClientRect();
-        return Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top);
+        const drawer=document.querySelector('.capture-flow-browser');
+        const drawerRect=drawer?.getBoundingClientRect();
+        const titleElement=document.querySelector('.capture-flow-browser > header > div');
+        const title=titleElement?.getBoundingClientRect();
+        const topElement=title?document.elementFromPoint((title.left+title.right)/2,(title.top+title.bottom)/2):null;
+        return {width:drawerRect?.width??0,collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
       })()`);
-      if (headerCollision) throw new Error(`${profile.id} flow drawer title collides with corner navigation.`);
+      if (drawerGeometry.collision) throw new Error(`${profile.id} flow drawer title collides with corner navigation.`);
+      if (drawerGeometry.width < profile.width * .98 || !drawerGeometry.titleOnTop) throw new Error(`${profile.id} flow drawer does not own the mobile stage.`);
     }
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', modifiers: 8 });
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', modifiers: 8 });
@@ -262,12 +267,17 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='analysis'`);
     await sleep(100);
     if (profile.width <= 680) {
-      const headerCollision = await cdp.evaluate(`(()=>{
+      const drawerGeometry = await cdp.evaluate(`(()=>{
         const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
-        const title=document.querySelector('.capture-analysis-drawer > header > div')?.getBoundingClientRect();
-        return Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top);
+        const drawer=document.querySelector('.capture-analysis-drawer');
+        const drawerRect=drawer?.getBoundingClientRect();
+        const titleElement=document.querySelector('.capture-analysis-drawer > header > div');
+        const title=titleElement?.getBoundingClientRect();
+        const topElement=title?document.elementFromPoint((title.left+title.right)/2,(title.top+title.bottom)/2):null;
+        return {width:drawerRect?.width??0,collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
       })()`);
-      if (headerCollision) throw new Error(`${profile.id} analysis drawer title collides with corner navigation.`);
+      if (drawerGeometry.collision) throw new Error(`${profile.id} analysis drawer title collides with corner navigation.`);
+      if (drawerGeometry.width < profile.width * .98 || !drawerGeometry.titleOnTop) throw new Error(`${profile.id} analysis drawer does not own the mobile stage.`);
     }
     analysisScreenshot = await screenshot('analysis');
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });

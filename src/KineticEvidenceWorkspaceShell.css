@@ -1041,6 +1041,27 @@ html body :is(.capture-replay, .observed-internet, .measured-workspace) .visual-
     z-index: 70 !important;
   }
 
+  html body .capture-workspace-grid:has(> :is(
+    .capture-flow-browser.is-open,
+    .capture-evidence-inspector.is-open,
+    .capture-analysis-drawer.is-open
+  )) {
+    z-index: 60 !important;
+  }
+
+  html body .capture-workspace-grid > :is(
+    .capture-flow-browser.is-open,
+    .capture-evidence-inspector.is-open,
+    .capture-analysis-drawer.is-open
+  ) {
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    opacity: 1 !important;
+    background: #e9e5e0 !important;
+    transition: transform 220ms cubic-bezier(.16,1,.3,1), visibility 0s !important;
+  }
+
   html body .app-shell[data-lab="active"] :is(
     .visual-drawer__header,
     .builder-context-drawer__header,
