@@ -317,7 +317,7 @@ if (phase3VisualReview) {
     { id: 'as-routing', path: '/internet/as-routing', query: '', readySelector: '.as-visual-workspace', expected: ['SIMULATED BEST PATH', 'SOURCE'], workspaceSelector: '.as-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.internet-canvas-wrap', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.as-visual-workspace .visual-drawer-tabs button', drawerSelector: '.as-visual-workspace .visual-drawer' },
     { id: 'physical-atlas', path: '/', query: query({ stress: 'physical-density' }), readySelector: '.physical-visual-workspace', expected: ['SIMULATED STRESS POINTS', 'WEBGL 2', 'VISIBLE'], workspaceSelector: '.physical-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.globe-viewport', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.physical-visual-workspace .visual-drawer-tabs button', drawerSelector: '.physical-visual-workspace .visual-drawer' },
     { id: 'packet-microscope', path: '/labs/packet', query: '', readySelector: '.packet-visual-workspace', expected: ['FRAME', 'BYTES', 'ETHERNET'], workspaceSelector: '.packet-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.packet-stage', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.packet-visual-workspace .visual-drawer-tabs button', drawerSelector: '.packet-visual-workspace .visual-drawer' },
-    { id: 'network-builder', path: '/labs/builder', query: '', readySelector: '.builder-visual-workspace', expected: ['Network builder', 'PATH', 'FORWARDING', 'OSPF', 'GRAPH'], workspaceSelector: '.builder-visual-workspace', stageSelector: '.builder-stage', worldSelector: '.builder-canvas', semanticSelector: '.builder-node-anchor', semanticMinWidthRatio: 0.72, semanticMinHeightRatio: 0.34, toolbarSelector: '.builder-world-toolbar', hudSelector: '.builder-stage-meta', inspectButtonSelector: '.builder-tool-inspect', drawerSelector: '.builder-context-drawer.open' },
+    { id: 'network-builder', path: '/labs/builder', query: '', readySelector: '.builder-visual-workspace', expected: ['Network builder', 'PATH', 'FORWARDING', 'OSPF', 'GRAPH'], workspaceSelector: '.builder-visual-workspace', stageSelector: '.builder-stage', worldSelector: '.builder-canvas', semanticSelector: '.builder-node-anchor', semanticMinWidthRatio: 0.72, semanticMinHeightRatio: 0.34, toolbarSelector: '.builder-world-toolbar', hudSelector: '.builder-stage-meta', inspectButtonSelector: '.builder-tool-inspect', drawerSelector: '.builder-context-drawer.open', drawerTitleSelector: '.builder-context-drawer__header > div' },
   ];
   profiles.splice(0, profiles.length, ...visualWorlds.flatMap((world) => visualViewports.map((viewport) => ({
     ...world,
@@ -1154,6 +1154,14 @@ async function capturePhase4EvidenceReview(cdp, profile) {
     await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(observed ? '.observed-internet .visual-drawer' : '.measured-workspace .visual-drawer')}))`, 8000);
     const drawerSelector = observed ? '.observed-internet .visual-drawer' : '.measured-workspace .visual-drawer';
     const initialFocus = await cdp.evaluate(`document.activeElement?.classList.contains('visual-drawer__close')===true`);
+    if (profile.width <= 680) {
+      const headerCollision = await cdp.evaluate(`(()=>{
+        const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
+        const title=document.querySelector(${JSON.stringify(`${drawerSelector} .visual-drawer__header > div`)})?.getBoundingClientRect();
+        return Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top);
+      })()`);
+      if (headerCollision) throw new Error(`${profile.id} contextual drawer title collides with corner navigation.`);
+    }
     await dispatchKey(cdp, 'Tab', 'Tab', 8);
     const shiftTabContained = await cdp.evaluate(`document.querySelector(${JSON.stringify(drawerSelector)})?.contains(document.activeElement)===true`);
     await dispatchKey(cdp, 'Tab', 'Tab');
@@ -1226,7 +1234,7 @@ async function captureVisualReview(cdp, profile) {
     if (profile.width <= 680) {
       const mobileHeader = await cdp.evaluate(`(()=>{
         const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
-        return {corner:rect('.corner-navigator'),title:rect(${JSON.stringify(`${profile.drawerSelector} .visual-drawer__header > div`)})};
+        return {corner:rect('.corner-navigator'),title:rect(${JSON.stringify(profile.drawerTitleSelector ?? `${profile.drawerSelector} .visual-drawer__header > div`)})};
       })()`);
       if (mobileHeader.corner && mobileHeader.title && mobileHeader.corner.left < mobileHeader.title.right && mobileHeader.corner.right > mobileHeader.title.left && mobileHeader.corner.top < mobileHeader.title.bottom && mobileHeader.corner.bottom > mobileHeader.title.top) throw new Error(`${profile.id} mobile drawer title collides with corner navigation.`);
     }

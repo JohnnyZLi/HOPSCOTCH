@@ -212,6 +212,14 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='flows'`);
     await sleep(80);
     const initialFocus = await cdp.evaluate(`document.activeElement?.classList.contains('capture-drawer-close')===true`);
+    if (profile.width <= 680) {
+      const headerCollision = await cdp.evaluate(`(()=>{
+        const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
+        const title=document.querySelector('.capture-flow-browser > header > div')?.getBoundingClientRect();
+        return Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top);
+      })()`);
+      if (headerCollision) throw new Error(`${profile.id} flow drawer title collides with corner navigation.`);
+    }
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', modifiers: 8 });
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', modifiers: 8 });
     const shiftTabContained = await cdp.evaluate(`document.querySelector('.capture-flow-browser')?.contains(document.activeElement)===true`);
@@ -253,6 +261,14 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     await clickText(cdp, '.capture-heading-actions .capture-action', 'ANALYSIS');
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='analysis'`);
     await sleep(100);
+    if (profile.width <= 680) {
+      const headerCollision = await cdp.evaluate(`(()=>{
+        const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
+        const title=document.querySelector('.capture-analysis-drawer > header > div')?.getBoundingClientRect();
+        return Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top);
+      })()`);
+      if (headerCollision) throw new Error(`${profile.id} analysis drawer title collides with corner navigation.`);
+    }
     analysisScreenshot = await screenshot('analysis');
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });

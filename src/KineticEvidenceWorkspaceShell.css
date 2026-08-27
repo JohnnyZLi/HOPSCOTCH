@@ -1030,6 +1030,26 @@ html body :is(.capture-replay, .observed-internet, .measured-workspace) .visual-
   html body .measured-glyph { width: 100% !important; }
   html body .measured-fact-list { grid-template-columns: 1fr !important; }
   html body .measured-fact { min-height: 112px !important; border-right: 0 !important; border-bottom: 1px solid rgba(41,40,39,.09) !important; }
+
+  html body .app-shell[data-lab="active"] :is(
+    .visual-drawer,
+    .builder-context-drawer.open,
+    .capture-flow-browser.is-open,
+    .capture-evidence-inspector.is-open,
+    .capture-analysis-drawer.is-open
+  ) {
+    z-index: 70 !important;
+  }
+
+  html body .app-shell[data-lab="active"] :is(
+    .visual-drawer__header,
+    .builder-context-drawer__header,
+    .capture-flow-browser > header,
+    .capture-analysis-drawer > header
+  ) {
+    min-height: 68px !important;
+    padding-left: 76px !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
