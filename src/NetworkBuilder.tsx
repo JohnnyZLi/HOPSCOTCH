@@ -107,6 +107,7 @@ function BuilderCanvasViewport({ enabled, style, children }: { enabled: boolean;
 export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, onOpenBgpProjection, initialGraph = defaultBuilderGraph, initialLayout = defaultBuilderLayout, initialAddressing, initialRouting, initialEthernet, initialLinkProfiles, initialAcl, initialNat, initialDhcp, initialIpv6, initialServices, initialSourceId = 'client', initialDestinationId = 'app', initialScenarioName = 'My topology', stressLabel }: { onExit: () => void; onOpenFailureStory: () => void; onOpenProbePacket?: (seed: BuilderProbePacketSeed) => void; onOpenBgpProjection?: (payload: { projection: BuilderBgpAsProjection; scenario: BuilderScenarioV8 }) => void; initialGraph?: BuilderGraph; initialLayout?: BuilderLayout; initialAddressing?: BuilderAddressing; initialRouting?: BuilderRoutingConfig; initialEthernet?: BuilderEthernetConfig; initialLinkProfiles?: BuilderLinkProfiles; initialAcl?: BuilderAclConfig; initialNat?: BuilderNatConfig; initialDhcp?: BuilderDhcpConfig; initialIpv6?: BuilderIpv6Config; initialServices?: BuilderHostedService[]; initialSourceId?: string; initialDestinationId?: string; initialScenarioName?: string; stressLabel?: string }) {
   const reduceMotion = useReducedMotion();
   const canvasRef = useRef<HTMLDivElement>(null);
+  const routeSignalRef = useRef<HTMLDivElement>(null);
   const [graph, setGraph] = useState<BuilderGraph>(() => cloneBuilderGraph(initialGraph));
   const [addressing, setAddressing] = useState<BuilderAddressing>(() => cloneBuilderAddressing(initialAddressing ?? createDefaultBuilderAddressing(initialGraph)));
   const [routing, setRouting] = useState<BuilderRoutingConfig>(() => cloneBuilderRoutingConfig(initialRouting ?? createDefaultBuilderRoutingConfig()));
@@ -246,6 +247,26 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
     let elapsed = 0;
     return [0, ...segmentLengths.map((length) => (elapsed += length) / totalLength)];
   }, [routeSignalPoints]);
+  useEffect(() => {
+    const signal = routeSignalRef.current;
+    if (!signal || reduceMotion || stressLabel || routeSignalPoints.length < 2) return;
+    const start = routeSignalPoints[0];
+    const end = routeSignalPoints[routeSignalPoints.length - 1];
+    const keyframes: Keyframe[] = [
+      { left: `${start.x}%`, top: `${start.y}%`, opacity: 0, offset: 0 },
+      { left: `${start.x}%`, top: `${start.y}%`, opacity: 1, offset: .04 },
+      ...routeSignalPoints.slice(1, -1).map((point, index) => ({
+        left: `${point.x}%`,
+        top: `${point.y}%`,
+        opacity: 1,
+        offset: .04 + routeSignalTimes[index + 1] * .92,
+      })),
+      { left: `${end.x}%`, top: `${end.y}%`, opacity: 1, offset: .96 },
+      { left: `${end.x}%`, top: `${end.y}%`, opacity: 0, offset: 1 },
+    ];
+    const animation = signal.animate(keyframes, { duration: routeSignalDuration * 1000, iterations: Infinity, easing: 'linear' });
+    return () => animation.cancel();
+  }, [reduceMotion, routeSignalDuration, routeSignalPoints, routeSignalTimes, stressLabel]);
   const forwardingTrace = useMemo(() => traceBuilderForwarding(sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId, sceneFibGraph), [sceneGraph, sceneAddressing, sceneRouting, sceneSourceId, sceneDestinationId, sceneFibGraph]);
   const policyTrace = useMemo(() => traceBuilderPolicy(sceneGraph, sceneAddressing, sceneRouting, sceneAcl, sceneSourceId, sceneDestinationId, 'icmp', null, null, sceneFibGraph), [sceneGraph, sceneAddressing, sceneRouting, sceneAcl, sceneSourceId, sceneDestinationId, sceneFibGraph]);
   const ospfState = useMemo(() => builderOspfState(sceneControlGraph, sceneAddressing, sceneRouting), [sceneControlGraph, sceneAddressing, sceneRouting]);
@@ -681,21 +702,12 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
                 </g>;
               })}
             </svg>
-            {!reduceMotion && !stressLabel && routeSignalPoints.length > 1 && <motion.div
+            {!reduceMotion && !stressLabel && routeSignalPoints.length > 1 && <div
+              ref={routeSignalRef}
               className="builder-route-signal-track"
               aria-hidden="true"
-              initial={{ left: `${routeSignalPoints[0].x}%`, top: `${routeSignalPoints[0].y}%`, opacity: 0 }}
-              animate={{
-                left: routeSignalPoints.map((point) => `${point.x}%`),
-                top: routeSignalPoints.map((point) => `${point.y}%`),
-                opacity: [0, 1, 1, 0],
-              }}
-              transition={{
-                left: { duration: routeSignalDuration, times: routeSignalTimes, ease: 'linear', repeat: Infinity, repeatDelay: .32 },
-                top: { duration: routeSignalDuration, times: routeSignalTimes, ease: 'linear', repeat: Infinity, repeatDelay: .32 },
-                opacity: { duration: routeSignalDuration, times: [0, .07, .88, 1], ease: 'linear', repeat: Infinity, repeatDelay: .32 },
-              }}
-            ><i /></motion.div>}
+              style={{ left: `${routeSignalPoints[0].x}%`, top: `${routeSignalPoints[0].y}%`, opacity: 0 }}
+            ><i /></div>}
             {graph.nodes.map((node) => {
               const point = layout[node.id]; if (!point) return null;
               const onRoute = route.nodeIds.includes(node.id);
