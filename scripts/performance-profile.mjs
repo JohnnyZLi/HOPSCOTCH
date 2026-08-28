@@ -1083,6 +1083,8 @@ async function exercisePhase4ObservedInternet(cdp, profile) {
     };
     return true;
   })()`);
+  await measuredClickButton(cdp, '.observed-toolbar-controls .visual-drawer-tabs button', 'QUERY');
+  await waitForExpression(cdp, `Boolean(document.querySelector('.observed-query button'))`, 8000);
   await measuredClickButton(cdp, '.observed-query button', 'BUILD EVIDENCE SNAPSHOT');
   await waitForExpression(cdp, `Boolean(document.querySelector('.observed-main'))`, 8000);
   await waitForExpression(cdp, `document.querySelectorAll('.evidence-card').length===3`, 8000);

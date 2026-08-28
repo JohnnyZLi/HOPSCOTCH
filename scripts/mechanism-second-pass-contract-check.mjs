@@ -13,6 +13,7 @@ const observed = read('../src/ObservedInternet.tsx');
 const measured = read('../src/MeasuredNetworkWorkspace.tsx');
 const physical = read('../src/PhysicalInternetGlobe.tsx');
 const explore = read('../src/ExploreLauncher.tsx');
+const performanceProfile = read('./performance-profile.mjs');
 
 assert.ok(systemCss.trimEnd().endsWith("@import './MechanismSecondPass.css';"), 'mechanism layer must load after every legacy workspace skin');
 
@@ -31,6 +32,7 @@ assert.ok(observed.includes('observed-dormant-field') && observed.includes('obse
 assert.ok(measured.includes('measured-dormant-field') && measured.includes('measured-dormant-pulse'));
 assert.ok(physical.includes('globe-fallback-mechanism') && physical.includes("setActiveDrawer('tools')"));
 assert.ok(explore.includes('type="search"') && explore.includes('searchResults.map'));
+assert.ok(performanceProfile.includes(".observed-toolbar-controls .visual-drawer-tabs button', 'QUERY'"), 'Phase 4 browser review must open the now-contextual Query drawer before submitting');
 
 for (const token of [
   '.dns-namespace-field',
