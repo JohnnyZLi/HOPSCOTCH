@@ -339,8 +339,7 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
   await cdp.evaluate(`document.querySelectorAll('.capture-event-rail button')[1]?.click()`);
   await clickText(cdp, '.capture-time-controls button', '▶');
   await sleep(80);
-  const pause = await cdp.evaluate(`Boolean([...document.querySelectorAll('.capture-time-controls button')].find((button)=>button.getAttribute('aria-label')==='Pause capture replay'))`);
-  if (pause) await clickText(cdp, '.capture-time-controls button', 'Ⅱ');
+  await cdp.evaluate(`(()=>{const target=[...document.querySelectorAll('.capture-time-controls button')].find((button)=>button.getAttribute('aria-label')==='Pause capture replay');if(!target)return false;target.click();return true})()`);
   const scrubbed = await cdp.evaluate(`(()=>{const input=document.querySelector('.capture-scrubber input');if(!input)return false;const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')?.set;setter?.call(input,input.max);input.dispatchEvent(new Event('input',{bubbles:true}));return true})()`);
   if (!scrubbed) throw new Error(`${profile.id} could not scrub capture time.`);
   await clickText(cdp, '.capture-heading-actions .capture-action', 'FRAME DETAILS');
