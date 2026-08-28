@@ -445,6 +445,313 @@ html body .tls-transcript-item {
   background: transparent !important;
 }
 
+/* HTTP comparison — one shared loss becomes two different transport shapes. */
+
+html body .http-workspace-stage {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  isolation: isolate;
+}
+
+html body .http-workspace-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: .75;
+  background-image:
+    linear-gradient(rgba(41,40,39,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(41,40,39,.04) 1px, transparent 1px);
+  background-size: 54px 54px;
+  mask-image: radial-gradient(ellipse at center, black 10%, transparent 78%);
+  pointer-events: none;
+}
+
+html body .http-workspace-stage .http-lanes {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: clamp(72px, 9vw, 150px) !important;
+  padding: 112px clamp(8px, 2vw, 28px) 8px !important;
+}
+
+html body .http-workspace-stage .http-lane {
+  position: relative;
+  display: block !important;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible;
+}
+
+html body .http-workspace-stage .http-lane > header {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  right: 0;
+  left: 0;
+  align-items: end;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--mechanism-rule);
+}
+
+html body .http-workspace-stage .http-lane > header span { color: var(--mechanism-coral) !important; font-size: .62rem !important; }
+html body .http-workspace-stage .http-lane > header strong { color: var(--mechanism-ink) !important; font-size: 1rem !important; }
+html body .http-workspace-stage .http-lane > header small { color: var(--mechanism-faint) !important; }
+
+html body .http-workspace-stage .http-transport-rail {
+  position: absolute;
+  z-index: 4;
+  top: 76px;
+  right: 0;
+  left: 0;
+  grid-template-columns: minmax(96px, auto) minmax(70px, 1fr) minmax(112px, auto) !important;
+  min-height: 42px !important;
+  padding: 8px 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+html body .http-workspace-stage .http-transport-rail > :is(span, small) { color: var(--mechanism-faint) !important; font-size: .45rem; }
+html body .http-workspace-stage .http-transport-line { height: 1px; background: rgba(41,40,39,.25) !important; }
+html body .http-workspace-stage .http-transport-line.has-loss { background: linear-gradient(90deg, rgba(41,40,39,.15), var(--mechanism-coral) 48%, transparent 48% 52%, rgba(41,40,39,.15) 52%) !important; }
+html body .http-workspace-stage .http-transport-line :is(i,b) { border: 1px solid rgba(41,40,39,.42); background: #d9d4cf !important; }
+html body .http-workspace-stage .http-loss-pulse { border-color: var(--mechanism-coral) !important; }
+
+html body .http-mechanism-orbits {
+  position: absolute;
+  z-index: 0;
+  top: 55%;
+  left: 50%;
+  width: min(390px, 32vw);
+  aspect-ratio: 1.55;
+  opacity: .42;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+html body .http-mechanism-orbits > i {
+  position: absolute;
+  inset: calc(var(--http-orbit, 0) * 12%);
+  border: 1px solid rgba(41,40,39,.13);
+  border-radius: 50%;
+  transform: rotate(calc(var(--http-orbit, 0) * 18deg));
+}
+
+html body .http-mechanism-orbits > i:nth-child(1) { --http-orbit: 0; }
+html body .http-mechanism-orbits > i:nth-child(2) { --http-orbit: 1; border-style: dashed; animation: http-mechanism-orbit 18s linear infinite; }
+html body .http-mechanism-orbits > i:nth-child(3) { --http-orbit: 2; border-color: rgba(216,79,73,.22); animation: http-mechanism-orbit 12s linear infinite reverse; }
+
+html body .http-shared-order-gate,
+html body .http-independent-stream-field {
+  position: absolute;
+  z-index: 1;
+  top: 54%;
+  left: 50%;
+  width: 132px;
+  height: 132px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+html body .http-shared-order-gate > i {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(41,40,39,.22);
+  border-radius: 50%;
+}
+
+html body .http-shared-order-gate > b {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--mechanism-coral);
+  background: #d9d4cf;
+  transform: translate(-50%, -50%) rotate(45deg);
+  animation: http-gate-pulse 2.4s ease-in-out infinite;
+}
+
+html body :is(.http-shared-order-gate, .http-independent-stream-field) > span {
+  position: absolute;
+  top: calc(50% + 26px);
+  left: 50%;
+  color: var(--mechanism-faint);
+  font: 760 .39rem ui-monospace, monospace;
+  letter-spacing: .1em;
+  transform: translateX(-50%);
+}
+
+html body .http-independent-stream-field > i {
+  position: absolute;
+  right: -34px;
+  left: -34px;
+  height: 48px;
+  border: 1px solid rgba(89,111,130,.3);
+  border-radius: 50%;
+}
+
+html body .http-independent-stream-field > i:first-child { top: 10px; transform: rotate(-12deg); }
+html body .http-independent-stream-field > i:nth-child(2) { bottom: 10px; border-color: rgba(216,79,73,.26); transform: rotate(12deg); }
+
+html body .http-workspace-stage .http-streams {
+  position: absolute;
+  z-index: 3;
+  top: 148px;
+  right: 0;
+  bottom: 54px;
+  left: 0;
+  display: grid !important;
+  grid-template-rows: repeat(2, minmax(72px, 1fr));
+  align-content: stretch !important;
+  gap: 0 !important;
+}
+
+html body .http-workspace-stage .http-stream-row {
+  grid-template-columns: minmax(90px, 118px) minmax(0, 1fr) 42px !important;
+  min-height: 0 !important;
+  padding: 12px 0 !important;
+  border: 0 !important;
+  border-top: 1px solid rgba(41,40,39,.13) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+html body .http-workspace-stage .http-stream-row:last-child { border-bottom: 1px solid rgba(41,40,39,.13) !important; }
+html body .http-workspace-stage .http-stream-label > span { color: var(--mechanism-faint) !important; }
+html body .http-workspace-stage .http-stream-label > strong { color: var(--mechanism-ink) !important; }
+html body .http-workspace-stage .http-progress-value { color: var(--mechanism-ink) !important; }
+
+html body .http-workspace-stage .http-progress-track {
+  height: 54px !important;
+  overflow: visible;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+html body .http-workspace-stage .http-progress-track::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: repeating-linear-gradient(90deg, rgba(41,40,39,.26) 0 8px, transparent 8px 13px);
+}
+
+html body .http-workspace-stage .http-progress-track > i.stream-fill {
+  top: 50% !important;
+  bottom: auto !important;
+  height: 1px !important;
+  border-radius: 0 !important;
+  background: var(--mechanism-coral) !important;
+}
+
+html body .http-flow-window {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, black 10%, black 94%, transparent);
+}
+
+html body .http-flow-window > b {
+  position: absolute;
+  top: calc(50% - 3px);
+  left: -8px;
+  width: 6px;
+  height: 6px;
+  border: 1px solid currentColor;
+  color: var(--mechanism-coral);
+  background: #d9d4cf;
+  transform: rotate(45deg);
+  animation: http-particle-travel 2.5s linear infinite;
+}
+
+html body .lane-h3 .http-flow-window > b { color: #596f82; }
+html body .http-stream-row.state-blocked .http-flow-window > b { animation-play-state: paused; opacity: .22; }
+html body .http-stream-row.state-complete .http-flow-window > b { opacity: .4; }
+
+html body .http-workspace-stage .http-block-marker {
+  right: auto !important;
+  z-index: 5;
+  color: var(--mechanism-coral) !important;
+  font-size: 1.15rem;
+  background: #d9d4cf;
+  transform: translate(-50%, -50%);
+}
+
+html body .http-workspace-stage .http-lane > footer {
+  position: absolute;
+  z-index: 4;
+  right: 0;
+  bottom: 10px;
+  left: 0;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+html body .http-workspace-stage .http-lane > footer span { color: var(--mechanism-faint) !important; }
+html body .http-workspace-stage .http-lane > footer strong { color: var(--mechanism-ink) !important; }
+
+html body .http-divergence-axis {
+  z-index: 6;
+  top: 124px;
+  bottom: 54px;
+  width: 1px;
+  background: repeating-linear-gradient(180deg, rgba(216,79,73,.4) 0 7px, transparent 7px 13px) !important;
+}
+
+html body .http-divergence-axis span {
+  z-index: 4;
+  padding: 5px 7px;
+  border: 0 !important;
+  border-bottom: 1px solid var(--mechanism-coral) !important;
+  border-radius: 0 !important;
+  color: var(--mechanism-coral) !important;
+  background: #d9d4cf !important;
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+html body .http-divergence-axis > i { width: 74px; height: 74px; border-color: var(--mechanism-coral) !important; }
+html body .http-divergence-axis > b {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border: 1px solid rgba(216,79,73,.18);
+  border-radius: 50%;
+  opacity: .2;
+  transform: translate(-50%, -50%);
+}
+html body .http-divergence-axis > b:nth-of-type(1) { width: 96px; height: 96px; }
+html body .http-divergence-axis > b:nth-of-type(2) { width: 148px; height: 148px; border-style: dashed; animation: http-mechanism-orbit 15s linear infinite; }
+html body .http-divergence-axis > b:nth-of-type(3) { width: 212px; height: 212px; opacity: .1; }
+html body .http-divergence-axis.is-live > b { opacity: .72; }
+
+html body .http-scene-annotation,
+html body .http-scene-annotation.focus-h3 {
+  top: 10px !important;
+  right: 50% !important;
+  left: auto !important;
+  width: min(620px, calc(100% - 42px)) !important;
+  transform: translateX(50%);
+}
+
+html body .http-scene-annotation > div { padding-block: 5px !important; }
+html body .http-scene-annotation .http-event-compare > div {
+  padding: 4px 0 4px 8px !important;
+  border: 0 !important;
+  border-left: 1px solid var(--mechanism-rule) !important;
+  border-radius: 0 !important;
+  color: var(--mechanism-soft) !important;
+  background: transparent !important;
+}
+
 /* Packet microscope — a byte river folds continuously into protocol layers. */
 
 html body .packet-visual-workspace .packet-object-wrap { isolation: isolate; padding-top: 18px !important; }
@@ -717,6 +1024,9 @@ html body .explore-search-empty span { color: var(--mechanism-faint); font-size:
 @keyframes mechanism-core-breathe { 50% { transform: rotate(45deg) scale(1.35); box-shadow: 0 0 0 14px rgba(216,79,73,.06); } }
 @keyframes mechanism-node-pulse { 70%, 100% { width: 100px; height: 100px; opacity: 0; } }
 @keyframes mechanism-segment-flash { 50% { background: rgba(216,79,73,.46); } }
+@keyframes http-mechanism-orbit { to { rotate: 360deg; } }
+@keyframes http-gate-pulse { 50% { box-shadow: 0 0 0 17px rgba(216,79,73,.06); scale: 1.18; } }
+@keyframes http-particle-travel { from { left: -8px; } to { left: calc(100% + 8px); } }
 @keyframes packet-byte-drift { to { translate: -28px 0; } }
 @keyframes capture-byte-fall { from { transform: translateY(0) rotate(45deg); } to { transform: translateY(480px) rotate(405deg); } }
 @keyframes measured-pulse-travel { 0%, 12% { left: 16%; opacity: 0; } 20%, 80% { opacity: 1; } 88%, 100% { left: 84%; opacity: 0; } }
@@ -729,6 +1039,9 @@ html body .explore-search-empty span { color: var(--mechanism-faint); font-size:
   html body .tcp-congestion-panel,
   html body .tls-transcript-panel { padding-left: 0 !important; border-left: 0 !important; }
   html body .packet-byte-river { display: none; }
+  html body .http-workspace-stage .http-lanes { gap: 52px !important; }
+  html body .http-workspace-stage .http-stream-row { grid-template-columns: 88px minmax(0, 1fr) 34px !important; }
+  html body .http-mechanism-orbits { width: 250px; }
   html body .capture-ingest-path { grid-template-columns: 1fr !important; gap: 0 !important; }
   html body .capture-ingest-path > b { width: 1px; height: 24px; margin-left: 14px; background: repeating-linear-gradient(180deg, rgba(41,40,39,.32) 0 5px, transparent 5px 9px); }
   html body .globe-fallback { grid-template-columns: 1fr !important; gap: 22px !important; text-align: center !important; }
@@ -752,6 +1065,38 @@ html body .explore-search-empty span { color: var(--mechanism-faint); font-size:
   html body .tcp-stream-ribbon { right: 24%; left: 24%; }
   html body .tls-protection-shell { width: 150px; opacity: .55; }
   html body .tls-transcript-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html body .http-workspace-stage .http-lanes {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
+    gap: 22px !important;
+    padding: 68px 8px 4px !important;
+  }
+  html body .http-workspace-stage .http-lane > header { padding-bottom: 6px; }
+  html body .http-workspace-stage .http-lane > header span { font-size: .46rem !important; }
+  html body .http-workspace-stage .http-lane > header strong { font-size: .67rem !important; }
+  html body .http-workspace-stage .http-lane > header small { max-width: 112px; font-size: .34rem !important; }
+  html body .http-workspace-stage .http-transport-rail { top: 42px; grid-template-columns: 78px minmax(40px, 1fr) 84px !important; min-height: 28px !important; padding: 3px 0 !important; }
+  html body .http-workspace-stage .http-transport-rail > :is(span, small) { font-size: .34rem; }
+  html body .http-workspace-stage .http-streams { top: 76px; bottom: 26px; }
+  html body .http-workspace-stage .http-stream-row { grid-template-columns: 70px minmax(0, 1fr) 28px !important; padding: 3px 0 !important; }
+  html body .http-workspace-stage .http-stream-label > span { font-size: .36rem; }
+  html body .http-workspace-stage .http-stream-label > strong { font-size: .49rem; }
+  html body .http-workspace-stage .http-stream-label > small { font-size: .32rem; }
+  html body .http-workspace-stage .http-progress-track { height: 34px !important; }
+  html body .http-workspace-stage .http-progress-value { font-size: .48rem !important; }
+  html body :is(.http-shared-order-gate, .http-independent-stream-field) { top: 58%; width: 74px; height: 74px; opacity: .58; }
+  html body .http-independent-stream-field > i { right: -20px; left: -20px; height: 28px; }
+  html body .http-shared-order-gate > b { width: 14px; height: 14px; }
+  html body :is(.http-shared-order-gate, .http-independent-stream-field) > span { display: none; }
+  html body .http-mechanism-orbits { top: 58%; width: 150px; opacity: .28; }
+  html body .http-divergence-axis { top: calc(50% - 44px); bottom: auto; height: 88px; }
+  html body .http-divergence-axis span { font-size: .32rem; }
+  html body .http-divergence-axis > b:nth-of-type(2),
+  html body .http-divergence-axis > b:nth-of-type(3) { display: none; }
+  html body .http-scene-annotation,
+  html body .http-scene-annotation.focus-h3 { top: 5px !important; width: calc(100% - 14px) !important; }
+  html body .http-scene-annotation p,
+  html body .http-scene-annotation .http-event-compare { display: none; }
   html body .packet-visual-workspace .packet-layer-shell { min-width: 82px; padding: 25px 8px 10px !important; }
   html body :is(.observed-dormant-field, .measured-dormant-field) { width: 110vw; opacity: .55; }
   html body :is(.observed-empty, .measured-empty) { padding-inline: 18px !important; }
@@ -760,7 +1105,7 @@ html body .explore-search-empty span { color: var(--mechanism-faint); font-size:
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html body :is(.dns-namespace-core, .dns-link-layer line.is-active, .dns-workspace-map .dns-actor-slot::before, .tcp-stream-ribbon > i, .globe-fallback-mechanism > i, .capture-ingest-stream > i, .measured-dormant-pulse, .packet-byte-river > i) {
+  html body :is(.dns-namespace-core, .dns-link-layer line.is-active, .dns-workspace-map .dns-actor-slot::before, .tcp-stream-ribbon > i, .http-mechanism-orbits > i, .http-shared-order-gate > b, .http-flow-window > b, .http-divergence-axis > b, .globe-fallback-mechanism > i, .capture-ingest-stream > i, .measured-dormant-pulse, .packet-byte-river > i) {
     animation: none !important;
   }
 }

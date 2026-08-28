@@ -7,6 +7,7 @@ const systemCss = read('../src/SiteEditorialWorkspaceSystem.css');
 const dns = read('../src/DnsTheater.tsx');
 const tcp = read('../src/TcpTheater.tsx');
 const tls = read('../src/TlsTheater.tsx');
+const http = read('../src/HttpComparisonTheater.tsx');
 const packet = read('../src/PacketMicroscope.tsx');
 const capture = read('../src/CaptureReplayWorkspace.tsx');
 const observed = read('../src/ObservedInternet.tsx');
@@ -21,6 +22,7 @@ for (const [name, source, tokens] of [
   ['DNS', dns, ['dns-namespace-field', 'dns-query-core', "className={activeEvent.from === from"]],
   ['TCP', tcp, ['tcp-stream-ribbon', 'tcp-ack-gate', 'tcp-window-field', 'tcp-sequence-axis']],
   ['TLS', tls, ['tls-protection-shell', 'tls-record-core', 'tls-key-flow', 'tls-transcript-spine']],
+  ['HTTP', http, ['http-mechanism-orbits', 'http-shared-order-gate', 'http-independent-stream-field', 'http-flow-window']],
   ['Packet', packet, ['packet-byte-river', '--packet-byte-index']],
   ['Capture', capture, ['capture-ingest-stream', 'capture-ingest-path']],
 ]) {
@@ -42,6 +44,9 @@ for (const token of [
   '.tcp-window-field',
   '.tls-protection-shell',
   '.tls-key-flow',
+  '.http-mechanism-orbits',
+  '.http-shared-order-gate',
+  '.http-flow-window',
   '.packet-byte-river',
   '.capture-ingest-stream',
   '.capture-ingest-path',
