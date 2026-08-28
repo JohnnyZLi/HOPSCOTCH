@@ -1154,7 +1154,7 @@ html body .explore-search-empty span { color: var(--mechanism-faint); font-size:
   html body .http-workspace-stage .http-lanes {
     grid-template-columns: 1fr !important;
     grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
-    gap: 44px !important;
+    gap: 76px !important;
     padding: 68px 8px 4px !important;
   }
   html body .http-workspace-stage .http-lane > header { padding-bottom: 6px; }
