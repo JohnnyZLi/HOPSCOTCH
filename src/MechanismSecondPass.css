@@ -640,6 +640,36 @@ html body .observed-dormant-gap { position: absolute; top: 50%; left: 50%; displ
 html body .observed-dormant-gap > i { height: 1px; background: repeating-linear-gradient(90deg, rgba(41,40,39,.3) 0 5px, transparent 5px 10px); }
 html body .observed-dormant-gap > b { color: var(--mechanism-coral); font: 700 .43rem ui-monospace, monospace; letter-spacing: .1em; }
 
+/* Loaded Internet Evidence stays an open relationship field as well.  Earlier
+   editorial layers still supplied large tinted card surfaces at desktop
+   widths; the evidence classes now separate themselves with structure, not
+   containers. */
+
+html body .observed-internet .evidence-flow { background: transparent !important; }
+html body .observed-internet .evidence-card {
+  border-top: 0 !important;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+html body .observed-internet .evidence-card::after { display: none !important; }
+html body .observed-internet .inferred-bridge {
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+html body .observed-internet .evidence-routing-island > button {
+  padding-inline: 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(89,111,130,.45) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
 html body .measured-dormant-field .measured-glyph { position: absolute; top: 50%; left: 50%; width: 72%; height: 70px; transform: translate(-50%, -50%); opacity: .32; }
 html body .measured-dormant-node.node-source { top: 50%; left: 4%; transform: translateY(-50%); }
 html body .measured-dormant-node.node-boundary { top: 12%; left: 50%; transform: translateX(-50%); }
