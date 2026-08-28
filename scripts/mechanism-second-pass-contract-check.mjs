@@ -14,6 +14,8 @@ const observed = read('../src/ObservedInternet.tsx');
 const measured = read('../src/MeasuredNetworkWorkspace.tsx');
 const physical = read('../src/PhysicalInternetGlobe.tsx');
 const explore = read('../src/ExploreLauncher.tsx');
+const internetScale = read('../src/InternetScaleTheater.tsx');
+const builder = read('../src/NetworkBuilder.tsx');
 const performanceProfile = read('./performance-profile.mjs');
 
 assert.ok(systemCss.trimEnd().endsWith("@import './MechanismSecondPass.css';"), 'mechanism layer must load after every legacy workspace skin');
@@ -34,6 +36,8 @@ assert.ok(observed.includes('observed-dormant-field') && observed.includes('obse
 assert.ok(measured.includes('measured-dormant-field') && measured.includes('measured-dormant-pulse'));
 assert.ok(physical.includes('globe-fallback-mechanism') && physical.includes("setActiveDrawer('tools')"));
 assert.ok(explore.includes('type="search"') && explore.includes('searchResults.map'));
+assert.ok(internetScale.includes("useState('')") && internetScale.includes('ctx.lineDashOffset') && internetScale.includes("for (const offset of [0, .33, .66])"), 'AS Routing must begin without a permanent relationship card and animate only the computed winner');
+assert.ok(builder.includes('builder-route-signal-track') && builder.includes('builder-selection-card'), 'Builder must keep its computed route signal and contextual selection instrument');
 assert.ok(performanceProfile.includes(".observed-toolbar-controls .visual-drawer-tabs button', 'QUERY'"), 'Phase 4 browser review must open the now-contextual Query drawer before submitting');
 
 for (const token of [
@@ -54,6 +58,9 @@ for (const token of [
   '.measured-dormant-field',
   '.globe-fallback-mechanism',
   '.explore-search',
+  '.internet-scale :is(.as-winner-readout, .as-selection-card)',
+  '.builder-visual-workspace .builder-link.active',
+  '.builder-visual-workspace .builder-selection-card',
   '@media (max-width: 560px)',
   '@media (prefers-reduced-motion: reduce)',
 ]) assert.ok(css.includes(token), `second-pass CSS is missing ${token}`);

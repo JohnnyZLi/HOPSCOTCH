@@ -752,6 +752,88 @@ html body .http-scene-annotation .http-event-compare > div {
   background: transparent !important;
 }
 
+/* Routing worlds — the selected path moves; contextual readouts stop behaving
+   like permanent dashboard cards. */
+
+html body .internet-scale :is(.as-winner-readout, .as-selection-card) {
+  padding: 9px 0 9px 14px !important;
+  border: 0 !important;
+  border-left: 1px solid var(--site-coral) !important;
+  border-radius: 0 !important;
+  color: var(--site-ink) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+html body .internet-scale .as-winner-readout { bottom: 40px !important; width: min(560px, 48vw) !important; }
+html body .internet-scale .as-selection-card { right: 20px !important; bottom: 40px !important; width: min(330px, 30vw) !important; border-left-color: var(--site-blue) !important; }
+html body .internet-scale :is(.as-winner-readout, .as-selection-card) > span { color: var(--site-ink-faint) !important; }
+html body .internet-scale :is(.as-winner-readout, .as-selection-card) > strong { color: var(--site-ink-strong) !important; }
+html body .internet-scale :is(.as-winner-readout, .as-selection-card) > p { color: var(--site-ink-soft) !important; }
+html body .internet-scale .as-selection-card > button {
+  justify-self: start;
+  padding: 6px 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(89,111,130,.46) !important;
+  border-radius: 0 !important;
+  color: var(--site-ink) !important;
+  background: transparent !important;
+}
+
+html body .builder-visual-workspace .builder-stage-meta > div {
+  padding: 4px 10px 4px 0 !important;
+  border: 0 !important;
+  border-right: 1px solid rgba(41,40,39,.13) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+}
+
+html body .builder-visual-workspace .builder-selection-card {
+  bottom: 38px !important;
+  left: 20px !important;
+  width: min(360px, 34vw) !important;
+  padding: 9px 0 9px 14px !important;
+  border: 0 !important;
+  border-left: 1px solid var(--site-coral) !important;
+  border-radius: 0 !important;
+  color: var(--site-ink) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+html body .builder-visual-workspace .builder-selection-card > span { color: var(--site-ink-faint) !important; }
+html body .builder-visual-workspace .builder-selection-card > strong { color: var(--site-ink-strong) !important; }
+html body .builder-visual-workspace .builder-selection-card > p { color: var(--site-ink-soft) !important; }
+html body .builder-visual-workspace .builder-selection-card > div { gap: 14px !important; }
+html body .builder-visual-workspace .builder-selection-card button {
+  flex: 0 0 auto !important;
+  min-height: 27px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(216,79,73,.42) !important;
+  border-radius: 0 !important;
+  color: var(--site-ink) !important;
+  background: transparent !important;
+}
+
+html body .builder-visual-workspace .builder-link.active line:not(.hit) {
+  stroke-dasharray: 2.2 1.8 !important;
+  animation: builder-route-current .8s linear infinite;
+}
+
+html body .builder-visual-workspace .builder-node.on-route::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border: 1px solid rgba(216,79,73,.24);
+  border-radius: inherit;
+  pointer-events: none;
+  animation: builder-node-current 2.3s ease-out infinite;
+}
+
 /* Packet microscope — a byte river folds continuously into protocol layers. */
 
 html body .packet-visual-workspace .packet-object-wrap { isolation: isolate; padding-top: 18px !important; }
@@ -1027,6 +1109,8 @@ html body .explore-search-empty span { color: var(--mechanism-faint); font-size:
 @keyframes http-mechanism-orbit { to { rotate: 360deg; } }
 @keyframes http-gate-pulse { 50% { box-shadow: 0 0 0 17px rgba(216,79,73,.06); scale: 1.18; } }
 @keyframes http-particle-travel { from { left: -8px; } to { left: calc(100% + 8px); } }
+@keyframes builder-route-current { to { stroke-dashoffset: -4; } }
+@keyframes builder-node-current { 70%,100% { inset: -14px; opacity: 0; } }
 @keyframes packet-byte-drift { to { translate: -28px 0; } }
 @keyframes capture-byte-fall { from { transform: translateY(0) rotate(45deg); } to { transform: translateY(480px) rotate(405deg); } }
 @keyframes measured-pulse-travel { 0%, 12% { left: 16%; opacity: 0; } 20%, 80% { opacity: 1; } 88%, 100% { left: 84%; opacity: 0; } }
@@ -1042,6 +1126,8 @@ html body .explore-search-empty span { color: var(--mechanism-faint); font-size:
   html body .http-workspace-stage .http-lanes { gap: 52px !important; }
   html body .http-workspace-stage .http-stream-row { grid-template-columns: 88px minmax(0, 1fr) 34px !important; }
   html body .http-mechanism-orbits { width: 250px; }
+  html body .internet-scale .as-winner-readout { width: min(460px, 48vw) !important; }
+  html body .internet-scale .as-selection-card { width: min(280px, 31vw) !important; }
   html body .capture-ingest-path { grid-template-columns: 1fr !important; gap: 0 !important; }
   html body .capture-ingest-path > b { width: 1px; height: 24px; margin-left: 14px; background: repeating-linear-gradient(180deg, rgba(41,40,39,.32) 0 5px, transparent 5px 9px); }
   html body .globe-fallback { grid-template-columns: 1fr !important; gap: 22px !important; text-align: center !important; }
@@ -1068,7 +1154,7 @@ html body .explore-search-empty span { color: var(--mechanism-faint); font-size:
   html body .http-workspace-stage .http-lanes {
     grid-template-columns: 1fr !important;
     grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
-    gap: 22px !important;
+    gap: 44px !important;
     padding: 68px 8px 4px !important;
   }
   html body .http-workspace-stage .http-lane > header { padding-bottom: 6px; }
@@ -1089,14 +1175,27 @@ html body .explore-search-empty span { color: var(--mechanism-faint); font-size:
   html body .http-shared-order-gate > b { width: 14px; height: 14px; }
   html body :is(.http-shared-order-gate, .http-independent-stream-field) > span { display: none; }
   html body .http-mechanism-orbits { top: 58%; width: 150px; opacity: .28; }
-  html body .http-divergence-axis { top: calc(50% - 44px); bottom: auto; height: 88px; }
-  html body .http-divergence-axis span { font-size: .32rem; }
+  html body .http-divergence-axis {
+    top: 50%;
+    right: 16px;
+    bottom: auto;
+    left: 16px;
+    width: auto;
+    height: 1px;
+    background: repeating-linear-gradient(90deg, rgba(216,79,73,.4) 0 7px, transparent 7px 13px) !important;
+  }
+  html body .http-divergence-axis span { padding: 3px 6px; font-size: .32rem; transform: translate(-50%, -50%); }
   html body .http-divergence-axis > b:nth-of-type(2),
   html body .http-divergence-axis > b:nth-of-type(3) { display: none; }
   html body .http-scene-annotation,
   html body .http-scene-annotation.focus-h3 { top: 5px !important; width: calc(100% - 14px) !important; }
   html body .http-scene-annotation p,
   html body .http-scene-annotation .http-event-compare { display: none; }
+  html body .internet-scale :is(.as-winner-readout, .as-selection-card) { bottom: 44px !important; width: calc(100% - 20px) !important; }
+  html body .internet-scale .as-winner-readout { right: 10px !important; left: 10px !important; }
+  html body .internet-scale .as-selection-card { display: none !important; }
+  html body .builder-visual-workspace .builder-selection-card { right: 10px !important; bottom: 38px !important; left: 10px !important; width: auto !important; }
+  html body .builder-visual-workspace .builder-selection-card > p { display: none; }
   html body .packet-visual-workspace .packet-layer-shell { min-width: 82px; padding: 25px 8px 10px !important; }
   html body :is(.observed-dormant-field, .measured-dormant-field) { width: 110vw; opacity: .55; }
   html body :is(.observed-empty, .measured-empty) { padding-inline: 18px !important; }
@@ -1105,7 +1204,7 @@ html body .explore-search-empty span { color: var(--mechanism-faint); font-size:
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html body :is(.dns-namespace-core, .dns-link-layer line.is-active, .dns-workspace-map .dns-actor-slot::before, .tcp-stream-ribbon > i, .http-mechanism-orbits > i, .http-shared-order-gate > b, .http-flow-window > b, .http-divergence-axis > b, .globe-fallback-mechanism > i, .capture-ingest-stream > i, .measured-dormant-pulse, .packet-byte-river > i) {
+  html body :is(.dns-namespace-core, .dns-link-layer line.is-active, .dns-workspace-map .dns-actor-slot::before, .tcp-stream-ribbon > i, .http-mechanism-orbits > i, .http-shared-order-gate > b, .http-flow-window > b, .http-divergence-axis > b, .builder-visual-workspace .builder-link.active line, .builder-visual-workspace .builder-node.on-route::before, .globe-fallback-mechanism > i, .capture-ingest-stream > i, .measured-dormant-pulse, .packet-byte-river > i) {
     animation: none !important;
   }
 }
