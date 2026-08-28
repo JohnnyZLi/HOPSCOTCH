@@ -129,6 +129,11 @@ html body .dns-workspace-map .dns-actor {
   box-shadow: none !important;
 }
 
+html body .dns-visual-workspace .dns-workspace-map :is(.dns-actor-slot, .dns-actor) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 html body .dns-workspace-map .dns-actor-slot::before {
   content: '';
   position: absolute;
@@ -257,6 +262,13 @@ html body :is(.tcp-endpoint, .tls-endpoint) {
   box-shadow: none !important;
 }
 
+html body .tcp-visual-workspace .tcp-workspace-stage .tcp-endpoint,
+html body .tls-visual-workspace .tls-workspace-stage .tls-endpoint {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 html body :is(.tcp-endpoint, .tls-endpoint) > i {
   position: absolute;
   top: 50%;
@@ -377,6 +389,13 @@ html body .tls-encryption-boundary {
   border-bottom: 1px solid rgba(118,104,126,.34) !important;
   border-radius: 0 !important;
   background: transparent !important;
+}
+
+html body .tls-visual-workspace .tls-workspace-stage .tls-encryption-boundary {
+  border: 0 !important;
+  border-bottom: 1px solid rgba(118,104,126,.34) !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 html body .tls-key-schedule,
@@ -694,6 +713,9 @@ html body .explore-search-empty span { color: var(--mechanism-faint); font-size:
   html body .dns-namespace-field { width: 165px; opacity: .38; }
   html body .dns-workspace-map .dns-actor { width: 88px !important; }
   html body .dns-workspace-map .dns-actor > strong { font-size: .46rem !important; }
+  html body .dns-message-token { max-width: 74px !important; padding-left: 15px !important; }
+  html body .dns-message-token > span { font-size: .38rem !important; }
+  html body .dns-message-token > strong { display: none !important; }
   html body :is(.tcp-endpoint, .tls-endpoint) { width: 102px !important; }
   html body :is(.tcp-endpoint, .tls-endpoint) > i { width: 40px; height: 40px; }
   html body .tcp-ack-gate { width: 62px; height: 62px; }
