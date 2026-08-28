@@ -1,6 +1,6 @@
 import { animate, stagger } from 'animejs';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { CapturedFrameEvidence } from './capture/types.ts';
 import {
   VisualDrawerTabs,
@@ -250,6 +250,9 @@ function SimulatedPacketMicroscope({
           <div className="packet-object-labels">
             <span>SIMULATED FRAME</span>
             <strong>{snapshot.frameBytes} BYTES · FCS NOT CAPTURED</strong>
+          </div>
+          <div className="packet-byte-river" aria-hidden="true">
+            {snapshot.bytes.slice(0, 72).map((byte, index) => <i key={`${index}-${byte}`} style={{ '--packet-byte-index': index } as CSSProperties}>{hexByte(byte)}</i>)}
           </div>
           <div className="packet-object" role="group" aria-label="Packet encapsulation layers">
             {snapshot.segments.map((segment) => (

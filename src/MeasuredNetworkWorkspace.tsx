@@ -378,7 +378,13 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
     </AnimatePresence>
 
     {!measuredState ? <section className="measured-empty">
-      <SemanticGlyph category="route" />
+      <div className="measured-dormant-field" aria-hidden="true">
+        <SemanticGlyph category="route" />
+        <i className="measured-dormant-pulse" />
+        <span className="measured-dormant-node node-source">LOCAL</span>
+        <span className="measured-dormant-node node-boundary">BOUNDARY</span>
+        <span className="measured-dormant-node node-report">REPORT</span>
+      </div>
       <div><strong>NO LOCAL MEASUREMENT LOADED</strong><p>Import a Network Diagnostics Suite report-v2 JSON file or explicitly connect the optional loopback bridge in Setup. HOPSCOTCH does not scan localhost, poll in the background, upload reports, or invent measurements for sections that were not captured.</p></div>
       <button type="button" onClick={() => inputRef.current?.click()}>CHOOSE JSON REPORT <span>↗</span></button>
     </section> : <>

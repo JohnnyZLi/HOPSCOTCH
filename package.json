@@ -49,6 +49,7 @@
     "visual:phase4": "node scripts/performance-profile.mjs --phase4-visual-review && node scripts/capture-browser-check.mjs --phase4-visual-review",
     "visual:phase5": "npm run build && node scripts/journey-annotation-visual-review.mjs",
     "test:evidence-workspace-contract": "node scripts/evidence-workspace-contract-check.mjs",
+    "test:mechanism-second-pass-contract": "node scripts/mechanism-second-pass-contract-check.mjs",
     "test:explore-launcher-contract": "node scripts/explore-launcher-contract-check.mjs",
     "test:navigation-contract": "node scripts/navigation-contract-check.mjs",
     "test:home-action-deck-contract": "node scripts/home-action-deck-contract-check.mjs",
@@ -90,7 +91,7 @@
     "test:builder-provider-contract": "node scripts/builder-provider-contract-check.mjs",
     "test:builder-explain-contract": "node scripts/builder-explain-contract-check.mjs",
     "test:product-integration-contract": "node scripts/product-integration-contract-check.mjs",
-    "test:ui-stability-contract": "node scripts/ui-stability-contract-check.mjs",
+    "test:ui-stability-contract": "node scripts/ui-stability-contract-check.mjs && npm run test:mechanism-second-pass-contract",
     "test:visual-workspace-contract": "node scripts/visual-workspace-contract-check.mjs"
   },
   "dependencies": {

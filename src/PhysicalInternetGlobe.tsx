@@ -530,7 +530,11 @@ export function PhysicalInternetGlobe({
             <div className="globe-reticle" aria-hidden="true"><i/><i/></div>
             <div className="globe-watermark"><strong>{stressMode ? 'SIMULATED STRESS POINTS · NOT PUBLIC DATA' : 'PHYSICAL INFRASTRUCTURE ≠ FORWARDING PATH'}</strong><span>DRAG TO ROTATE · SCROLL TO ZOOM · CLICK A FACILITY</span></div>
             {loading && <div className="globe-loading"><i/><strong>QUERYING PUBLIC INFRASTRUCTURE</strong><span>ONE BOUNDED PEERINGDB REQUEST</span></div>}
-            {webglError && <div className="globe-fallback"><strong>WEBGL 2 UNAVAILABLE</strong><span>{webglError}</span><p>Public facility records remain inspectable in the list; HOPSCOTCH will not substitute a fake 3D renderer.</p></div>}
+            {webglError && <div className="globe-fallback">
+              <div className="globe-fallback-mechanism" aria-hidden="true"><i /><i /><i /><b /><b /><b /></div>
+              <div><strong>WEBGL 2 UNAVAILABLE</strong><span>{webglError}</span><p>Public facility records remain inspectable in the list; HOPSCOTCH will not substitute a fake 3D renderer.</p></div>
+              <button type="button" onClick={() => setActiveDrawer('tools')}>INSPECT FACILITY RECORDS ↗</button>
+            </div>}
             {dataError && <div className="globe-data-error"><strong>PUBLIC DATA UNAVAILABLE</strong><span>{dataError}</span></div>}
           </div>
           {selectedFacility && <article className="physical-selection-card">

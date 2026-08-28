@@ -139,6 +139,7 @@ function EmptyCapture({
           transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
           aria-hidden="true"
         ><i /><i /><i /></motion.div>
+        <div className="capture-ingest-stream" aria-hidden="true">{Array.from({ length: 18 }, (_, index) => <i key={index} />)}</div>
         <span>{parsing ? 'PARSING LOCALLY' : 'LOCAL CAPTURE INGEST'}</span>
         <h2>{parsing ? 'READING IMMUTABLE EVIDENCE…' : 'DROP PCAP / PCAPNG'}</h2>
         <p>Choose a capture explicitly. HOPSCOTCH reads it in this browser session and never uploads, scans, sniffs, probes, or silently stores it.</p>
@@ -146,10 +147,12 @@ function EmptyCapture({
         <small>64 MiB · 100,000 FRAME CEILING · WORKER PARSE/INDEX · ETHERNET II</small>
       </div>
       {error && <div className="capture-import-error" role="alert"><strong>IMPORT REJECTED</strong><p>{error}</p></div>}
-      <div className="capture-boundary-grid">
-        <article><span>CONTAINERS</span><strong>PCAP + PCAPNG</strong><p>Classic endian/micro/nanosecond headers and bounded Section / Interface / Enhanced Packet blocks.</p></article>
-        <article><span>VISIBLE PROTOCOLS</span><strong>ETH → IP → TRANSPORT</strong><p>Ethernet/VLAN, IPv4/IPv6, TCP/UDP, ICMP, DNS, and capture-visible TLS hello metadata.</p></article>
-        <article><span>TRUTH BOUNDARY</span><strong>UNKNOWN STAYS UNKNOWN</strong><p>No invented topology, missing packets, decrypted HTTP, packet loss, or uncaptured handshake steps.</p></article>
+      <div className="capture-boundary-grid capture-ingest-path">
+        <article><i aria-hidden="true"/><span>CONTAINER</span><strong>PCAP + PCAPNG</strong><p>Bounded capture blocks</p></article>
+        <b aria-hidden="true"/>
+        <article><i aria-hidden="true"/><span>VISIBLE BYTES</span><strong>ETH → IP → TRANSPORT</strong><p>Only parsed evidence advances</p></article>
+        <b aria-hidden="true"/>
+        <article><i aria-hidden="true"/><span>TRUTH BOUNDARY</span><strong>UNKNOWN STAYS UNKNOWN</strong><p>No invented path or plaintext</p></article>
       </div>
     </section>
   );

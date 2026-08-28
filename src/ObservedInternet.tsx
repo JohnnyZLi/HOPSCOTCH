@@ -24,7 +24,7 @@ export function ObservedInternet({ onExit, onOpenSimulated }: { onExit: () => vo
   const [snapshot, setSnapshot] = useState<InternetEvidenceSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeDrawer, setActiveDrawer] = useState<VisualDrawerId | null>('config');
+  const [activeDrawer, setActiveDrawer] = useState<VisualDrawerId | null>(null);
 
   const load = async (event?: FormEvent) => {
     event?.preventDefault();
@@ -157,7 +157,12 @@ export function ObservedInternet({ onExit, onOpenSimulated }: { onExit: () => vo
     timeline={<div className="observed-evidence-rail"><span>EDGE OBSERVATION</span><i /><strong>UNKNOWN FORWARDING SPACE</strong><i /><span>PUBLIC ROUTING CONTEXT</span></div>}
   >
     {!snapshot ? <section className="observed-empty">
-      <div className="evidence-orbit"><i /><i /><i /><b /></div>
+      <div className="observed-dormant-field" aria-hidden="true">
+        <div className="evidence-orbit"><i /><i /><i /><b /></div>
+        <span className="observed-dormant-node node-edge">EDGE</span>
+        <span className="observed-dormant-gap"><i /><b>UNKNOWN</b><i /></span>
+        <span className="observed-dormant-node node-public">PUBLIC</span>
+      </div>
       <div><span>AWAITING EXPLICIT QUERY</span><strong>BUILD ONE BOUNDED SNAPSHOT</strong><p>Request-address identifiers are intentionally excluded from the browser-facing evidence model.</p></div>
       <button type="button" onClick={() => setActiveDrawer('config')}>OPEN QUERY</button>
     </section> : <section className="observed-main" aria-label={`Evidence islands for ${snapshot.destination.hostname}`}>
