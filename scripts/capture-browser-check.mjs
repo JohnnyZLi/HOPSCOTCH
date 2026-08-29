@@ -415,7 +415,7 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
     if (errors.length > 0) throw new Error(`${profile.id} emitted ${errors.length} runtime/console error(s): ${JSON.stringify(errors.slice(0, 2))}`);
     return { id: profile.id, viewport: { width: profile.width, height: profile.height }, reducedMotion: profile.reducedMotion, ...loaded, capturedMicroscopeVerified: true, captureReplayVisualReview, visualReview: { geometry, screenshotPath, inspectScreenshotPath } };
   }
-  await clickText(cdp, '.packet-origin-strip button', 'RETURN TO CAPTURE');
+  await clickText(cdp, '.packet-visual-workspace .interactive-world-toolbar__actions button', 'EXIT');
   await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-capture-loaded')==='true'`);
 
   await setFileInput(cdp, '.capture-file-input', fixtures.invalidPath);
