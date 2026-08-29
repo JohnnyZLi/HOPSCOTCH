@@ -74,17 +74,17 @@
 .capture-replay .capture-event-rail button em { grid-column: 2; }
 
 .capture-evidence-inspector.is-frame-stage > .captured-frame-mechanism {
-  grid-area: mechanism;
+  grid-area: mechanism !important;
 }
-.capture-evidence-inspector.is-frame-stage > .capture-specimen-mode-banner { grid-area: banner; }
-.capture-evidence-inspector.is-frame-stage > .capture-frame-heading { grid-area: heading; }
-.capture-evidence-inspector.is-frame-stage > .capture-frame-nav { grid-area: nav; }
-.capture-evidence-inspector.is-frame-stage > .capture-frame-facts { grid-area: facts; }
-.capture-evidence-inspector.is-frame-stage > .capture-lineage { grid-area: lineage; }
-.capture-evidence-inspector.is-frame-stage > .capture-protocol-stack { grid-area: protocol; }
-.capture-evidence-inspector.is-frame-stage > .capture-field-list { grid-area: fields; }
-.capture-evidence-inspector.is-frame-stage > .capture-byte-inspector { grid-area: bytes; }
-.capture-evidence-inspector.is-frame-stage > .capture-open-microscope { grid-area: open; }
+.capture-evidence-inspector.is-frame-stage > .capture-specimen-mode-banner { grid-area: banner !important; }
+.capture-evidence-inspector.is-frame-stage > .capture-frame-heading { grid-area: heading !important; }
+.capture-evidence-inspector.is-frame-stage > .capture-frame-nav { grid-area: nav !important; }
+.capture-evidence-inspector.is-frame-stage > .capture-frame-facts { grid-area: facts !important; }
+.capture-evidence-inspector.is-frame-stage > .capture-lineage { grid-area: lineage !important; }
+.capture-evidence-inspector.is-frame-stage > .capture-protocol-stack { grid-area: protocol !important; }
+.capture-evidence-inspector.is-frame-stage > .capture-field-list { grid-area: fields !important; }
+.capture-evidence-inspector.is-frame-stage > .capture-byte-inspector { grid-area: bytes !important; }
+.capture-evidence-inspector.is-frame-stage > .capture-open-microscope { grid-area: open !important; }
 
 .capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage {
   grid-template-areas:
@@ -95,9 +95,9 @@
     "lineage bytes"
     "protocol bytes"
     "fields bytes"
-    ". open";
-  grid-template-columns: minmax(270px, 0.8fr) minmax(390px, 1.2fr);
-  grid-template-rows: auto auto auto auto auto auto minmax(0, 1fr) auto;
+    ". open" !important;
+  grid-template-columns: minmax(270px, 0.8fr) minmax(390px, 1.2fr) !important;
+  grid-template-rows: auto auto auto auto auto auto minmax(0, 1fr) auto !important;
   background:
     linear-gradient(90deg, rgba(41, 40, 39, 0.028) 1px, transparent 1px),
     linear-gradient(rgba(41, 40, 39, 0.028) 1px, transparent 1px),
@@ -125,9 +125,9 @@
       "protocol"
       "fields"
       "lineage"
-      "open";
-    grid-template-columns: 1fr;
-    grid-template-rows: none;
+      "open" !important;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: none !important;
   }
   .capture-evidence-inspector.is-frame-stage > * { grid-column: auto !important; grid-row: auto !important; }
   .capture-evidence-inspector.is-frame-stage > .captured-frame-mechanism { grid-area: mechanism !important; }
