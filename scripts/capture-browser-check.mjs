@@ -356,6 +356,8 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
   await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='inspect'`);
   await clickText(cdp, '.capture-open-microscope', 'OPEN READ-ONLY PACKET MICROSCOPE');
   await waitForExpression(cdp, `document.querySelector('.packet-microscope')?.getAttribute('data-packet-provenance')==='CAPTURED'`);
+  await clickText(cdp, '.packet-visual-workspace .visual-drawer-tabs button', 'INSPECT');
+  await waitForExpression(cdp, `Boolean(document.querySelector('.packet-visual-workspace .visual-drawer'))`);
   await clickText(cdp, '.packet-field-list button', 'Sequence Number');
   await waitForExpression(cdp, `document.querySelectorAll('.packet-byte.highlighted').length > 0`);
   const microscope = await cdp.evaluate(`(()=>({
@@ -368,6 +370,8 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
     throw new Error(`${profile.id} captured Packet Microscope crossed the read-only boundary.`);
   }
   if (!microscope.text.toLocaleUpperCase().includes('PACKET EVIDENCE') || /TRACK T · PACKET EVIDENCE/i.test(microscope.text)) throw new Error(`${profile.id} captured Packet Microscope exposed stale product-track identity.`);
+  await clickText(cdp, '.packet-visual-workspace .visual-drawer__close', '×');
+  await waitForExpression(cdp, `!document.querySelector('.packet-visual-workspace .visual-drawer')`);
 
   if (profile.visualReview) {
     await waitForExpression(cdp, `!document.querySelector('.packet-visual-workspace .visual-entrance')`, 5000);
