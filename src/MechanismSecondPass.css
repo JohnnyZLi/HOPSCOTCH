@@ -1037,6 +1037,7 @@ html body .observed-dormant-gap > b { color: var(--mechanism-coral); font: 700 .
 html body .observed-internet .evidence-flow { background: transparent !important; }
 html body .observed-internet .evidence-card {
   isolation: isolate;
+  overflow: hidden !important;
   border-top: 0 !important;
   border-right: 0 !important;
   border-bottom: 0 !important;
