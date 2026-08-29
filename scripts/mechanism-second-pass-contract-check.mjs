@@ -33,7 +33,9 @@ for (const [name, source, tokens] of [
 
 assert.ok(observed.includes("useState<VisualDrawerId | null>(null)"), 'Internet Evidence must not obscure its scene with a default-open drawer');
 assert.ok(observed.includes('observed-dormant-field') && observed.includes('observed-dormant-gap'));
+assert.ok(observed.includes('EvidenceIslandSignal') && observed.includes('evidence-gap-engine') && observed.includes('snapshot.collectorPaths.length'), 'Internet Evidence must animate inside provenance islands while leaving the unobserved middle disconnected');
 assert.ok(measured.includes('measured-dormant-field') && measured.includes('measured-dormant-pulse'));
+assert.ok(measured.includes('MeasuredSignalField') && measured.includes("fact.availability !== 'unavailable'") && measured.includes('REPORT BOUNDARY'), 'Measured Network may emit kinetic traces only for accepted local facts inside the report boundary');
 assert.ok(physical.includes('globe-fallback-mechanism') && physical.includes("setActiveDrawer('tools')"));
 assert.ok(explore.includes('type="search"') && explore.includes('searchResults.map'));
 assert.ok(internetScale.includes("useState('')") && internetScale.includes('ctx.lineDashOffset') && internetScale.includes("for (const offset of [0, .33, .66])"), 'AS Routing must begin without a permanent relationship card and animate only the computed winner');
@@ -55,7 +57,11 @@ for (const token of [
   '.capture-ingest-stream',
   '.capture-ingest-path',
   '.observed-dormant-field',
+  '.evidence-island-signal',
+  '.evidence-gap-engine',
   '.measured-dormant-field',
+  '.measured-signal-field',
+  '.measured-signal-traces',
   '.globe-fallback-mechanism',
   '.explore-search',
   '.internet-scale :is(.as-winner-readout, .as-selection-card)',

@@ -160,6 +160,20 @@ function SemanticGlyph({ category }: { category: NativeMeasurementCategory }) {
   </div>;
 }
 
+function MeasuredSignalField({ category, facts }: { category: NativeMeasurementCategory; facts: readonly NativeMeasurementFact[] }) {
+  const accepted = facts.filter((fact) => fact.availability !== 'unavailable').slice(0, 12);
+  return <div className={`measured-signal-field signal-${category}${accepted.length === 0 ? ' is-silent' : ''}`} aria-hidden="true" data-signal-count={accepted.length}>
+    <span className="measured-signal-boundary boundary-local">LOCAL VANTAGE</span>
+    <span className="measured-signal-boundary boundary-report">REPORT BOUNDARY</span>
+    <div className="measured-signal-traces">
+      {accepted.map((fact, index) => <i key={fact.id} className={`state-${fact.availability}`} style={{ top: `${((index + 1) / (accepted.length + 1)) * 100}%` }}>
+        <b style={{ animationDelay: `${index * -0.37}s` }} />
+      </i>)}
+    </div>
+    <strong>{accepted.length} ACCEPTED SIGNAL{accepted.length === 1 ? '' : 'S'}</strong>
+  </div>;
+}
+
 export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange, onExit }: { measuredState: MeasuredSnapshotState | null; onMeasuredStateChange: (state: MeasuredSnapshotState | null) => void; onExit: () => void }) {
   const reduceMotion = useReducedMotion();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -413,6 +427,7 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
             <div><span>{categoryCopy.kicker}</span><h2>{categoryCopy.label.toUpperCase()}</h2><p>{categoryCopy.description}</p></div>
             <div className="measured-scene-heading-side"><span>NO CROSS-TARGET MERGE</span><SemanticGlyph category={selectedCategory} /></div>
           </header>
+          <MeasuredSignalField category={selectedCategory} facts={activeTargetGroup?.facts ?? []} />
           <div className="measured-scene-body">
             {selectedGroups.length > 1 && <nav className="measured-target-selector" aria-label={`${categoryCopy.label} target scopes`}>
               {selectedGroups.map((group) => {
