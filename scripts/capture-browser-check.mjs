@@ -259,6 +259,14 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
   if (!frameGeometry.mechanism || frameGeometry.mechanism.width < frameGeometry.frame.width * .9 || frameGeometry.mechanismLayers < 3) throw new Error(`${profile.id} frame mode did not explode the selected frame into its captured layers: ${JSON.stringify(frameGeometry)}.`);
   if (frameGeometry.frame.width < frameGeometry.grid.width * 0.98 || frameGeometry.frame.height < frameGeometry.grid.height * 0.98 || frameGeometry.scrollWidth > profile.width) throw new Error(`${profile.id} frame specimen does not own the stage: ${JSON.stringify(frameGeometry)}.`);
   if (frameGeometry.flatSurfaceAlpha.some((value) => value === null || value > 0.02)) throw new Error(`${profile.id} frame specimen regressed to nested card surfaces: ${JSON.stringify(frameGeometry.flatSurfaceAlpha)}.`);
+  const frameNavigation = frameGeometry.sections.find((entry) => entry.selector === '.capture-frame-nav')?.rect;
+  const frameFacts = frameGeometry.sections.find((entry) => entry.selector === '.capture-frame-facts')?.rect;
+  const frameBytes = frameGeometry.sections.find((entry) => entry.selector === '.capture-byte-inspector')?.rect;
+  const firstAfterMechanism = profile.width <= 860
+    ? frameGeometry.sections.find((entry) => entry.selector === '.capture-specimen-mode-banner')?.rect
+    : frameNavigation;
+  if (firstAfterMechanism && frameGeometry.mechanism.bottom > firstAfterMechanism.top + 1) throw new Error(`${profile.id} frame mechanism overlaps the inspection ledger: ${JSON.stringify({ mechanism: frameGeometry.mechanism, firstAfterMechanism })}.`);
+  if (frameFacts && frameBytes && frameBytes.top < frameFacts.bottom - 1) throw new Error(`${profile.id} exact bytes overlap the captured frame facts: ${JSON.stringify({ frameFacts, frameBytes })}.`);
   if (profile.width <= 540) {
     for (let index = 1; index < frameGeometry.sections.length; index += 1) {
       const previous = frameGeometry.sections[index - 1];

@@ -113,11 +113,11 @@
 .captured-frame-mechanism__readout small { color: var(--site-ink-faint, #837d78); font-size: 0.42rem; }
 
 .captured-frame-mechanism[data-mechanism-mode="replay"] {
-  width: clamp(160px, 16vw, 230px);
-  height: 138px;
+  width: clamp(210px, 19vw, 300px);
+  height: 160px;
   pointer-events: none;
 }
-.captured-frame-mechanism[data-mechanism-mode="replay"] .captured-frame-mechanism__object { height: 108px; }
+.captured-frame-mechanism[data-mechanism-mode="replay"] .captured-frame-mechanism__object { height: 128px; }
 .captured-frame-mechanism[data-mechanism-mode="replay"] .captured-frame-mechanism__plates > * {
   top: calc(18px + var(--layer-index) * 13px);
   left: calc(7px + var(--layer-index) * 10px);
