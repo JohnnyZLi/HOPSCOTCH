@@ -63,6 +63,7 @@ assert.match(frameMechanismCss, /\[data-mechanism-mode="frame"\]/);
 assert.match(frameMechanismCss, /@media \(prefers-reduced-motion: reduce\)/);
 assert.match(replayMechanismCss, /\.capture-packet-mechanism/);
 assert.match(replayMechanismCss, /\.capture-event-rail button::before/);
+assert.match(replayMechanismCss, /html body \.capture-replay\.capture-replay\[data-capture-mode="frame"\]/);
 
 for (const requiredSurface of [
   'PROTOCOL SEQUENCE', 'TCP STREAM + RTT', 'TRAFFIC OVERVIEW', 'COMPARE', 'SIDECAR EVIDENCE',
