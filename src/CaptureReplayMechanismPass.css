@@ -95,7 +95,7 @@
     "lineage bytes"
     "protocol bytes"
     "fields bytes"
-    ". open" !important;
+    "open open" !important;
   grid-template-columns: minmax(270px, 0.8fr) minmax(390px, 1.2fr) !important;
   grid-template-rows: auto auto auto auto auto auto minmax(0, 1fr) auto !important;
   background:
