@@ -377,11 +377,17 @@ async function exerciseProfile(cdp, origin, fixtures, profile) {
       const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
       const toolbar=rect('.packet-visual-workspace .visual-workspace__toolbar');
       const hud=rect('.packet-visual-workspace .visual-workspace__hud');
-      return {viewport:{width:innerWidth,height:innerHeight},workspace:rect('.packet-visual-workspace'),stage:rect('.packet-visual-workspace .visual-workspace__stage'),world:rect('.packet-visual-workspace .packet-stage'),toolbar,hud,scrollWidth:document.documentElement.scrollWidth,toolbarHudOverlap:Boolean(toolbar&&hud&&toolbar.left<hud.right&&toolbar.right>hud.left&&toolbar.top<hud.bottom&&toolbar.bottom>hud.top)};
+      const mechanismStage=rect('.captured-packet-workspace .captured-microscope-mechanism-stage');
+      const mechanism=rect('.captured-packet-workspace [data-frame-mechanism][data-mechanism-mode="microscope"]');
+      const byteWorkbench=rect('.captured-packet-workspace .captured-byte-workbench');
+      return {viewport:{width:innerWidth,height:innerHeight},workspace:rect('.packet-visual-workspace'),stage:rect('.packet-visual-workspace .visual-workspace__stage'),world:rect('.packet-visual-workspace .packet-stage'),mechanismStage,mechanism,byteWorkbench,mechanismLayerCount:document.querySelectorAll('.captured-packet-workspace [data-mechanism-mode="microscope"] .captured-frame-mechanism__plates > button').length,legacySlabCount:document.querySelectorAll('.captured-packet-workspace :is(.packet-object-wrap,.packet-layer-shell,.packet-relations,.packet-origin-strip)').length,toolbar,hud,scrollWidth:document.documentElement.scrollWidth,toolbarHudOverlap:Boolean(toolbar&&hud&&toolbar.left<hud.right&&toolbar.right>hud.left&&toolbar.top<hud.bottom&&toolbar.bottom>hud.top)};
     })()`);
-    if (!geometry.workspace || !geometry.stage || !geometry.world) throw new Error(`${profile.id} captured microscope is missing visual review geometry.`);
+    if (!geometry.workspace || !geometry.stage || !geometry.world || !geometry.mechanismStage || !geometry.mechanism || !geometry.byteWorkbench) throw new Error(`${profile.id} captured microscope is missing visual review geometry.`);
     if (geometry.viewport.width - geometry.workspace.width > 26) throw new Error(`${profile.id} captured microscope retains a restrictive outer width cap.`);
     if (geometry.world.width < geometry.stage.width * 0.96 || geometry.world.height < geometry.stage.height * 0.9) throw new Error(`${profile.id} captured packet specimen does not own its stage.`);
+    if (geometry.mechanismStage.height < geometry.world.height * 0.42 || geometry.mechanism.width < geometry.mechanismStage.width * 0.9) throw new Error(`${profile.id} captured frame mechanism is not the dominant microscope object: ${JSON.stringify(geometry)}.`);
+    if (geometry.mechanismLayerCount < 3 || geometry.legacySlabCount !== 0) throw new Error(`${profile.id} captured microscope lost real layers or retained dashboard slabs: ${JSON.stringify(geometry)}.`);
+    if (geometry.mechanismStage.bottom > geometry.byteWorkbench.top + 3) throw new Error(`${profile.id} captured frame mechanism collides with exact byte evidence: ${JSON.stringify(geometry)}.`);
     if (geometry.scrollWidth > geometry.viewport.width || geometry.toolbarHudOverlap) throw new Error(`${profile.id} captured microscope overflows or collides: ${JSON.stringify(geometry)}.`);
     const captureScreenshot = async (suffix = '') => {
       const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });

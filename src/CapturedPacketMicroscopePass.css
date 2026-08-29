@@ -1,0 +1,180 @@
+/* Captured Packet Microscope: the imported frame remains the one dominant object. */
+
+html body .captured-packet-workspace.captured-packet-workspace .packet-stage {
+  grid-template-rows: minmax(300px, 1.45fr) minmax(185px, .65fr) !important;
+  gap: clamp(7px, 1vh, 12px) !important;
+  padding: 104px 18px 18px !important;
+  background:
+    radial-gradient(circle at 46% 34%, rgba(255,255,255,.34), transparent 29%),
+    linear-gradient(152deg, rgba(231,227,222,.91), rgba(214,208,202,.94)) !important;
+}
+
+html body .captured-packet-workspace .captured-microscope-mechanism-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  padding: 14px clamp(8px, 2vw, 28px) 10px;
+  overflow: hidden;
+  border-block: 1px solid rgba(41,40,39,.12);
+  background:
+    linear-gradient(90deg, transparent 0 49.92%, rgba(41,40,39,.055) 50%, transparent 50.08%),
+    radial-gradient(circle at 42% 52%, rgba(216,79,73,.075), transparent 27%);
+}
+
+html body .captured-packet-workspace .captured-microscope-mechanism-stage::before,
+html body .captured-packet-workspace .captured-microscope-mechanism-stage::after {
+  position: absolute;
+  z-index: 0;
+  content: '';
+  pointer-events: none;
+}
+
+html body .captured-packet-workspace .captured-microscope-mechanism-stage::before {
+  inset: 10% 7%;
+  border: 1px dashed rgba(41,40,39,.1);
+  clip-path: polygon(0 0, 36% 0, 36% 1px, 100% 1px, 100% 100%, 64% 100%, 64% calc(100% - 1px), 0 calc(100% - 1px));
+}
+
+html body .captured-packet-workspace .captured-microscope-mechanism-stage::after {
+  top: 19%;
+  bottom: 18%;
+  left: 4.5%;
+  width: 1px;
+  background: repeating-linear-gradient(180deg, rgba(41,40,39,.24) 0 4px, transparent 4px 10px);
+}
+
+html body .captured-packet-workspace .captured-microscope-mechanism-stage > .captured-frame-mechanism {
+  position: relative;
+  z-index: 2;
+}
+
+html body .captured-packet-workspace .captured-microscope-annotation {
+  position: absolute;
+  z-index: 7;
+  display: grid;
+  max-width: min(300px, 28vw);
+  gap: 2px;
+  pointer-events: none;
+}
+
+html body .captured-packet-workspace .captured-microscope-annotation span {
+  color: var(--site-coral, #d84f49);
+  font-size: .4rem;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+
+html body .captured-packet-workspace .captured-microscope-annotation strong {
+  overflow: hidden;
+  color: var(--site-ink-soft, #5f5b57);
+  font: 750 .48rem/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html body .captured-packet-workspace .captured-microscope-annotation--source { top: 12px; left: 14px; }
+html body .captured-packet-workspace .captured-microscope-annotation--time { top: 12px; right: 14px; text-align: right; }
+html body .captured-packet-workspace .captured-microscope-annotation--boundary { right: 14px; bottom: 12px; text-align: right; }
+
+html body .captured-packet-workspace .captured-byte-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(235px, 25vw, 340px);
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+html body .captured-packet-workspace .captured-byte-workbench > .packet-hex-panel {
+  min-width: 0;
+  height: 100%;
+  margin: 0 !important;
+}
+
+html body .captured-packet-workspace .captured-byte-workbench > .packet-field-lens {
+  position: relative !important;
+  inset: auto !important;
+  align-content: center;
+  width: auto !important;
+  min-width: 0;
+  height: 100%;
+  padding: clamp(12px, 1.6vw, 22px) !important;
+  overflow: hidden;
+}
+
+html body .captured-packet-workspace .captured-byte-workbench > .packet-field-lens::before {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(239,124,116,.2);
+  border-radius: 50%;
+  content: '';
+}
+
+html body .captured-packet-workspace .captured-byte-workbench > .packet-field-lens > * {
+  position: relative;
+  z-index: 1;
+}
+
+html body .captured-packet-workspace .captured-byte-workbench .packet-hex-grid {
+  scrollbar-color: rgba(216,79,73,.38) transparent;
+}
+
+html body .captured-packet-workspace .packet-byte.highlighted {
+  color: #fff !important;
+  background: rgba(216,79,73,.72) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), 0 0 12px rgba(216,79,73,.18) !important;
+}
+
+@media (max-width: 900px) {
+  html body .captured-packet-workspace.captured-packet-workspace .packet-stage {
+    grid-template-rows: minmax(270px, 1.35fr) minmax(180px, .65fr) !important;
+    padding-inline: 10px !important;
+  }
+
+  html body .captured-packet-workspace .captured-byte-workbench {
+    grid-template-columns: minmax(0, 1fr) minmax(210px, 29vw);
+  }
+
+  html body .captured-packet-workspace .captured-microscope-annotation--boundary { display: none; }
+}
+
+@media (max-width: 680px) {
+  html body .captured-packet-workspace.captured-packet-workspace .packet-stage {
+    grid-template-rows: minmax(244px, 1.35fr) minmax(164px, .65fr) !important;
+    gap: 6px !important;
+    padding: 96px 7px 7px !important;
+  }
+
+  html body .captured-packet-workspace .captured-microscope-mechanism-stage {
+    padding: 12px 4px 3px;
+  }
+
+  html body .captured-packet-workspace .captured-microscope-annotation { max-width: 43vw; }
+  html body .captured-packet-workspace .captured-microscope-annotation--source { top: 7px; left: 7px; }
+  html body .captured-packet-workspace .captured-microscope-annotation--time { top: 7px; right: 7px; }
+  html body .captured-packet-workspace .captured-microscope-annotation strong { font-size: .4rem; }
+
+  html body .captured-packet-workspace .captured-byte-workbench { grid-template-columns: 1fr; }
+  html body .captured-packet-workspace .captured-byte-workbench > .packet-field-lens { display: none !important; }
+  html body .captured-packet-workspace .captured-byte-workbench .packet-panel-heading > div:first-child strong { display: none; }
+}
+
+@media (max-height: 720px) and (min-width: 681px) {
+  html body .captured-packet-workspace.captured-packet-workspace .packet-stage {
+    grid-template-rows: minmax(250px, 1.25fr) minmax(158px, .75fr) !important;
+    padding-top: 96px !important;
+  }
+
+  html body .captured-packet-workspace .captured-microscope-mechanism-stage { padding-block: 7px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body .captured-packet-workspace .captured-microscope-mechanism-stage *,
+  html body .captured-packet-workspace .captured-byte-workbench * {
+    animation: none !important;
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}

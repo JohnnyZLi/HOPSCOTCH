@@ -582,7 +582,7 @@ export function CaptureReplayWorkspace({
                         initial={reduceMotion || !selectedEvent ? { left: '50%', opacity: 1 } : { left: `${selectedEvent.direction === 'B_TO_A' ? 84 : 16}%`, opacity: 0.18, scale: 0.72 }}
                         animate={{ left: `${selectedEvent ? (selectedEvent.direction === 'B_TO_A' ? 16 : 84) : 50}%`, opacity: 1, scale: 1 }}
                         transition={{ duration: reduceMotion ? 0 : 0.72, ease: [0.16, 1, 0.3, 1] }}
-                      ><div className="capture-packet-mechanism-anchor"><CapturedFrameMechanism frame={selectedFrame} event={selectedEvent} mode="replay" playing={playing} activeLayer={selectedLayer} activeField={selectedField} /></div></motion.div>}
+                      ><div className="capture-packet-mechanism-anchor"><CapturedFrameMechanism frame={selectedFrame} event={selectedEvent} mode="replay" playing={playing} activeLayer={selectedLayer} activeField={selectedField} handoffId={workspaceMode === 'replay' ? `captured-frame-${selectedFrame.record.id}` : undefined} /></div></motion.div>}
                       <div className="capture-playhead" style={{ left: `${Math.max(0, Math.min(100, activePosition))}%` }}><i /></div>
                     </div>
                     <div className="capture-endpoint endpoint-b"><span>ENDPOINT B</span><strong>{endpointDisplay(activeConversation.endpointB)}</strong><small>{activeConversation.observedInitiator === 'B' ? 'OBSERVED INITIATOR' : `${activeConversation.directionCounts.B_TO_A} ← frames`}</small></div>
@@ -662,6 +662,7 @@ export function CaptureReplayWorkspace({
                     mode="frame"
                     activeLayer={selectedLayer}
                     activeField={selectedField}
+                    handoffId={workspaceMode === 'frame' ? `captured-frame-${selectedFrame.record.id}` : undefined}
                     onSelectLayer={(capturedLayer) => {
                       setSelectedLayerId(capturedLayer.id);
                       setSelectedFieldId(capturedLayer.fields[0]?.id ?? null);

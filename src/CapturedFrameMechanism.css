@@ -177,6 +177,160 @@
 .captured-frame-mechanism[data-mechanism-mode="frame"] .captured-frame-mechanism__readout strong { font-size: clamp(0.78rem, 1.1vw, 1.05rem); line-height: 1.18; }
 .captured-frame-mechanism[data-mechanism-mode="frame"] .captured-frame-mechanism__readout small { max-width: 160px; font-size: 0.49rem; line-height: 1.45; }
 
+.captured-frame-mechanism[data-mechanism-mode="microscope"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(150px, 16vw, 220px);
+  gap: clamp(18px, 3vw, 52px);
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  overflow: visible;
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__object {
+  min-height: 300px;
+  perspective: 1100px;
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__axis {
+  z-index: 0;
+  inset: 50% -2% auto 3%;
+  background: linear-gradient(90deg, transparent, rgba(41, 40, 39, 0.18) 8%, rgba(41, 40, 39, 0.18) 90%, transparent);
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__halo {
+  inset: 5% 16% 8% 24%;
+  background: repeating-radial-gradient(circle, transparent 0 22px, rgba(41, 40, 39, 0.035) 23px 24px);
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__core {
+  left: 78%;
+  width: clamp(82px, 7vw, 108px);
+  height: clamp(82px, 7vw, 108px);
+  background: rgba(238, 235, 231, 0.94);
+  box-shadow: 0 24px 56px rgba(70, 55, 47, 0.18);
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__core strong {
+  font-size: clamp(1rem, 1.5vw, 1.35rem);
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__plates > * {
+  z-index: 2;
+  top: 50%;
+  left: 7%;
+  width: min(72%, 720px);
+  height: clamp(45px, 6.3vh, 58px);
+  padding: 7px 12px;
+  border: 0;
+  border-block: 1px solid rgba(41, 40, 39, 0.26);
+  border-radius: 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(41, 40, 39, 0.035) 0 1px, transparent 1px 18px),
+    rgba(232, 228, 223, 0.82);
+  box-shadow: 0 18px 34px rgba(70, 55, 47, 0.1);
+  cursor: pointer;
+  transform: translate3d(var(--layer-x), calc(-50% + var(--layer-y)), 0) rotate(-1.15deg);
+  transform-origin: 0 50%;
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__plates > *::after {
+  position: absolute;
+  top: 50%;
+  right: -19%;
+  width: 19%;
+  height: 1px;
+  content: '';
+  background: linear-gradient(90deg, currentColor, transparent);
+  opacity: 0.22;
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__plates > *.is-active {
+  z-index: 5;
+  border-color: var(--mechanism-accent);
+  color: var(--site-ink-strong, #292827);
+  background:
+    repeating-linear-gradient(90deg, rgba(216, 79, 73, 0.055) 0 1px, transparent 1px 18px),
+    rgba(245, 242, 238, 0.96);
+  box-shadow: 0 25px 52px rgba(70, 55, 47, 0.17);
+  transform: translate3d(calc(var(--layer-x) + 18px), calc(-50% + var(--layer-y)), 26px) rotate(-0.35deg);
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__plates > *:focus-visible {
+  outline: 2px solid var(--mechanism-accent);
+  outline-offset: 4px;
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__plates i {
+  width: 6px;
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__plates span { font-size: 0.45rem; }
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__plates strong { font-size: clamp(0.62rem, 0.8vw, 0.82rem); }
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__plates small { font-size: 0.44rem; }
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__bytes {
+  right: 3%;
+  bottom: 3%;
+  left: 4%;
+  height: 31px;
+  gap: 2px;
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__bytes i {
+  position: relative;
+  min-width: 2px;
+  background: rgba(41, 40, 39, calc(0.09 + var(--byte-value) * 0.25));
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__bytes i:nth-child(8n + 1)::after {
+  position: absolute;
+  top: -8px;
+  left: 0;
+  width: 1px;
+  height: 5px;
+  content: '';
+  background: rgba(41, 40, 39, 0.3);
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__bytes i.is-highlighted {
+  background: var(--mechanism-accent);
+  box-shadow: 0 0 0 1px rgba(216, 79, 73, 0.18), 0 0 18px rgba(216, 79, 73, 0.28);
+  transform: scaleY(1.28);
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__readout {
+  position: relative;
+  align-content: center;
+  padding-left: clamp(14px, 2vw, 28px);
+  border-left: 1px solid rgba(41, 40, 39, 0.16);
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__readout::before {
+  position: absolute;
+  top: 50%;
+  left: -7px;
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--mechanism-accent);
+  border-radius: 50%;
+  content: '';
+  background: var(--site-paper, #e4e0db);
+  transform: translateY(-50%);
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__readout strong {
+  max-width: 210px;
+  font-size: clamp(0.86rem, 1.15vw, 1.12rem);
+  line-height: 1.16;
+}
+
+.captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__readout small {
+  max-width: 190px;
+  font-size: 0.49rem;
+  line-height: 1.5;
+}
+
 .captured-frame-mechanism[data-playing="true"] .captured-frame-mechanism__halo { animation: captured-frame-orbit 3.8s linear infinite; }
 .captured-frame-mechanism[data-playing="true"] .captured-frame-mechanism__halo::before { animation: captured-frame-counter-orbit 2.4s linear infinite; }
 .captured-frame-mechanism[data-playing="true"] .captured-frame-mechanism__plates > * { animation: captured-frame-breathe 1.4s ease-in-out infinite alternate; animation-delay: calc(var(--layer-index) * -90ms); }
@@ -194,6 +348,11 @@
   .captured-frame-mechanism[data-mechanism-mode="frame"] { grid-template-columns: 1fr; gap: 10px; min-height: 300px; padding: 14px 12px; }
   .captured-frame-mechanism[data-mechanism-mode="frame"] .captured-frame-mechanism__readout { border-top: 1px solid rgba(41, 40, 39, 0.14); border-left: 0; padding: 10px 0 0; }
   .captured-frame-mechanism[data-mechanism-mode="frame"] .captured-frame-mechanism__readout small { max-width: none; }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] { grid-template-columns: minmax(0, 1fr) 135px; gap: 12px; min-height: 270px; }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__object { min-height: 270px; }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__plates > * { left: 2%; width: 76%; height: 43px; transform: translate3d(var(--layer-x-compact), calc(-50% + var(--layer-y-compact)), 0) rotate(-.7deg); }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__plates > *.is-active { transform: translate3d(calc(var(--layer-x-compact) + 10px), calc(-50% + var(--layer-y-compact)), 18px); }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__core { left: 81%; width: 74px; height: 74px; }
 }
 
 @media (max-width: 540px) {
@@ -201,6 +360,18 @@
   .captured-frame-mechanism[data-mechanism-mode="replay"] .captured-frame-mechanism__plates strong { font-size: 0.45rem; }
   .captured-frame-mechanism[data-mechanism-mode="frame"] { min-height: 330px; }
   .captured-frame-mechanism[data-mechanism-mode="frame"] .captured-frame-mechanism__plates > * { min-width: 170px; max-width: 78%; transform: translateX(calc((var(--layer-index) - (var(--layer-count) / 2)) * 10px)); }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] { grid-template: minmax(0, 1fr) auto / 1fr; gap: 5px; min-height: 300px; }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__object { min-height: 244px; }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__plates > * { left: 0; width: 78%; height: 39px; padding: 5px 7px; transform: translate3d(var(--layer-x-mobile), calc(-50% + var(--layer-y-mobile)), 0); }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__plates > *.is-active { transform: translate3d(calc(var(--layer-x-mobile) + 8px), calc(-50% + var(--layer-y-mobile)), 12px); }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__plates small { display: none; }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__core { left: 84%; width: 64px; height: 64px; }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__bytes { bottom: 0; left: 1%; height: 22px; }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__readout { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; padding: 7px 0 0; border-top: 1px solid rgba(41, 40, 39, 0.14); border-left: 0; }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__readout::before { display: none; }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__readout span { grid-row: 1 / span 2; }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__readout strong { max-width: none; font-size: .62rem; }
+  .captured-frame-mechanism[data-mechanism-mode="microscope"] .captured-frame-mechanism__readout small { max-width: none; font-size: .4rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
