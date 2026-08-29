@@ -1239,10 +1239,12 @@ async function captureVisualReview(cdp, profile) {
   };
   const screenshotPath = await capture();
   let inspect = null;
+  let revealScreenshotPath = null;
   if (profile.inspectReview) {
     if (profile.inspectRevealSelector) {
       await measuredClickButton(cdp, profile.inspectRevealSelector, 'NETWORK TOOLS');
       await waitForExpression(cdp, `document.querySelector(${JSON.stringify(profile.inspectRevealSelector)})?.getAttribute('aria-expanded')==='true'`, 8000);
+      revealScreenshotPath = await capture('-menu');
     }
     await cdp.evaluate(`document.querySelector(${JSON.stringify(profile.inspectButtonSelector)})?.focus()`);
     await measuredClickButton(cdp, profile.inspectButtonSelector, 'INSPECT');
@@ -1288,7 +1290,7 @@ async function captureVisualReview(cdp, profile) {
     if (!restored) throw new Error(`${profile.id} drawer did not restore focus to its opener.`);
     inspect = { initialFocus, shiftTabContained, tabContained, restored, screenshotPath: inspectScreenshotPath };
   }
-  return { geometry, screenshotPath, inspect };
+  return { geometry, screenshotPath, inspect, revealScreenshotPath };
 }
 
 async function loadProfile(cdp, origin, profile) {
