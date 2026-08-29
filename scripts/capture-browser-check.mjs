@@ -186,11 +186,12 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
   const geometry = await cdp.evaluate(`(()=>{
     const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
     return {
-      viewport:{width:innerWidth,height:innerHeight},workspace:rect('.capture-replay'),grid:rect('.capture-workspace-grid'),replay:rect('.capture-cinematic-stage'),toolbar:rect('.capture-heading'),summary:rect('.capture-summary'),
+      viewport:{width:innerWidth,height:innerHeight},workspace:rect('.capture-replay'),grid:rect('.capture-workspace-grid'),replay:rect('.capture-cinematic-stage'),toolbar:rect('.capture-heading'),summary:rect('.capture-summary'),mechanism:rect('.capture-cinematic-stage [data-frame-mechanism]'),mechanismLayers:document.querySelectorAll('.capture-cinematic-stage [data-frame-mechanism] .captured-frame-mechanism__plates > *').length,
       scrollWidth:document.documentElement.scrollWidth,scrollY,mode:document.querySelector('.capture-replay')?.getAttribute('data-capture-mode'),drawer:document.querySelector('.capture-replay')?.getAttribute('data-context-drawer'),
     };
   })()`);
   if (!geometry.workspace || !geometry.grid || !geometry.replay) throw new Error(`${profile.id} Capture Replay is missing Phase 4 geometry.`);
+  if (!geometry.mechanism || geometry.mechanism.width < 110 || geometry.mechanism.height < 100 || geometry.mechanismLayers < 3) throw new Error(`${profile.id} replay did not promote the captured frame into a layered mechanism: ${JSON.stringify(geometry)}`);
   if (geometry.viewport.width - geometry.workspace.width > 26) throw new Error(`${profile.id} Capture Replay retains a restrictive outer width cap.`);
   if (geometry.replay.width < geometry.grid.width * 0.98 || geometry.replay.height < geometry.grid.height * 0.98) throw new Error(`${profile.id} replay does not own the analysis stage: ${JSON.stringify(geometry)}.`);
   if (geometry.grid.height < geometry.workspace.height * 0.52) throw new Error(`${profile.id} replay stage is too small inside the workspace: ${JSON.stringify(geometry)}.`);
@@ -252,9 +253,10 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     const sections=['.capture-specimen-mode-banner','.capture-frame-heading','.capture-frame-nav','.capture-frame-facts','.capture-byte-inspector','.capture-protocol-stack','.capture-field-list','.capture-lineage','.capture-open-microscope'].map((selector)=>({selector,rect:rect('.capture-evidence-inspector.is-frame-stage > '+selector)})).filter((entry)=>entry.rect&&entry.rect.width>0&&entry.rect.height>0);
     const heading=rect('.capture-evidence-inspector.is-frame-stage > .capture-frame-heading > div:first-child');
     const badge=rect('.capture-evidence-inspector.is-frame-stage .capture-frame-heading-actions');
-    return {grid:rect('.capture-workspace-grid'),frame:rect('.capture-evidence-inspector.is-frame-stage'),sections,heading,badge,flatSurfaceAlpha:[alpha('.capture-frame-facts > div'),alpha('.capture-protocol-stack button')],bytes:document.querySelectorAll('.capture-evidence-inspector.is-frame-stage .capture-hex-grid > span').length,scrollWidth:document.documentElement.scrollWidth};
+    return {grid:rect('.capture-workspace-grid'),frame:rect('.capture-evidence-inspector.is-frame-stage'),mechanism:rect('.capture-evidence-inspector.is-frame-stage > [data-frame-mechanism]'),mechanismLayers:document.querySelectorAll('.capture-evidence-inspector.is-frame-stage > [data-frame-mechanism] .captured-frame-mechanism__plates > button').length,sections,heading,badge,flatSurfaceAlpha:[alpha('.capture-frame-facts > div'),alpha('.capture-protocol-stack button')],bytes:document.querySelectorAll('.capture-evidence-inspector.is-frame-stage .capture-hex-grid > span').length,scrollWidth:document.documentElement.scrollWidth};
   })()`);
   if (!frameGeometry.grid || !frameGeometry.frame || frameGeometry.bytes <= 0) throw new Error(`${profile.id} frame mode did not promote an exact-byte specimen.`);
+  if (!frameGeometry.mechanism || frameGeometry.mechanism.width < frameGeometry.frame.width * .9 || frameGeometry.mechanismLayers < 3) throw new Error(`${profile.id} frame mode did not explode the selected frame into its captured layers: ${JSON.stringify(frameGeometry)}.`);
   if (frameGeometry.frame.width < frameGeometry.grid.width * 0.98 || frameGeometry.frame.height < frameGeometry.grid.height * 0.98 || frameGeometry.scrollWidth > profile.width) throw new Error(`${profile.id} frame specimen does not own the stage: ${JSON.stringify(frameGeometry)}.`);
   if (frameGeometry.flatSurfaceAlpha.some((value) => value === null || value > 0.02)) throw new Error(`${profile.id} frame specimen regressed to nested card surfaces: ${JSON.stringify(frameGeometry.flatSurfaceAlpha)}.`);
   if (profile.width <= 540) {

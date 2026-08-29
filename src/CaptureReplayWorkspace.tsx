@@ -6,10 +6,12 @@ import { endpointDisplay } from './capture/protocol.ts';
 import { CaptureSessionIndex } from './capture/session.ts';
 import { CAPTURE_LIMITS, type CapturedField, type CapturedFrameEvidence, type CapturedLayer, type SemanticCapturedEvent } from './capture/types.ts';
 import { CaptureTrackHPanel } from './CaptureTrackHPanel.tsx';
+import { CapturedFrameMechanism } from './CapturedFrameMechanism.tsx';
 import { useVisualDrawerFocus, VisualEntranceTransition } from './VisualWorkspace.tsx';
 import './CaptureReplayWorkspace.css';
 import './CaptureReplayWorkspace.phase4.css';
 import './CaptureReplayEditorialLight.css';
+import './CaptureReplayMechanismPass.css';
 
 const FLOW_RENDER_LIMIT = 80;
 const EVENT_WINDOW_RADIUS = 36;
@@ -574,13 +576,13 @@ export function CaptureReplayWorkspace({
                     <div className="capture-exchange-track" aria-label="Conceptual captured exchange between normalized endpoints">
                       <i className="capture-track-line" />
                       <div className="capture-time-pins">{bins.map((count, index) => <i key={index} style={{ height: `${Math.max(4, (count / maxBin) * 100)}%`, opacity: count === 0 ? 0.12 : 0.35 + (count / maxBin) * 0.65 }} />)}</div>
-                      <motion.div
-                        key={selectedEvent?.id ?? 'idle'}
-                        className="capture-packet-focus"
-                        initial={reduceMotion || !selectedEvent ? { left: `${selectedEvent?.direction === 'B_TO_A' ? 82 : 18}%`, opacity: 1 } : { left: `${selectedEvent.direction === 'B_TO_A' ? 82 : 18}%`, opacity: 0.15, scale: 0.72 }}
-                        animate={{ left: `${selectedEvent?.direction === 'B_TO_A' ? 18 : 82}%`, opacity: 1, scale: 1 }}
-                        transition={{ duration: reduceMotion ? 0 : 0.55, ease: [0.16, 1, 0.3, 1] }}
-                      ><span>{selectedFrame ? `#${selectedFrame.record.number}` : '—'}</span></motion.div>
+                      {selectedFrame && <motion.div
+                        key={selectedEvent?.id ?? selectedFrame.record.id}
+                        className="capture-packet-mechanism"
+                        initial={reduceMotion || !selectedEvent ? { left: '50%', opacity: 1 } : { left: `${selectedEvent.direction === 'B_TO_A' ? 84 : 16}%`, opacity: 0.18, scale: 0.72 }}
+                        animate={{ left: `${selectedEvent ? (selectedEvent.direction === 'B_TO_A' ? 16 : 84) : 50}%`, opacity: 1, scale: 1 }}
+                        transition={{ duration: reduceMotion ? 0 : 0.72, ease: [0.16, 1, 0.3, 1] }}
+                      ><div className="capture-packet-mechanism-anchor"><CapturedFrameMechanism frame={selectedFrame} event={selectedEvent} mode="replay" playing={playing} activeLayer={selectedLayer} activeField={selectedField} /></div></motion.div>}
                       <div className="capture-playhead" style={{ left: `${Math.max(0, Math.min(100, activePosition))}%` }}><i /></div>
                     </div>
                     <div className="capture-endpoint endpoint-b"><span>ENDPOINT B</span><strong>{endpointDisplay(activeConversation.endpointB)}</strong><small>{activeConversation.observedInitiator === 'B' ? 'OBSERVED INITIATOR' : `${activeConversation.directionCounts.B_TO_A} ← frames`}</small></div>
@@ -654,6 +656,18 @@ export function CaptureReplayWorkspace({
                     <div><span>SOURCE FRAME</span><strong id="capture-frame-inspector-title">FRAME {selectedFrame.record.number}</strong><small>{formatCaptureTime(selectedFrame.record.relativeTimeNanoseconds)} · {selectedFrame.record.interfaceId}</small></div>
                     <div className="capture-frame-heading-actions"><span className="capture-provenance provenance-captured">CAPTURED</span>{activeDrawer === 'inspect' && <button ref={initialFocusRef} type="button" className="capture-drawer-close" onClick={() => setActiveDrawer(null)} aria-label="Close frame details">×</button>}</div>
                   </header>
+                  <CapturedFrameMechanism
+                    frame={selectedFrame}
+                    event={selectedEvent}
+                    mode="frame"
+                    activeLayer={selectedLayer}
+                    activeField={selectedField}
+                    onSelectLayer={(capturedLayer) => {
+                      setSelectedLayerId(capturedLayer.id);
+                      setSelectedFieldId(capturedLayer.fields[0]?.id ?? null);
+                      if (capturedLayer.byteRange.length > 0) setBytePage(Math.floor(capturedLayer.byteRange.offset / BYTE_PAGE_SIZE));
+                    }}
+                  />
                   <div className="capture-frame-nav">
                     <button type="button" onClick={() => stepFrame(-1)} aria-label="Previous frame in conversation">← FRAME</button>
                     <label><span>GO TO #</span><input type="number" min="1" max={session.metadata.frameCount} value={frameNumberDraft} onChange={(event) => setFrameNumberDraft(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter') { const target = session.frameByNumber(Number(frameNumberDraft)); if (target) chooseFrame(target.record.id); } }} onBlur={() => { const target = session.frameByNumber(Number(frameNumberDraft)); if (target) chooseFrame(target.record.id); else setFrameNumberDraft(String(selectedFrame.record.number)); }} /></label>

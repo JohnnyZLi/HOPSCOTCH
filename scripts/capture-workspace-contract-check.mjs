@@ -4,6 +4,9 @@ import { WORKSPACE_PATHS, workspaceDefinition } from '../src/workspace-catalog.t
 import './capture-track-h-contract-check.mjs';
 
 const workspace = readFileSync(new URL('../src/CaptureReplayWorkspace.tsx', import.meta.url), 'utf8');
+const frameMechanism = readFileSync(new URL('../src/CapturedFrameMechanism.tsx', import.meta.url), 'utf8');
+const frameMechanismCss = readFileSync(new URL('../src/CapturedFrameMechanism.css', import.meta.url), 'utf8');
+const replayMechanismCss = readFileSync(new URL('../src/CaptureReplayMechanismPass.css', import.meta.url), 'utf8');
 const trackHPanel = readFileSync(new URL('../src/CaptureTrackHPanel.tsx', import.meta.url), 'utf8');
 const asyncParser = readFileSync(new URL('../src/capture/parse-async.ts', import.meta.url), 'utf8');
 const workerParser = readFileSync(new URL('../src/capture/parse-worker.ts', import.meta.url), 'utf8');
@@ -45,6 +48,21 @@ assert.match(workspace, /eventWindow\(events, currentEventIndex\)/);
 assert.match(workspace, /BYTE_PAGE_SIZE = 256/);
 assert.match(workspace, /FOLLOW FLOW/);
 assert.match(workspace, /OPEN READ-ONLY PACKET MICROSCOPE/);
+assert.match(workspace, /<CapturedFrameMechanism frame=\{selectedFrame\} event=\{selectedEvent\} mode="replay"/);
+assert.match(workspace, /mode="frame"/);
+assert.match(frameMechanism, /data-frame-mechanism/);
+assert.match(frameMechanism, /frame\.record\.bytes\.copy/);
+assert.match(frameMechanism, /frame\.layers\.map/);
+assert.match(frameMechanism, /layer\.byteRange\.offset/);
+assert.match(frameMechanism, /event\?\.direction \?\? 'UNKNOWN'/);
+assert.match(frameMechanism, /NO SEMANTIC DIRECTION/);
+assert.match(frameMechanism, /IMMUTABLE CAPTURE/);
+assert.doesNotMatch(frameMechanism, /requestAnimationFrame/, 'captured-frame mechanism must visualize indexed state without owning semantic time');
+assert.match(frameMechanismCss, /\[data-mechanism-mode="replay"\]/);
+assert.match(frameMechanismCss, /\[data-mechanism-mode="frame"\]/);
+assert.match(frameMechanismCss, /@media \(prefers-reduced-motion: reduce\)/);
+assert.match(replayMechanismCss, /\.capture-packet-mechanism/);
+assert.match(replayMechanismCss, /\.capture-event-rail button::before/);
 
 for (const requiredSurface of [
   'PROTOCOL SEQUENCE', 'TCP STREAM + RTT', 'TRAFFIC OVERVIEW', 'COMPARE', 'SIDECAR EVIDENCE',
