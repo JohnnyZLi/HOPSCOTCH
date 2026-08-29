@@ -62,7 +62,8 @@ for (const token of ['--site-paper: #d9d4cf', '--site-ink: #292827', '--site-cor
 for (const token of ['html body .builder-stage', 'html body .measured-workspace', 'html body .capture-replay']) assert.ok(editorialCss.includes(token));
 for (const token of ['.packet-visual-workspace .packet-stage', '.capture-replay .capture-evidence-inspector.is-frame-stage', '.observed-internet .evidence-card', '.internet-scale .as-winner-readout']) assert.ok(editorialAuditCss.includes(token));
 assert.ok(editorialWorkspaceSystem.includes("@import './SiteEditorialLight.css';") && editorialWorkspaceSystem.includes("@import './SiteEditorialWorkspaceAudit.css';"));
-assert.ok(editorialWorkspaceSystem.trimEnd().endsWith("@import './MechanismSecondPass.css';"));
+assert.ok(editorialWorkspaceSystem.includes("@import './MechanismSecondPass.css';"));
+assert.ok(editorialWorkspaceSystem.trimEnd().endsWith("@import './NetworkBuilderMechanismPass.css';"));
 for (const token of [
   '.app-shell[data-lab="active"]:has',
   'grid-template-rows: minmax(0, 1fr) !important',

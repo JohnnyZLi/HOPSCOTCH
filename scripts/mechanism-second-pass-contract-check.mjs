@@ -20,7 +20,8 @@ const internetScale = read('../src/InternetScaleTheater.tsx');
 const builder = read('../src/NetworkBuilder.tsx');
 const performanceProfile = read('./performance-profile.mjs');
 
-assert.ok(systemCss.trimEnd().endsWith("@import './MechanismSecondPass.css';"), 'mechanism layer must load after every legacy workspace skin');
+assert.ok(systemCss.includes("@import './MechanismSecondPass.css';"), 'shared mechanism layer must load after every legacy workspace skin');
+assert.ok(systemCss.trimEnd().endsWith("@import './NetworkBuilderMechanismPass.css';"), 'Builder mechanism refinement must load after the shared mechanism layer');
 
 for (const [name, source, tokens] of [
   ['DNS', dns, ['dns-namespace-field', 'dns-query-core', "className={activeEvent.from === from"]],
