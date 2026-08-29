@@ -9,6 +9,8 @@ const tcp = read('../src/TcpTheater.tsx');
 const tls = read('../src/TlsTheater.tsx');
 const http = read('../src/HttpComparisonTheater.tsx');
 const packet = read('../src/PacketMicroscope.tsx');
+const simulatedPacket = read('../src/SimulatedPacketMechanism.tsx');
+const simulatedPacketCss = read('../src/SimulatedPacketMechanism.css');
 const capture = read('../src/CaptureReplayWorkspace.tsx');
 const observed = read('../src/ObservedInternet.tsx');
 const measured = read('../src/MeasuredNetworkWorkspace.tsx');
@@ -25,11 +27,22 @@ for (const [name, source, tokens] of [
   ['TCP', tcp, ['tcp-stream-ribbon', 'tcp-ack-gate', 'tcp-window-field', 'tcp-sequence-axis']],
   ['TLS', tls, ['tls-protection-shell', 'tls-record-core', 'tls-key-flow', 'tls-transcript-spine']],
   ['HTTP', http, ['http-mechanism-orbits', 'http-shared-order-gate', 'http-independent-stream-field', 'http-flow-window']],
-  ['Packet', packet, ['packet-byte-river', '--packet-byte-index']],
+  ['Packet', packet, ['SimulatedPacketMechanism', 'simulated-packet-mechanism-stage', 'simulated-byte-workbench']],
   ['Capture', capture, ['capture-ingest-stream', 'capture-ingest-path']],
 ]) {
   for (const token of tokens) assert.ok(source.includes(token), `${name} is missing mechanism token ${token}`);
 }
+
+for (const token of ['data-simulated-packet-mechanism', 'simulated-packet-assembly', 'simulated-packet-dependencies', 'simulated-packet-byte-rail', 'SIMULATED · RECOMPUTED']) {
+  assert.ok(simulatedPacket.includes(token), `simulated Packet mechanism is missing ${token}`);
+}
+for (const token of ['.simulated-packet-layer--ethernet', '.simulated-packet-layer--network', '.simulated-packet-layer--transport', '.simulated-packet-layer--payload', '@media (prefers-reduced-motion: reduce)']) {
+  assert.ok(simulatedPacketCss.includes(token), `simulated Packet mechanism CSS is missing ${token}`);
+}
+assert.doesNotMatch(simulatedPacket, /requestAnimationFrame|setInterval|setTimeout/, 'simulated Packet mechanism must render deterministic generated state without owning semantic time');
+assert.ok(!packet.includes('className="packet-origin-strip"'), 'simulated Packet Microscope must keep origin as a peripheral annotation');
+assert.ok(!packet.includes('className="packet-object-wrap"'), 'simulated Packet Microscope must not restore generic packet slabs');
+assert.ok(!packet.includes('className="packet-layer-shell'), 'simulated Packet Microscope must not restore generic layer cards');
 
 assert.ok(observed.includes("useState<VisualDrawerId | null>(null)"), 'Internet Evidence must not obscure its scene with a default-open drawer');
 assert.ok(observed.includes('observed-dormant-field') && observed.includes('observed-dormant-gap'));
@@ -53,7 +66,6 @@ for (const token of [
   '.http-mechanism-orbits',
   '.http-shared-order-gate',
   '.http-flow-window',
-  '.packet-byte-river',
   '.capture-ingest-stream',
   '.capture-ingest-path',
   '.observed-dormant-field',

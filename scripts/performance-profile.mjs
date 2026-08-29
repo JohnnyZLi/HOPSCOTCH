@@ -316,7 +316,7 @@ if (phase3VisualReview) {
   const visualWorlds = [
     { id: 'as-routing', path: '/internet/as-routing', query: '', readySelector: '.as-visual-workspace', expected: ['SIMULATED BEST PATH', 'SOURCE'], workspaceSelector: '.as-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.internet-canvas-wrap', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.as-visual-workspace .visual-drawer-tabs button', drawerSelector: '.as-visual-workspace .visual-drawer' },
     { id: 'physical-atlas', path: '/', query: query({ stress: 'physical-density' }), readySelector: '.physical-visual-workspace', expected: ['SIMULATED STRESS POINTS', 'WEBGL 2', 'VISIBLE'], workspaceSelector: '.physical-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.globe-viewport', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.physical-visual-workspace .visual-drawer-tabs button', drawerSelector: '.physical-visual-workspace .visual-drawer', drawerSurfaceSelector: '.physical-drawer-panel > section' },
-    { id: 'packet-microscope', path: '/labs/packet', query: '', readySelector: '.packet-visual-workspace', expected: ['FRAME', 'BYTES', 'ETHERNET'], workspaceSelector: '.packet-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.packet-stage', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.packet-visual-workspace .visual-drawer-tabs button', drawerSelector: '.packet-visual-workspace .visual-drawer' },
+    { id: 'packet-microscope', path: '/labs/packet', query: '', readySelector: '.packet-visual-workspace', expected: ['FRAME', 'BYTES', 'ETHERNET'], workspaceSelector: '.packet-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.packet-stage', semanticSelector: '[data-simulated-packet-mechanism="true"]', semanticMinWidthRatio: 0.55, semanticMinHeightRatio: 0.28, motionSelector: '.simulated-packet-scan', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.packet-visual-workspace .visual-drawer-tabs button', drawerSelector: '.packet-visual-workspace .visual-drawer' },
     { id: 'network-builder', path: '/labs/builder', query: '', readySelector: '.builder-visual-workspace', expected: ['Network builder', 'PATH', 'FORWARDING', 'OSPF', 'GRAPH'], workspaceSelector: '.builder-visual-workspace', stageSelector: '.builder-stage', worldSelector: '.builder-canvas', semanticSelector: '.builder-node-anchor', semanticMinWidthRatio: 0.72, semanticMinHeightRatio: 0.34, motionSelector: '.builder-route-signal-track', hiddenHitSelector: '.builder-link .hit', toolbarSelector: '.builder-world-toolbar', hudSelector: '.builder-stage-meta', inspectButtonSelector: '.builder-tool-inspect', drawerSelector: '.builder-context-drawer.open', drawerTitleSelector: '.builder-context-drawer__header > div' },
   ];
   profiles.splice(0, profiles.length, ...visualWorlds.flatMap((world) => visualViewports.map((viewport) => ({
@@ -482,7 +482,7 @@ async function exerciseBuilderOspf(cdp, profile) {
   await waitForExpression(cdp, `Boolean(document.querySelector('.packet-microscope'))`, 8000);
   const packetText = await cdp.evaluate(`document.querySelector('.packet-microscope')?.innerText??''`);
   if (!packetText.includes('BUILDER IPV4 · ICMP TRACE TTL') || !packetText.includes('ICMP') || !packetText.includes('TTL')) throw new Error(`${profile.id} probe packet did not seed the Packet Microscope ICMP state.`);
-  await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN TO BUILDER');
+  await measuredClickButton(cdp, '.packet-visual-workspace .interactive-world-toolbar__actions button', 'RETURN TO BUILDER');
   await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
 
   // Lab 11N foundation: IPv6 is an independent FIB. Addressing exists by default, but routed reachability
@@ -509,7 +509,7 @@ async function exerciseBuilderOspf(cdp, profile) {
   await waitForExpression(cdp, `Boolean(document.querySelector('.packet-microscope'))`, 8000);
   const packet6Text = await cdp.evaluate(`document.querySelector('.packet-microscope')?.innerText??''`);
   if (!packet6Text.includes('BUILDER IPV6 · ICMPV6 TRACE HOP LIMIT') || !packet6Text.includes('IPv6') || !packet6Text.includes('ICMPv6') || !packet6Text.toLowerCase().includes('2001:db8:')) throw new Error(`${profile.id} IPv6 probe packet did not seed actual Builder ICMPv6 state into the Packet Microscope.`);
-  await measuredClickButton(cdp, '.packet-origin-strip button', 'RETURN TO BUILDER');
+  await measuredClickButton(cdp, '.packet-visual-workspace .interactive-world-toolbar__actions button', 'RETURN TO BUILDER');
   await waitForExpression(cdp, `Boolean(document.querySelector('.builder-workspace'))`, 8000);
   const ipv4FamilyRestored = await cdp.evaluate(`(()=>{
     const select=document.querySelector('.builder-probe-section select');

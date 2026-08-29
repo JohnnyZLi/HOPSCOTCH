@@ -99,7 +99,7 @@ assert.match(capturedMicroscopeCss, /@media \(prefers-reduced-motion: reduce\)/)
 assert.ok(!capturedMicroscope.includes('setConfig'), 'captured Packet Microscope must not expose simulated packet mutation');
 assert.ok(!capturedMicroscope.includes('type="range"'), 'captured Packet Microscope must not expose packet mutation controls');
 assert.match(microscope, /data-packet-provenance="SIMULATED"/);
-assert.match(microscope, /SIMULATED FRAME/);
+assert.match(microscope, /SIMULATED · RECOMPUTED/);
 assert.match(microscope, /if \(props\.capturedFrame\)/);
 
 const captureProduct = workspaceDefinition('capture');

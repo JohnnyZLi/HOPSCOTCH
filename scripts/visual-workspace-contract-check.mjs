@@ -22,6 +22,9 @@ const asCss = readFileSync(new URL('../src/InternetScaleTheater.phase3.css', imp
 const physical = readFileSync(new URL('../src/PhysicalInternetGlobe.tsx', import.meta.url), 'utf8');
 const physicalCss = readFileSync(new URL('../src/PhysicalInternetGlobe.phase3.css', import.meta.url), 'utf8');
 const packet = readFileSync(new URL('../src/PacketMicroscope.tsx', import.meta.url), 'utf8');
+const simulatedPacket = readFileSync(new URL('../src/SimulatedPacketMechanism.tsx', import.meta.url), 'utf8');
+const simulatedPacketCss = readFileSync(new URL('../src/SimulatedPacketMechanism.css', import.meta.url), 'utf8');
+const simulatedPacketPassCss = readFileSync(new URL('../src/SimulatedPacketMicroscopePass.css', import.meta.url), 'utf8');
 const capturedPacket = readFileSync(new URL('../src/CapturedPacketMicroscope.tsx', import.meta.url), 'utf8');
 const capturedPacketCss = readFileSync(new URL('../src/CapturedPacketMicroscopePass.css', import.meta.url), 'utf8');
 const packetCss = readFileSync(new URL('../src/packet.phase3.css', import.meta.url), 'utf8');
@@ -165,9 +168,24 @@ assert.match(physicalCss, /\.physical-visual-workspace \{[\s\S]*width: calc\(100
 assert.match(physicalCss, /\.physical-visual-workspace \{[\s\S]*height: calc\(100dvh - 89px\);/);
 assert.match(physicalCss, /@media \(max-width: 680px\)[\s\S]*\.physical-visual-workspace \.interactive-world-hud > \.interactive-world-hud__truth \{ display: grid; \}/);
 
-assert.match(packet, /className="packet-visual-workspace interactive-world-workspace"/);
+assert.match(packet, /className="packet-visual-workspace interactive-world-workspace simulated-packet-workspace"/);
 assert.match(packet, /packet-field-lens/);
 assert.match(packet, /data-packet-provenance="SIMULATED"/);
+assert.match(packet, /<SimulatedPacketMechanism/);
+assert.match(packet, /simulated-packet-mechanism-stage/);
+assert.match(packet, /simulated-byte-workbench/);
+assert.ok(!packet.includes('className="packet-origin-strip"'), 'simulated Packet Microscope must keep origin as a peripheral annotation');
+assert.ok(!packet.includes('className="packet-object-wrap"'), 'simulated Packet Microscope must not restore generic packet slabs');
+assert.ok(!packet.includes('className="packet-layer-shell'), 'simulated Packet Microscope must not restore generic layer cards');
+assert.ok(!packet.includes('className="packet-heading"'), 'simulated Packet Microscope title must remain entrance choreography');
+assert.match(simulatedPacket, /data-simulated-packet-mechanism/);
+assert.match(simulatedPacket, /snapshot\.segments\.map/);
+assert.match(simulatedPacket, /simulated-packet-dependencies/);
+assert.match(simulatedPacket, /simulated-packet-byte-rail/);
+assert.ok(!simulatedPacket.includes('requestAnimationFrame'), 'simulated Packet mechanism must render deterministic state without owning semantic time');
+assert.match(simulatedPacketCss, /@media \(max-width: 540px\)/);
+assert.match(simulatedPacketCss, /@media \(prefers-reduced-motion: reduce\)/);
+assert.match(simulatedPacketPassCss, /grid-template-columns: minmax\(0, 1fr\) clamp\(235px, 25vw, 340px\)/);
 assert.match(capturedPacket, /captured-packet-workspace/);
 assert.match(capturedPacket, /data-packet-provenance="CAPTURED"/);
 assert.match(capturedPacket, /CAPTURED · READ ONLY/);
