@@ -186,6 +186,7 @@ assert.ok(!simulatedPacket.includes('requestAnimationFrame'), 'simulated Packet 
 assert.match(simulatedPacketCss, /@media \(max-width: 540px\)/);
 assert.match(simulatedPacketCss, /@media \(prefers-reduced-motion: reduce\)/);
 assert.match(simulatedPacketPassCss, /grid-template-columns: minmax\(0, 1fr\) clamp\(235px, 25vw, 340px\)/);
+assert.ok(!simulatedPacketPassCss.includes('.simulated-packet-annotation--route { display: none; }'), 'mobile Packet Microscope must preserve seeded route semantics while visually collapsing the annotation');
 assert.match(capturedPacket, /captured-packet-workspace/);
 assert.match(capturedPacket, /data-packet-provenance="CAPTURED"/);
 assert.match(capturedPacket, /CAPTURED · READ ONLY/);

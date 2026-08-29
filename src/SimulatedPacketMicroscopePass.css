@@ -155,7 +155,16 @@ html body .simulated-packet-workspace .packet-byte.highlighted {
   html body .simulated-packet-workspace .simulated-packet-annotation { max-width: 43vw; }
   html body .simulated-packet-workspace .simulated-packet-annotation--source { top: 7px; left: 7px; }
   html body .simulated-packet-workspace .simulated-packet-annotation--time { top: 7px; right: 7px; }
-  html body .simulated-packet-workspace .simulated-packet-annotation--route { display: none; }
+  html body .simulated-packet-workspace .simulated-packet-annotation--route {
+    width: 1px;
+    height: 1px;
+    max-width: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   html body .simulated-packet-workspace .simulated-packet-annotation strong { font-size: .4rem; }
 
   html body .simulated-packet-workspace .simulated-byte-workbench { grid-template-columns: 1fr; }
