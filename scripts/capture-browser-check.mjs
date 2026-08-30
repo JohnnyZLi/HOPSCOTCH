@@ -269,8 +269,7 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='none'`);
-    const sessionRestored = await cdp.evaluate(`document.activeElement?.classList.contains('capture-session')===true`);
-    if (!sessionRestored) throw new Error(`${profile.id} did not restore focus to the compact Session control.`);
+    await waitForExpression(cdp, `document.activeElement?.classList.contains('capture-session')===true`);
   }
 
   await clickText(cdp, '.capture-mode-switch button', 'FRAME SPECIMEN');
