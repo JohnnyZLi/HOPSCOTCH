@@ -152,6 +152,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   const [builderDrawer, setBuilderDrawer] = useState<VisualDrawerId | null>(null);
   const { drawerRef: builderDrawerRef, initialFocusRef: builderDrawerCloseRef } = useVisualDrawerFocus<HTMLElement>(Boolean(builderDrawer), () => setBuilderDrawer(null));
   const [scenePanel, setScenePanel] = useState<'path' | 'forwarding' | 'probe' | 'application' | 'lan' | null>(null);
+  const [builderMenuOpen, setBuilderMenuOpen] = useState(false);
   const [authoringView, setAuthoringView] = useState<BuilderAuthoringSession>(() => ({ selection:[initialSourceId], ethernetLinkSelection:[], clipboard:null, sites:[], annotations:{}, showInterfaces:false, camera:{x:50,y:50,scale:1}, branches:[], baseline:null }));
   const [authoringMarquee, setAuthoringMarquee] = useState<{startX:number;startY:number;endX:number;endY:number;additive:boolean}|null>(null);
   const [selectedProbeId, setSelectedProbeId] = useState<string | null>(null);
@@ -661,14 +662,17 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
     <motion.section className={`builder-workspace builder-visual-workspace interactive-world-workspace ${isHistorical ? 'builder-history-mode' : ''}`} data-builder-history-sequence={historicalTimelineSnapshot?.sequence ?? 'live'} data-builder-drawer={builderDrawer ?? 'closed'} data-scene-panel={scenePanel ?? 'graph'} data-stress-label={stressLabel} data-node-count={graph.nodes.length} data-link-count={graph.links.length} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: .985 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
       <div className="builder-world-toolbar">
         <div className="interactive-world-toolbar__identity"><span>Network builder</span><strong>Topology · forwarding · causality</strong></div>
-        <div className="builder-world-tools" role="toolbar" aria-label="Builder tools">
-          <button type="button" className={`builder-tool-inspect ${builderDrawer === 'inspect' ? 'active' : ''}`} aria-pressed={builderDrawer === 'inspect'} onClick={() => setBuilderDrawer((current) => current === 'inspect' ? null : 'inspect')}>Inspect</button>
-          <button type="button" className={`builder-tool-topology ${builderDrawer === 'config' ? 'active' : ''}`} aria-pressed={builderDrawer === 'config'} onClick={() => setBuilderDrawer((current) => current === 'config' ? null : 'config')}>Topology</button>
-          <button type="button" className={`builder-tool-systems ${builderDrawer === 'tools' ? 'active' : ''}`} aria-pressed={builderDrawer === 'tools'} onClick={() => setBuilderDrawer((current) => current === 'tools' ? null : 'tools')}>Systems</button>
-          <button type="button" className="builder-tool-fault" disabled={!selectedLink || isHistorical} onClick={() => { if (selectedLink) updateLink(selectedLink.id, { failed: !selectedLink.failed }); setScenePanel('forwarding'); }}>{selectedLink?.failed ? 'Restore link' : 'Fail link'}</button>
-          {!stressLabel && <button type="button" className="builder-tool-cli" data-builder-cli-toggle aria-expanded={cliOpen} onClick={() => { setExplainOpen(false); setCliOpen((current) => !current); }}>CLI</button>}
+        <button type="button" className="builder-command-toggle" aria-expanded={builderMenuOpen} aria-controls="builder-command-menu" onClick={() => setBuilderMenuOpen((current) => !current)}><span>Network tools</span><i aria-hidden="true" /></button>
+        <div id="builder-command-menu" className={`builder-command-menu ${builderMenuOpen ? 'open' : ''}`} aria-hidden={!builderMenuOpen}>
+          <div className="builder-world-tools" role="toolbar" aria-label="Builder tools">
+            <button type="button" className={`builder-tool-inspect ${builderDrawer === 'inspect' ? 'active' : ''}`} aria-pressed={builderDrawer === 'inspect'} onClick={() => setBuilderDrawer((current) => current === 'inspect' ? null : 'inspect')}>Inspect</button>
+            <button type="button" className={`builder-tool-topology ${builderDrawer === 'config' ? 'active' : ''}`} aria-pressed={builderDrawer === 'config'} onClick={() => setBuilderDrawer((current) => current === 'config' ? null : 'config')}>Topology</button>
+            <button type="button" className={`builder-tool-systems ${builderDrawer === 'tools' ? 'active' : ''}`} aria-pressed={builderDrawer === 'tools'} onClick={() => setBuilderDrawer((current) => current === 'tools' ? null : 'tools')}>Systems</button>
+            <button type="button" className="builder-tool-fault" disabled={!selectedLink || isHistorical} onClick={() => { if (selectedLink) updateLink(selectedLink.id, { failed: !selectedLink.failed }); setScenePanel('forwarding'); }}>{selectedLink?.failed ? 'Restore link' : 'Fail link'}</button>
+            {!stressLabel && <button type="button" className="builder-tool-cli" data-builder-cli-toggle aria-expanded={cliOpen} onClick={() => { setExplainOpen(false); setCliOpen((current) => !current); }}>CLI</button>}
+          </div>
+          <div className="interactive-world-toolbar__actions"><button type="button" onClick={onOpenFailureStory}>Failure sequence ↗</button><button type="button" onClick={onExit}>Exit</button></div>
         </div>
-        <div className="interactive-world-toolbar__actions"><button type="button" onClick={onOpenFailureStory}>Failure sequence ↗</button><button type="button" onClick={onExit}>Exit</button></div>
       </div>
       <header className="builder-heading">
         <div><p className="eyebrow">Network builder</p><h1>TOPOLOGY.<br/><span>FORWARDING. CAUSALITY.</span></h1></div>
@@ -679,6 +683,11 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
         {!stressLabel&&cliOpen&&<Suspense fallback={null}><BuilderCliTerminal input={displayedWorkbenchInput} contextLabel={isHistorical?`HISTORY #${String(historicalTimelineSnapshot?.sequence??0).padStart(3,'0')}`:'LIVE'} defaultProbeTarget={destinationId} defaultSourceId={sourceId} onProbe={isHistorical?undefined:runCliProbe} onMutation={isHistorical?undefined:applyCliMutation} activeUnavailableReason={isHistorical?'Time Machine is inspection-only. Return to LIVE before running probes or changing canonical configuration.':undefined} onClose={()=>setCliOpen(false)}/></Suspense>}
         {!stressLabel&&explainOpen&&<Suspense fallback={null}><BuilderExplainPanel input={displayedWorkbenchInput} historicalSequence={historicalTimelineSnapshot?.sequence??null} selectedNodeId={sceneSelectedNodeId} selectedProbeId={selectedProbe?.id??null} onClose={()=>setExplainOpen(false)}/></Suspense>}
         <section className="builder-stage">
+          <div className={`builder-fabric-field ${route.reachable ? 'reachable' : 'unreachable'} ${forwardingTrace.reachable ? 'forwarding-ready' : 'forwarding-cold'}`} aria-hidden="true">
+            <i className="builder-fabric-orbit orbit-outer"/><i className="builder-fabric-orbit orbit-middle"/><i className="builder-fabric-orbit orbit-inner"/>
+            <b className="builder-fabric-core"/><span className="builder-fabric-scan"/>
+            <div className="builder-fabric-register"><span>DETERMINISTIC FABRIC</span><strong>{route.reachable ? `${route.nodeIds.length} DEVICES · ΣC ${route.totalCost}` : 'ROUTE OPEN'}</strong></div>
+          </div>
           <nav className="builder-scene-switcher" aria-label="Builder scene analysis">
             <button type="button" className={scenePanel === null ? 'active' : ''} onClick={() => setScenePanel(null)}>GRAPH</button>
             <button type="button" className={scenePanel === 'path' ? 'active' : ''} onClick={() => setScenePanel((current) => current === 'path' ? null : 'path')}>PATH</button>
@@ -698,7 +707,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
                 const linkClassName = `builder-link ${link.failed ? 'failed' : active ? 'active' : 'alternate'} ${forwarding ? 'l3-forwarding' : ''} ${probeLinks.has(link.id) ? 'probe-active' : ''} ${selectedLinkId === link.id ? 'selected' : ''}`;
                 if (stressLabel) return <g key={link.id} className={linkClassName} aria-hidden="true"><line x1={a.x} y1={a.y} x2={b.x} y2={b.y}/></g>;
                 return <g key={link.id} data-link-id={link.id} className={linkClassName} role="button" aria-label={`${labelFor(graph, link.a)} to ${labelFor(graph, link.b)} link · ${link.failed ? 'down' : `cost ${link.cost}`}`} tabIndex={0} onClick={() => setSelectedLinkId(link.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setSelectedLinkId(link.id); }}>
-                  <line className="hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y}/><line x1={a.x} y1={a.y} x2={b.x} y2={b.y}/><text x={(a.x+b.x)/2} y={(a.y+b.y)/2 - 1.5}>{link.failed ? 'DOWN' : link.cost}</text>
+                  <line className="hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y}/><line className="builder-link-envelope" x1={a.x} y1={a.y} x2={b.x} y2={b.y}/><line className="builder-link-carrier" x1={a.x} y1={a.y} x2={b.x} y2={b.y}/><text className="builder-link-cost" x={(a.x+b.x)/2} y={(a.y+b.y)/2 - 1.5}>{link.failed ? 'LINK DOWN' : `COST ${link.cost}`}</text>
                 </g>;
               })}
             </svg>
@@ -707,18 +716,22 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
               className="builder-route-signal-track"
               aria-hidden="true"
               style={{ left: `${routeSignalPoints[0].x}%`, top: `${routeSignalPoints[0].y}%`, opacity: 0 }}
-            ><i /></div>}
+            ><i /><b /><b /><span>ROUTE</span></div>}
             {graph.nodes.map((node) => {
               const point = layout[node.id]; if (!point) return null;
               const onRoute = route.nodeIds.includes(node.id);
-              return <div key={node.id} className="builder-node-anchor" style={{ left: `${point.x}%`, top: `${point.y}%` }}>
+              return <div key={node.id} className="builder-node-anchor" data-node-id={node.id} style={{ left: `${point.x}%`, top: `${point.y}%` }}>
                 <motion.div className={`builder-node ${node.kind} ${onRoute ? 'on-route' : ''} ${selectedNode?.id === node.id ? 'selected' : ''} ${authoringView.selection.includes(node.id)?'is-multi-selected':''}`} drag={!isHistorical} dragMomentum={false} dragElastic={0} onPointerDown={(event) => { event.stopPropagation(); const additive=event.shiftKey||event.metaKey||event.ctrlKey; setAuthoringView((current)=>({...current,selection:additive?(current.selection.includes(node.id)?current.selection.filter((id)=>id!==node.id):[...current.selection,node.id]):[node.id]})); setSelectedNodeId(node.id); setWorkbenchDevice({ plane: 'routed', id: node.id }); }} onDragEnd={(_, info) => { if (!isHistorical) onNodeDragEnd(node.id, info.offset.x, info.offset.y); }} whileDrag={reduceMotion ? undefined : { scale: 1.08, zIndex: 8 }}>
-                  <span>{node.kind === 'router' ? 'RTR' : 'END'}</span><strong>{node.label}</strong>{authoringView.showInterfaces&&<small className="builder-node-interface-names">{interfacesForBuilderNode(addressing,node.id).map((entry)=>entry.name).join(' · ')||'NO ROUTED INTERFACES'}</small>}{authoringView.annotations[node.id]&&<small className="builder-node-annotation">{authoringView.annotations[node.id]}</small>}{!node.builtin && <button type="button" disabled={isHistorical} onPointerDown={(event) => event.stopPropagation()} onClick={() => deleteNode(node.id)} aria-label={`Delete ${node.label}`}>×</button>}
+                  {!stressLabel&&<div className="builder-node-machine" aria-hidden="true"><i className="builder-node-ring ring-a"/><i className="builder-node-ring ring-b"/><em/>{Array.from({length:node.kind==='router'?6:4},(_,index)=><b key={index} style={{'--builder-port':index} as CSSProperties}/>)}</div>}
+                  <span className="builder-node-kind">{node.kind === 'router' ? 'ROUTER' : 'ENDPOINT'}</span><strong className="builder-node-name">{node.label}</strong>{authoringView.showInterfaces&&<small className="builder-node-interface-names">{interfacesForBuilderNode(addressing,node.id).map((entry)=>entry.name).join(' · ')||'NO ROUTED INTERFACES'}</small>}{authoringView.annotations[node.id]&&<small className="builder-node-annotation">{authoringView.annotations[node.id]}</small>}{!node.builtin && <button type="button" disabled={isHistorical} onPointerDown={(event) => event.stopPropagation()} onClick={() => deleteNode(node.id)} aria-label={`Delete ${node.label}`}>×</button>}
                 </motion.div>
               </div>;
             })}
             </BuilderCanvasViewport>
           </div>
+          <aside className={`builder-route-register ${route.reachable ? 'reachable' : 'unreachable'}`} aria-label="Derived weighted route">
+            <span>DERIVED WEIGHTED PATH</span><strong><b>ΣC</b>{route.reachable ? String(route.totalCost).padStart(3,'0') : '—'}</strong><small>{route.reachable ? route.nodeIds.map((id)=>labelFor(graph,id)).join(' · ') : 'NO VIABLE PATH'}</small>
+          </aside>
           <article className="builder-selection-card">
             <span>SCENE SELECTION · {isHistorical ? 'HISTORICAL' : 'LIVE'}</span>
             <strong>{selectedNode ? `${selectedNode.label} · ${selectedNode.kind.toUpperCase()}` : 'NO DEVICE SELECTED'}</strong>

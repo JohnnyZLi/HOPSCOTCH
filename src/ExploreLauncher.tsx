@@ -1,10 +1,11 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ScenarioGallery } from './ScenarioGallery';
 import type { ScenarioPresetId } from './scenarios/catalog.ts';
 import {
   EXPLORE_GROUPS,
   FEATURED_WORKSPACE_IDS,
+  WORKSPACE_IDS,
   WORKSPACE_COUNT,
   workspaceDefinition,
   type ExploreDestination,
@@ -75,6 +76,14 @@ export function ExploreLauncher({
   const panelRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const [query, setQuery] = useState('');
+  const searchResults = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase();
+    if (!normalized) return [];
+    return WORKSPACE_IDS
+      .map((id) => workspaceDefinition(id))
+      .filter((item) => [item.name, item.exploreTitle, item.description, item.meta].some((value) => value.toLocaleLowerCase().includes(normalized)));
+  }, [query]);
 
   useEffect(() => {
     if (!open) return;
@@ -118,6 +127,10 @@ export function ExploreLauncher({
     };
   }, [onClose, open]);
 
+  useEffect(() => {
+    if (!open) setQuery('');
+  }, [open]);
+
   return (
     <AnimatePresence>
       {open && (
@@ -158,9 +171,20 @@ export function ExploreLauncher({
               </button>
             </nav>
 
+            <label className="explore-search">
+              <span>FIND A WORKSPACE</span>
+              <input type="search" value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder="DNS, packet, evidence…" autoComplete="off" />
+              <i aria-hidden="true">⌕</i>
+            </label>
+
             {contextActions && <section className="explore-context" aria-label="Current workspace actions"><span>Current journey</span>{contextActions}</section>}
 
-            <section className="explore-section" aria-labelledby="explore-start-title">
+            {query.trim() ? <section className="explore-section explore-search-results" aria-labelledby="explore-search-title">
+              <header><span id="explore-search-title">{searchResults.length} MATCH{searchResults.length === 1 ? '' : 'ES'}</span><p>Searches workspace names, descriptions, and evidence boundaries.</p></header>
+              {searchResults.length > 0 ? <div className="explore-list">
+                {searchResults.map((item) => <WorkspaceRow key={item.id} item={item} active={activeDestination === item.id} onSelect={onSelect} />)}
+              </div> : <div className="explore-search-empty"><strong>NO MATCHING WORKSPACE</strong><span>Try a protocol, tool, or evidence type.</span></div>}
+            </section> : <><section className="explore-section" aria-labelledby="explore-start-title">
               <header><span id="explore-start-title">Start here</span></header>
               <div className="explore-list">
                 {FEATURED_WORKSPACE_IDS.map((id) => <WorkspaceRow key={id} item={workspaceDefinition(id)} active={activeDestination === id} onSelect={onSelect} />)}
@@ -181,7 +205,7 @@ export function ExploreLauncher({
                   </div>
                 </section>
               ))}
-            </div>
+            </div></>}
           </motion.aside>
         </motion.div>
       )}

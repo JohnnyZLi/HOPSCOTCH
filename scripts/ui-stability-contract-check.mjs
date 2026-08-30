@@ -22,6 +22,7 @@ const editorialWorkspaceSystem = readFileSync(new URL('../src/SiteEditorialWorks
 const kineticWorkspaceCss = readFileSync(new URL('../src/KineticWorkspaceShell.css', import.meta.url), 'utf8');
 const kineticDeepWorkspaceCss = readFileSync(new URL('../src/KineticDeepWorkspaceShell.css', import.meta.url), 'utf8');
 const kineticEvidenceWorkspaceCss = readFileSync(new URL('../src/KineticEvidenceWorkspaceShell.css', import.meta.url), 'utf8');
+const mechanismSecondPassCss = readFileSync(new URL('../src/MechanismSecondPass.css', import.meta.url), 'utf8');
 const editorialWorkspaceLoader = readFileSync(new URL('../src/SiteEditorialWorkspaceLoader.ts', import.meta.url), 'utf8');
 const entry = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
 
@@ -61,7 +62,8 @@ for (const token of ['--site-paper: #d9d4cf', '--site-ink: #292827', '--site-cor
 for (const token of ['html body .builder-stage', 'html body .measured-workspace', 'html body .capture-replay']) assert.ok(editorialCss.includes(token));
 for (const token of ['.packet-visual-workspace .packet-stage', '.capture-replay .capture-evidence-inspector.is-frame-stage', '.observed-internet .evidence-card', '.internet-scale .as-winner-readout']) assert.ok(editorialAuditCss.includes(token));
 assert.ok(editorialWorkspaceSystem.includes("@import './SiteEditorialLight.css';") && editorialWorkspaceSystem.includes("@import './SiteEditorialWorkspaceAudit.css';"));
-assert.ok(editorialWorkspaceSystem.trimEnd().endsWith("@import './KineticEvidenceWorkspaceShell.css';"));
+assert.ok(editorialWorkspaceSystem.includes("@import './MechanismSecondPass.css';"));
+assert.ok(editorialWorkspaceSystem.trimEnd().endsWith("@import './NetworkBuilderMechanismPass.css';"));
 for (const token of [
   '.app-shell[data-lab="active"]:has',
   'grid-template-rows: minmax(0, 1fr) !important',
@@ -90,6 +92,17 @@ for (const token of [
   '@keyframes evidence-probe-left',
   '@keyframes measured-fact-pulse',
 ]) assert.ok(kineticEvidenceWorkspaceCss.includes(token), `Missing evidence workspace contract ${token}`);
+for (const token of [
+  '.dns-namespace-field',
+  '.tcp-stream-ribbon',
+  '.tls-protection-shell',
+  '.packet-byte-river',
+  '.capture-ingest-path',
+  '.observed-dormant-field',
+  '.measured-dormant-field',
+  '.explore-search',
+  '@media (prefers-reduced-motion: reduce)',
+]) assert.ok(mechanismSecondPassCss.includes(token), `Missing second-pass mechanism contract ${token}`);
 assert.ok(editorialWorkspaceLoader.includes("import('./SiteEditorialWorkspaceSystem.css')"));
 assert.ok(entry.includes("./SiteEditorialCore.css") && entry.includes("./SiteEditorialWorkspaceLoader"));
 assert.ok(!entry.includes('./ScaleInspectorPolish.css') && !entry.includes('./OverviewLayoutStability.css'));

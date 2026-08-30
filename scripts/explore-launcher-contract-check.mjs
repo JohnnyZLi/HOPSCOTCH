@@ -19,6 +19,9 @@ for (const destination of WORKSPACE_IDS) {
 assert.match(launcher, /data-explore-destination={item\.id}/);
 assert.match(launcher, /FEATURED_WORKSPACE_IDS\.map/);
 assert.match(launcher, /EXPLORE_GROUPS\.map/);
+assert.match(launcher, /WORKSPACE_IDS/);
+assert.match(launcher, /type="search"/);
+assert.match(launcher, /searchResults\.map/);
 assert.match(launcher, /className=\{`explore-row/);
 assert.doesNotMatch(launcher, /explore-featured-card|explore-card-lab|Pick something to do/);
 

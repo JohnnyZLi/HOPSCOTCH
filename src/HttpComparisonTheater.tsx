@@ -32,15 +32,19 @@ function formatTime(timeMs: number): string {
 function Lane({ lane, state, focused }: { lane: HttpLane; state: HttpLaneState; focused: boolean }) {
   const h2 = lane === 'h2';
   return <motion.section className={`http-lane lane-${lane}${focused ? ' focused' : ''}`} animate={{ opacity: focused ? 1 : 0.58 }} transition={{ duration: 0.24 }}>
+    <div className="http-mechanism-orbits" aria-hidden="true"><i/><i/><i/></div>
     <header><div><span>{h2 ? 'HTTP/2' : 'HTTP/3'}</span><strong>{state.transportLabel}</strong></div><small>{h2 ? 'ONE ORDERED TCP BYTE STREAM' : 'INDEPENDENT QUIC STREAM ORDERING'}</small></header>
     <div className="http-transport-rail"><span>{state.lossLabel.toUpperCase()}</span><div className={`http-transport-line${state.lossLabel !== 'none' && state.lossLabel !== 'repaired' ? ' has-loss' : ''}`}><i/><b/><i/><em className="http-loss-pulse"/></div><small>{state.congestionLabel}</small></div>
+    {h2
+      ? <div className="http-shared-order-gate" aria-hidden="true"><i/><b/><span>ORDERED</span></div>
+      : <div className="http-independent-stream-field" aria-hidden="true"><i/><i/><span>INDEPENDENT</span></div>}
     <div className="http-streams"><StreamRow label="STREAM A" resource={HTTP_STREAM_A} state={state.streamA} progress={state.streamAProgress} lane={lane}/><StreamRow label="STREAM B" resource={HTTP_STREAM_B} state={state.streamB} progress={state.streamBProgress} lane={lane}/></div>
     <footer><span>DELIVERY</span><strong>{state.deliveryLabel}</strong></footer>
   </motion.section>;
 }
 
 function StreamRow({ label, resource, state, progress, lane }: { label: string; resource: string; state: string; progress: number; lane: HttpLane }) {
-  return <div className={`http-stream-row state-${state}`}><div className="http-stream-label"><span>{label}</span><strong>{resource}</strong><small>{state.toUpperCase()}</small></div><div className="http-progress-track"><motion.i className={`stream-fill fill-${lane}`} animate={{ width: `${progress}%` }} transition={{ type: 'spring', stiffness: 120, damping: 20 }}/>{state === 'blocked' && <b className="http-block-marker">×</b>}</div><strong className="http-progress-value">{progress}%</strong></div>;
+  return <div className={`http-stream-row state-${state}`}><div className="http-stream-label"><span>{label}</span><strong>{resource}</strong><small>{state.toUpperCase()}</small></div><div className="http-progress-track"><motion.i className={`stream-fill fill-${lane}`} animate={{ width: `${progress}%` }} transition={{ type: 'spring', stiffness: 120, damping: 20 }}/><motion.div className="http-flow-window" animate={{ width: `${progress}%` }} transition={{ type: 'spring', stiffness: 120, damping: 20 }} aria-hidden="true">{Array.from({ length: 8 }, (_, index) => <b key={index} style={{ animationDelay: `${index * -.31}s` }}/>)}</motion.div>{state === 'blocked' && <b className="http-block-marker" style={{ left: `${progress}%` }}>×</b>}</div><strong className="http-progress-value">{progress}%</strong></div>;
 }
 
 export function HttpComparisonTheater({ onExit, onOpenTls }: { onExit: () => void; onOpenTls: () => void }) {
@@ -139,7 +143,7 @@ export function HttpComparisonTheater({ onExit, onOpenTls }: { onExit: () => voi
     <div ref={rootRef} className={`protocol-cinematic-stage http-cinematic-stage focus-${activeEvent.focus}`}>
       <div className="protocol-scene-kicker"><span>APPLICATION / TRANSPORT COUPLING</span><strong>{activeEvent.focus.toUpperCase()} FOCUS</strong></div>
       <div className="http-stage http-workspace-stage">
-        <div className={`http-divergence-axis${sharedLossActive ? ' is-live' : ''}`} aria-hidden="true"><span>SAME LOSS</span><i/></div>
+        <div className={`http-divergence-axis${sharedLossActive ? ' is-live' : ''}`} aria-hidden="true"><span>SAME LOSS</span><i/><b/><b/><b/></div>
         <div className="http-lanes"><Lane lane="h2" state={state.h2} focused={activeEvent.focus === 'both' || activeEvent.focus === 'h2'}/><Lane lane="h3" state={state.h3} focused={activeEvent.focus === 'both' || activeEvent.focus === 'h3'}/></div>
         <AnimatePresence mode="wait" initial={false}><motion.article key={activeEvent.id} className={`protocol-scene-annotation http-scene-annotation focus-${activeEvent.focus}`} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 9 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: reduceMotion ? 0 : 0.24 }}><i aria-hidden="true"/><div><span>{formatTime(activeEvent.atMs)} · {activeEvent.focus} focus</span><strong>{activeEvent.title}</strong><p>{activeEvent.summary}</p><div className="http-event-compare"><div><b>H2</b>{activeEvent.h2Label}</div><div><b>H3</b>{activeEvent.h3Label}</div></div></div></motion.article></AnimatePresence>
       </div>

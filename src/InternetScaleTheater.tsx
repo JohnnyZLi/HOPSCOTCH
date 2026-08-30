@@ -46,7 +46,7 @@ export function InternetScaleTheater({ onExit, onOpenObserved, graph: inputGraph
   const [source, setSource] = useState(builderProjection?.sourceAsn ?? initialSource);
   const [destination, setDestination] = useState(builderProjection?.destinationAsn ?? initialDestination);
   const [failed, setFailed] = useState<Set<string>>(() => new Set());
-  const [selectedRelationshipId, setSelectedRelationshipId] = useState(() => graph.relationships[0]?.id ?? '');
+  const [selectedRelationshipId, setSelectedRelationshipId] = useState('');
   const [pickMode, setPickMode] = useState<'source' | 'destination' | null>(null);
   const [zoom, setZoom] = useState(1);
   const [dense, setDense] = useState(false);
@@ -75,7 +75,7 @@ export function InternetScaleTheater({ onExit, onOpenObserved, graph: inputGraph
   }, [builderProjection, graph]);
   const candidates = useMemo(() => builderProjection ? (projectedWinner ? [projectedWinner] : []) : enumeratePolicyPaths(graph, source, destination, failed), [builderProjection, projectedWinner, graph, source, destination, failed]);
   const winner = candidates[0];
-  const selectedRelationship = graph.relationships.find((item) => item.id === selectedRelationshipId) ?? graph.relationships[0];
+  const selectedRelationship = graph.relationships.find((item) => item.id === selectedRelationshipId);
   const activeRelationships = new Set(winner?.relationshipIds ?? []);
 
   useEffect(() => {
@@ -84,7 +84,7 @@ export function InternetScaleTheater({ onExit, onOpenObserved, graph: inputGraph
     if (builderProjection.destinationAsn != null) setDestination(builderProjection.destinationAsn);
     setFailed(new Set());
     setPickMode(null);
-    setSelectedRelationshipId(builderProjection.graph.relationships[0]?.id ?? '');
+    setSelectedRelationshipId('');
   }, [builderProjection]);
 
   useEffect(() => {
@@ -113,13 +113,21 @@ export function InternetScaleTheater({ onExit, onOpenObserved, graph: inputGraph
         ctx.strokeStyle = isFailed ? 'rgba(184,79,75,.78)' : isActive ? 'rgba(216,79,73,.92)' : relationship.kind === 'peer' ? 'rgba(89,111,130,.38)' : 'rgba(41,40,39,.2)';
         if (isFailed || relationship.kind === 'peer') ctx.setLineDash(isFailed ? [6, 5] : [2, 5]);
         ctx.stroke(); ctx.restore();
+        if (isActive && !isFailed && !reduceMotion) {
+          ctx.save(); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+          ctx.lineWidth = 1.15; ctx.strokeStyle = 'rgba(216,79,73,.72)'; ctx.setLineDash([2, 11]); ctx.lineDashOffset = -(now / 24) % 13;
+          ctx.stroke(); ctx.restore();
+        }
       }
 
       if (winner && winner.asns.length > 1 && !reduceMotion) {
-        const segmentCount = winner.asns.length - 1; const phase = ((now / 1800) % 1) * segmentCount; const segment = Math.min(segmentCount - 1, Math.floor(phase)); const local = phase - segment;
-        const a = pointFor(graph, winner.asns[segment], width, height, zoom); const b = pointFor(graph, winner.asns[segment + 1], width, height, zoom);
-        const x = a.x + (b.x - a.x) * local; const y = a.y + (b.y - a.y) * local;
-        ctx.beginPath(); ctx.arc(x, y, 3.8, 0, Math.PI * 2); ctx.fillStyle = '#d84f49'; ctx.fill();
+        const segmentCount = winner.asns.length - 1;
+        for (const offset of [0, .33, .66]) {
+          const phase = (((now / 2100) + offset) % 1) * segmentCount; const segment = Math.min(segmentCount - 1, Math.floor(phase)); const local = phase - segment;
+          const a = pointFor(graph, winner.asns[segment], width, height, zoom); const b = pointFor(graph, winner.asns[segment + 1], width, height, zoom);
+          const x = a.x + (b.x - a.x) * local; const y = a.y + (b.y - a.y) * local;
+          ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.fillStyle = '#d9d4cf'; ctx.strokeStyle = '#d84f49'; ctx.lineWidth = 1.2; ctx.fillRect(-3.6, -3.6, 7.2, 7.2); ctx.strokeRect(-3.6, -3.6, 7.2, 7.2); ctx.restore();
+        }
       }
 
       for (const node of graph.nodes) {
@@ -128,6 +136,10 @@ export function InternetScaleTheater({ onExit, onOpenObserved, graph: inputGraph
         ctx.fillStyle = node.asn === source ? '#596f82' : node.asn === destination ? '#9a7441' : onPath ? '#d84f49' : '#77716b'; ctx.fill();
         if (endpoint || onPath) {
           ctx.beginPath(); ctx.arc(point.x, point.y, endpoint ? 10.5 : 8.4, 0, Math.PI * 2); ctx.strokeStyle = onPath ? 'rgba(216,79,73,.22)' : 'rgba(41,40,39,.16)'; ctx.lineWidth = 1; ctx.stroke();
+        }
+        if (onPath && !reduceMotion) {
+          const pulse = 13 + ((Math.sin(now / 360 + node.asn) + 1) / 2) * 9;
+          ctx.beginPath(); ctx.arc(point.x, point.y, pulse, 0, Math.PI * 2); ctx.strokeStyle = `rgba(216,79,73,${Math.max(.03, .18 - (pulse - 13) * .014)})`; ctx.lineWidth = 1; ctx.stroke();
         }
         const showLabel = endpoint || onPath || (!dense && width >= 560);
         if (showLabel) {

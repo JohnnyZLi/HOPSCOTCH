@@ -1,0 +1,191 @@
+/* Simulated Packet Microscope: one recomputed mechanism, with controls and model detail contextual. */
+
+html body .simulated-packet-workspace.simulated-packet-workspace .packet-stage {
+  grid-template: minmax(300px, 1.45fr) minmax(185px, .65fr) / 1fr !important;
+  gap: clamp(7px, 1vh, 12px) !important;
+  padding: 104px 18px 18px !important;
+  background:
+    radial-gradient(circle at 44% 35%, rgba(255,255,255,.36), transparent 28%),
+    linear-gradient(152deg, rgba(231,227,222,.92), rgba(214,208,202,.95)) !important;
+}
+
+html body .simulated-packet-workspace .simulated-packet-mechanism-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  padding: 14px clamp(8px, 2vw, 28px) 10px;
+  overflow: hidden;
+  border-block: 1px solid rgba(41,40,39,.12);
+  background:
+    linear-gradient(90deg, transparent 0 49.92%, rgba(41,40,39,.055) 50%, transparent 50.08%),
+    radial-gradient(circle at 44% 48%, rgba(216,79,73,.075), transparent 28%);
+}
+
+html body .simulated-packet-workspace .simulated-packet-mechanism-stage::before,
+html body .simulated-packet-workspace .simulated-packet-mechanism-stage::after {
+  position: absolute;
+  z-index: 0;
+  content: '';
+  pointer-events: none;
+}
+
+html body .simulated-packet-workspace .simulated-packet-mechanism-stage::before {
+  inset: 10% 7%;
+  border: 1px dashed rgba(41,40,39,.1);
+  clip-path: polygon(0 0, 34% 0, 34% 1px, 100% 1px, 100% 100%, 66% 100%, 66% calc(100% - 1px), 0 calc(100% - 1px));
+}
+
+html body .simulated-packet-workspace .simulated-packet-mechanism-stage::after {
+  top: 19%;
+  bottom: 18%;
+  left: 4.5%;
+  width: 1px;
+  background: repeating-linear-gradient(180deg, rgba(41,40,39,.24) 0 4px, transparent 4px 10px);
+}
+
+html body .simulated-packet-workspace .simulated-packet-mechanism-stage > .simulated-packet-mechanism {
+  position: relative;
+  z-index: 2;
+}
+
+html body .simulated-packet-workspace .simulated-packet-annotation {
+  position: absolute;
+  z-index: 7;
+  display: grid;
+  max-width: min(330px, 28vw);
+  gap: 2px;
+  pointer-events: none;
+}
+
+html body .simulated-packet-workspace .simulated-packet-annotation span {
+  color: var(--site-coral, #d84f49);
+  font-size: .4rem;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+
+html body .simulated-packet-workspace .simulated-packet-annotation strong {
+  overflow: hidden;
+  color: var(--site-ink-soft, #5f5b57);
+  font: 750 .47rem/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html body .simulated-packet-workspace .simulated-packet-annotation--source { top: 12px; left: 14px; }
+html body .simulated-packet-workspace .simulated-packet-annotation--time { top: 12px; right: 14px; text-align: right; }
+html body .simulated-packet-workspace .simulated-packet-annotation--route { bottom: 12px; left: 14px; max-width: min(500px, 48vw); }
+html body .simulated-packet-workspace .simulated-packet-annotation--boundary { right: 14px; bottom: 12px; text-align: right; }
+
+html body .simulated-packet-workspace .simulated-byte-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(235px, 25vw, 340px);
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+html body .simulated-packet-workspace .simulated-byte-workbench > .packet-hex-panel {
+  min-width: 0;
+  height: 100%;
+  margin: 0 !important;
+}
+
+html body .simulated-packet-workspace .simulated-byte-workbench > .packet-field-lens {
+  position: relative !important;
+  inset: auto !important;
+  align-content: center;
+  width: auto !important;
+  min-width: 0;
+  height: 100%;
+  padding: clamp(12px, 1.6vw, 22px) !important;
+  overflow: hidden;
+}
+
+html body .simulated-packet-workspace .simulated-byte-workbench > .packet-field-lens::before {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(239,124,116,.2);
+  border-radius: 50%;
+  content: '';
+}
+
+html body .simulated-packet-workspace .simulated-byte-workbench > .packet-field-lens > * {
+  position: relative;
+  z-index: 1;
+}
+
+html body .simulated-packet-workspace .simulated-byte-workbench .packet-hex-grid {
+  scrollbar-color: rgba(216,79,73,.38) transparent;
+}
+
+html body .simulated-packet-workspace .packet-byte.highlighted {
+  color: #fff !important;
+  background: rgba(216,79,73,.72) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), 0 0 12px rgba(216,79,73,.18) !important;
+}
+
+@media (max-width: 900px) {
+  html body .simulated-packet-workspace.simulated-packet-workspace .packet-stage {
+    grid-template-rows: minmax(270px, 1.35fr) minmax(180px, .65fr) !important;
+    padding-inline: 10px !important;
+  }
+
+  html body .simulated-packet-workspace .simulated-byte-workbench {
+    grid-template-columns: minmax(0, 1fr) minmax(210px, 29vw);
+  }
+
+  html body .simulated-packet-workspace .simulated-packet-annotation--boundary { display: none; }
+}
+
+@media (max-width: 680px) {
+  html body .simulated-packet-workspace.simulated-packet-workspace .packet-stage {
+    grid-template-rows: minmax(248px, 1.35fr) minmax(164px, .65fr) !important;
+    gap: 6px !important;
+    padding: 96px 7px 7px !important;
+  }
+
+  html body .simulated-packet-workspace .simulated-packet-mechanism-stage {
+    padding: 12px 4px 3px;
+  }
+
+  html body .simulated-packet-workspace .simulated-packet-annotation { max-width: 43vw; }
+  html body .simulated-packet-workspace .simulated-packet-annotation--source { top: 7px; left: 7px; }
+  html body .simulated-packet-workspace .simulated-packet-annotation--time { top: 7px; right: 7px; }
+  html body .simulated-packet-workspace .simulated-packet-annotation--route {
+    width: 1px;
+    height: 1px;
+    max-width: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  html body .simulated-packet-workspace .simulated-packet-annotation strong { font-size: .4rem; }
+
+  html body .simulated-packet-workspace .simulated-byte-workbench { grid-template-columns: 1fr; }
+  html body .simulated-packet-workspace .simulated-byte-workbench > .packet-field-lens { display: none !important; }
+  html body .simulated-packet-workspace .simulated-byte-workbench .packet-panel-heading > div:first-child strong { display: none; }
+}
+
+@media (max-height: 720px) and (min-width: 681px) {
+  html body .simulated-packet-workspace.simulated-packet-workspace .packet-stage {
+    grid-template-rows: minmax(250px, 1.25fr) minmax(158px, .75fr) !important;
+    padding-top: 96px !important;
+  }
+
+  html body .simulated-packet-workspace .simulated-packet-mechanism-stage { padding-block: 7px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body .simulated-packet-workspace .simulated-packet-mechanism-stage *,
+  html body .simulated-packet-workspace .simulated-byte-workbench * {
+    animation: none !important;
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}

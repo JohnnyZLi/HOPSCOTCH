@@ -19,12 +19,21 @@ function joinLocation(city: string | null, region: string | null, country: strin
   return [city, region, country].filter((value): value is string => Boolean(value)).join(' · ') || 'UNAVAILABLE';
 }
 
+function EvidenceIslandSignal({ kind, beaconCount }: { kind: 'edge' | 'destination' | 'routing'; beaconCount: number }) {
+  const visibleBeacons = Math.min(6, Math.max(0, beaconCount));
+  return <div className={`evidence-island-signal signal-${kind}${visibleBeacons === 0 ? ' is-silent' : ''}`} aria-hidden="true">
+    <span />
+    <i /><i /><i />
+    {Array.from({ length: visibleBeacons }, (_, index) => <b key={index} style={{ inset: `${18 + (index % 3) * 9}%`, animationDelay: `${index * -1.13}s` }} />)}
+  </div>;
+}
+
 export function ObservedInternet({ onExit, onOpenSimulated }: { onExit: () => void; onOpenSimulated: () => void }) {
   const [host, setHost] = useState('cloudflare.com');
   const [snapshot, setSnapshot] = useState<InternetEvidenceSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeDrawer, setActiveDrawer] = useState<VisualDrawerId | null>('config');
+  const [activeDrawer, setActiveDrawer] = useState<VisualDrawerId | null>(null);
 
   const load = async (event?: FormEvent) => {
     event?.preventDefault();
@@ -157,12 +166,18 @@ export function ObservedInternet({ onExit, onOpenSimulated }: { onExit: () => vo
     timeline={<div className="observed-evidence-rail"><span>EDGE OBSERVATION</span><i /><strong>UNKNOWN FORWARDING SPACE</strong><i /><span>PUBLIC ROUTING CONTEXT</span></div>}
   >
     {!snapshot ? <section className="observed-empty">
-      <div className="evidence-orbit"><i /><i /><i /><b /></div>
+      <div className="observed-dormant-field" aria-hidden="true">
+        <div className="evidence-orbit"><i /><i /><i /><b /></div>
+        <span className="observed-dormant-node node-edge">EDGE</span>
+        <span className="observed-dormant-gap"><i /><b>UNKNOWN</b><i /></span>
+        <span className="observed-dormant-node node-public">PUBLIC</span>
+      </div>
       <div><span>AWAITING EXPLICIT QUERY</span><strong>BUILD ONE BOUNDED SNAPSHOT</strong><p>Request-address identifiers are intentionally excluded from the browser-facing evidence model.</p></div>
       <button type="button" onClick={() => setActiveDrawer('config')}>OPEN QUERY</button>
     </section> : <section className="observed-main" aria-label={`Evidence islands for ${snapshot.destination.hostname}`}>
       <div className="evidence-flow">
         <article className={`evidence-card evidence-edge-island state-${snapshot.edge.availability}`}>
+          <EvidenceIslandSignal kind="edge" beaconCount={snapshot.edge.availability === 'unavailable' ? 0 : 1} />
           <div className="provenance edge">EDGE OBSERVED</div>
           <header><span>CURRENT HOPSCOTCH REQUEST</span><strong>{asLabel(snapshot.edge.asn)}</strong></header>
           <dl>
@@ -175,6 +190,7 @@ export function ObservedInternet({ onExit, onOpenSimulated }: { onExit: () => vo
         </article>
 
         <div className="inferred-bridge" aria-label="Unobserved forwarding gap">
+          <div className="evidence-gap-engine" aria-hidden="true"><b /><b /><b /><span>NO SIGNAL</span></div>
           <span className="provenance inferred">INFERRED BOUNDARY</span>
           <div><i /><strong>NO CONTINUOUS OBSERVATION</strong><i /></div>
           <p>{snapshot.bridge.sourceAsn === null ? 'EDGE ASN UNAVAILABLE' : `AS${snapshot.bridge.sourceAsn}`} <b>≠ measured path ≠</b> {snapshot.bridge.destinationOriginAsns.length ? snapshot.bridge.destinationOriginAsns.map((asn) => `AS${asn}`).join(' / ') : 'DESTINATION ORIGIN UNAVAILABLE'}</p>
@@ -182,6 +198,7 @@ export function ObservedInternet({ onExit, onOpenSimulated }: { onExit: () => vo
         </div>
 
         <article className={`evidence-card evidence-destination-island state-${snapshot.destination.availability}`}>
+          <EvidenceIslandSignal kind="destination" beaconCount={snapshot.destination.addresses.length} />
           <div className="provenance inferred">INFERRED</div>
           <header><span>DESTINATION RESOLUTION</span><strong>{snapshot.destination.hostname}</strong></header>
           <dl>
@@ -192,6 +209,7 @@ export function ObservedInternet({ onExit, onOpenSimulated }: { onExit: () => vo
         </article>
 
         <article className={`evidence-card evidence-routing-island state-${snapshot.routing.availability}`}>
+          <EvidenceIslandSignal kind="routing" beaconCount={snapshot.collectorPaths.length} />
           <div className="provenance collector">PUBLIC COLLECTOR</div>
           <header><span>DESTINATION ROUTING CONTEXT</span><strong>{snapshot.routing.prefix ?? 'UNAVAILABLE'}</strong></header>
           <dl><div><dt>ORIGIN ASN(S)</dt><dd>{snapshot.routing.originAsns.length ? snapshot.routing.originAsns.map((asn) => `AS${asn}`).join(' · ') : 'UNAVAILABLE'}</dd></div></dl>

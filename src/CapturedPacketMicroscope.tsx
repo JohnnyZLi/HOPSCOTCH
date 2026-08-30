@@ -1,6 +1,7 @@
 import { animate, stagger } from 'animejs';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { CapturedFrameMechanism } from './CapturedFrameMechanism.tsx';
 import type { ByteRange, CapturedField, CapturedFrameEvidence, CapturedLayer, CapturedLayerProtocol } from './capture/types.ts';
 import {
   VisualDrawerTabs,
@@ -8,6 +9,7 @@ import {
   type VisualDrawerDefinition,
   type VisualDrawerId,
 } from './VisualWorkspace';
+import './CapturedPacketMicroscopePass.css';
 
 const BYTE_PAGE_SIZE = 256;
 
@@ -162,146 +164,65 @@ export function CapturedPacketMicroscope({
         toolbar={<><div className="interactive-world-toolbar__identity"><span>Packet evidence</span><strong>Frame {frame.record.number} · {frame.record.capturedLength} captured bytes</strong></div><VisualDrawerTabs active={activeDrawer} items={[{ id: 'inspect', label: 'Inspect', badge: selectedField ? '1' : '0' }, { id: 'tools', label: 'Layers', badge: String(frame.layers.length) }, { id: 'evidence', label: 'Evidence' }]} onSelect={toggleDrawer} /><div className="interactive-world-toolbar__actions">{onOpenSourceEvent && <button type="button" onClick={onOpenSourceEvent}>{origin?.actionLabel ?? 'Return to capture ↗'}</button>}<button type="button" onClick={onExit}>Exit</button></div></>}
         hud={<div className="interactive-world-hud packet-stage-hud"><div><span>FRAME</span><strong>{frame.record.number}</strong></div><div><span>CAPTURED</span><strong>{frame.record.capturedLength} BYTES</strong></div><div><span>LAYERS</span><strong>{frame.layers.length}</strong></div><div><span>FIELD</span><strong>{selectedField?.label ?? '—'}</strong></div><div className="interactive-world-hud__truth"><span>PROVENANCE</span><strong>CAPTURED · READ ONLY</strong></div></div>}
       >
-      <header className="packet-heading">
-        <div>
-          <p className="eyebrow">Packet evidence · Captured frame</p>
-          <h1>PEEL THE EVIDENCE.<br /><span>FOLLOW IT TO BYTES.</span></h1>
-        </div>
-        <div className="packet-heading-actions">
-          <span className="packet-captured-badge">CAPTURED · READ ONLY</span>
-          <button type="button" className="lab-mode" onClick={onExit}>EXIT</button>
-        </div>
-      </header>
-
       <div className="packet-stage">
-        <div className="packet-origin-strip">
-          <div>
-            <span>Packet evidence · capture source</span>
+        <section className="captured-microscope-mechanism-stage" aria-label="Exploded captured frame specimen">
+          <motion.div className="captured-microscope-annotation captured-microscope-annotation--source" initial={reduceMotion ? false : { opacity: 0, x: -18 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: reduceMotion ? 0 : .5, delay: reduceMotion ? 0 : .12 }}>
+            <span>CAPTURE SOURCE</span>
             <strong>{origin?.label ?? `FRAME ${frame.record.number}`}</strong>
-          </div>
-          <div>
+          </motion.div>
+          <motion.div className="captured-microscope-annotation captured-microscope-annotation--time" initial={reduceMotion ? false : { opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: reduceMotion ? 0 : .5, delay: reduceMotion ? 0 : .18 }}>
             <span>CAPTURE TIME</span>
             <strong>{origin?.timestamp ?? formatRelativeTime(frame.record.relativeTimeNanoseconds)}</strong>
+          </motion.div>
+          <CapturedFrameMechanism
+            frame={frame}
+            event={null}
+            mode="microscope"
+            activeLayer={selectedLayer}
+            activeField={selectedField}
+            handoffId={`captured-frame-${frame.record.id}`}
+            onSelectLayer={chooseLayer}
+          />
+          <div className="captured-microscope-annotation captured-microscope-annotation--boundary">
+            <span>EVIDENCE BOUNDARY</span>
+            <strong>{frame.record.truncated ? 'SNAPLEN ENDS HERE · MISSING BYTES UNKNOWN' : 'COMPLETE CAPTURE RECORD · PATH STILL UNKNOWN'}</strong>
           </div>
-          {onOpenSourceEvent && <button type="button" onClick={onOpenSourceEvent}>{origin?.actionLabel ?? 'RETURN TO CAPTURE ↗'}</button>}
-        </div>
+        </section>
 
-        <div className="packet-object-wrap">
-          <div className="packet-object-labels">
-            <span>IMMUTABLE FRAME {frame.record.number}</span>
-            <strong>{frame.record.capturedLength} CAPTURED B · {frame.record.originalLength} WIRE B{frame.record.truncated ? ' · TRUNCATED' : ''}</strong>
-          </div>
-          {frame.layers.length > 0 ? (
-            <div className="packet-object packet-captured-layers" role="group" aria-label="Captured protocol layers">
-              {frame.layers.map((layer) => (
-                <motion.button
-                  layout
-                  key={layer.id}
-                  type="button"
-                  className={`packet-layer-shell layer-${visualLayer(layer.protocol)}${selectedLayer?.id === layer.id ? ' active' : ''}${layer.status !== 'complete' ? ` status-${layer.status}` : ''}`}
-                  onClick={() => chooseLayer(layer)}
-                  animate={reduceMotion ? undefined : { y: selectedLayer?.id === layer.id ? -11 : 0, scale: selectedLayer?.id === layer.id ? 1.018 : 1 }}
-                  transition={{ type: 'spring', stiffness: 420, damping: 31 }}
-                  style={{ flexGrow: Math.max(1, Math.log2(layer.byteRange.length + 1)) }}
-                >
-                  <span>{layerKicker(layer)}</span>
-                  <strong>{layer.label}</strong>
-                  <small>{layer.byteRange.length} B · {layer.status.toUpperCase()}</small>
-                </motion.button>
-              ))}
+        <section className="captured-byte-workbench" aria-label="Exact captured byte evidence">
+          <div className="packet-hex-panel">
+            <div className="packet-panel-heading">
+              <div><span>RAW CAPTURED FRAME</span><strong>SELECT A FIELD TO REVEAL ITS EXACT SOURCE BYTES</strong></div>
+              <div className="packet-byte-pagination">
+                <button type="button" disabled={safePage === 0} onClick={() => setBytePage((page) => Math.max(0, page - 1))}>PREV</button>
+                <span>{byteStart}–{Math.max(byteStart, byteEnd - 1)} / {frame.record.bytes.length}</span>
+                <button type="button" disabled={safePage === pageCount - 1} onClick={() => setBytePage((page) => Math.min(pageCount - 1, page + 1))}>NEXT</button>
+              </div>
             </div>
-          ) : (
-            <div className="packet-undecoded">NO SUPPORTED PROTOCOL LAYER WAS DECODED. THE CAPTURED BYTES REMAIN AVAILABLE BELOW.</div>
-          )}
-        </div>
-
-        <div className="packet-relations">
-          <div><span>CAPTURED BYTES</span><strong>{frame.record.capturedLength}</strong><small>Bytes present in this immutable frame.</small></div>
-          <div><span>ORIGINAL WIRE LENGTH</span><strong>{frame.record.originalLength}</strong><small>{frame.record.truncated ? 'Capture contains fewer bytes than the reported wire frame.' : 'Reported wire length matches captured length.'}</small></div>
-          <div><span>DECODED LAYERS</span><strong>{frame.layers.length}</strong><small>Only directly captured, bounded protocol structure.</small></div>
-          <div><span>DECODER ISSUES</span><strong>{frame.issues.length}</strong><small>{frame.issues[0] ?? 'No decoder limitation recorded for this frame.'}</small></div>
-        </div>
-
-        <div className="packet-readonly-note">
-          <div><span>EVIDENCE BOUNDARY</span><strong>CAPTURED BYTES NEVER CHANGE</strong></div>
-          <p>Selection only changes focus. HOPSCOTCH does not recompute, repair, decrypt, or invent this frame.</p>
-        </div>
-
-        <div className="packet-hex-panel">
-          <div className="packet-panel-heading">
-            <div><span>RAW CAPTURED FRAME</span><strong>SELECT A FIELD TO REVEAL ITS EXACT SOURCE BYTES</strong></div>
-            <div className="packet-byte-pagination">
-              <button type="button" disabled={safePage === 0} onClick={() => setBytePage((page) => Math.max(0, page - 1))}>PREV</button>
-              <span>{byteStart}–{Math.max(byteStart, byteEnd - 1)} / {frame.record.bytes.length}</span>
-              <button type="button" disabled={safePage === pageCount - 1} onClick={() => setBytePage((page) => Math.min(pageCount - 1, page + 1))}>NEXT</button>
+            <div className="packet-hex-grid" aria-label={`Captured frame bytes ${byteStart} through ${Math.max(byteStart, byteEnd - 1)}`}>
+              {Array.from(visibleBytes, (byte, pageIndex) => {
+                const byteOffset = byteStart + pageIndex;
+                const category = visualLayer(frame.layers.find((layer) => byteOffset >= layer.byteRange.offset && byteOffset < layer.byteRange.offset + layer.byteRange.length)?.protocol ?? 'unknown');
+                return (
+                  <span
+                    key={byteOffset}
+                    className={`packet-byte byte-${category}${selectedField && includesByte(selectedField.byteRanges, byteOffset) ? ' highlighted' : ''}`}
+                    title={`frame byte ${byteOffset}`}
+                  >
+                    {hexByte(byte)}
+                  </span>
+                );
+              })}
             </div>
           </div>
-          <div className="packet-hex-grid" aria-label={`Captured frame bytes ${byteStart} through ${Math.max(byteStart, byteEnd - 1)}`}>
-            {Array.from(visibleBytes, (byte, pageIndex) => {
-              const byteOffset = byteStart + pageIndex;
-              const category = visualLayer(frame.layers.find((layer) => byteOffset >= layer.byteRange.offset && byteOffset < layer.byteRange.offset + layer.byteRange.length)?.protocol ?? 'unknown');
-              return (
-                <span
-                  key={byteOffset}
-                  className={`packet-byte byte-${category}${selectedField && includesByte(selectedField.byteRanges, byteOffset) ? ' highlighted' : ''}`}
-                  title={`frame byte ${byteOffset}`}
-                >
-                  {hexByte(byte)}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-        <article className="packet-field-lens captured-field-lens">
-          <span>{selectedLayer ? `${layerKicker(selectedLayer)} · ${selectedLayer.label}` : 'RAW CAPTURE'} · FIELD EVIDENCE</span>
-          <strong>{selectedField?.label ?? 'SELECT A FIELD'}</strong>
-          <p>{selectedField ? `${selectedField.displayValue} · CAPTURED BYTES ${selectedField.byteRanges.map((range) => `${range.offset}–${range.offset + Math.max(0, range.length - 1)}`).join(', ') || 'NO DIRECT RANGE'}` : 'Open Inspect to trace decoded structure to immutable bytes.'}</p>
-          <button type="button" onClick={() => setActiveDrawer('inspect')}>INSPECT EVIDENCE ↗</button>
-        </article>
+          <article className="packet-field-lens captured-field-lens">
+            <span>{selectedLayer ? `${layerKicker(selectedLayer)} · ${selectedLayer.label}` : 'RAW CAPTURE'} · FIELD EVIDENCE</span>
+            <strong>{selectedField?.label ?? 'SELECT A FIELD'}</strong>
+            <p>{selectedField ? `${selectedField.displayValue} · CAPTURED BYTES ${selectedField.byteRanges.map((range) => `${range.offset}–${range.offset + Math.max(0, range.length - 1)}`).join(', ') || 'NO DIRECT RANGE'}` : 'Open Inspect to trace decoded structure to immutable bytes.'}</p>
+            <button type="button" onClick={() => setActiveDrawer('inspect')}>INSPECT EVIDENCE ↗</button>
+          </article>
+        </section>
       </div>
-
-      <aside className="packet-inspector">
-        {selectedLayer ? (
-          <>
-            <div className="packet-inspector-title">
-              <div><span>{layerKicker(selectedLayer)} · {selectedLayer.status.toUpperCase()}</span><strong>{selectedLayer.label}</strong></div>
-              <small>BYTES {selectedLayer.byteRange.offset}–{selectedLayer.byteRange.offset + Math.max(0, selectedLayer.byteRange.length - 1)}</small>
-            </div>
-            <div className="packet-field-list">
-              {selectedLayer.fields.map((field) => (
-                <button key={field.id} type="button" className={field.id === selectedField?.id ? 'active' : ''} onClick={() => chooseField(field)}>
-                  <span>{field.label}</span><strong>{field.displayValue}</strong><small>CAPTURED</small>
-                </button>
-              ))}
-              {selectedLayer.fields.length === 0 && <p className="packet-empty-fields">No bounded fields decoded for this captured layer.</p>}
-            </div>
-            <AnimatePresence mode="wait" initial={false}>
-              {selectedField && (
-                <motion.div
-                  key={`${selectedLayer.id}-${selectedField.id}`}
-                  className="packet-field-detail"
-                  initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -5 }}
-                  transition={{ duration: 0.22 }}
-                >
-                  <span>FIELD → CAPTURED BYTES</span>
-                  <h2>{selectedField.label}</h2>
-                  <strong>{selectedField.displayValue}</strong>
-                  <p>{selectedField.byteRanges.map((range) => `${range.offset}–${range.offset + Math.max(0, range.length - 1)}`).join(', ') || 'No direct byte range.'}</p>
-                  {selectedField.note && <p>{selectedField.note}</p>}
-                </motion.div>
-              )}
-            </AnimatePresence>
-            <div className="packet-causality-note">
-              <span>CAPTURE LIMIT</span>
-              <p>{frame.record.truncated ? 'This frame is snaplen-truncated. Missing bytes are unknown and are never fabricated.' : 'This view describes one capture vantage point. Path, unseen packets, and encrypted content remain unknown.'}</p>
-            </div>
-          </>
-        ) : (
-          <div className="packet-empty-inspector"><span>UNSUPPORTED LINK TYPE</span><p>No Ethernet interpretation was attempted. Raw captured bytes remain inspectable.</p></div>
-        )}
-      </aside>
       </VisualWorkspaceShell>
     </div>
   );
