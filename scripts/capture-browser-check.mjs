@@ -207,6 +207,7 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
   const replayScreenshot = await screenshot('replay');
   let flowsScreenshot = null;
   let analysisScreenshot = null;
+  let sessionScreenshot = null;
   let focusLifecycle = null;
   if (profile.inspectReview) {
     await clickText(cdp, '.capture-heading-actions .capture-action', 'FLOWS');
@@ -242,6 +243,34 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     const restored = await cdp.evaluate(`document.activeElement?.textContent?.toLocaleUpperCase().includes('FLOWS')===true`);
     if (!initialFocus || !shiftTabContained || !tabContained || !restored) throw new Error(`${profile.id} Capture Replay drawer focus lifecycle failed.`);
     focusLifecycle = { initialFocus, shiftTabContained, tabContained, restored };
+  }
+
+  if (profile.width <= 900) {
+    const sessionButton = await cdp.evaluate(`(()=>{
+      const button=document.querySelector('.capture-heading-actions .capture-session');
+      const toolbar=document.querySelector('.capture-heading')?.getBoundingClientRect();
+      const rect=button?.getBoundingClientRect();
+      return {visible:Boolean(button&&rect&&rect.width>0&&rect.height>0&&getComputedStyle(button).display!=='none'),insideToolbar:Boolean(toolbar&&rect&&rect.left>=toolbar.left-1&&rect.right<=toolbar.right+1)};
+    })()`);
+    if (!sessionButton.visible || !sessionButton.insideToolbar) throw new Error(`${profile.id} does not keep capture lifecycle controls discoverable in the compact toolbar: ${JSON.stringify(sessionButton)}.`);
+    await clickText(cdp, '.capture-heading-actions .capture-session', 'SESSION');
+    await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='session'`);
+    const sessionDrawer = await cdp.evaluate(`(()=>{
+      const drawer=document.querySelector('.capture-session-drawer');
+      const rect=drawer?.getBoundingClientRect();
+      const replace=drawer?.querySelector('.capture-session-replace')?.getBoundingClientRect();
+      const clear=drawer?.querySelector('.capture-session-clear')?.getBoundingClientRect();
+      const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
+      const title=drawer?.querySelector('header > div')?.getBoundingClientRect();
+      return {width:rect?.width??0,replaceVisible:Boolean(replace&&replace.width>0&&replace.height>0),clearVisible:Boolean(clear&&clear.width>0&&clear.height>0),collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),initialFocus:document.activeElement?.classList.contains('capture-drawer-close')===true};
+    })()`);
+    if (!sessionDrawer.replaceVisible || !sessionDrawer.clearVisible || !sessionDrawer.initialFocus || sessionDrawer.collision || (profile.width <= 680 && sessionDrawer.width < profile.width * .98)) throw new Error(`${profile.id} capture session drawer is not a complete mobile lifecycle surface: ${JSON.stringify(sessionDrawer)}.`);
+    sessionScreenshot = await screenshot('session');
+    await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
+    await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
+    await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='none'`);
+    const sessionRestored = await cdp.evaluate(`document.activeElement?.classList.contains('capture-session')===true`);
+    if (!sessionRestored) throw new Error(`${profile.id} did not restore focus to the compact Session control.`);
   }
 
   await clickText(cdp, '.capture-mode-switch button', 'FRAME SPECIMEN');
@@ -308,7 +337,7 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
 
   await clickText(cdp, '.capture-mode-switch button', 'REPLAY');
   await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-capture-mode')==='replay'`);
-  return { geometry, frameGeometry, replayScreenshot, flowsScreenshot, frameScreenshot, analysisScreenshot, focusLifecycle };
+  return { geometry, frameGeometry, replayScreenshot, flowsScreenshot, frameScreenshot, analysisScreenshot, sessionScreenshot, focusLifecycle };
 }
 
 async function exerciseProfile(cdp, origin, fixtures, profile) {

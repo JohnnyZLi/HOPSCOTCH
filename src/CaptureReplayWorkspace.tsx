@@ -20,7 +20,7 @@ const DENSITY_BIN_COUNT = 96;
 const SCRUB_UNITS = 100_000n;
 
 type CaptureWorkspaceMode = 'replay' | 'frame';
-type CaptureContextDrawer = 'flows' | 'inspect' | 'analysis';
+type CaptureContextDrawer = 'flows' | 'inspect' | 'analysis' | 'session';
 
 export interface CaptureReplayContext {
   readonly conversationId: string;
@@ -442,6 +442,15 @@ export function CaptureReplayWorkspace({
     setWorkspaceMode(mode);
   };
 
+  const clearSession = () => {
+    setPlaying(false);
+    setActiveDrawer(null);
+    setWorkspaceMode('replay');
+    setError(null);
+    onContextChange(null);
+    onSessionChange(null, null);
+  };
+
   const handleWorkspaceKey = (event: ReactKeyboardEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
     if (target.matches('input, textarea, select, button')) return;
@@ -477,6 +486,7 @@ export function CaptureReplayWorkspace({
         <div className="visual-identity"><span>CAPTURE EVIDENCE</span><strong>REPLAY</strong></div>
         <span className="capture-local-badge">CAPTURED · LOCAL ONLY · SESSION MEMORY</span>
         <div className="capture-heading-actions">
+          {session && <button type="button" className={activeDrawer === 'session' ? 'capture-action capture-session active' : 'capture-action capture-session'} aria-pressed={activeDrawer === 'session'} onClick={() => openContextDrawer('session')}>Session</button>}
           {session && <div className="capture-mode-switch" role="group" aria-label="Capture workspace mode">
             <button type="button" className={workspaceMode === 'replay' ? 'active' : ''} aria-pressed={workspaceMode === 'replay'} onClick={() => selectWorkspaceMode('replay')}>Replay</button>
             <button type="button" className={workspaceMode === 'frame' ? 'active' : ''} aria-pressed={workspaceMode === 'frame'} onClick={() => selectWorkspaceMode('frame')}>Frame specimen</button>
@@ -485,7 +495,7 @@ export function CaptureReplayWorkspace({
           {session && workspaceMode === 'replay' && <button type="button" className={activeDrawer === 'inspect' ? 'capture-action active' : 'capture-action'} aria-pressed={activeDrawer === 'inspect'} onClick={() => openContextDrawer('inspect')}>Frame details</button>}
           {session && <button type="button" className={activeDrawer === 'analysis' ? 'capture-action active' : 'capture-action'} aria-pressed={activeDrawer === 'analysis'} onClick={() => openContextDrawer('analysis')}>Analysis</button>}
           <button type="button" className="capture-action capture-replace" onClick={() => fileInputRef.current?.click()} disabled={parsing}>{session ? 'Replace capture' : 'Import capture'}</button>
-          {session && <button type="button" className="capture-action capture-clear" onClick={() => { setPlaying(false); setActiveDrawer(null); setWorkspaceMode('replay'); setError(null); onContextChange(null); onSessionChange(null, null); }}>Clear</button>}
+          {session && <button type="button" className="capture-action capture-clear" onClick={clearSession}>Clear</button>}
           <button type="button" className="lab-mode capture-exit" onClick={onExit}>Exit</button>
         </div>
       </header>
@@ -736,6 +746,30 @@ export function CaptureReplayWorkspace({
             >
               <header><div><span>CAPTURE-BOUNDED ANALYSIS</span><strong id="capture-analysis-drawer-title">Conversation evidence</strong></div><button ref={activeDrawer === 'analysis' ? initialFocusRef : undefined} type="button" className="capture-drawer-close" onClick={() => setActiveDrawer(null)} aria-label="Close capture analysis">×</button></header>
               <div className="capture-analysis-drawer-body">{activeConversation ? <CaptureTrackHPanel session={session} conversationId={activeConversation.id} /> : <div className="capture-inspector-empty"><strong>NO RECOGNIZED CONVERSATION</strong><p>Analysis remains empty rather than inventing a flow.</p></div>}</div>
+            </aside>
+
+            <aside
+              ref={activeDrawer === 'session' ? drawerRef : undefined}
+              className={`capture-session-drawer${activeDrawer === 'session' ? ' is-open' : ''}`}
+              role={activeDrawer === 'session' ? 'dialog' : undefined}
+              aria-modal={activeDrawer === 'session' ? 'true' : undefined}
+              aria-labelledby="capture-session-drawer-title"
+              aria-hidden={activeDrawer !== 'session'}
+              inert={activeDrawer !== 'session'}
+            >
+              <header><div><span>LOCAL CAPTURE SESSION</span><strong id="capture-session-drawer-title">Evidence source</strong></div><button ref={activeDrawer === 'session' ? initialFocusRef : undefined} type="button" className="capture-drawer-close" onClick={() => setActiveDrawer(null)} aria-label="Close capture session">×</button></header>
+              <div className="capture-session-drawer-body">
+                <div className="capture-session-ledger" role="note">
+                  <div><span>SOURCE</span><strong>{sourceName ?? 'Unnamed local capture'}</strong></div>
+                  <div><span>BOUNDARY</span><strong>SESSION MEMORY</strong></div>
+                  <div><span>PROVENANCE</span><strong>CAPTURED + INFERRED</strong></div>
+                </div>
+                <p>Replacing or clearing this session never uploads the capture. Parsed evidence and its derived index remain local to this browser tab.</p>
+                <div className="capture-session-actions">
+                  <button type="button" className="capture-session-replace" onClick={() => { fileInputRef.current?.click(); setActiveDrawer(null); }} disabled={parsing}>{parsing ? 'VALIDATING BYTES' : 'REPLACE CAPTURE'}</button>
+                  <button type="button" className="capture-session-clear" onClick={clearSession}>CLEAR CURRENT SESSION</button>
+                </div>
+              </div>
             </aside>
           </div>
         </>

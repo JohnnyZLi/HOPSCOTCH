@@ -118,6 +118,22 @@
   cursor: pointer;
 }
 
+.measured-setup-session-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.measured-setup-session-actions .measured-setup-import { min-width: 0; }
+.measured-setup-clear {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid rgba(231, 107, 107, 0.25);
+  border-radius: 4px;
+  color: #dc8e8e;
+  background: rgba(231, 107, 107, 0.045);
+  font-size: 0.5rem;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .measured-setup-drawer .measured-bridge {
   grid-template-columns: 1fr;
   align-items: stretch;
@@ -238,6 +254,7 @@
   .measured-scene-heading .measured-glyph { width: 100%; height: 34px; }
   .measured-setup-drawer .measured-boundary { grid-template-columns: 1fr; }
   .measured-setup-drawer .measured-boundary > p { grid-column: 1; }
+  .measured-setup-session-actions { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

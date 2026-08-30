@@ -290,6 +290,7 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
 
   const clear = () => {
     onMeasuredStateChange(null);
+    setActiveDrawer(null);
     setFileName(null);
     setError(null);
     setSelectedCategory('interface');
@@ -306,7 +307,10 @@ export function MeasuredNetworkWorkspace({ measuredState, onMeasuredStateChange,
       <p>Imported bytes stay in this browser session. Facts are shown only after the Network Diagnostics v2 adapter, native provenance validator, and measured-state projection accept them. Separate targets are not drawn as one observed route.</p>
     </div>
 
-    <button className="measured-setup-import" type="button" onClick={() => inputRef.current?.click()}>{measuredState ? 'IMPORT ANOTHER REPORT' : 'CHOOSE JSON REPORT'} <span>↗</span></button>
+    <div className="measured-setup-session-actions">
+      <button className="measured-setup-import" type="button" onClick={() => inputRef.current?.click()}>{measuredState ? 'IMPORT ANOTHER REPORT' : 'CHOOSE JSON REPORT'} <span>↗</span></button>
+      {measuredState && <button className="measured-setup-clear" type="button" onClick={clear}>CLEAR CURRENT REPORT</button>}
+    </div>
 
     <section className="measured-bridge" aria-label="Optional local Network Diagnostics bridge">
       <div className="measured-bridge-copy">
