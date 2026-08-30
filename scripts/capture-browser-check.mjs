@@ -261,10 +261,12 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
       const replace=drawer?.querySelector('.capture-session-replace')?.getBoundingClientRect();
       const clear=drawer?.querySelector('.capture-session-clear')?.getBoundingClientRect();
       const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
-      const title=drawer?.querySelector('header > div')?.getBoundingClientRect();
-      return {width:rect?.width??0,replaceVisible:Boolean(replace&&replace.width>0&&replace.height>0),clearVisible:Boolean(clear&&clear.width>0&&clear.height>0),collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),initialFocus:document.activeElement?.classList.contains('capture-drawer-close')===true};
+      const titleElement=drawer?.querySelector('header > div');
+      const title=titleElement?.getBoundingClientRect();
+      const topElement=title?document.elementFromPoint((title.left+title.right)/2,(title.top+title.bottom)/2):null;
+      return {width:rect?.width??0,replaceVisible:Boolean(replace&&replace.width>0&&replace.height>0),clearVisible:Boolean(clear&&clear.width>0&&clear.height>0),collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement)),initialFocus:document.activeElement?.classList.contains('capture-drawer-close')===true};
     })()`);
-    if (!sessionDrawer.replaceVisible || !sessionDrawer.clearVisible || !sessionDrawer.initialFocus || sessionDrawer.collision || (profile.width <= 680 && sessionDrawer.width < profile.width * .98)) throw new Error(`${profile.id} capture session drawer is not a complete mobile lifecycle surface: ${JSON.stringify(sessionDrawer)}.`);
+    if (!sessionDrawer.replaceVisible || !sessionDrawer.clearVisible || !sessionDrawer.initialFocus || !sessionDrawer.titleOnTop || sessionDrawer.collision || (profile.width <= 680 && sessionDrawer.width < profile.width * .98)) throw new Error(`${profile.id} capture session drawer is not a complete mobile lifecycle surface: ${JSON.stringify(sessionDrawer)}.`);
     sessionScreenshot = await screenshot('session');
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });

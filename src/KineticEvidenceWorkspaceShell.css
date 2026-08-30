@@ -421,7 +421,8 @@ html body :is(.capture-flow-browser, .capture-evidence-inspector, .capture-analy
 html body .capture-workspace-grid:has(> :is(
   .capture-flow-browser.is-open,
   .capture-evidence-inspector.is-open,
-  .capture-analysis-drawer.is-open
+  .capture-analysis-drawer.is-open,
+  .capture-session-drawer.is-open
 )) {
   z-index: 60 !important;
 }
@@ -429,7 +430,8 @@ html body .capture-workspace-grid:has(> :is(
 html body .capture-workspace-grid > :is(
   .capture-flow-browser.is-open,
   .capture-evidence-inspector.is-open,
-  .capture-analysis-drawer.is-open
+  .capture-analysis-drawer.is-open,
+  .capture-session-drawer.is-open
 ) {
   opacity: 1 !important;
   background: #e9e5e0 !important;
