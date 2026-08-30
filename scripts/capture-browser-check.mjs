@@ -145,7 +145,7 @@ async function setFileInput(cdp, selector, filePath) {
 }
 
 async function clickText(cdp, selector, text) {
-  const clicked = await cdp.evaluate(`(()=>{const needle=${JSON.stringify(text)}.toLocaleUpperCase();const target=[...document.querySelectorAll(${JSON.stringify(selector)})].find((candidate)=>candidate.textContent?.toLocaleUpperCase().includes(needle));if(!target)return false;target.click();return true})()`);
+  const clicked = await cdp.evaluate(`(()=>{const needle=${JSON.stringify(text)}.toLocaleUpperCase();const target=[...document.querySelectorAll(${JSON.stringify(selector)})].find((candidate)=>candidate.textContent?.toLocaleUpperCase().includes(needle));if(!target)return false;target.focus();target.click();return true})()`);
   if (!clicked) throw new Error(`Unable to click ${selector} containing ${JSON.stringify(text)}`);
 }
 
