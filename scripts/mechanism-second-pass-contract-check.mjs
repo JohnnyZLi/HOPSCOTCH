@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const css = read('../src/MechanismSecondPass.css');
+const exploreCss = read('../src/ExploreLauncher.css');
 const systemCss = read('../src/SiteEditorialWorkspaceSystem.css');
 const dns = read('../src/DnsTheater.tsx');
 const tcp = read('../src/TcpTheater.tsx');
@@ -52,6 +53,9 @@ assert.ok(measured.includes('measured-dormant-field') && measured.includes('meas
 assert.ok(measured.includes('MeasuredSignalField') && measured.includes("fact.availability !== 'unavailable'") && measured.includes('REPORT BOUNDARY'), 'Measured Network may emit kinetic traces only for accepted local facts inside the report boundary');
 assert.ok(physical.includes('globe-fallback-mechanism') && physical.includes("setActiveDrawer('tools')"));
 assert.ok(explore.includes('type="search"') && explore.includes('searchResults.map'));
+for (const token of ['.explore-search', '.explore-scale-map', '@media (prefers-reduced-motion: reduce)']) {
+  assert.ok(exploreCss.includes(token), `always-loaded navigation mechanism CSS is missing ${token}`);
+}
 assert.ok(internetScale.includes("useState('')") && internetScale.includes('ctx.lineDashOffset') && internetScale.includes("for (const offset of [0, .33, .66])"), 'AS Routing must begin without a permanent relationship card and animate only the computed winner');
 assert.ok(builder.includes('builder-route-signal-track') && builder.includes('builder-selection-card'), 'Builder must keep its computed route signal and contextual selection instrument');
 assert.ok(performanceProfile.includes(".observed-toolbar-controls .visual-drawer-tabs button', 'QUERY'"), 'Phase 4 browser review must open the now-contextual Query drawer before submitting');
@@ -76,7 +80,6 @@ for (const token of [
   '.measured-signal-field',
   '.measured-signal-traces',
   '.globe-fallback-mechanism',
-  '.explore-search',
   '.internet-scale :is(.as-winner-readout, .as-selection-card)',
   '.builder-visual-workspace .builder-link.active',
   '.builder-visual-workspace .builder-selection-card',
