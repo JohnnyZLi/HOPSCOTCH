@@ -1184,6 +1184,20 @@ async function capturePhase4EvidenceReview(cdp, profile) {
       const setupSelector = '.measured-heading .visual-drawer-tabs button:nth-child(1)';
       await measuredClickButton(cdp, setupSelector, 'SETUP');
       await waitForExpression(cdp, `Boolean(document.querySelector('.measured-workspace .visual-drawer'))`);
+      const setupStacking = await cdp.evaluate(`(()=>{
+        const drawer=document.querySelector('.measured-workspace .visual-drawer');
+        const header=drawer?.querySelector('.visual-drawer__header');
+        const controls=document.querySelector('.measured-heading-actions');
+        if(!drawer||!header||!controls)return {complete:false,drawerOwnsOverlap:false};
+        const a=header.getBoundingClientRect();
+        const b=controls.getBoundingClientRect();
+        const left=Math.max(a.left,b.left),right=Math.min(a.right,b.right);
+        const top=Math.max(a.top,b.top),bottom=Math.min(a.bottom,b.bottom);
+        if(left>=right||top>=bottom)return {complete:true,overlap:false,drawerOwnsOverlap:true};
+        const hit=document.elementFromPoint((left+right)/2,(top+bottom)/2);
+        return {complete:true,overlap:true,drawerOwnsOverlap:Boolean(hit&&drawer.contains(hit)),hit:hit?.className??hit?.tagName??null};
+      })()`);
+      if (!setupStacking.complete || !setupStacking.drawerOwnsOverlap) throw new Error(`${profile.id} setup drawer header renders underneath the persistent measured controls: ${JSON.stringify(setupStacking)}.`);
       setupScreenshotPath = await capture('-setup');
       await dispatchKey(cdp, 'Escape', 'Escape');
       await waitForExpression(cdp, `!document.querySelector('.measured-workspace .visual-drawer')`);
