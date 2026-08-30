@@ -525,7 +525,8 @@
     gap: 8px;
   }
 
-  .explore-row-layer { display: none; }
+  .explore-home-nav button > .explore-row-layer,
+  .explore-row > .explore-row-layer { display: none; }
   .explore-home-nav small,
   .explore-row small { max-width: none; }
   .explore-section > header { grid-template-columns: 1fr; align-items: start; }
