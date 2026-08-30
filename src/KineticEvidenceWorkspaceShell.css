@@ -737,6 +737,13 @@ html body .measured-heading-actions button {
 html body .measured-heading-actions button:is(.active,:hover,:focus-visible) { color: var(--site-ink-strong) !important; background: rgba(255,255,255,.48) !important; }
 html body .measured-heading-actions button span { color: var(--site-coral) !important; }
 
+/* The measured workspace owns its toolbar instead of using VisualWorkspace's
+   toolbar slot. Keep contextual sheets above that rail so their title and
+   close control never render underneath the persistent setup/provenance
+   controls. The corner navigator remains above both at z-index 90. */
+html body .measured-workspace .visual-drawer-backdrop { z-index: 68 !important; }
+html body .measured-workspace .measured-context-drawer.visual-drawer { z-index: 70 !important; }
+
 html body .measured-capture-strip {
   position: absolute !important;
   z-index: 18 !important;
