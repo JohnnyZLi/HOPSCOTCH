@@ -84,6 +84,18 @@ html body .builder-command-menu .interactive-world-toolbar__actions {
   gap: 0 !important;
 }
 
+html body .builder-command-menu .builder-world-tools {
+  justify-self: stretch !important;
+  min-width: 100% !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
 html body .builder-command-menu .interactive-world-toolbar__actions {
   padding-top: 7px;
   border-top: 1px solid rgba(41,40,39,.16);
