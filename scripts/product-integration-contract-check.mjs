@@ -44,6 +44,8 @@ assert.match(app, /<KineticOverview/);
 assert.match(corner, /aria-expanded=\{open\}/);
 assert.match(launcher, /WORKSPACE_COUNT/);
 assert.match(launcher, /event\.key !== 'Tab'/);
+assert.match(launcher, /explore-scale-map/);
+for (const token of ['.explore-search', '.explore-scale-map__mechanism', '@keyframes explore-signal-orbit']) assert.ok(exploreCss.includes(token));
 assert.match(kinetic, /buildJourneyScenario/);
 
 for (const forbidden of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'localStorage', 'sessionStorage']) {

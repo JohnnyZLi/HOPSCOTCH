@@ -5,6 +5,7 @@ const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 const kinetic = readFileSync(new URL('../src/KineticOverview.tsx', import.meta.url), 'utf8');
 const kineticCss = readFileSync(new URL('../src/KineticOverview.css', import.meta.url), 'utf8');
 const cornerCss = readFileSync(new URL('../src/CornerNavigator.css', import.meta.url), 'utf8');
+const exploreCss = readFileSync(new URL('../src/ExploreLauncher.css', import.meta.url), 'utf8');
 const visualWorkspace = readFileSync(new URL('../src/VisualWorkspace.tsx', import.meta.url), 'utf8');
 const visualWorkspaceCss = readFileSync(new URL('../src/VisualWorkspace.css', import.meta.url), 'utf8');
 const journeySource = readFileSync(new URL('../src/JourneyTheaterV2.tsx', import.meta.url), 'utf8');
@@ -100,9 +101,11 @@ for (const token of [
   '.capture-ingest-path',
   '.observed-dormant-field',
   '.measured-dormant-field',
-  '.explore-search',
   '@media (prefers-reduced-motion: reduce)',
 ]) assert.ok(mechanismSecondPassCss.includes(token), `Missing second-pass mechanism contract ${token}`);
+for (const token of ['.explore-search', '.explore-scale-map', '@media (prefers-reduced-motion: reduce)']) {
+  assert.ok(exploreCss.includes(token), `Missing always-loaded navigation mechanism contract ${token}`);
+}
 assert.ok(editorialWorkspaceLoader.includes("import('./SiteEditorialWorkspaceSystem.css')"));
 assert.ok(entry.includes("./SiteEditorialCore.css") && entry.includes("./SiteEditorialWorkspaceLoader"));
 assert.ok(!entry.includes('./ScaleInspectorPolish.css') && !entry.includes('./OverviewLayoutStability.css'));

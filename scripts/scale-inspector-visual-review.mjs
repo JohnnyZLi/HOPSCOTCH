@@ -196,14 +196,29 @@ async function main() {
     assert.equal(await cdp.evaluate(`(()=>{const button=document.querySelector('.corner-navigator');if(!button)return false;button.click();return true})()`), true, 'Corner navigator not found.');
     await waitForExpression(cdp, `Boolean(document.querySelector('.explore-panel'))`);
     await sleep(450);
-    const navigation = await cdp.evaluate(`(()=>{const panel=document.querySelector('.explore-panel');const r=panel?.getBoundingClientRect();return {panel:r?{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}:null,rows:document.querySelectorAll('.explore-row').length,legacyCards:document.querySelectorAll('.explore-card,.explore-featured-card').length,activeTag:document.activeElement?.className??'',innerWidth,innerHeight}})()`);
+    const navigation = await cdp.evaluate(`(()=>{const box=(element)=>{if(!element)return null;const r=element.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};const map=document.querySelector('.explore-scale-map');return {panel:box(document.querySelector('.explore-panel')),searchLabel:box(document.querySelector('.explore-search>span')),searchInput:box(document.querySelector('.explore-search>input')),map:box(map),mapDisplay:map?getComputedStyle(map).display:null,rows:document.querySelectorAll('.explore-row').length,legacyCards:document.querySelectorAll('.explore-card,.explore-featured-card').length,activeTag:document.activeElement?.className??'',innerWidth,innerHeight}})()`);
     assert.ok(navigation.panel && navigation.panel.left >= 0 && navigation.panel.top >= 0 && navigation.panel.bottom <= navigation.innerHeight, 'Navigation drawer escapes the viewport.');
+    assert.ok(navigation.searchLabel && navigation.searchInput && navigation.searchLabel.bottom <= navigation.searchInput.top + 1, 'Navigation search label collides with the input.');
+    assert.ok(navigation.map && navigation.mapDisplay !== 'none' && navigation.map.left >= navigation.panel.right, 'Desktop navigation scale map is missing or overlaps the command drawer.');
     assert.equal(navigation.rows, 13, 'All workspaces must remain available as simple rows.');
     assert.equal(navigation.legacyCards, 0, 'Legacy navigation cards returned.');
     assert.match(String(navigation.activeTag), /explore-close/, 'Navigation did not move focus inside the dialog.');
     report.navigation = navigation;
     await screenshot(cdp, 'corner-navigation-open.png');
-    report.screenshots = ['kinetic-opening.png', 'kinetic-assembly.png', 'corner-navigation-open.png'];
+
+    await cdp.call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await sleep(280);
+    const mobileNavigation = await cdp.evaluate(`(()=>{const box=(element)=>{if(!element)return null;const r=element.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};const map=document.querySelector('.explore-scale-map');const arrows=[...document.querySelectorAll('.explore-home-nav button>i,.explore-row>i')].map(box);return {panel:box(document.querySelector('.explore-panel')),searchLabel:box(document.querySelector('.explore-search>span')),searchInput:box(document.querySelector('.explore-search>input')),mapDisplay:map?getComputedStyle(map).display:null,visibleLayerLabels:[...document.querySelectorAll('.explore-row-layer')].filter((element)=>getComputedStyle(element).display!=='none').length,arrows,rows:document.querySelectorAll('.explore-row').length,scrollWidth:document.documentElement.scrollWidth,innerWidth,innerHeight}})()`);
+    assert.ok(mobileNavigation.panel && mobileNavigation.panel.left >= 0 && mobileNavigation.panel.top >= 0 && mobileNavigation.panel.right <= mobileNavigation.innerWidth + 1 && mobileNavigation.panel.bottom <= mobileNavigation.innerHeight + 1, 'Mobile navigation drawer escapes the viewport.');
+    assert.ok(mobileNavigation.searchLabel && mobileNavigation.searchInput && mobileNavigation.searchLabel.bottom <= mobileNavigation.searchInput.top + 1, 'Mobile navigation search label collides with the input.');
+    assert.equal(mobileNavigation.mapDisplay, 'none', 'Desktop scale map must yield to the mobile command list.');
+    assert.equal(mobileNavigation.visibleLayerLabels, 0, 'Mobile navigation must hide scale labels instead of clipping them.');
+    assert.ok(mobileNavigation.arrows.every((arrow) => arrow && arrow.left >= mobileNavigation.innerWidth * .82 && arrow.right <= mobileNavigation.innerWidth), 'Mobile navigation arrows escaped their right-hand column.');
+    assert.equal(mobileNavigation.rows, 13, 'Mobile navigation lost a workspace destination.');
+    assert.ok(mobileNavigation.scrollWidth <= mobileNavigation.innerWidth + 1, 'Mobile navigation horizontally overflows.');
+    report.mobileNavigation = mobileNavigation;
+    await screenshot(cdp, 'corner-navigation-mobile-open.png');
+    report.screenshots = ['kinetic-opening.png', 'kinetic-assembly.png', 'corner-navigation-open.png', 'corner-navigation-mobile-open.png'];
   } catch (error) {
     report.failures.push(error instanceof Error ? error.stack ?? error.message : String(error));
   } finally {

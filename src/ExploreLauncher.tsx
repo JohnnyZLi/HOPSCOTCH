@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ScenarioGallery } from './ScenarioGallery';
 import type { ScenarioPresetId } from './scenarios/catalog.ts';
 import {
@@ -38,18 +38,22 @@ function WorkspaceRow({
   onSelect: (destination: ExploreDestination) => void;
 }) {
   const reduceMotion = useReducedMotion();
+  const index = WORKSPACE_IDS.indexOf(item.id) + 1;
   return (
     <motion.button
       type="button"
       className={`explore-row${active ? ' active' : ''}`}
       data-explore-destination={item.id}
+      data-explore-layer={item.layer}
       aria-current={active ? 'page' : undefined}
       onClick={() => onSelect(item.id)}
       whileHover={reduceMotion ? undefined : { x: 5 }}
       whileTap={reduceMotion ? undefined : { scale: .995 }}
       transition={{ type: 'spring', stiffness: 420, damping: 32 }}
     >
-      <span><strong>{item.exploreTitle}</strong><small>{item.description}</small></span>
+      <span className="explore-row-index" aria-hidden="true">{String(index).padStart(2, '0')}</span>
+      <span className="explore-row-copy"><strong>{item.exploreTitle}</strong><small>{item.description}</small></span>
+      <span className="explore-row-layer">{item.layer}</span>
       <i aria-hidden="true">→</i>
     </motion.button>
   );
@@ -147,6 +151,32 @@ export function ExploreLauncher({
           transition={{ duration: reduceMotion ? 0 : .22 }}
           onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
         >
+          <div className="explore-scale-map" aria-hidden="true">
+            <div className="explore-scale-map__caption">
+              <span>CONNECTED WORKSPACE FIELD</span>
+              <strong>ONE REQUEST · THIRTEEN VIEWS</strong>
+            </div>
+            <div className="explore-scale-map__mechanism">
+              <i className="explore-scale-map__orbit orbit-request" />
+              <i className="explore-scale-map__orbit orbit-protocol" />
+              <i className="explore-scale-map__orbit orbit-evidence" />
+              <span className="explore-scale-map__axis axis-horizontal" />
+              <span className="explore-scale-map__axis axis-vertical" />
+              <b className="explore-scale-map__core">H</b>
+              {WORKSPACE_IDS.map((id, index) => (
+                <i
+                  key={id}
+                  className={`explore-scale-map__node${activeDestination === id ? ' active' : ''}`}
+                  style={{ '--explore-node': index } as CSSProperties}
+                />
+              ))}
+              <span className="explore-scale-map__signal" />
+            </div>
+            <div className="explore-scale-map__legend">
+              <span>REQUEST</span><span>PROTOCOL</span><span>INTERNET</span><span>EVIDENCE</span>
+            </div>
+          </div>
+
           <motion.aside
             ref={panelRef}
             className="explore-panel"
@@ -167,7 +197,10 @@ export function ExploreLauncher({
 
             <nav className="explore-home-nav" aria-label="Home">
               <button type="button" className={activeDestination === null ? 'active' : ''} aria-current={activeDestination === null ? 'page' : undefined} onClick={onHome}>
-                <span><strong>Request journey</strong><small>The kinetic overview</small></span><i aria-hidden="true">↖</i>
+                <span className="explore-row-index" aria-hidden="true">00</span>
+                <span className="explore-row-copy"><strong>Request journey</strong><small>The kinetic overview</small></span>
+                <span className="explore-row-layer">overview</span>
+                <i aria-hidden="true">↖</i>
               </button>
             </nav>
 
