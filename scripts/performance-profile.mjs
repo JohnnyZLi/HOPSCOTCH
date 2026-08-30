@@ -1244,6 +1244,7 @@ async function captureVisualReview(cdp, profile) {
     if (profile.inspectRevealSelector) {
       await measuredClickButton(cdp, profile.inspectRevealSelector, 'NETWORK TOOLS');
       await waitForExpression(cdp, `document.querySelector(${JSON.stringify(profile.inspectRevealSelector)})?.getAttribute('aria-expanded')==='true'`, 8000);
+      await sleep(320);
       revealScreenshotPath = await capture('-menu');
     }
     await cdp.evaluate(`document.querySelector(${JSON.stringify(profile.inspectButtonSelector)})?.focus()`);
