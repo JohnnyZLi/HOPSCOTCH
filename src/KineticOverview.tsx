@@ -226,12 +226,14 @@ export function KineticOverview({
           </g>
 
           <g transform="translate(58 325)">
-            <g className="kinetic-stage-group kinetic-intent">
-              <path className="kinetic-browser-shell" d="M0 18 Q0 0 18 0 H252 Q270 0 270 18 V132 Q270 150 252 150 H18 Q0 150 0 132 Z" />
-              <path d="M0 30 H270" />
-              <circle cx="15" cy="15" r="3" /><circle cx="27" cy="15" r="3" /><circle cx="39" cy="15" r="3" />
-              <g className="kinetic-intent-glyph"><rect x="22" y="54" width="226" height="28" rx="14" /><text x="39" y="73">example.test</text></g>
-              <g className="kinetic-intent-glyph"><path d="M31 110 H212" /><path d="M31 122 H176" /></g>
+            <g className="kinetic-intent-responsive-offset">
+              <g className="kinetic-stage-group kinetic-intent">
+                <path className="kinetic-browser-shell" d="M0 18 Q0 0 18 0 H252 Q270 0 270 18 V132 Q270 150 252 150 H18 Q0 150 0 132 Z" />
+                <path d="M0 30 H270" />
+                <circle cx="15" cy="15" r="3" /><circle cx="27" cy="15" r="3" /><circle cx="39" cy="15" r="3" />
+                <g className="kinetic-intent-glyph"><rect x="22" y="54" width="226" height="28" rx="14" /><text x="39" y="73">example.test</text></g>
+                <g className="kinetic-intent-glyph"><path d="M31 110 H212" /><path d="M31 122 H176" /></g>
+              </g>
             </g>
           </g>
 
@@ -294,7 +296,7 @@ export function KineticOverview({
           <g transform="translate(1058 286)">{Array.from({ length: 15 }, (_, index) => <rect key={index} className="kinetic-response-byte" x={(index % 5) * 13} y={Math.floor(index / 5) * 13} width="7" height="7" />)}</g>
           <circle className="kinetic-complete-ring" cx="650" cy="412" r="225" />
 
-          <g transform="translate(44 224)"><g className="kinetic-annotation"><path d="M0 0 H92" /><text y="-10">human intent</text></g></g>
+          <g transform="translate(44 224)"><g className="kinetic-intent-responsive-offset"><g className="kinetic-annotation"><path d="M0 0 H92" /><text y="-10">human intent</text></g></g></g>
           <g transform="translate(448 42)"><g className="kinetic-annotation"><path d="M0 0 H116" /><text y="-10">recursive resolution</text></g></g>
           <g transform="translate(846 340)"><g className="kinetic-annotation"><path d="M0 0 H124" /><text y="-10">policy-selected path</text></g></g>
           <g transform="translate(1018 228)"><g className="kinetic-annotation"><path d="M0 0 H132" /><text y="-10">ephemeral keys</text></g></g>
