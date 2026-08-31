@@ -169,7 +169,8 @@ html body .capture-replay .capture-evidence-inspector.is-frame-stage {
 
 html body .capture-replay .capture-flow-browser,
 html body .capture-replay .capture-evidence-inspector,
-html body .capture-replay .capture-analysis-drawer {
+html body .capture-replay .capture-analysis-drawer,
+html body .capture-replay .capture-session-drawer {
   border-color: var(--site-rule) !important;
   color: var(--site-ink) !important;
   background: rgba(235,231,226,.985) !important;

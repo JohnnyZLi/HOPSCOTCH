@@ -15,6 +15,8 @@ const simulatedPacketCss = read('../src/SimulatedPacketMechanism.css');
 const capture = read('../src/CaptureReplayWorkspace.tsx');
 const observed = read('../src/ObservedInternet.tsx');
 const measured = read('../src/MeasuredNetworkWorkspace.tsx');
+const capturePhase4Css = read('../src/CaptureReplayWorkspace.phase4.css');
+const evidenceShellCss = read('../src/KineticEvidenceWorkspaceShell.css');
 const physical = read('../src/PhysicalInternetGlobe.tsx');
 const explore = read('../src/ExploreLauncher.tsx');
 const internetScale = read('../src/InternetScaleTheater.tsx');
@@ -51,6 +53,11 @@ assert.ok(observed.includes('observed-dormant-field') && observed.includes('obse
 assert.ok(observed.includes('EvidenceIslandSignal') && observed.includes('evidence-gap-engine') && observed.includes('snapshot.collectorPaths.length'), 'Internet Evidence must animate inside provenance islands while leaving the unobserved middle disconnected');
 assert.ok(measured.includes('measured-dormant-field') && measured.includes('measured-dormant-pulse'));
 assert.ok(measured.includes('MeasuredSignalField') && measured.includes("fact.availability !== 'unavailable'") && measured.includes('REPORT BOUNDARY'), 'Measured Network may emit kinetic traces only for accepted local facts inside the report boundary');
+assert.ok(measured.includes('measured-setup-clear') && measured.includes('onClick={clear}'), 'Measured Network Setup must retain a reachable session-clear action when the compact toolbar hides Clear');
+for (const token of ['capture-session-drawer', 'capture-session-replace', 'capture-session-clear', "openContextDrawer('session')"]) {
+  assert.ok(capture.includes(token), `Capture Replay is missing compact session lifecycle control ${token}`);
+}
+assert.ok(capturePhase4Css.includes('.capture-heading-actions .capture-session { display: none; }') && evidenceShellCss.includes('html body .capture-heading-actions .capture-session') && evidenceShellCss.includes('display: inline-flex !important'), 'Capture Replay must promote Session into the compact toolbar without adding desktop chrome');
 assert.ok(physical.includes('globe-fallback-mechanism') && physical.includes("setActiveDrawer('tools')"));
 assert.ok(explore.includes('type="search"') && explore.includes('searchResults.map'));
 for (const token of ['.explore-search', '.explore-scale-map', '@media (prefers-reduced-motion: reduce)']) {
@@ -90,4 +97,4 @@ for (const token of [
 assert.doesNotMatch(css, /\.dns-workspace-map \.dns-actor[^{]*\{[^}]*border-radius:\s*[3-9]px/s);
 assert.doesNotMatch(css, /\.tcp-message-token[^{]*\{[^}]*background:\s*rgba\(231/s);
 
-console.log('Mechanism second-pass contract passed: protocols, bytes, evidence states, fallback, navigation search, responsive behavior, and reduced motion are locked.');
+console.log('Mechanism second-pass contract passed: protocols, bytes, evidence states, compact session lifecycle, fallback, navigation search, responsive behavior, and reduced motion are locked.');
