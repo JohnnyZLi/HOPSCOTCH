@@ -242,6 +242,9 @@ async function captureRepresentativeState(cdp, route, viewport) {
     const hud=document.querySelector('.visual-workspace__hud');
     const pick=(element)=>{if(!element)return null;const r=element.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};
     const intersects=(a,b)=>Boolean(a&&b&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top);
+    const toolbarActions=[...(toolbar?.querySelectorAll('button')??[])].map((element)=>({label:element.textContent?.trim()??'',box:pick(element),clientWidth:element.clientWidth,scrollWidth:element.scrollWidth}));
+    const toolbarTabStrips=[...(toolbar?.querySelectorAll('.visual-drawer-tabs')??[])].map((element)=>({box:pick(element),clientWidth:element.clientWidth,scrollWidth:element.scrollWidth}));
+    const toolbarActionOverlap=toolbarActions.some((action,index)=>toolbarActions.slice(index+1).some((candidate)=>intersects(action.box,candidate.box)));
     const surface=(element)=>{if(!element)return null;const style=getComputedStyle(element);const color=style.backgroundColor;const alpha=color==='transparent'?0:color.startsWith('rgba')?Number(color.slice(color.lastIndexOf(',')+1,-1).trim()):1;return {backgroundAlpha:alpha,backgroundImage:style.backgroundImage,borderRadius:style.borderRadius,borderTopWidth:style.borderTopWidth,borderRightWidth:style.borderRightWidth,borderBottomWidth:style.borderBottomWidth,borderLeftWidth:style.borderLeftWidth}};
     const boxes={rail:pick(rail),controls:pick(controls),speed:pick(speed),track:pick(track),workspace:pick(workspace),toolbar:pick(toolbar),hud:pick(hud)};
     return {
@@ -254,6 +257,9 @@ async function captureRepresentativeState(cdp, route, viewport) {
       innerHeight,
       speedValue:speed?.value??null,
       speedOptions:speed?[...speed.options].map((option)=>option.value):[],
+      toolbarActions,
+      toolbarTabStrips,
+      toolbarActionOverlap,
       httpSurfaces:document.querySelector('.http-visual-workspace')?{
         lane:surface(document.querySelector('.http-lane')),
         transport:surface(document.querySelector('.http-transport-rail')),
@@ -269,6 +275,14 @@ async function captureRepresentativeState(cdp, route, viewport) {
   assert.equal(state.controlsTrackOverlap, false, `${route.id}/${viewport.id} playback controls overlap the timeline track.`);
   assert.equal(state.speedTrackOverlap, false, `${route.id}/${viewport.id} speed control overlaps the timeline track.`);
   assert.ok(state.scrollWidth <= state.innerWidth + 1, `${route.id}/${viewport.id} horizontally overflows (${state.scrollWidth} > ${state.innerWidth}).`);
+  if (route.id === 'journey') {
+    const tabStrip = state.toolbarTabStrips[0];
+    const drawerActions = state.toolbarActions.slice(0, 4);
+    assert.equal(state.toolbarActions.length, 5, `journey/${viewport.id} must expose four drawer actions and Exit.`);
+    assert.equal(state.toolbarActionOverlap, false, `journey/${viewport.id} toolbar actions overlap: ${JSON.stringify(state.toolbarActions)}.`);
+    assert.ok(state.toolbarActions.every((action) => action.scrollWidth <= action.clientWidth + 1), `journey/${viewport.id} toolbar label is clipped: ${JSON.stringify(state.toolbarActions)}.`);
+    assert.ok(tabStrip && drawerActions.every((action) => action.box.left >= tabStrip.box.left - 1 && action.box.right <= tabStrip.box.right + 1), `journey/${viewport.id} drawer action is clipped by its tab strip: ${JSON.stringify({ tabStrip, drawerActions })}.`);
+  }
   if (route.id === 'http') {
     const { lane, transport, stream, lossLabel, h2Footer, h3Header } = state.httpSurfaces ?? {};
     assert.ok(lane && transport && stream, `http/${viewport.id} transport surfaces are missing.`);

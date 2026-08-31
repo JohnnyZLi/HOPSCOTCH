@@ -716,6 +716,16 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
     scrollbar-width: none;
   }
 
+  /* Journey owns five primary actions on mobile. Keep every label visible in
+     the fixed toolbar instead of letting the nested tab strip clip Evidence. */
+  html body .journey-visual-workspace .journey-visual-tools :is(.visual-drawer-tabs button, .visual-tool-button) {
+    padding-inline: 6px !important;
+  }
+
+  html body .journey-visual-workspace .journey-visual-tools .visual-drawer-tabs button span {
+    margin-left: 4px !important;
+  }
+
   html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__hud {
     top: 58px !important;
     left: 12px !important;

@@ -927,7 +927,7 @@ async function inspectJourneyDrawerArchitecture(cdp, profile) {
   if (!before.exit || before.exit.width <= 0 || before.exit.height <= 0) throw new Error(`${profile.id} does not expose a visible Journey Exit action.`);
   if (before.exit.x < before.stage.x || before.exit.x + before.exit.width > before.stage.x + before.stage.width + 1) throw new Error(`${profile.id} Journey Exit action is outside the visible stage.`);
 
-  await openJourneyDrawer(cdp, 'Configure');
+  await openJourneyDrawer(cdp, 'Config');
   const opened = await cdp.evaluate(`(()=>{
     const stage=document.querySelector('.journey-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
     const drawer=document.querySelector('.journey-visual-workspace .visual-drawer')?.getBoundingClientRect();
@@ -1011,7 +1011,7 @@ async function exerciseMeasuredJourneySidecars(cdp, profile) {
   if (transport.sidecar.includes('500 Mbps')) throw new Error(`${profile.id} leaked other-target speed-test throughput into matched Journey transport evidence.`);
   if (!transport.sidecar.includes('OTHER-TARGET FACT')) throw new Error(`${profile.id} did not disclose that other-target transport facts were hidden.`);
 
-  await openJourneyDrawer(cdp, 'Configure');
+  await openJourneyDrawer(cdp, 'Config');
   const changedHost = await cdp.evaluate(`(()=>{
     const input=document.querySelector('.journey-drawer-form input');
     const form=document.querySelector('.journey-drawer-form');
