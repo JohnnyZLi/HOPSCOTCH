@@ -220,6 +220,7 @@ async function inspectState(cdp) {
     const packetObject=document.querySelector('[data-phase5-packet-object="true"]');
     const physicalObject=document.querySelector('[data-phase5b-physical="true"]');
     const boxes={callout:pick(callout),scene:pick(scene),stage:pick(stage),hud:pick(hud),toolbar:pick(toolbar),rail:pick(rail),depth:pick(depth)};
+    const railSurface=rail?(()=>{const style=getComputedStyle(rail);const workspace=document.querySelector('.journey-visual-workspace');const plate=workspace?getComputedStyle(workspace,'::after'):null;const alpha=(color)=>color==='transparent'?0:color.startsWith('rgba')?Number(color.slice(color.lastIndexOf(',')+1,-1).trim()):1;return {opacity:Number(style.opacity),backgroundAlpha:alpha(style.backgroundColor),plate:plate?{content:plate.content,backgroundAlpha:alpha(plate.backgroundColor),width:Number.parseFloat(plate.width),height:Number.parseFloat(plate.height),zIndex:Number(plate.zIndex)}:null}})():null;
     const markers=[...document.querySelectorAll('.visual-time-rail__events button')].map((button)=>{const r=button.getBoundingClientRect();return {label:button.getAttribute('aria-label')||'',width:r.width,height:r.height}});
     const hudValues=[...document.querySelectorAll('.visual-workspace__hud strong')].map((value)=>({text:value.textContent?.trim()||'',clientWidth:value.clientWidth,scrollWidth:value.scrollWidth,whiteSpace:getComputedStyle(value).whiteSpace}));
     const causal=causalObject?(()=>{const style=getComputedStyle(causalObject);const color=style.backgroundColor;const backgroundAlpha=color==='transparent'?0:color.startsWith('rgba')?Number(color.slice(color.lastIndexOf(',')+1,-1).trim()):1;return {backgroundAlpha,backgroundImage:style.backgroundImage,borderRadius:style.borderRadius,borderWidths:[style.borderTopWidth,style.borderRightWidth,style.borderBottomWidth,style.borderLeftWidth],protectionNodeCount:causalObject.querySelectorAll('.node-protection').length}})():null;
@@ -269,6 +270,7 @@ async function inspectState(cdp) {
       calloutToolbarOverlap:intersects(boxes.callout,boxes.toolbar),
       calloutRailOverlap:intersects(boxes.callout,boxes.rail),
       sceneDepthOverlap:intersects(boxes.scene,boxes.depth),
+      railSurface,
       markers,
       hudValues,
       causal,
@@ -398,6 +400,9 @@ async function auditViewport(cdp, origin, viewport) {
     assert.equal(state.calloutHudOverlap, false, `${viewport.id}/${labels[index]}: callout overlaps HUD.`);
     assert.equal(state.calloutToolbarOverlap, false, `${viewport.id}/${labels[index]}: callout overlaps toolbar.`);
     assert.equal(state.calloutRailOverlap, false, `${viewport.id}/${labels[index]}: callout overlaps Time Machine.`);
+    assert.ok((state.railSurface?.plate?.backgroundAlpha ?? 0) >= .99, `${viewport.id}/${labels[index]}: Time Machine has no opaque isolation plate: ${JSON.stringify(state.railSurface)}.`);
+    assert.equal(state.railSurface?.plate?.zIndex, 16, `${viewport.id}/${labels[index]}: Time Machine isolation plate left the rail stacking layer: ${JSON.stringify(state.railSurface)}.`);
+    assert.ok(Math.abs((state.railSurface?.plate?.width ?? 0) - state.boxes.rail.width) <= 1 && Math.abs((state.railSurface?.plate?.height ?? 0) - state.boxes.rail.height) <= 1, `${viewport.id}/${labels[index]}: Time Machine isolation plate does not cover the rail: ${JSON.stringify({rail:state.boxes.rail,surface:state.railSurface})}.`);
     assert.ok(state.boxes.callout.left >= state.boxes.stage.left - 1 && state.boxes.callout.right <= state.boxes.stage.right + 1, `${viewport.id}/${labels[index]}: callout escapes stage horizontally.`);
     assert.ok(state.boxes.callout.top >= state.boxes.stage.top - 1 && state.boxes.callout.bottom <= state.boxes.stage.bottom + 1, `${viewport.id}/${labels[index]}: callout escapes stage vertically.`);
     assert.ok(state.scrollWidth <= state.innerWidth + 1, `${viewport.id}/${labels[index]}: horizontal overflow ${state.scrollWidth} > ${state.innerWidth}.`);
