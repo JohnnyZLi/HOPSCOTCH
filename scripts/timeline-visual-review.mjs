@@ -276,10 +276,12 @@ async function captureRepresentativeState(cdp, route, viewport) {
   assert.equal(state.speedTrackOverlap, false, `${route.id}/${viewport.id} speed control overlaps the timeline track.`);
   assert.ok(state.scrollWidth <= state.innerWidth + 1, `${route.id}/${viewport.id} horizontally overflows (${state.scrollWidth} > ${state.innerWidth}).`);
   if (route.id === 'journey') {
+    const tabStrip = state.toolbarTabStrips[0];
+    const drawerActions = state.toolbarActions.slice(0, 4);
     assert.equal(state.toolbarActions.length, 5, `journey/${viewport.id} must expose four drawer actions and Exit.`);
     assert.equal(state.toolbarActionOverlap, false, `journey/${viewport.id} toolbar actions overlap: ${JSON.stringify(state.toolbarActions)}.`);
     assert.ok(state.toolbarActions.every((action) => action.scrollWidth <= action.clientWidth + 1), `journey/${viewport.id} toolbar label is clipped: ${JSON.stringify(state.toolbarActions)}.`);
-    assert.ok(state.toolbarTabStrips[0] && state.toolbarTabStrips[0].scrollWidth <= state.toolbarTabStrips[0].clientWidth + 1, `journey/${viewport.id} drawer actions require hidden horizontal scrolling: ${JSON.stringify(state.toolbarTabStrips)}.`);
+    assert.ok(tabStrip && drawerActions.every((action) => action.box.left >= tabStrip.box.left - 1 && action.box.right <= tabStrip.box.right + 1), `journey/${viewport.id} drawer action is clipped by its tab strip: ${JSON.stringify({ tabStrip, drawerActions })}.`);
   }
   if (route.id === 'http') {
     const { lane, transport, stream, lossLabel, h2Footer, h3Header } = state.httpSurfaces ?? {};
