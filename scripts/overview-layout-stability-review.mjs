@@ -142,6 +142,7 @@ async function measureViewport(cdp, origin, width, height) {
       primary:box('.kinetic-primary-action'),
       scene:box('.kinetic-scene'),
       machine:box('.kinetic-machine'),
+      intentBrowser:box('.kinetic-browser-shell'),
       readout:box('.kinetic-readout'),
       instrument:box('.kinetic-instrument'),
       corner:box('.corner-navigator'),
@@ -193,6 +194,7 @@ async function main() {
       assert.ok(metrics.shell && metrics.shell.width >= metrics.viewport.innerWidth - 1 && metrics.shell.height >= metrics.viewport.innerHeight - 1, `${label} does not use the full viewport.`);
       assert.ok(metrics.heading && metrics.heading.left >= 0 && metrics.heading.right <= metrics.viewport.innerWidth + 1, `${label} heading escapes the viewport.`);
       assert.ok(metrics.primary && metrics.primary.left >= 0 && metrics.primary.right <= metrics.viewport.innerWidth + 1, `${label} primary action escapes the viewport.`);
+      assert.ok(metrics.intentBrowser && metrics.intentBrowser.left >= 8 && metrics.intentBrowser.right <= metrics.viewport.innerWidth - 8, `${label} request-intent browser escapes the viewport.`);
       assert.ok(metrics.instrument && metrics.instrument.left >= 0 && metrics.instrument.right <= metrics.viewport.innerWidth + 1 && metrics.instrument.bottom <= metrics.viewport.innerHeight + 1, `${label} instrument escapes the viewport.`);
       assert.ok(metrics.corner && metrics.corner.left >= 0 && metrics.corner.top >= 0 && metrics.corner.right <= metrics.viewport.innerWidth + 1, `${label} corner navigator escapes the viewport.`);
       assert.equal(metrics.stageGroups, 6, `${label} lost a semantic request stage.`);
