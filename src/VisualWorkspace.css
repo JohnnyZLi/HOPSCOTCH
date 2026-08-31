@@ -435,6 +435,8 @@
 }
 
 .visual-time-rail__milestones span {
+  display: flex;
+  justify-content: center;
   min-width: 0;
   overflow: visible;
   color: #53636b;
@@ -544,6 +546,11 @@
 
   .visual-time-rail__track {
     height: 54px;
+  }
+
+  .visual-time-rail__milestones span {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .visual-time-rail__milestones span:nth-child(even) { display: none; }
