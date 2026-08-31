@@ -430,20 +430,23 @@
   align-items: start;
   gap: 2px;
   inset: 0 8px auto;
-  height: 14px;
+  height: 20px;
   pointer-events: none;
 }
 
 .visual-time-rail__milestones span {
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   color: #53636b;
   font-size: 0.39rem;
   font-weight: 900;
   letter-spacing: 0.07em;
   text-align: center;
-  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.visual-time-rail__milestones span:nth-child(even) {
+  transform: translateY(10px);
 }
 
 @media (max-width: 900px) {
