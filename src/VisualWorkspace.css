@@ -300,7 +300,7 @@
   position: relative;
   z-index: 16;
   display: grid;
-  grid-template-columns: auto 118px minmax(180px, 1fr) auto;
+  grid-template-columns: auto 118px minmax(180px, 1fr) 180px;
   align-items: center;
   gap: 14px;
   min-height: 68px;
@@ -353,7 +353,8 @@
 }
 
 .visual-time-rail__duration {
-  min-width: 84px;
+  width: 180px;
+  min-width: 0;
   justify-items: end;
 }
 
