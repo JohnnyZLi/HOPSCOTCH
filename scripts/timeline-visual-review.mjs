@@ -24,6 +24,7 @@ const routes = [
 
 const viewports = [
   { id: 'wide', width: 1600, height: 950 },
+  { id: 'compact', width: 1024, height: 768 },
   { id: 'mobile', width: 390, height: 844 },
 ];
 
@@ -207,6 +208,50 @@ async function playAndMeasure(cdp, speed) {
   return Math.max(0, end - start);
 }
 
+async function measureRailStability(cdp, sampleMs = 1800) {
+  const stability = await cdp.evaluate(`(async()=>{
+    const control=()=>document.querySelector('.visual-time-rail__controls button');
+    const rail=document.querySelector('.visual-time-rail');
+    const track=document.querySelector('.visual-time-rail__track');
+    if(!control()||!rail||!track)return null;
+    if(control().getAttribute('aria-label')==='Pause scenario')control().click();
+    const samples=[];
+    const pick=(element)=>{const rect=element.getBoundingClientRect();return {left:rect.left,right:rect.right,width:rect.width}};
+    control().click();
+    await new Promise((resolvePromise)=>{
+      const started=performance.now();
+      const sample=(now)=>{
+        samples.push({rail:pick(rail),track:pick(track),scrollX,scrollWidth:document.documentElement.scrollWidth,transform:getComputedStyle(rail).transform});
+        if(now-started>=${sampleMs})resolvePromise();
+        else requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    });
+    if(control().getAttribute('aria-label')==='Pause scenario')control().click();
+    const span=(path)=>{
+      const values=samples.map((sample)=>path(sample));
+      return Math.max(...values)-Math.min(...values);
+    };
+    return {
+      sampleCount:samples.length,
+      rail:{left:span((sample)=>sample.rail.left),right:span((sample)=>sample.rail.right),width:span((sample)=>sample.rail.width)},
+      track:{left:span((sample)=>sample.track.left),right:span((sample)=>sample.track.right),width:span((sample)=>sample.track.width)},
+      scrollX:span((sample)=>sample.scrollX),
+      scrollWidth:span((sample)=>sample.scrollWidth),
+      transforms:[...new Set(samples.map((sample)=>sample.transform))],
+    };
+  })()`);
+  assert.ok(stability && stability.sampleCount >= 30, `Timeline stability sampling failed: ${JSON.stringify(stability)}.`);
+  for (const [surface, spans] of Object.entries({ rail: stability.rail, track: stability.track })) {
+    for (const [axis, delta] of Object.entries(spans)) {
+      assert.ok(delta <= 1, `${surface} ${axis} moved ${delta}px during playback: ${JSON.stringify(stability)}.`);
+    }
+  }
+  assert.ok(stability.scrollX <= 1 && stability.scrollWidth <= 1, `Playback changed horizontal document geometry: ${JSON.stringify(stability)}.`);
+  assert.deepEqual(stability.transforms, ['none'], `Timeline rail regained a composited transform: ${JSON.stringify(stability.transforms)}.`);
+  return stability;
+}
+
 async function assertPauseAndScrub(cdp) {
   const before = Number(await cdp.evaluate(`document.querySelector('input[aria-label="Scenario time"]')?.value??0`));
   await sleep(450);
@@ -245,6 +290,8 @@ async function captureRepresentativeState(cdp, route, viewport) {
     const toolbarActions=[...(toolbar?.querySelectorAll('button')??[])].map((element)=>({label:element.textContent?.trim()??'',box:pick(element),clientWidth:element.clientWidth,scrollWidth:element.scrollWidth}));
     const toolbarTabStrips=[...(toolbar?.querySelectorAll('.visual-drawer-tabs')??[])].map((element)=>({box:pick(element),clientWidth:element.clientWidth,scrollWidth:element.scrollWidth}));
     const toolbarActionOverlap=toolbarActions.some((action,index)=>toolbarActions.slice(index+1).some((candidate)=>intersects(action.box,candidate.box)));
+    const milestoneLabels=[...(rail?.querySelectorAll('.visual-time-rail__milestones span')??[])].map((element)=>({label:element.textContent?.trim()??'',box:pick(element),clientWidth:element.clientWidth,scrollWidth:element.scrollWidth,display:getComputedStyle(element).display})).filter((label)=>label.display!=='none'&&label.box.width>0&&label.box.height>0);
+    const milestoneOverlap=milestoneLabels.some((label,index)=>milestoneLabels.slice(index+1).some((candidate)=>intersects(label.box,candidate.box)));
     const surface=(element)=>{if(!element)return null;const style=getComputedStyle(element);const color=style.backgroundColor;const alpha=color==='transparent'?0:color.startsWith('rgba')?Number(color.slice(color.lastIndexOf(',')+1,-1).trim()):1;return {backgroundAlpha:alpha,backgroundImage:style.backgroundImage,borderRadius:style.borderRadius,borderTopWidth:style.borderTopWidth,borderRightWidth:style.borderRightWidth,borderBottomWidth:style.borderBottomWidth,borderLeftWidth:style.borderLeftWidth}};
     const boxes={rail:pick(rail),controls:pick(controls),speed:pick(speed),track:pick(track),workspace:pick(workspace),toolbar:pick(toolbar),hud:pick(hud)};
     return {
@@ -260,6 +307,8 @@ async function captureRepresentativeState(cdp, route, viewport) {
       toolbarActions,
       toolbarTabStrips,
       toolbarActionOverlap,
+      milestoneLabels,
+      milestoneOverlap,
       httpSurfaces:document.querySelector('.http-visual-workspace')?{
         lane:surface(document.querySelector('.http-lane')),
         transport:surface(document.querySelector('.http-transport-rail')),
@@ -274,6 +323,10 @@ async function captureRepresentativeState(cdp, route, viewport) {
   assert.ok(state.boxes.rail && state.boxes.rail.left >= -1 && state.boxes.rail.right <= state.innerWidth + 1, `${route.id}/${viewport.id} timeline rail escapes the viewport: ${JSON.stringify(state.boxes.rail)}.`);
   assert.equal(state.controlsTrackOverlap, false, `${route.id}/${viewport.id} playback controls overlap the timeline track.`);
   assert.equal(state.speedTrackOverlap, false, `${route.id}/${viewport.id} speed control overlaps the timeline track.`);
+  assert.equal(state.milestoneOverlap, false, `${route.id}/${viewport.id} milestone labels overlap: ${JSON.stringify(state.milestoneLabels)}.`);
+  if (viewport.id !== 'mobile') {
+    assert.ok(state.milestoneLabels.every((label) => label.scrollWidth <= label.clientWidth + 1), `${route.id}/${viewport.id} milestone label is clipped: ${JSON.stringify(state.milestoneLabels)}.`);
+  }
   assert.ok(state.scrollWidth <= state.innerWidth + 1, `${route.id}/${viewport.id} horizontally overflows (${state.scrollWidth} > ${state.innerWidth}).`);
   if (route.id === 'journey') {
     const tabStrip = state.toolbarTabStrips[0];
@@ -352,6 +405,9 @@ async function main() {
           } else {
             await resetAndSetSpeed(cdp, 1);
             await sleep(100);
+          }
+          if (viewport.id === 'wide' || (route.id === 'journey' && viewport.id === 'compact')) {
+            profile.railStability = await measureRailStability(cdp);
           }
           profile.layout = await captureRepresentativeState(cdp, route, viewport);
           const filename = `${route.id}-${viewport.id}.png`;

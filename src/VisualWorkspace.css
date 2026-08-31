@@ -424,19 +424,24 @@
 .visual-time-rail__milestones {
   position: absolute;
   z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--milestone-count), minmax(0, 1fr));
+  align-items: start;
+  gap: 2px;
   inset: 0 8px auto;
   height: 14px;
   pointer-events: none;
 }
 
 .visual-time-rail__milestones span {
-  position: absolute;
-  left: var(--event-position);
+  min-width: 0;
+  overflow: hidden;
   color: #53636b;
   font-size: 0.39rem;
   font-weight: 900;
   letter-spacing: 0.07em;
-  transform: translateX(-50%);
+  text-align: center;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
