@@ -719,7 +719,7 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
   /* Journey owns five primary actions on mobile. Keep every label visible in
      the fixed toolbar instead of letting the nested tab strip clip Evidence. */
   html body .journey-visual-workspace .journey-visual-tools :is(.visual-drawer-tabs button, .visual-tool-button) {
-    padding-inline: 7px !important;
+    padding-inline: 6px !important;
   }
 
   html body .journey-visual-workspace .journey-visual-tools .visual-drawer-tabs button span {
