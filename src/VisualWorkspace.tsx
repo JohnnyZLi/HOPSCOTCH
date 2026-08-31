@@ -494,8 +494,12 @@ export function VisualTimeRail({
         <strong>{formatTime(timeMs)}</strong>
       </div>
       <div className="visual-time-rail__track">
-        <div className="visual-time-rail__milestones" aria-hidden="true">
-          {milestones.map((milestone) => <span key={milestone.id} style={markerStyle(milestone.atMs)}>{milestone.label}</span>)}
+        <div
+          className="visual-time-rail__milestones"
+          style={{ '--milestone-count': Math.max(1, milestones.length) } as CSSProperties}
+          aria-hidden="true"
+        >
+          {milestones.map((milestone) => <span key={milestone.id}>{milestone.label}</span>)}
         </div>
         <div className="visual-time-rail__events">
           {events.map((event) => (

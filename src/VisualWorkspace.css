@@ -300,7 +300,7 @@
   position: relative;
   z-index: 16;
   display: grid;
-  grid-template-columns: auto 118px minmax(180px, 1fr) auto;
+  grid-template-columns: auto 118px minmax(180px, 1fr) 180px;
   align-items: center;
   gap: 14px;
   min-height: 68px;
@@ -353,13 +353,15 @@
 }
 
 .visual-time-rail__duration {
-  min-width: 84px;
+  width: 180px;
+  min-width: 0;
   justify-items: end;
 }
 
 .visual-time-rail__track {
   position: relative;
   height: 44px;
+  container-type: inline-size;
 }
 
 .visual-time-rail__track input {
@@ -424,20 +426,36 @@
 .visual-time-rail__milestones {
   position: absolute;
   z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--milestone-count), minmax(0, 1fr));
+  align-items: start;
+  gap: 2px;
   inset: 0 8px auto;
-  height: 14px;
+  height: 20px;
   pointer-events: none;
 }
 
 .visual-time-rail__milestones span {
-  position: absolute;
-  left: var(--event-position);
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  overflow: visible;
   color: #53636b;
   font-size: 0.39rem;
   font-weight: 900;
   letter-spacing: 0.07em;
-  transform: translateX(-50%);
+  text-align: center;
   white-space: nowrap;
+}
+
+.visual-time-rail__milestones span:nth-child(even) {
+  transform: translateY(10px);
+}
+
+@container (min-width: 400px) {
+  .visual-time-rail__milestones span:nth-child(even) {
+    transform: none;
+  }
 }
 
 @media (max-width: 900px) {
@@ -535,6 +553,11 @@
 
   .visual-time-rail__track {
     height: 54px;
+  }
+
+  .visual-time-rail__milestones span {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .visual-time-rail__milestones span:nth-child(even) { display: none; }
