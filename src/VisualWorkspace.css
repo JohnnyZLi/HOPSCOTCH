@@ -361,6 +361,7 @@
 .visual-time-rail__track {
   position: relative;
   height: 44px;
+  container-type: inline-size;
 }
 
 .visual-time-rail__track input {
@@ -449,6 +450,12 @@
 
 .visual-time-rail__milestones span:nth-child(even) {
   transform: translateY(10px);
+}
+
+@container (min-width: 400px) {
+  .visual-time-rail__milestones span:nth-child(even) {
+    transform: none;
+  }
 }
 
 @media (max-width: 900px) {
