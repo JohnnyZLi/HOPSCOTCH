@@ -1226,6 +1226,7 @@ async function captureVisualReview(cdp, profile) {
       toolbar,
       hud,
       semanticBounds:semanticBounds?{...semanticBounds,width:semanticBounds.right-semanticBounds.left,height:semanticBounds.bottom-semanticBounds.top}:null,
+      builderDecoration:${JSON.stringify(profile.id.startsWith('network-builder-'))}?(()=>{const style=getComputedStyle(document.querySelector('.builder-canvas'),'::after');return {content:style.content,display:style.display};})():null,
       toolbarHudOverlap:Boolean(toolbar&&hud&&toolbar.left<hud.right&&toolbar.right>hud.left&&toolbar.top<hud.bottom&&toolbar.bottom>hud.top),
     };
   })()`);
@@ -1236,6 +1237,8 @@ async function captureVisualReview(cdp, profile) {
   if (geometry.toolbarHudOverlap) throw new Error(`${profile.id} toolbar collides with its persistent HUD.`);
   if (profile.semanticMinWidthRatio && (!geometry.semanticBounds || geometry.semanticBounds.width < geometry.world.width * profile.semanticMinWidthRatio)) throw new Error(`${profile.id} semantic content is compressed horizontally inside its stage: ${JSON.stringify(geometry)}.`);
   if (profile.semanticMinHeightRatio && (!geometry.semanticBounds || geometry.semanticBounds.height < geometry.world.height * profile.semanticMinHeightRatio)) throw new Error(`${profile.id} semantic content is compressed vertically inside its stage: ${JSON.stringify(geometry)}.`);
+  if (profile.width <= 680 && geometry.semanticBounds && (geometry.semanticBounds.left < geometry.world.left - 1 || geometry.semanticBounds.right > geometry.world.right + 1 || geometry.semanticBounds.top < geometry.world.top - 1 || geometry.semanticBounds.bottom > geometry.world.bottom + 1)) throw new Error(`${profile.id} semantic content escapes its mobile world: ${JSON.stringify(geometry)}.`);
+  if (profile.width <= 680 && profile.id.startsWith('network-builder-') && geometry.builderDecoration?.display !== 'none') throw new Error(`${profile.id} exposes the redundant canvas decoration beneath its mobile status message: ${JSON.stringify(geometry.builderDecoration)}.`);
   if (profile.hiddenHitSelector) {
     const hitTarget = await cdp.evaluate(`(()=>{const value=document.querySelector(${JSON.stringify(profile.hiddenHitSelector)});if(!value)return null;const stroke=getComputedStyle(value).stroke;const channels=stroke.match(/[\\d.]+/g)?.map(Number)??[];return {stroke,transparent:stroke==='none'||stroke==='transparent'||(channels.length>=4&&channels[3]===0)}})()`);
     if (!hitTarget?.transparent) throw new Error(`${profile.id} exposes an interaction hit target as visible topology: ${JSON.stringify(hitTarget)}.`);
