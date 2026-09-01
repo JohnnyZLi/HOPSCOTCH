@@ -460,6 +460,8 @@ html body .builder-visual-workspace .builder-canvas::after { right: 20px !import
   html body .builder-scene-switcher { top: 96px !important; right: 10px !important; left: 10px; display: flex !important; justify-content: flex-end; overflow: visible !important; transform: none; }
   html body .builder-scene-switcher button { min-width: 0; padding: 0 9px !important; border-bottom: 0 !important; }
   html body .builder-scene-switcher button::after { top: auto; right: 50%; bottom: 1px; transform: translateX(50%) rotate(45deg); }
+  html body .builder-visual-workspace .builder-canvas-viewport { right: 16px; left: 16px; }
+  html body .builder-visual-workspace .builder-canvas::after { display: none; }
   html body .builder-fabric-field { width: 120vw; opacity: .34; }
   html body .builder-fabric-register { display: none; }
   html body .builder-visual-workspace .builder-node { width: 68px; min-width: 68px; height: 68px; min-height: 68px; }
