@@ -466,6 +466,19 @@
   white-space: nowrap;
 }
 
+@container (max-width: 399px) {
+  /* The compact rail uses two caption rows. Keep the scrubber and event lane
+     below both rows so the lower captions remain readable instead of being
+     crossed by the progress track. */
+  .visual-time-rail__track input {
+    inset: 25px 0 0;
+  }
+
+  .visual-time-rail__events {
+    bottom: 3px;
+  }
+}
+
 @container (min-width: 400px) {
   .visual-time-rail__milestones span:nth-child(even) {
     transform: none;
