@@ -78,14 +78,58 @@ async function fetchJson(url) {
   return response.json();
 }
 
-async function waitForDevTools(port, timeoutMs = 10000) {
+async function waitForDevTools(port, timeoutMs = 10000, unavailableReason = null) {
   const deadline = performance.now() + timeoutMs;
   let lastError = null;
   while (performance.now() < deadline) {
+    const unavailable = unavailableReason?.();
+    if (unavailable) throw new Error(`Chrome exited before DevTools became ready: ${unavailable}`);
     try { return await fetchJson(`http://127.0.0.1:${port}/json/version`); }
     catch (error) { lastError = error; await sleep(100); }
   }
   throw new Error(`Chrome DevTools did not become ready: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+}
+
+async function launchChrome(chromePath, maxAttempts = 3) {
+  const attempts = [];
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const debuggingPort = await freePort();
+    const userDataDirectory = mkdtempSync(join(tmpdir(), `hopscotch-capture-chrome-${attempt}-`));
+    const args = [
+      '--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check',
+      '--disable-background-networking', '--disable-default-apps', '--disable-extensions', '--disable-sync', '--metrics-recording-only', '--mute-audio',
+      `--remote-debugging-port=${debuggingPort}`, '--remote-debugging-address=127.0.0.1', '--remote-allow-origins=*', `--user-data-dir=${userDataDirectory}`, 'about:blank',
+    ];
+    const state = { stderr: '', exitCode: null, exitSignal: null, spawnError: null };
+    const chrome = spawn(chromePath, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    chrome.stderr.setEncoding('utf8');
+    chrome.stderr.on('data', (chunk) => { state.stderr = `${state.stderr}${chunk}`.slice(-16000); });
+    chrome.once('exit', (code, signal) => { state.exitCode = code; state.exitSignal = signal; });
+    chrome.once('error', (error) => { state.spawnError = error instanceof Error ? error.message : String(error); });
+    try {
+      const version = await waitForDevTools(debuggingPort, 8000, () => state.spawnError
+        ?? (state.exitCode !== null || state.exitSignal !== null ? `exit ${state.exitCode ?? 'null'} · signal ${state.exitSignal ?? 'none'}` : null));
+      return { chrome, debuggingPort, userDataDirectory, version, state, attempts, args };
+    } catch (error) {
+      if (chrome.exitCode === null && chrome.signalCode === null) {
+        chrome.kill('SIGKILL');
+        await waitForChildExit(chrome);
+      }
+      attempts.push({
+        attempt,
+        debuggingPort,
+        error: error instanceof Error ? error.message : String(error),
+        exitCode: state.exitCode,
+        exitSignal: state.exitSignal,
+        spawnError: state.spawnError,
+        stderrTail: state.stderr || null,
+      });
+      rmSync(userDataDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
+  }
+  const launchError = new Error(`Chrome DevTools did not start after ${maxAttempts} attempts.`);
+  launchError.launchAttempts = attempts;
+  throw launchError;
 }
 
 class CdpClient {
@@ -474,23 +518,16 @@ async function main() {
   if (typeof WebSocket === 'undefined') throw new Error('Node 24 WebSocket support is required.');
   const chromePath = findChrome();
   const fixtureDirectory = mkdtempSync(join(tmpdir(), 'hopscotch-capture-fixtures-'));
-  const userDataDirectory = mkdtempSync(join(tmpdir(), 'hopscotch-capture-chrome-'));
   const fixtures = makeFixtures(fixtureDirectory);
   const production = await serveProductionArtifact(distDir);
-  const debuggingPort = await freePort();
-  const chrome = spawn(chromePath, [
-    '--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--disable-background-networking', '--disable-default-apps', '--disable-extensions', '--disable-sync', '--mute-audio',
-    `--remote-debugging-port=${debuggingPort}`, '--remote-debugging-address=127.0.0.1', '--remote-allow-origins=*', `--user-data-dir=${userDataDirectory}`, 'about:blank',
-  ], { stdio: ['ignore', 'ignore', 'pipe'] });
-  let stderr = '';
-  chrome.stderr.setEncoding('utf8');
-  chrome.stderr.on('data', (chunk) => { stderr = `${stderr}${chunk}`.slice(-16000); });
-  const report = { schema: phase4VisualReview ? 'hopscotch.phase4-capture-visual-review' : phase3VisualReview ? 'hopscotch.phase3-captured-visual-review' : 'hopscotch.capture-browser', version: 1, browser: { path: chromePath }, profiles: [], failures: [] };
+  const report = { schema: phase4VisualReview ? 'hopscotch.phase4-capture-visual-review' : phase3VisualReview ? 'hopscotch.phase3-captured-visual-review' : 'hopscotch.capture-browser', version: 1, browser: { path: chromePath, launchAttempts: [] }, profiles: [], failures: [] };
+  let launch = null;
   let cdp = null;
   try {
-    const version = await waitForDevTools(debuggingPort);
-    report.browser.version = version.Browser ?? null;
-    const targets = await fetchJson(`http://127.0.0.1:${debuggingPort}/json`);
+    launch = await launchChrome(chromePath);
+    report.browser.version = launch.version.Browser ?? null;
+    report.browser.launchAttempts = launch.attempts;
+    const targets = await fetchJson(`http://127.0.0.1:${launch.debuggingPort}/json`);
     const page = targets.find((target) => target.type === 'page');
     if (!page?.webSocketDebuggerUrl) throw new Error('Chrome did not expose a page target.');
     cdp = new CdpClient(page.webSocketDebuggerUrl);
@@ -511,18 +548,21 @@ async function main() {
     ];
     for (const profile of profiles) report.profiles.push(await exerciseProfile(cdp, production.origin, fixtures, profile));
   } catch (error) {
+    if (Array.isArray(error?.launchAttempts)) report.browser.launchAttempts = error.launchAttempts;
     report.failures.push(error instanceof Error ? error.stack ?? error.message : String(error));
   } finally {
     if (cdp) { try { await cdp.call('Browser.close'); } catch { /* cleanup */ } cdp.close(); }
-    await waitForChildExit(chrome);
-    if (chrome.exitCode === null && chrome.signalCode === null) {
-      chrome.kill('SIGKILL');
-      await waitForChildExit(chrome);
+    if (launch?.chrome) {
+      await waitForChildExit(launch.chrome);
+      if (launch.chrome.exitCode === null && launch.chrome.signalCode === null) {
+        launch.chrome.kill('SIGKILL');
+        await waitForChildExit(launch.chrome);
+      }
     }
     await new Promise((resolvePromise) => production.server.close(resolvePromise));
-    report.browser.stderrTail = stderr || null;
+    report.browser.stderrTail = launch?.state.stderr || report.browser.launchAttempts.at(-1)?.stderrTail || null;
     rmSync(fixtureDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-    rmSync(userDataDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    if (launch?.userDataDirectory) rmSync(launch.userDataDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     mkdirSync(dirname(reportPath), { recursive: true });
     writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   }
