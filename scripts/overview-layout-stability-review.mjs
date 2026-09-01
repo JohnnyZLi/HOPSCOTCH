@@ -179,6 +179,7 @@ async function main() {
       report.viewports[`1600x${height}`] = await measureViewport(cdp, origin, 1600, height);
     }
     report.viewports['768x1024'] = await measureViewport(cdp, origin, 768, 1024);
+    report.viewports['390x700'] = await measureViewport(cdp, origin, 390, 700);
     report.viewports['390x844'] = await measureViewport(cdp, origin, 390, 844);
 
     const braveLike = report.viewports['1600x796'];

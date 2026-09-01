@@ -311,6 +311,28 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
   transform: none !important;
 }
 
+/* The choreography deliberately recedes the rail as one group. Give it an
+   independent opaque plate so Phase 5 scene labels cannot show through that
+   faded group and collide with the timeline copy. */
+html body .journey-visual-workspace:has(.journey-causal-world)::after {
+  content: "";
+  position: absolute;
+  z-index: 16;
+  right: 0;
+  bottom: 18px;
+  left: 0;
+  width: min(1180px, calc(100% - 36px));
+  height: 60px;
+  margin-inline: auto;
+  border-radius: 21px;
+  background: #302e2c;
+  pointer-events: none;
+}
+
+html body .journey-visual-workspace:has(.journey-causal-world) :is(.visual-time-rail__readout span, .visual-time-rail__duration span, .visual-time-rail__milestones span) {
+  color: #f1ece6 !important;
+}
+
 html body .journey-causal-world :is(.causal-mechanism-core, .causal-object__payload) {
   border-color: rgba(41, 40, 39, .56) !important;
   background: rgba(231, 227, 222, .82) !important;
@@ -688,6 +710,15 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
 }
 
 @media (max-width: 900px) {
+  html body .journey-visual-workspace:has(.journey-causal-world)::after {
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    width: auto;
+    height: 58px;
+    margin-inline: 0;
+  }
+
   html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail {
     right: 10px !important;
     left: 10px !important;
@@ -702,6 +733,13 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
 }
 
 @media (max-width: 680px) {
+  html body .journey-visual-workspace:has(.journey-causal-world)::after {
+    right: 6px;
+    bottom: 6px;
+    left: 6px;
+    border-radius: 17px;
+  }
+
   html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace).visual-workspace {
     min-height: 560px !important;
   }
