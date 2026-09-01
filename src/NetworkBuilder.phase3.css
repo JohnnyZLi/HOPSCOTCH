@@ -465,7 +465,18 @@
   .builder-visual-workspace[data-scene-panel='forwarding'] .builder-forwarding { display: none; }
   .builder-visual-workspace[data-scene-panel='application'] .builder-application-surfaces,
   .builder-visual-workspace[data-scene-panel='lan'] .builder-ethernet-stage { top: 135px; }
-  .builder-visual-workspace .builder-message { max-width: 82%; font-size: 0.5rem; }
+  .builder-visual-workspace .builder-message {
+    right: 8px;
+    left: 8px;
+    max-width: none;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    font-size: 0.5rem;
+    line-height: 1.35;
+    text-overflow: clip;
+    transform: none;
+    white-space: normal;
+  }
   .builder-context-drawer { inset: 0; width: 100%; padding-bottom: 18px; border: 0; border-radius: 0; }
   .builder-drawer-backdrop { display: none; }
   .builder-main > .builder-cli-terminal,
