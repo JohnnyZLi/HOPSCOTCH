@@ -222,7 +222,7 @@ async function inspectState(cdp) {
     const boxes={callout:pick(callout),scene:pick(scene),stage:pick(stage),hud:pick(hud),toolbar:pick(toolbar),rail:pick(rail),depth:pick(depth)};
     const railSurface=rail?(()=>{const style=getComputedStyle(rail);const workspace=document.querySelector('.journey-visual-workspace');const plate=workspace?getComputedStyle(workspace,'::after'):null;const alpha=(color)=>color==='transparent'?0:color.startsWith('rgba')?Number(color.slice(color.lastIndexOf(',')+1,-1).trim()):1;return {opacity:Number(style.opacity),backgroundAlpha:alpha(style.backgroundColor),plate:plate?{content:plate.content,backgroundAlpha:alpha(plate.backgroundColor),width:Number.parseFloat(plate.width),height:Number.parseFloat(plate.height),zIndex:Number(plate.zIndex)}:null}})():null;
     const markers=[...document.querySelectorAll('.visual-time-rail__events button')].map((button)=>{const r=button.getBoundingClientRect();return {label:button.getAttribute('aria-label')||'',width:r.width,height:r.height}});
-    const hudValues=[...document.querySelectorAll('.visual-workspace__hud strong')].map((value)=>({text:value.textContent?.trim()||'',clientWidth:value.clientWidth,scrollWidth:value.scrollWidth,whiteSpace:getComputedStyle(value).whiteSpace}));
+    const hudValues=[...document.querySelectorAll('.visual-workspace__hud strong')].map((value)=>{const rect=value.getBoundingClientRect();const range=document.createRange();range.selectNodeContents(value);const lineTops=new Set([...range.getClientRects()].map((line)=>Math.round(line.top*10)/10));return {text:value.textContent?.trim()||'',clientWidth:value.clientWidth,scrollWidth:value.scrollWidth,whiteSpace:getComputedStyle(value).whiteSpace,visible:rect.width>0&&rect.height>0,lineCount:lineTops.size}});
     const causal=causalObject?(()=>{const style=getComputedStyle(causalObject);const color=style.backgroundColor;const backgroundAlpha=color==='transparent'?0:color.startsWith('rgba')?Number(color.slice(color.lastIndexOf(',')+1,-1).trim()):1;return {backgroundAlpha,backgroundImage:style.backgroundImage,borderRadius:style.borderRadius,borderWidths:[style.borderTopWidth,style.borderRightWidth,style.borderBottomWidth,style.borderLeftWidth],protectionNodeCount:causalObject.querySelectorAll('.node-protection').length}})():null;
     const packet=packetObject?{
       stage:packetObject.getAttribute('data-phase5-stage')||'',
@@ -409,6 +409,7 @@ async function auditViewport(cdp, origin, viewport) {
     assert.ok(state.markers.every((marker) => marker.width >= 14 && marker.height >= 18), `${viewport.id}/${labels[index]}: timeline hit target regressed: ${JSON.stringify(state.markers)}`);
     if (viewport.id === 'mobile') {
       assert.ok(state.hudValues.every((value) => value.whiteSpace !== 'nowrap'), `${viewport.id}/${labels[index]}: HUD value is forced to nowrap.`);
+      assert.ok(state.hudValues.filter((value) => value.visible).every((value) => value.lineCount <= 2), `${viewport.id}/${labels[index]}: HUD value wraps into an orphan line: ${JSON.stringify(state.hudValues)}.`);
     }
     if (state.causal) {
       assert.equal(state.causal.backgroundAlpha, 0, `${viewport.id}/${labels[index]}: the request mechanism regained an opaque card background.`);
