@@ -982,6 +982,34 @@ html body :is(.capture-replay, .observed-internet, .measured-workspace) .visual-
   html body .measured-heading-actions,
   html body .observed-toolbar-controls { width: 100% !important; min-width: 0 !important; overflow-x: auto !important; }
 
+  /* Capture Replay exposes six primary modes in its narrow toolbar. Keep the
+     complete mode set visible at rest instead of clipping the final actions
+     behind an undisclosed horizontal gesture. Full labels remain the
+     accessible names and return above the mobile breakpoint. */
+  html body .capture-heading-actions {
+    gap: 2px !important;
+    padding: 3px !important;
+  }
+
+  html body .capture-heading-actions > .capture-action,
+  html body .capture-heading-actions > .capture-mode-switch > button {
+    padding-inline: 7px !important;
+  }
+
+  html body .capture-heading-actions [data-compact-label] {
+    font-size: 0 !important;
+  }
+
+  html body .capture-heading-actions [data-compact-label]::after {
+    content: attr(data-compact-label);
+    font-size: .47rem;
+  }
+
+  html body .capture-heading-actions .capture-mode-switch {
+    gap: 1px !important;
+    padding-right: 2px !important;
+  }
+
   html body .capture-heading-actions .capture-exit,
   html body .measured-heading-actions .measured-exit,
   html body .observed-workspace-actions button:last-child { display: none !important; }

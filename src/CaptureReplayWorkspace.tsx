@@ -489,10 +489,10 @@ export function CaptureReplayWorkspace({
           {session && <button type="button" className={activeDrawer === 'session' ? 'capture-action capture-session active' : 'capture-action capture-session'} aria-pressed={activeDrawer === 'session'} onClick={() => openContextDrawer('session')}>Session</button>}
           {session && <div className="capture-mode-switch" role="group" aria-label="Capture workspace mode">
             <button type="button" className={workspaceMode === 'replay' ? 'active' : ''} aria-pressed={workspaceMode === 'replay'} onClick={() => selectWorkspaceMode('replay')}>Replay</button>
-            <button type="button" className={workspaceMode === 'frame' ? 'active' : ''} aria-pressed={workspaceMode === 'frame'} onClick={() => selectWorkspaceMode('frame')}>Frame specimen</button>
+            <button type="button" className={workspaceMode === 'frame' ? 'active' : ''} aria-label="Frame specimen" data-compact-label="Frame" aria-pressed={workspaceMode === 'frame'} onClick={() => selectWorkspaceMode('frame')}>Frame specimen</button>
           </div>}
           {session && <button type="button" className={activeDrawer === 'flows' ? 'capture-action active' : 'capture-action'} aria-pressed={activeDrawer === 'flows'} onClick={() => openContextDrawer('flows')}>Flows <span>{session.metadata.conversationCount}</span></button>}
-          {session && workspaceMode === 'replay' && <button type="button" className={activeDrawer === 'inspect' ? 'capture-action active' : 'capture-action'} aria-pressed={activeDrawer === 'inspect'} onClick={() => openContextDrawer('inspect')}>Frame details</button>}
+          {session && workspaceMode === 'replay' && <button type="button" className={activeDrawer === 'inspect' ? 'capture-action active' : 'capture-action'} aria-label="Frame details" data-compact-label="Details" aria-pressed={activeDrawer === 'inspect'} onClick={() => openContextDrawer('inspect')}>Frame details</button>}
           {session && <button type="button" className={activeDrawer === 'analysis' ? 'capture-action active' : 'capture-action'} aria-pressed={activeDrawer === 'analysis'} onClick={() => openContextDrawer('analysis')}>Analysis</button>}
           <button type="button" className="capture-action capture-replace" onClick={() => fileInputRef.current?.click()} disabled={parsing}>{session ? 'Replace capture' : 'Import capture'}</button>
           {session && <button type="button" className="capture-action capture-clear" onClick={clearSession}>Clear</button>}

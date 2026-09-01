@@ -185,8 +185,12 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
 
   const geometry = await cdp.evaluate(`(()=>{
     const rect=(selector)=>{const value=document.querySelector(selector)?.getBoundingClientRect();return value?{left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height}:null};
+    const actionRail=document.querySelector('.capture-heading-actions');
+    const actionRailRect=actionRail?.getBoundingClientRect();
+    const actionControls=actionRail?[...actionRail.querySelectorAll(':scope > button, :scope > .capture-mode-switch > button')].filter((button)=>{const bounds=button.getBoundingClientRect();return bounds.width>0&&bounds.height>0&&getComputedStyle(button).display!=='none'}).map((button)=>{const bounds=button.getBoundingClientRect();return {label:button.getAttribute('aria-label')||button.textContent?.trim()||'',left:bounds.left,right:bounds.right,width:bounds.width,inside:Boolean(actionRailRect&&bounds.left>=actionRailRect.left-1&&bounds.right<=actionRailRect.right+1)}}):[];
     return {
       viewport:{width:innerWidth,height:innerHeight},workspace:rect('.capture-replay'),grid:rect('.capture-workspace-grid'),replay:rect('.capture-cinematic-stage'),toolbar:rect('.capture-heading'),summary:rect('.capture-summary'),mechanism:rect('.capture-cinematic-stage [data-frame-mechanism]'),mechanismLayers:document.querySelectorAll('.capture-cinematic-stage [data-frame-mechanism] .captured-frame-mechanism__plates > *').length,
+      actionRail:actionRail?{clientWidth:actionRail.clientWidth,scrollWidth:actionRail.scrollWidth,scrollLeft:actionRail.scrollLeft,controls:actionControls}:null,
       scrollWidth:document.documentElement.scrollWidth,scrollY,mode:document.querySelector('.capture-replay')?.getAttribute('data-capture-mode'),drawer:document.querySelector('.capture-replay')?.getAttribute('data-context-drawer'),
     };
   })()`);
@@ -196,6 +200,7 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
   if (geometry.replay.width < geometry.grid.width * 0.98 || geometry.replay.height < geometry.grid.height * 0.98) throw new Error(`${profile.id} replay does not own the analysis stage: ${JSON.stringify(geometry)}.`);
   if (geometry.grid.height < geometry.workspace.height * 0.52) throw new Error(`${profile.id} replay stage is too small inside the workspace: ${JSON.stringify(geometry)}.`);
   if (geometry.scrollWidth > geometry.viewport.width || geometry.scrollY !== 0) throw new Error(`${profile.id} Capture Replay overflows the viewport.`);
+  if (profile.width <= 680 && (!geometry.actionRail || geometry.actionRail.scrollWidth > geometry.actionRail.clientWidth + 1 || geometry.actionRail.scrollLeft !== 0 || geometry.actionRail.controls.some((control) => !control.inside))) throw new Error(`${profile.id} Capture Replay hides primary toolbar modes behind horizontal scrolling: ${JSON.stringify(geometry.actionRail)}.`);
 
   const screenshot = async (suffix) => {
     const result = await cdp.call('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });
