@@ -848,6 +848,10 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
     height: 46px !important;
   }
 
+  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__active-milestone {
+    color: #918b85 !important;
+  }
+
   html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__duration {
     display: none !important;
   }

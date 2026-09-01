@@ -291,7 +291,7 @@ async function captureRepresentativeState(cdp, route, viewport) {
     const toolbarActions=[...(toolbar?.querySelectorAll('button')??[])].map((element)=>({label:element.textContent?.trim()??'',box:pick(element),clientWidth:element.clientWidth,scrollWidth:element.scrollWidth}));
     const toolbarTabStrips=[...(toolbar?.querySelectorAll('.visual-drawer-tabs')??[])].map((element)=>({box:pick(element),clientWidth:element.clientWidth,scrollWidth:element.scrollWidth}));
     const toolbarActionOverlap=toolbarActions.some((action,index)=>toolbarActions.slice(index+1).some((candidate)=>intersects(action.box,candidate.box)));
-    const milestoneLabels=[...(rail?.querySelectorAll('.visual-time-rail__milestones span')??[])].map((element)=>{const style=getComputedStyle(element);const range=document.createRange();range.selectNodeContents(element);const textBox=pick(range);const cellBox=pick(element);return {label:element.textContent?.trim()??'',box:style.overflowX==='visible'?textBox:clip(textBox,cellBox),cellBox,clientWidth:element.clientWidth,scrollWidth:element.scrollWidth,display:style.display,overflowX:style.overflowX}}).filter((label)=>label.display!=='none'&&label.box.width>0&&label.box.height>0);
+    const milestoneLabels=[...(rail?.querySelectorAll('.visual-time-rail__milestones span, .visual-time-rail__active-milestone')??[])].map((element)=>{const style=getComputedStyle(element);const range=document.createRange();range.selectNodeContents(element);const textBox=pick(range);const cellBox=pick(element);return {label:element.textContent?.trim()??'',active:element.classList.contains('visual-time-rail__active-milestone'),box:style.overflowX==='visible'?textBox:clip(textBox,cellBox),cellBox,clientWidth:element.clientWidth,scrollWidth:element.scrollWidth,display:style.display,overflowX:style.overflowX}}).filter((label)=>label.display!=='none'&&label.box.width>0&&label.box.height>0);
     const milestoneOverlap=milestoneLabels.some((label,index)=>milestoneLabels.slice(index+1).some((candidate)=>intersects(label.box,candidate.box)));
     const surface=(element)=>{if(!element)return null;const style=getComputedStyle(element);const color=style.backgroundColor;const alpha=color==='transparent'?0:color.startsWith('rgba')?Number(color.slice(color.lastIndexOf(',')+1,-1).trim()):1;return {backgroundAlpha:alpha,backgroundImage:style.backgroundImage,borderRadius:style.borderRadius,borderTopWidth:style.borderTopWidth,borderRightWidth:style.borderRightWidth,borderBottomWidth:style.borderBottomWidth,borderLeftWidth:style.borderLeftWidth}};
     const boxes={rail:pick(rail),controls:pick(controls),speed:pick(speed),track:pick(track),workspace:pick(workspace),toolbar:pick(toolbar),hud:pick(hud)};
@@ -325,7 +325,12 @@ async function captureRepresentativeState(cdp, route, viewport) {
   assert.equal(state.controlsTrackOverlap, false, `${route.id}/${viewport.id} playback controls overlap the timeline track.`);
   assert.equal(state.speedTrackOverlap, false, `${route.id}/${viewport.id} speed control overlaps the timeline track.`);
   assert.equal(state.milestoneOverlap, false, `${route.id}/${viewport.id} milestone labels overlap: ${JSON.stringify(state.milestoneLabels)}.`);
-  if (viewport.id !== 'mobile') {
+  if (viewport.id === 'mobile') {
+    assert.equal(state.milestoneLabels.length, 1, `${route.id}/mobile must show one current phase label: ${JSON.stringify(state.milestoneLabels)}.`);
+    assert.equal(state.milestoneLabels[0]?.active, true, `${route.id}/mobile rendered a distributed milestone instead of its current phase.`);
+    assert.ok(state.milestoneLabels[0].scrollWidth <= state.milestoneLabels[0].clientWidth + 1, `${route.id}/mobile current phase label is clipped: ${JSON.stringify(state.milestoneLabels[0])}.`);
+    assert.ok(state.milestoneLabels[0].box.left >= state.boxes.track.left - 1 && state.milestoneLabels[0].box.right <= state.boxes.track.right + 1, `${route.id}/mobile current phase label escapes the track: ${JSON.stringify(state.milestoneLabels[0])}.`);
+  } else {
     assert.ok(state.milestoneLabels.every((label) => label.scrollWidth <= label.clientWidth + 1 || label.overflowX === 'visible'), `${route.id}/${viewport.id} milestone label is clipped: ${JSON.stringify(state.milestoneLabels)}.`);
     assert.ok(state.milestoneLabels.every((label) => label.box.left >= state.boxes.track.left - 1 && label.box.right <= state.boxes.track.right + 1), `${route.id}/${viewport.id} milestone label escapes the track: ${JSON.stringify(state.milestoneLabels)}.`);
   }
