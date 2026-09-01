@@ -229,8 +229,19 @@
   .as-visual-workspace .interactive-world-hud > div:nth-child(3),
   .as-visual-workspace .interactive-world-hud > div:nth-child(4) { display: none; }
   .as-visual-workspace .interactive-world-hud > .interactive-world-hud__truth { display: grid; }
-  .as-winner-readout { right: 8px; bottom: 42px; left: 8px; width: auto; }
+  .as-winner-readout { right: 8px; bottom: 52px; left: 8px; width: auto; }
   .as-winner-readout > p { display: none; }
   .as-selection-card { display: none; }
-  .as-cinematic-stage .internet-canvas-note { bottom: 10px; max-width: 82vw; overflow: hidden; text-overflow: ellipsis; }
+  .as-cinematic-stage .internet-canvas-note {
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    max-width: none;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+    text-overflow: clip;
+    transform: none;
+    white-space: normal;
+  }
 }

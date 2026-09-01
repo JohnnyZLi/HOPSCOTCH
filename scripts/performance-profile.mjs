@@ -314,10 +314,10 @@ if (phase3VisualReview) {
     { id: 'mobile', width: 390, height: 844 },
   ];
   const visualWorlds = [
-    { id: 'as-routing', path: '/internet/as-routing', query: '', readySelector: '.as-visual-workspace', expected: ['SIMULATED BEST PATH', 'SOURCE'], workspaceSelector: '.as-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.internet-canvas-wrap', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.as-visual-workspace .visual-drawer-tabs button', drawerSelector: '.as-visual-workspace .visual-drawer' },
+    { id: 'as-routing', path: '/internet/as-routing', query: '', readySelector: '.as-visual-workspace', expected: ['SIMULATED BEST PATH', 'SOURCE'], workspaceSelector: '.as-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.internet-canvas-wrap', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', statusSelector: '.internet-canvas-note', statusAvoidSelector: '.as-winner-readout', inspectButtonSelector: '.as-visual-workspace .visual-drawer-tabs button', drawerSelector: '.as-visual-workspace .visual-drawer' },
     { id: 'physical-atlas', path: '/', query: query({ stress: 'physical-density' }), readySelector: '.physical-visual-workspace', expected: ['SIMULATED STRESS POINTS', 'WEBGL 2', 'VISIBLE'], workspaceSelector: '.physical-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.globe-viewport', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.physical-visual-workspace .visual-drawer-tabs button', drawerSelector: '.physical-visual-workspace .visual-drawer', drawerSurfaceSelector: '.physical-drawer-panel > section' },
     { id: 'packet-microscope', path: '/labs/packet', query: '', readySelector: '.packet-visual-workspace', expected: ['FRAME', 'BYTES', 'ETHERNET'], workspaceSelector: '.packet-visual-workspace', stageSelector: '.visual-workspace__stage', worldSelector: '.packet-stage', semanticSelector: '[data-simulated-packet-mechanism="true"]', semanticMinWidthRatio: 0.55, semanticMinHeightRatio: 0.28, motionSelector: '.simulated-packet-scan', toolbarSelector: '.visual-workspace__toolbar', hudSelector: '.visual-workspace__hud', inspectButtonSelector: '.packet-visual-workspace .visual-drawer-tabs button', drawerSelector: '.packet-visual-workspace .visual-drawer' },
-    { id: 'network-builder', path: '/labs/builder', query: '', readySelector: '.builder-visual-workspace', expected: ['Network builder', 'PATH', 'FORWARDING', 'OSPF', 'GRAPH'], workspaceSelector: '.builder-visual-workspace', stageSelector: '.builder-stage', worldSelector: '.builder-canvas', semanticSelector: '.builder-node-anchor', semanticMinWidthRatio: 0.72, semanticMinHeightRatio: 0.34, motionSelector: '.builder-route-signal-track', hiddenHitSelector: '.builder-link .hit', toolbarSelector: '.builder-world-toolbar', hudSelector: '.builder-stage-meta', inspectRevealSelector: '.builder-command-toggle', inspectButtonSelector: '.builder-tool-inspect', drawerSelector: '.builder-context-drawer.open', drawerTitleSelector: '.builder-context-drawer__header > div' },
+    { id: 'network-builder', path: '/labs/builder', query: '', readySelector: '.builder-visual-workspace', expected: ['Network builder', 'PATH', 'FORWARDING', 'OSPF', 'GRAPH'], workspaceSelector: '.builder-visual-workspace', stageSelector: '.builder-stage', worldSelector: '.builder-canvas', semanticSelector: '.builder-node-anchor', semanticMinWidthRatio: 0.72, semanticMinHeightRatio: 0.34, motionSelector: '.builder-route-signal-track', hiddenHitSelector: '.builder-link .hit', toolbarSelector: '.builder-world-toolbar', hudSelector: '.builder-stage-meta', statusSelector: '.builder-message', statusAvoidSelector: '.builder-selection-card', inspectRevealSelector: '.builder-command-toggle', inspectButtonSelector: '.builder-tool-inspect', drawerSelector: '.builder-context-drawer.open', drawerTitleSelector: '.builder-context-drawer__header > div' },
   ];
   profiles.splice(0, profiles.length, ...visualWorlds.flatMap((world) => visualViewports.map((viewport) => ({
     ...world,
@@ -1218,6 +1218,16 @@ async function captureVisualReview(cdp, profile) {
     const semanticBounds=semanticRects.length===0?null:{left:Math.min(...semanticRects.map((value)=>value.left)),top:Math.min(...semanticRects.map((value)=>value.top)),right:Math.max(...semanticRects.map((value)=>value.right)),bottom:Math.max(...semanticRects.map((value)=>value.bottom))};
     const toolbar=rect(${JSON.stringify(profile.toolbarSelector)});
     const hud=rect(${JSON.stringify(profile.hudSelector)});
+    const statusElement=${JSON.stringify(profile.statusSelector ?? '')}?document.querySelector(${JSON.stringify(profile.statusSelector ?? '')}):null;
+    const status=statusElement?{
+      bounds:rect(${JSON.stringify(profile.statusSelector ?? '')}),
+      clientWidth:statusElement.clientWidth,
+      scrollWidth:statusElement.scrollWidth,
+      clientHeight:statusElement.clientHeight,
+      scrollHeight:statusElement.scrollHeight,
+      text:statusElement.textContent?.trim()??'',
+    }:null;
+    const statusAvoid=${JSON.stringify(profile.statusAvoidSelector ?? '')}?rect(${JSON.stringify(profile.statusAvoidSelector ?? '')}):null;
     return {
       viewport:{width:innerWidth,height:innerHeight},
       workspace:rect(${JSON.stringify(profile.workspaceSelector)}),
@@ -1228,6 +1238,8 @@ async function captureVisualReview(cdp, profile) {
       semanticBounds:semanticBounds?{...semanticBounds,width:semanticBounds.right-semanticBounds.left,height:semanticBounds.bottom-semanticBounds.top}:null,
       builderDecoration:${JSON.stringify(profile.id.startsWith('network-builder-'))}?(()=>{const style=getComputedStyle(document.querySelector('.builder-canvas'),'::after');return {content:style.content,display:style.display};})():null,
       toolbarHudOverlap:Boolean(toolbar&&hud&&toolbar.left<hud.right&&toolbar.right>hud.left&&toolbar.top<hud.bottom&&toolbar.bottom>hud.top),
+      status,
+      statusAvoidOverlap:Boolean(status?.bounds&&statusAvoid&&status.bounds.left<statusAvoid.right&&status.bounds.right>statusAvoid.left&&status.bounds.top<statusAvoid.bottom&&status.bounds.bottom>statusAvoid.top),
     };
   })()`);
   if (!geometry.workspace || !geometry.stage || !geometry.world) throw new Error(`${profile.id} is missing visual review geometry: ${JSON.stringify(geometry)}.`);
@@ -1239,6 +1251,12 @@ async function captureVisualReview(cdp, profile) {
   if (profile.semanticMinHeightRatio && (!geometry.semanticBounds || geometry.semanticBounds.height < geometry.world.height * profile.semanticMinHeightRatio)) throw new Error(`${profile.id} semantic content is compressed vertically inside its stage: ${JSON.stringify(geometry)}.`);
   if (profile.width <= 680 && geometry.semanticBounds && (geometry.semanticBounds.left < geometry.world.left - 1 || geometry.semanticBounds.right > geometry.world.right + 1 || geometry.semanticBounds.top < geometry.world.top - 1 || geometry.semanticBounds.bottom > geometry.world.bottom + 1)) throw new Error(`${profile.id} semantic content escapes its mobile world: ${JSON.stringify(geometry)}.`);
   if (profile.width <= 680 && profile.id.startsWith('network-builder-') && geometry.builderDecoration?.display !== 'none') throw new Error(`${profile.id} exposes the redundant canvas decoration beneath its mobile status message: ${JSON.stringify(geometry.builderDecoration)}.`);
+  if (profile.width <= 680 && profile.statusSelector) {
+    if (!geometry.status?.bounds || !geometry.status.text) throw new Error(`${profile.id} is missing its mobile stage instruction: ${JSON.stringify(geometry.status)}.`);
+    if (geometry.status.scrollWidth > geometry.status.clientWidth + 1 || geometry.status.scrollHeight > geometry.status.clientHeight + 1) throw new Error(`${profile.id} clips its mobile stage instruction: ${JSON.stringify(geometry.status)}.`);
+    if (geometry.status.bounds.left < geometry.stage.left - 1 || geometry.status.bounds.right > geometry.stage.right + 1 || geometry.status.bounds.bottom > geometry.stage.bottom + 1) throw new Error(`${profile.id} stage instruction escapes its mobile stage: ${JSON.stringify({ status: geometry.status, stage: geometry.stage })}.`);
+    if (geometry.statusAvoidOverlap) throw new Error(`${profile.id} stage instruction overlaps its selection readout: ${JSON.stringify(geometry)}.`);
+  }
   if (profile.hiddenHitSelector) {
     const hitTarget = await cdp.evaluate(`(()=>{const value=document.querySelector(${JSON.stringify(profile.hiddenHitSelector)});if(!value)return null;const stroke=getComputedStyle(value).stroke;const channels=stroke.match(/[\\d.]+/g)?.map(Number)??[];return {stroke,transparent:stroke==='none'||stroke==='transparent'||(channels.length>=4&&channels[3]===0)}})()`);
     if (!hitTarget?.transparent) throw new Error(`${profile.id} exposes an interaction hit target as visible topology: ${JSON.stringify(hitTarget)}.`);
