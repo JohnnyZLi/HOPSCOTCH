@@ -787,6 +787,14 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
     display: none !important;
   }
 
+  /* Only scale and the active semantic state survive in the compact Journey
+     HUD. Collapse the inherited four-column track as well, otherwise long
+     forwarding stages wrap inside a quarter-width cell and strand a final
+     character on its own line. */
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud {
+    grid-template-columns: 60px minmax(0, 1fr) !important;
+  }
+
   html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-entrance {
     padding: 104px 18px !important;
     background: linear-gradient(90deg, rgba(217, 212, 207, .96), rgba(217, 212, 207, .55) 70%, transparent) !important;
