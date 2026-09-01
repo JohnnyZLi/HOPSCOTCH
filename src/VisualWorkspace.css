@@ -452,6 +452,20 @@
   transform: translateY(10px);
 }
 
+.visual-time-rail__active-milestone {
+  display: none;
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
+  color: #7d888e;
+  font-size: 0.48rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @container (min-width: 400px) {
   .visual-time-rail__milestones span:nth-child(even) {
     transform: none;
@@ -555,12 +569,8 @@
     height: 54px;
   }
 
-  .visual-time-rail__milestones span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .visual-time-rail__milestones span:nth-child(even) { display: none; }
+  .visual-time-rail__milestones span { display: none; }
+  .visual-time-rail__active-milestone { display: block; }
 
   .visual-entrance > strong {
     font-size: clamp(2.1rem, 13vw, 4.6rem);

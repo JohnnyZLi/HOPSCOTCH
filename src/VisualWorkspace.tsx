@@ -453,6 +453,9 @@ export function VisualTimeRail({
   onSeek: (timeMs: number) => void;
 }) {
   const markerStyle = (atMs: number) => ({ '--event-position': `${Math.max(0, Math.min(100, atMs / durationMs * 100))}%` }) as CSSProperties;
+  const activeMilestone = milestones.reduce<VisualTimelineMilestone | null>((active, milestone) => (
+    milestone.atMs <= timeMs && (!active || milestone.atMs >= active.atMs) ? milestone : active
+  ), null);
 
   return (
     <footer className="visual-time-rail">
@@ -500,6 +503,7 @@ export function VisualTimeRail({
           aria-hidden="true"
         >
           {milestones.map((milestone) => <span key={milestone.id}>{milestone.label}</span>)}
+          <strong className="visual-time-rail__active-milestone">{activeMilestone?.label ?? label}</strong>
         </div>
         <div className="visual-time-rail__events">
           {events.map((event) => (
