@@ -792,7 +792,12 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
      forwarding stages wrap inside a quarter-width cell and strand a final
      character on its own line. */
   html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud {
-    grid-template-columns: 60px minmax(0, 1fr) !important;
+    grid-template-columns: 76px minmax(0, 1fr) !important;
+  }
+
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud > div:first-child strong {
+    overflow-wrap: normal !important;
+    white-space: nowrap !important;
   }
 
   html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-entrance {
