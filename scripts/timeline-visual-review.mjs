@@ -282,6 +282,7 @@ async function captureRepresentativeState(cdp, route, viewport) {
     const controls=document.querySelector('.visual-time-rail__controls');
     const speed=document.querySelector('.visual-time-rail__speed');
     const track=document.querySelector('.visual-time-rail__track');
+    const scrubber=track?.querySelector('input[type="range"]');
     const workspace=document.querySelector('.visual-workspace');
     const toolbar=document.querySelector('.visual-workspace__toolbar');
     const hud=document.querySelector('.visual-workspace__hud');
@@ -293,8 +294,9 @@ async function captureRepresentativeState(cdp, route, viewport) {
     const toolbarActionOverlap=toolbarActions.some((action,index)=>toolbarActions.slice(index+1).some((candidate)=>intersects(action.box,candidate.box)));
     const milestoneLabels=[...(rail?.querySelectorAll('.visual-time-rail__milestones span, .visual-time-rail__active-milestone')??[])].map((element)=>{const style=getComputedStyle(element);const range=document.createRange();range.selectNodeContents(element);const textBox=pick(range);const cellBox=pick(element);return {label:element.textContent?.trim()??'',active:element.classList.contains('visual-time-rail__active-milestone'),box:style.overflowX==='visible'?textBox:clip(textBox,cellBox),cellBox,clientWidth:element.clientWidth,scrollWidth:element.scrollWidth,display:style.display,overflowX:style.overflowX}}).filter((label)=>label.display!=='none'&&label.box.width>0&&label.box.height>0);
     const milestoneOverlap=milestoneLabels.some((label,index)=>milestoneLabels.slice(index+1).some((candidate)=>intersects(label.box,candidate.box)));
+    const milestoneScrubberOverlap=milestoneLabels.some((label)=>intersects(label.box,pick(scrubber)));
     const surface=(element)=>{if(!element)return null;const style=getComputedStyle(element);const color=style.backgroundColor;const alpha=color==='transparent'?0:color.startsWith('rgba')?Number(color.slice(color.lastIndexOf(',')+1,-1).trim()):1;return {backgroundAlpha:alpha,backgroundImage:style.backgroundImage,borderRadius:style.borderRadius,borderTopWidth:style.borderTopWidth,borderRightWidth:style.borderRightWidth,borderBottomWidth:style.borderBottomWidth,borderLeftWidth:style.borderLeftWidth}};
-    const boxes={rail:pick(rail),controls:pick(controls),speed:pick(speed),track:pick(track),workspace:pick(workspace),toolbar:pick(toolbar),hud:pick(hud)};
+    const boxes={rail:pick(rail),controls:pick(controls),speed:pick(speed),track:pick(track),scrubber:pick(scrubber),workspace:pick(workspace),toolbar:pick(toolbar),hud:pick(hud)};
     return {
       boxes,
       controlsTrackOverlap:intersects(boxes.controls,boxes.track),
@@ -310,6 +312,7 @@ async function captureRepresentativeState(cdp, route, viewport) {
       toolbarActionOverlap,
       milestoneLabels,
       milestoneOverlap,
+      milestoneScrubberOverlap,
       httpSurfaces:document.querySelector('.http-visual-workspace')?{
         lane:surface(document.querySelector('.http-lane')),
         transport:surface(document.querySelector('.http-transport-rail')),
@@ -325,6 +328,7 @@ async function captureRepresentativeState(cdp, route, viewport) {
   assert.equal(state.controlsTrackOverlap, false, `${route.id}/${viewport.id} playback controls overlap the timeline track.`);
   assert.equal(state.speedTrackOverlap, false, `${route.id}/${viewport.id} speed control overlaps the timeline track.`);
   assert.equal(state.milestoneOverlap, false, `${route.id}/${viewport.id} milestone labels overlap: ${JSON.stringify(state.milestoneLabels)}.`);
+  assert.equal(state.milestoneScrubberOverlap, false, `${route.id}/${viewport.id} milestone label overlaps the scrubber: ${JSON.stringify({ labels: state.milestoneLabels, scrubber: state.boxes.scrubber })}.`);
   if (viewport.id === 'mobile') {
     assert.equal(state.milestoneLabels.length, 1, `${route.id}/mobile must show one current phase label: ${JSON.stringify(state.milestoneLabels)}.`);
     assert.equal(state.milestoneLabels[0]?.active, true, `${route.id}/mobile rendered a distributed milestone instead of its current phase.`);
