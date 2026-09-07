@@ -1321,6 +1321,15 @@ html body :is(.capture-replay, .observed-internet, .measured-workspace) .visual-
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html body .capture-workspace-grid > :is(
+    .capture-flow-browser,
+    .capture-evidence-inspector,
+    .capture-analysis-drawer,
+    .capture-session-drawer
+  ) {
+    transition: none !important;
+  }
+
   html body .inferred-bridge::before,
   html body .inferred-bridge::after,
   html body .measured-glyph i:nth-of-type(2) { animation: none !important; }

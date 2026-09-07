@@ -258,10 +258,27 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
   let analysisScreenshot = null;
   let sessionScreenshot = null;
   let focusLifecycle = null;
+  let flowEntryGeometry = null;
   if (profile.inspectReview) {
-    await clickText(cdp, '.capture-heading-actions .capture-action', 'FLOWS');
+    flowEntryGeometry = await cdp.evaluate(`(async()=>{
+      const trigger=[...document.querySelectorAll('.capture-heading-actions .capture-action')].find((button)=>button.textContent.toUpperCase().includes('FLOWS'));
+      if(!trigger)throw new Error('Missing Flows trigger');
+      const samples=[];
+      trigger.click();
+      const started=performance.now();
+      do {
+        await new Promise(requestAnimationFrame);
+        const drawer=document.querySelector('.capture-flow-browser.is-open');
+        const title=drawer?.querySelector(':scope > header > div')?.getBoundingClientRect();
+        const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
+        if(title&&corner) samples.push({elapsedMs:performance.now()-started,left:title.left,cornerRight:corner.right,collision:corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top});
+      } while(performance.now()-started<320);
+      const drawer=document.querySelector('.capture-flow-browser');
+      return {samples,transitionDuration:drawer?getComputedStyle(drawer).transitionDuration:null};
+    })()`);
+    if (flowEntryGeometry.samples.length < 2 || flowEntryGeometry.samples.some((sample) => sample.collision)) throw new Error(`${profile.id} flow drawer title crosses corner navigation during entry: ${JSON.stringify(flowEntryGeometry)}.`);
+    if (profile.reducedMotion && flowEntryGeometry.transitionDuration?.split(',').some((duration) => parseFloat(duration) > 0)) throw new Error(`${profile.id} flow drawer ignores reduced motion: ${JSON.stringify(flowEntryGeometry)}.`);
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='flows'`);
-    await sleep(80);
     const initialFocus = await cdp.evaluate(`document.activeElement?.classList.contains('capture-drawer-close')===true`);
     const flowDrawerGeometry = await cdp.evaluate(`(()=>{
       const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
@@ -387,7 +404,7 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
 
   await clickText(cdp, '.capture-mode-switch button', 'REPLAY');
   await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-capture-mode')==='replay'`);
-  return { geometry, frameGeometry, replayScreenshot, flowsScreenshot, frameScreenshot, analysisScreenshot, sessionScreenshot, focusLifecycle };
+  return { geometry, frameGeometry, replayScreenshot, flowsScreenshot, frameScreenshot, analysisScreenshot, sessionScreenshot, focusLifecycle, flowEntryGeometry };
 }
 
 async function exerciseProfile(cdp, origin, fixtures, profile) {
