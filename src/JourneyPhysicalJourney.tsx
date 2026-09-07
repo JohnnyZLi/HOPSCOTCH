@@ -126,7 +126,7 @@ export function JourneyPhysicalJourney({ projection, onSelectLayer }: {
           <span className="phase5c-route-origin"><i/>DST IP</span>
           <div className="phase5c-route-fan" aria-hidden="true">
             <i className="route-candidate candidate-a"/><i className="route-candidate candidate-b"/><i className="route-candidate candidate-c"/>
-            <b className="route-node node-a">/16</b><b className="route-node node-b">/24</b><b className="route-node node-c">/0</b>
+            <b className="phase5c-route-node node-a">/16</b><b className="phase5c-route-node node-b">/24</b><b className="phase5c-route-node node-c">/0</b>
           </div>
           <strong className="phase5c-route-lock">203.0.113.0/24 <i/> 198.51.100.2</strong>
         </section>

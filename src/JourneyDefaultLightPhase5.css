@@ -171,6 +171,36 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
   color: #5e5954 !important;
 }
 
+/* Forwarding labels share the packet's pale material and charcoal ink. */
+.journey-causal-world .phase5c-route-node,
+.journey-causal-world .phase5c-mac-token,
+.journey-causal-world .phase5c-ip-token,
+.journey-causal-world .phase5c-ttl-rotor {
+  border-color: rgba(41,40,39,.3) !important;
+  color: #393633 !important;
+  background: #e6e2dd !important;
+  box-shadow: none !important;
+}
+.journey-causal-world .phase5c-route-node.node-b {
+  border-color: #d84f49 !important;
+  color: #a6332f !important;
+}
+.journey-causal-world .phase5c-mac-token small,
+.journey-causal-world .phase5c-ip-token small,
+.journey-causal-world .phase5c-ttl-rotor > small,
+.journey-causal-world .phase5b-ip-core > small,
+.journey-causal-world .phase5b-ip-core > em,
+.journey-causal-world .phase5b-transport-core > small {
+  color: #5e5954 !important;
+}
+.journey-causal-world .phase5c-mac-token b,
+.journey-causal-world .phase5c-ip-token b,
+.journey-causal-world .phase5c-ttl-rotor > i,
+.journey-causal-world .phase5b-ip-core > b,
+.journey-causal-world .phase5b-transport-core > b {
+  color: #302e2c !important;
+}
+
 /* Remove legacy neon/drop-shadow language from SVG and active tokens. */
 .journey-causal-world .phase5b-physical svg *,
 .journey-causal-world .phase5-packet-object svg * {

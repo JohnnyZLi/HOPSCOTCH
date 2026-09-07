@@ -1176,7 +1176,7 @@
   position: absolute;
   z-index: 14;
   left: 78%;
-  top: 20%;
+  top: 32%;
   width: 330px;
   height: 175px;
   transform: translate(-50%, -50%) scale(.55) rotateX(45deg);
@@ -1211,7 +1211,7 @@
 .candidate-a { transform: rotate(-28deg) scaleX(.15); }
 .candidate-b { transform: rotate(0) scaleX(.15); }
 .candidate-c { transform: rotate(28deg) scaleX(.15); }
-.phase5c-route-fan .route-node {
+.phase5c-route-fan .phase5c-route-node {
   position: absolute;
   right: 0;
   display: grid;
@@ -1257,8 +1257,8 @@
 }
 .phase5b-stage-router-route .candidate-c,
 .phase5b-stage-router-reencapsulate .candidate-c { --route-angle: 28deg; }
-.phase5b-stage-router-route .route-node,
-.phase5b-stage-router-reencapsulate .route-node { opacity: 1; transform: translateX(0); }
+.phase5b-stage-router-route .phase5c-route-node,
+.phase5b-stage-router-reencapsulate .phase5c-route-node { opacity: 1; transform: translateX(0); }
 .phase5b-stage-router-route .node-b,
 .phase5b-stage-router-reencapsulate .node-b {
   color: #ffe0b8;

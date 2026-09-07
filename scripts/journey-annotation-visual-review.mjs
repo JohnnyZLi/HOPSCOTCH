@@ -261,6 +261,7 @@ async function inspectState(cdp) {
       macProjection:pick(physicalObject.querySelector('.phase5b-mac-projection')),
       routeOpacity:getComputedStyle(physicalObject.querySelector('.phase5b-route-projection')).opacity,
       routeProjection:pick(physicalObject.querySelector('.phase5b-route-projection')),
+      routeNodes:[...physicalObject.querySelectorAll('.phase5c-route-node')].map((node)=>({label:node.textContent,rect:pick(node)})),
     }:null;
     return {
       title:callout?.querySelector('h2')?.textContent?.trim()||'',
@@ -431,6 +432,12 @@ async function auditViewport(cdp, origin, viewport) {
       }
     }
     if (state.physical) {
+      if (['router-route', 'router-reencapsulate'].includes(state.physical.stage)) {
+        const nodes = state.physical.routeNodes;
+        assert.equal(nodes.length, 3, `${viewport.id}/${labels[index]}: expected three route candidates.`);
+        assert.ok(nodes.every((node) => node.rect.top >= 0 && node.rect.bottom <= state.innerHeight), `${viewport.id}/${labels[index]}: route candidate escapes viewport: ${JSON.stringify(nodes)}.`);
+        assert.ok(nodes.every((node, index) => nodes.slice(index + 1).every((other) => !rectsIntersect(node.rect, other.rect))), `${viewport.id}/${labels[index]}: route candidates overlap: ${JSON.stringify(nodes)}.`);
+      }
       assert.ok(['nic-serialize', 'link-transmit', 'switch-inspect', 'switch-forward', 'router-decapsulate', 'router-ttl', 'router-route', 'router-reencapsulate', 'next-link'].includes(state.physical.stage), `${viewport.id}/${labels[index]}: invalid Phase 5B stage ${state.physical.stage}.`);
       assert.ok(state.physical.signature.length > 40, `${viewport.id}/${labels[index]}: deterministic physical signature missing.`);
       assert.ok(state.physical.dataUnit && state.physical.dataUnit.width >= 44 && state.physical.dataUnit.height >= 44 && state.physical.dataUnitTabIndex === 0, `${viewport.id}/${labels[index]}: physical data unit is not keyboard/touch inspectable.`);
