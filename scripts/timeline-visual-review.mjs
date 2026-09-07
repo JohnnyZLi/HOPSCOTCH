@@ -110,12 +110,21 @@ async function launchChrome(chromePath) {
       await waitForDevTools(port);
       return { chrome, port, userDataDir, attempts };
     } catch (error) {
-      if (!chrome.killed) chrome.kill('SIGKILL');
+      await disposeChrome(chrome, userDataDir);
       attempts.push({ attempt, error: error instanceof Error ? error.message : String(error), exitCode: state.exitCode, stderrTail: state.stderr || null });
-      rmSync(userDataDir, { recursive: true, force: true });
     }
   }
   throw new Error(`Chrome failed to launch after 3 attempts: ${JSON.stringify(attempts)}`);
+}
+
+async function disposeChrome(chrome, userDataDir) {
+  if (chrome.exitCode === null && chrome.signalCode === null) {
+    await new Promise((resolvePromise) => {
+      chrome.once('exit', resolvePromise);
+      chrome.kill('SIGKILL');
+    });
+  }
+  rmSync(userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
 
 class CdpClient {
@@ -442,10 +451,9 @@ async function main() {
     }
   } finally {
     cdp?.close();
-    if (!launched.chrome.killed) launched.chrome.kill('SIGKILL');
-    rmSync(launched.userDataDir, { recursive: true, force: true });
-    await new Promise((resolvePromise) => server.close(resolvePromise));
     writeFileSync(reportPath, JSON.stringify(report, null, 2));
+    await new Promise((resolvePromise) => server.close(resolvePromise));
+    await disposeChrome(launched.chrome, launched.userDataDir);
   }
 
   if (report.failures.length > 0) throw new Error(`Timeline visual review failed:\n${report.failures.join('\n')}`);
