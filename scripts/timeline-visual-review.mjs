@@ -292,6 +292,7 @@ async function captureRepresentativeState(cdp, route, viewport) {
     const toolbarActions=[...(toolbar?.querySelectorAll('button')??[])].map((element)=>({label:element.textContent?.trim()??'',box:pick(element),clientWidth:element.clientWidth,scrollWidth:element.scrollWidth}));
     const toolbarTabStrips=[...(toolbar?.querySelectorAll('.visual-drawer-tabs')??[])].map((element)=>({box:pick(element),clientWidth:element.clientWidth,scrollWidth:element.scrollWidth}));
     const toolbarActionOverlap=toolbarActions.some((action,index)=>toolbarActions.slice(index+1).some((candidate)=>intersects(action.box,candidate.box)));
+    const hudItems=[...(hud?.children??[])].map((element)=>{const value=element.querySelector('strong');const range=document.createRange();if(value)range.selectNodeContents(value);return {label:element.querySelector('span')?.textContent?.trim()??'',value:value?.textContent?.trim()??'',box:pick(value),textBox:value?pick(range):null,lineCount:value?range.getClientRects().length:0,clientWidth:value?.clientWidth??0,scrollWidth:value?.scrollWidth??0,display:getComputedStyle(element).display,whiteSpace:value?getComputedStyle(value).whiteSpace:null}}).filter((item)=>item.display!=='none');
     const milestoneLabels=[...(rail?.querySelectorAll('.visual-time-rail__milestones span, .visual-time-rail__active-milestone')??[])].map((element)=>{const style=getComputedStyle(element);const range=document.createRange();range.selectNodeContents(element);const textBox=pick(range);const cellBox=pick(element);return {label:element.textContent?.trim()??'',active:element.classList.contains('visual-time-rail__active-milestone'),box:style.overflowX==='visible'?textBox:clip(textBox,cellBox),cellBox,clientWidth:element.clientWidth,scrollWidth:element.scrollWidth,display:style.display,overflowX:style.overflowX}}).filter((label)=>label.display!=='none'&&label.box.width>0&&label.box.height>0);
     const milestoneOverlap=milestoneLabels.some((label,index)=>milestoneLabels.slice(index+1).some((candidate)=>intersects(label.box,candidate.box)));
     const milestoneScrubberOverlap=milestoneLabels.some((label)=>intersects(label.box,pick(scrubber)));
@@ -310,6 +311,7 @@ async function captureRepresentativeState(cdp, route, viewport) {
       toolbarActions,
       toolbarTabStrips,
       toolbarActionOverlap,
+      hudItems,
       milestoneLabels,
       milestoneOverlap,
       milestoneScrubberOverlap,
@@ -346,6 +348,12 @@ async function captureRepresentativeState(cdp, route, viewport) {
     assert.equal(state.toolbarActionOverlap, false, `journey/${viewport.id} toolbar actions overlap: ${JSON.stringify(state.toolbarActions)}.`);
     assert.ok(state.toolbarActions.every((action) => action.scrollWidth <= action.clientWidth + 1), `journey/${viewport.id} toolbar label is clipped: ${JSON.stringify(state.toolbarActions)}.`);
     assert.ok(tabStrip && drawerActions.every((action) => action.box.left >= tabStrip.box.left - 1 && action.box.right <= tabStrip.box.right + 1), `journey/${viewport.id} drawer action is clipped by its tab strip: ${JSON.stringify({ tabStrip, drawerActions })}.`);
+    if (viewport.id === 'mobile') {
+      const scale = state.hudItems.find((item) => item.label === 'SCALE');
+      assert.ok(scale, 'journey/mobile scale readout is missing.');
+      assert.equal(scale.lineCount, 1, `journey/mobile scale value wraps: ${JSON.stringify(scale)}.`);
+      assert.ok(scale.scrollWidth <= scale.clientWidth + 1, `journey/mobile scale value is clipped: ${JSON.stringify(scale)}.`);
+    }
   }
   if (route.id === 'http') {
     const { lane, transport, stream, lossLabel, h2Footer, h3Header } = state.httpSurfaces ?? {};

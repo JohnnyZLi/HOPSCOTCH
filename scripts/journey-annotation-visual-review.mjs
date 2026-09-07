@@ -408,7 +408,7 @@ async function auditViewport(cdp, origin, viewport) {
     assert.ok(state.scrollWidth <= state.innerWidth + 1, `${viewport.id}/${labels[index]}: horizontal overflow ${state.scrollWidth} > ${state.innerWidth}.`);
     assert.ok(state.markers.every((marker) => marker.width >= 14 && marker.height >= 18), `${viewport.id}/${labels[index]}: timeline hit target regressed: ${JSON.stringify(state.markers)}`);
     if (viewport.id === 'mobile') {
-      assert.ok(state.hudValues.every((value) => value.whiteSpace !== 'nowrap'), `${viewport.id}/${labels[index]}: HUD value is forced to nowrap.`);
+      assert.ok(state.hudValues.filter((value) => value.visible).every((value) => value.scrollWidth <= value.clientWidth + 1), `${viewport.id}/${labels[index]}: HUD value is clipped horizontally: ${JSON.stringify(state.hudValues)}.`);
       assert.ok(state.hudValues.filter((value) => value.visible).every((value) => value.lineCount <= 2), `${viewport.id}/${labels[index]}: HUD value wraps into an orphan line: ${JSON.stringify(state.hudValues)}.`);
     }
     if (state.causal) {
