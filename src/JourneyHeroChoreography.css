@@ -981,7 +981,7 @@
 }
 .phase5b-stage-router-route .phase5c-ip-token {
   opacity: 1;
-  transform: translate3d(110px, -145px, 180px) rotateZ(2deg) scale(1.25);
+  transform: translate3d(-230px, -145px, 180px) rotateZ(2deg) scale(1.25);
 }
 
 .phase5b-path {
@@ -1409,6 +1409,9 @@
   }
   .phase5c-route-fan { left: 54px; width: 150px; transform: scale(.8); transform-origin: left center; }
   .phase5c-route-lock { left: 55px; font-size: 5px; }
+  .phase5b-stage-router-route .phase5c-ip-token {
+    transform: translate3d(110px, -145px, 180px) rotateZ(2deg) scale(1.25);
+  }
 
   .phase5b-serialization { gap: 3px; }
   .phase5b-stage-link-transmit .phase5b-serialization { left: 10%; width: 22%; }
