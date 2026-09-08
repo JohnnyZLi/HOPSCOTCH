@@ -205,7 +205,10 @@ export function useVisualPresentationPlayback({
     let frameId = 0;
 
     const tick = (now: number) => {
-      const presentationTime = startedFromPresentation + (now - startedAt) * playbackSpeed;
+      // The browser's frame timestamp can precede an effect started later in
+      // that same frame. Never briefly seek behind the playback boundary.
+      const elapsed = Math.max(0, now - startedAt);
+      const presentationTime = startedFromPresentation + elapsed * playbackSpeed;
       const nextModelTime = modelTimeAtPresentationTime(presentationTime, durationMs, segments);
       timeRef.current = nextModelTime;
       onTimeChangeRef.current(nextModelTime);

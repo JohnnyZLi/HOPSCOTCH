@@ -400,7 +400,7 @@ async function auditPacketInspector(cdp, viewport, events) {
 // Sample actual painted frames, including the interval before a settled screenshot.
 // An outgoing world's state has already advanced, so fading it can reveal unrelated props.
 function startTransitionMonitor() {
-  const report = { frames: 0, events: {}, leaks: [] };
+  const report = { frames: 0, events: {}, eventOrder: [], playbackRegressions: [], leaks: [] };
   window.journeyTransitionReport = report;
   const painted = (element) => {
     if (!element || !element.getClientRects().length) return false;
@@ -419,6 +419,13 @@ function startTransitionMonitor() {
       const event = world.dataset.causalEvent;
       report.frames++;
       report.events[event] = (report.events[event] || 0) + 1;
+      if (!report.eventOrder.includes(event)) report.eventOrder.push(event);
+      if (window.journeyMonitorPlayback) {
+        if (report.eventOrder.indexOf(event) < report.eventOrder.indexOf(window.journeyPreviousPlaybackEvent)) {
+          report.playbackRegressions.push({ from: window.journeyPreviousPlaybackEvent, to: event });
+        }
+        window.journeyPreviousPlaybackEvent = event;
+      }
       const owners = [
         ['.causal-dns-world', ['dns']], ['.causal-route-world', ['route', 'path']],
         ['.causal-tcp-world', ['tcp']], ['.causal-tls-world', ['tls']],
@@ -451,7 +458,11 @@ async function auditTransitions(cdp, viewport, events) {
       window.journeyTransitionReport.events = {};
     })()`);
     await sleep(40);
-    await cdp.evaluate(`document.querySelector('.visual-time-rail__transport button[aria-label="Play scenario"]').click()`);
+    await cdp.evaluate(`(() => {
+      window.journeyPreviousPlaybackEvent = document.querySelector('[data-journey-causal-world]').dataset.causalEvent;
+      window.journeyMonitorPlayback = true;
+      document.querySelector('.visual-time-rail__transport button[aria-label="Play scenario"]').click();
+    })()`);
     await waitForExpression(cdp, `document.querySelector('[data-causal-phase="response"]') !== null`, 45000);
     await cdp.evaluate(`document.querySelector('.visual-time-rail__transport button[aria-label="Pause scenario"]')?.click()`);
     playbackEvents = await cdp.evaluate(`Object.keys(window.journeyTransitionReport.events)`);
@@ -463,8 +474,9 @@ async function auditTransitions(cdp, viewport, events) {
   })()`);
   writeFileSync(join(outputDir, `${viewport.id}-transitions.json`), JSON.stringify({ ...report, playbackEvents }, null, 2));
   assert.ok(report.frames >= 100, `${viewport.id}: transition monitor did not sample enough frames.`);
+  assert.deepEqual(report.playbackRegressions, [], `${viewport.id}: playback briefly returned to an earlier event: ${JSON.stringify(report.playbackRegressions)}`);
   assert.deepEqual(report.leaks, [], `${viewport.id}: inactive geometry flashed during a transition: ${JSON.stringify(report.leaks)}`);
-  return { frames: report.frames, playbackEvents, leaks: report.leaks };
+  return { frames: report.frames, playbackEvents, playbackRegressions: report.playbackRegressions, leaks: report.leaks };
 }
 
 async function auditViewport(cdp, origin, viewport) {
