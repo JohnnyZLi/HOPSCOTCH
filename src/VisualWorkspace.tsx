@@ -254,7 +254,18 @@ export function useVisualDrawerFocus<T extends HTMLElement>(active: boolean, onC
   useEffect(() => {
     if (!active) return;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    initialFocusRef.current?.focus();
+    let focusFrame = 0;
+    const focusDeadline = performance.now() + 1000;
+    const focusWhenVisible = () => {
+      if (document.activeElement !== previousFocus) return;
+      const target = initialFocusRef.current;
+      if (target?.isConnected && target.getClientRects().length > 0 && getComputedStyle(target).visibility === 'visible' && !target.closest('[inert]')) {
+        target.focus({ preventScroll: true });
+      } else if (performance.now() < focusDeadline) {
+        focusFrame = requestAnimationFrame(focusWhenVisible);
+      }
+    };
+    focusWhenVisible();
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -285,6 +296,7 @@ export function useVisualDrawerFocus<T extends HTMLElement>(active: boolean, onC
 
     document.addEventListener('keydown', onKeyDown);
     return () => {
+      cancelAnimationFrame(focusFrame);
       document.removeEventListener('keydown', onKeyDown);
       previousFocus?.focus();
     };

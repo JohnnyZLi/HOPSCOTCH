@@ -537,7 +537,7 @@ export function CaptureReplayWorkspace({
               aria-hidden={activeDrawer !== 'flows'}
               inert={activeDrawer !== 'flows'}
             >
-              <header><div><span>CONVERSATIONS</span><strong id="capture-flow-drawer-title">{filteredConversations.length.toLocaleString()} MATCH</strong></div><small>DETERMINISTIC A / B</small><button ref={activeDrawer === 'flows' ? initialFocusRef : undefined} type="button" className="capture-drawer-close" onClick={() => setActiveDrawer(null)} aria-label="Close conversations">×</button></header>
+              <header><div><span>CONVERSATIONS</span><strong id="capture-flow-drawer-title">{filteredConversations.length.toLocaleString()} {filteredConversations.length === 1 ? 'MATCH' : 'MATCHES'}</strong></div><small>DETERMINISTIC A / B</small><button ref={activeDrawer === 'flows' ? initialFocusRef : undefined} type="button" className="capture-drawer-close" onClick={() => setActiveDrawer(null)} aria-label="Close conversations">×</button></header>
               <div className="capture-flow-tools">
                 <input value={flowQuery} onChange={(event) => setFlowQuery(event.currentTarget.value)} placeholder="Endpoint, port, protocol…" aria-label="Filter capture conversations" />
                 <select value={protocolFilter} onChange={(event) => setProtocolFilter(event.currentTarget.value)} aria-label="Filter by protocol">

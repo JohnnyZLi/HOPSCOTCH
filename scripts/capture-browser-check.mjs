@@ -258,10 +258,33 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
   let analysisScreenshot = null;
   let sessionScreenshot = null;
   let focusLifecycle = null;
+  let flowEntryGeometry = null;
   if (profile.inspectReview) {
-    await clickText(cdp, '.capture-heading-actions .capture-action', 'FLOWS');
+    flowEntryGeometry = await cdp.evaluate(`(async()=>{
+      const trigger=[...document.querySelectorAll('.capture-heading-actions .capture-action')].find((button)=>button.textContent.toUpperCase().includes('FLOWS'));
+      if(!trigger)throw new Error('Missing Flows trigger');
+      const samples=[];
+      trigger.focus();
+      trigger.click();
+      const started=performance.now();
+      do {
+        await new Promise(requestAnimationFrame);
+        const drawer=document.querySelector('.capture-flow-browser.is-open');
+        const title=drawer?.querySelector(':scope > header > div')?.getBoundingClientRect();
+        const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
+        if(title&&corner) samples.push({elapsedMs:performance.now()-started,left:title.left,cornerRight:corner.right,collision:corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top});
+      } while(performance.now()-started<320);
+      const drawer=document.querySelector('.capture-flow-browser');
+      return {samples,transitionDuration:drawer?getComputedStyle(drawer).transitionDuration:null,activeElement:document.activeElement?.outerHTML?.slice(0,500),initialTarget:drawer?.querySelector('.capture-drawer-close')?.outerHTML};
+    })()`);
+    if (flowEntryGeometry.samples.length < 2 || flowEntryGeometry.samples.some((sample) => sample.collision)) throw new Error(`${profile.id} flow drawer title crosses corner navigation during entry: ${JSON.stringify(flowEntryGeometry)}.`);
+    if (profile.reducedMotion && flowEntryGeometry.transitionDuration?.split(',').some((duration) => parseFloat(duration) > 0)) throw new Error(`${profile.id} flow drawer ignores reduced motion: ${JSON.stringify(flowEntryGeometry)}.`);
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='flows'`);
-    await sleep(80);
+    try {
+      await waitForExpression(cdp, `document.activeElement?.classList.contains('capture-drawer-close')===true`, 1000);
+    } catch (error) {
+      throw new Error(`${profile.id}: ${error.message}: ${JSON.stringify(flowEntryGeometry)}`);
+    }
     const initialFocus = await cdp.evaluate(`document.activeElement?.classList.contains('capture-drawer-close')===true`);
     const flowDrawerGeometry = await cdp.evaluate(`(()=>{
       const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
@@ -274,10 +297,19 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
       const rgb=(value)=>{const values=value.match(/[\\d.]+/g)?.map(Number)??[];return values.slice(0,3).map((channel)=>{const normalized=channel/255;return normalized<=.04045?normalized/12.92:((normalized+.055)/1.055)**2.4})};
       const contrast=(foreground,background)=>{const a=rgb(foreground);const b=rgb(background);const first=.2126*a[0]+.7152*a[1]+.0722*a[2];const second=.2126*b[0]+.7152*b[1]+.0722*b[2];return (Math.max(first,second)+.05)/(Math.min(first,second)+.05)};
       const titleContrast=titleElement&&drawer?contrast(getComputedStyle(titleElement.querySelector('strong')??titleElement).color,getComputedStyle(drawer).backgroundColor):0;
-      return {width:drawerRect?.width??0,backgroundAlpha:channels.length>=4?channels[3]:1,titleContrast,collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
+      const protocolContrast=drawer?[...drawer.querySelectorAll('.capture-flow-protocol')].map((label)=>{
+        const background=getComputedStyle(drawer).backgroundColor;
+        const backdrop=background.match(/[\\d.]+/g).slice(0,3).map(Number);
+        const foreground=getComputedStyle(label).color.match(/[\\d.]+/g).slice(0,3).map(Number);
+        const opacity=Number(getComputedStyle(label.closest('button')).opacity);
+        const rendered=foreground.map((channel,index)=>channel*opacity+backdrop[index]*(1-opacity));
+        return {label:label.textContent,ratio:contrast('rgb('+rendered.join(',')+')',background)};
+      }):[];
+      return {width:drawerRect?.width??0,backgroundAlpha:channels.length>=4?channels[3]:1,titleContrast,protocolContrast,collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
     })()`);
     if (!flowDrawerGeometry.titleOnTop || flowDrawerGeometry.backgroundAlpha < .99 || flowDrawerGeometry.titleContrast < 4.5) throw new Error(`${profile.id} flow drawer is not an opaque, legible top-layer surface: ${JSON.stringify(flowDrawerGeometry)}.`);
     if (flowDrawerGeometry.collision) throw new Error(`${profile.id} flow drawer title collides with corner navigation.`);
+    if (flowDrawerGeometry.protocolContrast.some((value) => value.ratio < 4.5)) throw new Error(`${profile.id} flow protocol labels lack contrast: ${JSON.stringify(flowDrawerGeometry.protocolContrast)}.`);
     if (profile.width <= 680 && flowDrawerGeometry.width < profile.width * .98) throw new Error(`${profile.id} flow drawer does not own the mobile stage.`);
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', modifiers: 8 });
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', modifiers: 8 });
@@ -290,7 +322,7 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='none'`);
     const restored = await cdp.evaluate(`document.activeElement?.textContent?.toLocaleUpperCase().includes('FLOWS')===true`);
-    if (!initialFocus || !shiftTabContained || !tabContained || !restored) throw new Error(`${profile.id} Capture Replay drawer focus lifecycle failed.`);
+    if (!initialFocus || !shiftTabContained || !tabContained || !restored) throw new Error(`${profile.id} Capture Replay drawer focus lifecycle failed: ${JSON.stringify({initialFocus, shiftTabContained, tabContained, restored, flowEntryGeometry})}.`);
     focusLifecycle = { initialFocus, shiftTabContained, tabContained, restored };
   }
 
@@ -387,7 +419,7 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
 
   await clickText(cdp, '.capture-mode-switch button', 'REPLAY');
   await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-capture-mode')==='replay'`);
-  return { geometry, frameGeometry, replayScreenshot, flowsScreenshot, frameScreenshot, analysisScreenshot, sessionScreenshot, focusLifecycle };
+  return { geometry, frameGeometry, replayScreenshot, flowsScreenshot, frameScreenshot, analysisScreenshot, sessionScreenshot, focusLifecycle, flowEntryGeometry };
 }
 
 async function exerciseProfile(cdp, origin, fixtures, profile) {
@@ -541,6 +573,7 @@ async function main() {
       { id: phase4VisualReview ? 'capture-replay-laptop' : 'captured-packet-laptop', width: 1366, height: 768, reducedMotion: false, visualReview: true, inspectReview: false },
       { id: phase4VisualReview ? 'capture-replay-narrow' : 'captured-packet-narrow', width: 900, height: 820, reducedMotion: false, visualReview: true, inspectReview: false },
       { id: phase4VisualReview ? 'capture-replay-mobile' : 'captured-packet-mobile', width: 390, height: 844, reducedMotion: false, visualReview: true, inspectReview: true },
+      ...(phase4VisualReview ? [{ id: 'capture-replay-reduced-motion', width: 1280, height: 900, reducedMotion: true, visualReview: true, inspectReview: true }] : []),
     ] : [
       { id: 'capture-desktop', width: 1440, height: 1000, reducedMotion: false },
       { id: 'capture-mobile', width: 390, height: 844, reducedMotion: false },
