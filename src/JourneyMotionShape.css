@@ -218,10 +218,10 @@
   transition: transform var(--journey-motion-hero) var(--journey-ease-enter), opacity var(--journey-motion-micro) ease, filter var(--journey-motion-standard) ease !important;
 }
 .phase5-stage-application .phase5c-application {
-  animation: phase5c-app-enter var(--journey-motion-hero) var(--journey-ease-enter) both !important;
+  animation: journey-application-handoff var(--journey-motion-hero) var(--journey-ease-enter) both !important;
 }
-@keyframes phase5c-app-enter {
-  0% { opacity: 0; transform: translate3d(-50%,-18%,190px) rotateX(12deg) scale(.82); }
+@keyframes journey-application-handoff {
+  0% { opacity: 1; transform: translate3d(-50%,-18%,190px) rotateX(12deg) scale(.82); }
   100% { opacity: 1; transform: translate3d(-50%,-50%,190px) rotateX(0) scale(1); }
 }
 .phase5-packet-object .phase5c-application {

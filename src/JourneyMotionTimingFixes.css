@@ -67,7 +67,7 @@
 /* Handoff should feel like one physical transfer, not a soft scene fade. */
 .journey-causal-world .causal-phase5-layer { animation: causal-phase5-enter var(--journey-motion-standard) var(--journey-ease-enter) both !important; }
 @keyframes causal-phase5-enter {
-  from { opacity: 0; transform: scale(1.025); }
+  from { opacity: 1; transform: scale(1.025); }
   to { opacity: 1; transform: scale(1); }
 }
 

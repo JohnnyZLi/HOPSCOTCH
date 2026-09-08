@@ -257,14 +257,6 @@
   pointer-events: auto;
   transform: translate3d(-50%, -50%, 190px) rotateX(0) rotateZ(0) scale(1);
 }
-.phase5-stage-application .phase5c-application {
-  animation: phase5c-app-enter 1700ms var(--phase5c-snap) both;
-}
-@keyframes phase5c-app-enter {
-  0% { opacity: 0; transform: translate3d(-50%, 80%, 240px) rotateX(55deg) rotateZ(-14deg) scale(.38); }
-  62% { opacity: 1; transform: translate3d(-50%, -56%, 190px) rotateX(-4deg) rotateZ(1deg) scale(1.06); }
-  100% { opacity: 1; transform: translate3d(-50%, -50%, 190px) rotateX(0) rotateZ(0) scale(1); }
-}
 
 .phase5c-security {
   z-index: 7;
