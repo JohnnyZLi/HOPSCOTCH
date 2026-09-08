@@ -1384,7 +1384,7 @@
 
   .phase5b-data-unit { width: 166px; height: 98px; }
   .phase5b-ip-core { width: 130px; height: 78px; }
-  .phase5b-ip-core > .phase5b-transport-core { height: 22px; bottom: 8px; gap: 2px; line-height: 1; }
+  .phase5b-ip-core > .phase5b-transport-core { width: calc(100% - 66px); height: 26px; bottom: 6px; padding: 3px 0 1px; gap: 2px; line-height: 1; white-space: nowrap; }
   .phase5c-frame-shell { width: 160px; height: 92px; }
   .phase5b-ip-core > b { max-width: 82px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .phase5b-ip-core > em { top: 12px; bottom: auto; right: 10px; }

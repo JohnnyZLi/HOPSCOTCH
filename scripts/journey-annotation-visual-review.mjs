@@ -213,7 +213,7 @@ async function inspectState(cdp) {
       if(!element.getClientRects().length)return false;
       for(let node=element;node&&node!==root;node=node.parentElement){const style=getComputedStyle(node);if(Number(style.opacity)<.9||style.visibility==='hidden')return false;}
       return true;
-    }).map((element)=>({selector,text:element.textContent.trim(),rect:textBox(element),fontSize:parseFloat(getComputedStyle(element).fontSize)})));
+    }).map((element)=>{const range=document.createRange();range.selectNodeContents(element);return {selector,text:element.textContent.trim(),rect:textBox(element),lineCount:range.getClientRects().length,fontSize:parseFloat(getComputedStyle(element).fontSize)}}));
     const pseudoContentMetrics=(element)=>{if(!element)return null;const style=getComputedStyle(element,'::before');const content=style.content.replace(/^["']|["']$/g,'');const canvas=document.createElement('canvas');const context=canvas.getContext('2d');if(!context)return null;context.font=style.font;const spacing=Number.parseFloat(style.letterSpacing)||0;const textWidth=context.measureText(content).width+Math.max(0,content.length-1)*spacing;const laneWidth=element.getBoundingClientRect().width;return {content,textWidth,laneWidth,fits:textWidth<=laneWidth+1}};
     const callout=document.querySelector('.journey-callout-overlay');
     const scene=document.querySelector('.journey-scene-transition');
@@ -454,6 +454,7 @@ async function auditViewport(cdp, origin, viewport) {
       }
     }
     if (state.physical) {
+      assert.ok(state.physical.labels.every((label) => label.lineCount === 1), `${viewport.id}/${labels[index]}: packet field wraps onto another line: ${JSON.stringify(state.physical.labels)}`);
       assert.match(state.physical.ipSurface, /^rgb\(/, `${viewport.id}/${labels[index]}: IP packet surface is translucent: ${state.physical.ipSurface}`);
       assert.equal(state.physical.dataUnitSurface, 'rgba(0, 0, 0, 0)', `${viewport.id}/${labels[index]}: physical inspection target draws a duplicate packet sheet.`);
       for (const [i, label] of state.physical.labels.entries()) {

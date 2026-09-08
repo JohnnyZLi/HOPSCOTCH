@@ -225,8 +225,7 @@
     linear-gradient(270deg,rgba(48,45,43,.24),rgba(48,45,43,.24)) right bottom/72% 1px no-repeat !important;
 }
 .phase5-packet-object .phase5c-network-wing > i {
-  height: 1px !important;
-  background: rgba(48,45,43,.09) !important;
+  display: none;
 }
 .phase5-packet-object .phase5c-ip-identity {
   top: -28px !important;
