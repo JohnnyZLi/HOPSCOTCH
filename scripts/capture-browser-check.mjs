@@ -264,6 +264,7 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
       const trigger=[...document.querySelectorAll('.capture-heading-actions .capture-action')].find((button)=>button.textContent.toUpperCase().includes('FLOWS'));
       if(!trigger)throw new Error('Missing Flows trigger');
       const samples=[];
+      trigger.focus();
       trigger.click();
       const started=performance.now();
       do {
@@ -309,7 +310,7 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='none'`);
     const restored = await cdp.evaluate(`document.activeElement?.textContent?.toLocaleUpperCase().includes('FLOWS')===true`);
-    if (!initialFocus || !shiftTabContained || !tabContained || !restored) throw new Error(`${profile.id} Capture Replay drawer focus lifecycle failed.`);
+    if (!initialFocus || !shiftTabContained || !tabContained || !restored) throw new Error(`${profile.id} Capture Replay drawer focus lifecycle failed: ${JSON.stringify({initialFocus, shiftTabContained, tabContained, restored})}.`);
     focusLifecycle = { initialFocus, shiftTabContained, tabContained, restored };
   }
 
