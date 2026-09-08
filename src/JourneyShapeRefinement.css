@@ -136,10 +136,16 @@
   border: 1px solid rgba(48,45,43,.36) !important;
   border-radius: 3px !important;
 }
+.phase5-packet-object .phase5c-security > strong { top: 6px; }
+.phase5-packet-object .phase5c-security > small { bottom: 6px; }
+.phase5-packet-object .phase5c-security > :is(strong, small) {
+  padding: 2px 6px;
+  background: #e8e4df;
+  line-height: 1;
+  z-index: 1;
+}
 .phase5-packet-object .phase5c-security-orbit.orbit-b {
-  inset: 20px !important;
-  border: 1px solid rgba(48,45,43,.14) !important;
-  border-radius: 1px !important;
+  display: none;
 }
 
 /* The transport button keeps its large semantic/touch target, while only a
@@ -191,8 +197,8 @@
   border-color: rgba(48,45,43,.16) !important;
 }
 .phase5-packet-object .phase5c-transport > strong {
-  top: auto !important;
-  bottom: 37px !important;
+  top: 12px !important;
+  bottom: auto !important;
   color: rgba(48,45,43,.34) !important;
   font-size: 8px !important;
   letter-spacing: .18em !important;
@@ -223,7 +229,7 @@
   background: rgba(48,45,43,.09) !important;
 }
 .phase5-packet-object .phase5c-ip-identity {
-  top: 10px !important;
+  top: -28px !important;
 }
 .phase5-packet-object .phase5c-ip-identity small,
 .phase5-packet-object .phase5c-ip-identity strong {

@@ -399,6 +399,7 @@ async function auditViewport(cdp, origin, viewport) {
   const labels = await cdp.evaluate(`[...document.querySelectorAll('.visual-time-rail__events button')].map((button)=>button.getAttribute('aria-label')||'')`);
   assert.ok(labels.length >= 8, `${viewport.id}: expected canonical Journey events, found ${labels.length}.`);
   const events = [];
+  const labelCollisions = [];
 
   for (let index = 0; index < labels.length; index += 1) {
     const clicked = await cdp.evaluate(`(()=>{const button=document.querySelectorAll('.visual-time-rail__events button')[${index}];if(!button)return false;button.click();return true})()`);
@@ -430,7 +431,9 @@ async function auditViewport(cdp, origin, viewport) {
     }
     if (state.packet) {
       if (!['collapsed', 'exploded'].includes(state.packet.stage)) {
-        assert.ok(state.packet.labels.every((label, index, labels) => labels.slice(index + 1).every((other) => !rectsIntersect(label.rect, other.rect))), `${viewport.id}/${labels[index]}: packet labels overlap: ${JSON.stringify(state.packet.labels)}.`);
+        for (const [i, label] of state.packet.labels.entries()) {
+          for (const other of state.packet.labels.slice(i + 1)) if (rectsIntersect(label.rect, other.rect)) labelCollisions.push({stage: state.packet.stage, label, other});
+        }
       }
       const requestLabel = state.packet.labels.find((label) => label.selector === '.phase5c-application > small');
       const requestTitle = state.packet.labels.find((label) => label.selector === '.phase5c-application > strong');
@@ -447,7 +450,9 @@ async function auditViewport(cdp, origin, viewport) {
       }
     }
     if (state.physical) {
-      assert.ok(state.physical.labels.every((label, index, labels) => labels.slice(index + 1).every((other) => !rectsIntersect(label.rect, other.rect))), `${viewport.id}/${labels[index]}: physical packet labels overlap: ${JSON.stringify(state.physical.labels)}.`);
+      for (const [i, label] of state.physical.labels.entries()) {
+        for (const other of state.physical.labels.slice(i + 1)) if (rectsIntersect(label.rect, other.rect)) labelCollisions.push({stage: state.physical.stage, label, other});
+      }
       const ttlLabel = state.physical.labels.find((label) => label.selector === '.phase5c-ttl-rotor > small');
       const ttlValue = state.physical.labels.find((label) => label.selector === '.phase5c-ttl-rotor > i');
       if (ttlLabel && ttlValue) assert.ok(ttlValue.fontSize >= ttlLabel.fontSize * 2, `${viewport.id}/${labels[index]}: TTL typography lost its hierarchy.`);
@@ -485,6 +490,7 @@ async function auditViewport(cdp, origin, viewport) {
     await screenshot(cdp, join(outputDir, `${viewport.id}-${String(index + 1).padStart(2, '0')}-${slug(state.title || labels[index])}.png`));
   }
 
+  assert.deepEqual(labelCollisions, [], `${viewport.id}: packet labels overlap: ${JSON.stringify(labelCollisions)}`);
   const phase5Events = events.filter((event) => event.packet);
   assert.ok(phase5Events.length >= 8, `${viewport.id}: expected the complete Phase 5 assembly and inspection sequence, found ${phase5Events.length}.`);
   assert.deepEqual([...new Set(phase5Events.map((event) => event.packet.stage))], ['application', 'security', 'transport', 'network', 'link', 'collapsed', 'exploded'], `${viewport.id}: Phase 5 packet stages are incomplete.`);

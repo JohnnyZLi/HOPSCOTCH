@@ -42,9 +42,16 @@
   opacity: 0 !important;
 }
 .journey-causal-world.causal-phase-http .causal-world-thread,
-.journey-causal-world.causal-phase-http .causal-handoff-rail {
+.journey-causal-world.causal-phase-http .causal-handoff-rail,
+.journey-causal-world.causal-phase-http .causal-network-path,
+.journey-causal-world.causal-phase-http .causal-mechanism-core,
+.journey-causal-world.causal-phase-http .causal-object::before,
+.journey-causal-world.causal-phase-http .causal-object::after {
   opacity: 0 !important;
 }
+.journey-causal-world.causal-phase-http .causal-http-flight { border: 0; }
+.journey-causal-world.causal-phase-http .causal-http-flight > i { top: calc(100% + 12px); }
+.journey-causal-world.causal-phase-http .causal-http-flight > b { top: calc(100% + 9px); }
 .journey-causal-world.causal-phase-http .causal-object {
   width: 300px !important;
   height: 150px !important;
