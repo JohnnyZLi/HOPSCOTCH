@@ -280,6 +280,7 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     if (flowEntryGeometry.samples.length < 2 || flowEntryGeometry.samples.some((sample) => sample.collision)) throw new Error(`${profile.id} flow drawer title crosses corner navigation during entry: ${JSON.stringify(flowEntryGeometry)}.`);
     if (profile.reducedMotion && flowEntryGeometry.transitionDuration?.split(',').some((duration) => parseFloat(duration) > 0)) throw new Error(`${profile.id} flow drawer ignores reduced motion: ${JSON.stringify(flowEntryGeometry)}.`);
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='flows'`);
+    await waitForExpression(cdp, `document.activeElement?.classList.contains('capture-drawer-close')===true`, 1000);
     const initialFocus = await cdp.evaluate(`document.activeElement?.classList.contains('capture-drawer-close')===true`);
     const flowDrawerGeometry = await cdp.evaluate(`(()=>{
       const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();

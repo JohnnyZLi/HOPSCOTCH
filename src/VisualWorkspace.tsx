@@ -255,11 +255,6 @@ export function useVisualDrawerFocus<T extends HTMLElement>(active: boolean, onC
     if (!active) return;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     initialFocusRef.current?.focus();
-    // A previously inert, hidden drawer may not accept focus until the browser
-    // commits its visible state. Retry without taking focus away from the user.
-    const focusFrame = requestAnimationFrame(() => {
-      if (document.activeElement === previousFocus) initialFocusRef.current?.focus({ preventScroll: true });
-    });
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -290,7 +285,6 @@ export function useVisualDrawerFocus<T extends HTMLElement>(active: boolean, onC
 
     document.addEventListener('keydown', onKeyDown);
     return () => {
-      cancelAnimationFrame(focusFrame);
       document.removeEventListener('keydown', onKeyDown);
       previousFocus?.focus();
     };
