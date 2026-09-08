@@ -177,7 +177,13 @@ async function metric(cdp, selector) {
     if(!el)return null;
     const r=el.getBoundingClientRect();
     const s=getComputedStyle(el);
+    let paintedOpacity = r.width > 0 && r.height > 0 ? 1 : 0;
+    for (let node = el; node instanceof Element; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      paintedOpacity *= style.display === 'none' || style.visibility === 'hidden' ? 0 : Number(style.opacity);
+    }
     return {
+      paintedOpacity,
       selector:${JSON.stringify(selector)},
       left:r.left,top:r.top,width:r.width,height:r.height,
       centerX:r.left+r.width/2,centerY:r.top+r.height/2,
@@ -294,21 +300,23 @@ async function assertVisualHandoff(cdp, report) {
   const settledCamera = await metric(cdp, '.causal-camera');
   await screenshot(cdp, '00h-handoff-settled.png');
 
-  for (const [label, camera] of [['early', earlyCamera], ['mid', midCamera], ['settled', settledCamera]]) {
-    assert.ok(camera, `Handoff ${label}: causal camera disappeared.`);
-    assert.ok(Number(camera.opacity) >= .95, `Handoff ${label}: causal camera faded instead of remaining visible: ${JSON.stringify(camera)}`);
-    assert.ok(camera.filter === 'none' || camera.filter === 'blur(0px)', `Handoff ${label}: causal camera blurred instead of morphing: ${JSON.stringify(camera)}`);
+  for (const [label, camera, packet] of [
+    ['early', earlyCamera, earlyPacket], ['mid', midCamera, midPacket], ['settled', settledCamera, settledPacket],
+  ]) {
+    assert.ok(camera && packet, `Handoff ${label}: request geometry is missing.`);
+    assert.equal(camera.paintedOpacity, 0, `Handoff ${label}: the old request scaffold still paints beneath the packet.`);
+    assert.ok(packet.paintedOpacity >= .75, `Handoff ${label}: packet disappeared during the handoff: ${JSON.stringify(packet)}`);
+    assert.ok(packet.filter === 'none' || packet.filter === 'blur(0px)', `Handoff ${label}: packet blurred during the handoff.`);
   }
-  assert.ok(earlyObject && midObject && settledObject && earlyPacket && midPacket && settledPacket, 'Handoff lost either the causal object or the Phase 5 application object.');
-  assert.ok(Number(earlyObject.opacity) >= .75 && Number(midObject.opacity) >= .75, 'Persistent causal mechanism became visually absent during handoff.');
-  assert.ok(earlyCore && midCore && Number(midCore.opacity) >= .2, `Mechanical scaffold is not visible during the packet handoff: ${JSON.stringify({ earlyCore, midCore })}`);
-  assert.ok(centerDistance(midCore, midPacket) <= 280, `Packet hero appears disconnected from the causal core instead of growing from it: ${centerDistance(midCore, midPacket).toFixed(1)}px.`);
-  assert.ok(changed(beforeObject, midObject), 'Causal object did not physically reshape into the packet-stage scaffold.');
+  assert.ok(beforeCore.paintedOpacity >= .75, 'HTTP payload must be visible before the handoff.');
+  assert.ok(centerDistance(beforeCore, midPacket) <= 280, `Packet hero appears disconnected from the preceding request: ${centerDistance(beforeCore, midPacket).toFixed(1)}px.`);
+  assert.ok(earlyObject && midObject && settledObject, 'The persistent request identity was removed from the causal world.');
+  assert.ok([earlyObject, midObject, settledObject, earlyCore, midCore].every((item) => item && item.paintedOpacity === 0), 'Duplicate request frames painted during packet assembly.');
 
   await seekEvent(cdp, 'TCP segment assembles');
   await sleep(1050);
   const transportScaffold = await metric(cdp, '.causal-mechanism-core');
-  assert.ok(transportScaffold && Number(transportScaffold.opacity) <= .2, `Handoff scaffold should dissolve as packet assembly takes over: ${JSON.stringify(transportScaffold)}`);
+  assert.equal(transportScaffold?.paintedOpacity, 0, 'The old scaffold reappeared during transport assembly.');
 
   report.handoff = { beforeObject, beforeCore, earlyObject, earlyCore, earlyPacket, midObject, midCore, midPacket, settledObject, settledPacket, transportScaffold };
 }
