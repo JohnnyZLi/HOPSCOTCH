@@ -95,7 +95,7 @@ function DnsWorld({ state, hostname }: { state: JourneyState; hostname: string }
   const hit = state.dnsProfile === 'cache-hit';
   const answerVisible = state.resolvedAddress !== null;
   const labels = hostname.split('.');
-  return <div className={`causal-dns-world ${hit ? 'is-hit' : 'is-miss'} dns-progress-${progress}`} data-causal-dns="true" aria-hidden={phaseFor(state) !== 'dns'}>
+  return <div className={`causal-dns-world ${hit ? 'is-hit' : 'is-miss'} dns-progress-${progress}`} data-causal-dns="true" hidden={phaseFor(state) !== 'dns'}>
     <div className="causal-cache" data-causal-cache={hit ? 'hit' : state.activeEvent.id === 'dns-store' ? 'stored' : 'miss'} aria-label={`DNS cache ${hit ? 'hit' : 'miss'}`}>
       <div className="causal-cache__lid"><span>resolver cache</span><i/><i/><i/></div>
       <div className="causal-cache__tray"><i/><i/><i/><span className="causal-cache__record"><b>{hostname}</b><strong>{state.resolvedAddress ?? '203.0.113.42'}</strong><small>TTL {state.dnsTtlSeconds ?? 300}s</small></span></div>
@@ -128,7 +128,7 @@ function RouteWorld({ state, address }: { state: JourneyState; address: string }
   const selected = state.route === 'gateway-ready' || state.route === 'internet-path-ready' || state.transport !== 'closed';
   const phase = phaseFor(state);
   const octets = address.split('.');
-  return <div className={`causal-route-world ${selected ? 'is-selected' : ''}`} data-causal-route={state.route} aria-hidden={phase !== 'route' && phase !== 'path'}>
+  return <div className={`causal-route-world ${selected ? 'is-selected' : ''}`} data-causal-route={state.route} hidden={phase !== 'route' && phase !== 'path'}>
     <svg className="causal-route-fan" viewBox="0 0 760 420" preserveAspectRatio="none" aria-hidden="true">
       <path className="route-candidate route-candidate--specific" d="M100 210 C240 118 374 94 650 86"/>
       <path className="route-candidate route-candidate--network" d="M100 210 C278 204 410 205 650 210"/>
@@ -166,7 +166,7 @@ function TcpWorld({ state }: { state: JourneyState }) {
     : progress >= 3 ? 'ESTABLISHED' : progress >= 2 ? 'SYN-RECEIVED' : 'LISTEN';
   const flightLabel = active === 'synack' ? 'SYN · ACK' : active === 'server-initial' ? 'INITIAL · HANDSHAKE' : active === 'initial' ? 'QUIC INITIAL' : active.toUpperCase();
   const reverse = active === 'synack' || active === 'server-initial';
-  return <div className={`causal-tcp-world tcp-progress-${progress} ${quic ? 'is-quic' : ''}`} data-causal-tcp={state.transport} aria-hidden={phaseFor(state) !== 'tcp'}>
+  return <div className={`causal-tcp-world tcp-progress-${progress} ${quic ? 'is-quic' : ''}`} data-causal-tcp={state.transport} hidden={phaseFor(state) !== 'tcp'}>
     <svg viewBox="0 0 1000 380" preserveAspectRatio="none" aria-hidden="true"><path d="M170 196 C382 128 625 128 835 196"/><path className="transport-lock" d="M170 196 C382 128 625 128 835 196"/></svg>
     <div className={`causal-endpoint endpoint-client ${progress >= 1 ? 'is-awake' : ''} ${progress >= 3 ? 'is-established' : ''}`}><i/><b/><span>{quic ? 'QUIC client' : 'client'}</span><strong>{clientState}</strong></div>
     <div className={`causal-endpoint endpoint-server ${progress >= 2 ? 'is-awake' : ''} ${progress >= 3 ? 'is-established' : ''}`}><i/><b/><span>{quic ? 'QUIC origin :443' : 'origin :443'}</span><strong>{serverState}</strong></div>
@@ -185,7 +185,7 @@ function TlsWorld({ state, hostname }: { state: JourneyState; hostname: string }
     ['VERSIONS', 'TLS 1.3'],
     ['KEY SHARE', 'X25519'],
   ];
-  return <div className={`causal-tls-world tls-progress-${progress} ${locked ? 'is-locked' : ''}`} data-causal-tls={state.tls} aria-hidden={phaseFor(state) !== 'tls'}>
+  return <div className={`causal-tls-world tls-progress-${progress} ${locked ? 'is-locked' : ''}`} data-causal-tls={state.tls} hidden={phaseFor(state) !== 'tls'}>
     <svg className="causal-tls-leaders" viewBox="0 0 1000 520" preserveAspectRatio="none" aria-hidden="true">
       <path d="M500 258 L284 124 L112 124"/><path d="M500 258 L716 124 L888 124"/><path d="M500 258 L284 392 L112 392"/><path d="M500 258 L716 392 L888 392"/>
     </svg>
@@ -229,7 +229,9 @@ export function JourneyCausalWorld({ state, hostname, address, packetProjection,
     <div className="causal-field" aria-hidden="true"><i/><i/><i/><span/></div>
     <svg className="causal-world-thread" viewBox="0 0 1400 760" preserveAspectRatio="none" aria-hidden="true"><path d="M100 430 C270 330 420 344 570 392 S880 470 1040 354 S1240 282 1340 330"/></svg>
 
-    <div className="causal-camera">
+    {/* Packet assembly and transit own the request geometry at packet scale.
+        Keep the earlier camera mounted for continuity, but never paint it underneath. */}
+    <div className="causal-camera" hidden={packetActive || transitActive}>
       <div className="causal-object" data-causal-object="request-01">
         <div className="causal-object__mechanism" aria-hidden="true">
           <i className="causal-mechanism-axis"/>
@@ -239,7 +241,6 @@ export function JourneyCausalWorld({ state, hostname, address, packetProjection,
           <span className="causal-mechanism-node node-session" data-label={state.transportProfile === 'quic-h3' ? 'quic' : 'tcp'} data-value="443"/>
           <span className="causal-mechanism-node node-protection" data-label="protection" data-value="TLS 1.3"/>
           <span className="causal-mechanism-core"><i/><i/><i/><i/></span>
-          <span className="causal-handoff-rail rail-a"/><span className="causal-handoff-rail rail-b"/>
         </div>
         <div className="causal-object__index"><span>request</span><b>01</b></div>
         <div className="causal-object__intent"><small>intent / hostname</small><strong>{hostname}</strong><i/></div>
@@ -256,8 +257,8 @@ export function JourneyCausalWorld({ state, hostname, address, packetProjection,
       <div className={`causal-network-path ${pathVisible ? 'is-visible' : ''}`} aria-hidden="true"><i/><i/><i/><span>selected path</span></div>
       <TcpWorld state={state}/>
       <TlsWorld state={state} hostname={hostname}/>
-      <div className="causal-http-flight" aria-hidden="true"><i/><span>{state.transportProfile === 'quic-h3' ? 'HTTP/3 request' : 'HTTP/2 HEADERS'}</span><strong>GET /</strong><b/></div>
-      <div className="causal-response-flight" aria-hidden="true"><i/><span>response</span><strong>200</strong><b/></div>
+      <div className="causal-http-flight" hidden={phase !== 'http'} aria-hidden="true"><i/><span>{state.transportProfile === 'quic-h3' ? 'HTTP/3 request' : 'HTTP/2 HEADERS'}</span><strong>GET /</strong><b/></div>
+      <div className="causal-response-flight" hidden={phase !== 'response'} aria-hidden="true"><i/><span>response</span><strong>200</strong><b/></div>
     </div>
 
     <aside className="causal-annotation" aria-hidden="true"><i/><div><span>{annotation.index}</span><strong>{annotation.label}</strong><small>{annotation.note}</small></div></aside>

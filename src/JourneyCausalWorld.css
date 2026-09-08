@@ -122,7 +122,8 @@
 .causal-phase-http .causal-camera { transform: scale(1.03) translate3d(0, 0, 0); }
 .causal-phase-response .causal-camera { transform: scale(.92) translate3d(0, 0, 0); }
 .causal-phase-complete .causal-camera { transform: scale(.8) translate3d(0, 0, 0); }
-.journey-causal-world.is-packet-world > .causal-camera { opacity: 0; filter: blur(8px); transform: scale(.78); }
+/* Phase ownership is immediate; opacity transitions must not expose inactive worlds. */
+.journey-causal-world [hidden] { display: none !important; }
 
 .causal-object {
   position: absolute;
