@@ -15,6 +15,12 @@
   --journey-accent-soft: rgba(216, 79, 73, .12);
 }
 
+/* Font shorthands throughout Journey depend on this token. Keep it scoped so
+   a missing family cannot invalidate their size and line-height declarations. */
+.journey-visual-workspace {
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 html body:has(.journey-causal-world) {
   background: var(--journey-paper);
   color: var(--journey-ink);

@@ -208,6 +208,12 @@ async function inspectState(cdp) {
   return cdp.evaluate(`(()=>{
     const pick=(element)=>{if(!element)return null;const r=element.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};
     const intersects=(a,b)=>Boolean(a&&b&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top);
+    const textBox=(element)=>{if(!element)return null;const range=document.createRange();range.selectNodeContents(element);return pick(range)};
+    const labelMetrics=(root,selectors)=>selectors.flatMap((selector)=>[...root.querySelectorAll(selector)].filter((element)=>{
+      if(!element.getClientRects().length)return false;
+      for(let node=element;node&&node!==root;node=node.parentElement){const style=getComputedStyle(node);if(Number(style.opacity)<.9||style.visibility==='hidden')return false;}
+      return true;
+    }).map((element)=>({selector,text:element.textContent.trim(),rect:textBox(element),fontSize:parseFloat(getComputedStyle(element).fontSize)})));
     const pseudoContentMetrics=(element)=>{if(!element)return null;const style=getComputedStyle(element,'::before');const content=style.content.replace(/^["']|["']$/g,'');const canvas=document.createElement('canvas');const context=canvas.getContext('2d');if(!context)return null;context.font=style.font;const spacing=Number.parseFloat(style.letterSpacing)||0;const textWidth=context.measureText(content).width+Math.max(0,content.length-1)*spacing;const laneWidth=element.getBoundingClientRect().width;return {content,textWidth,laneWidth,fits:textWidth<=laneWidth+1}};
     const callout=document.querySelector('.journey-callout-overlay');
     const scene=document.querySelector('.journey-scene-transition');
@@ -230,6 +236,7 @@ async function inspectState(cdp) {
       rect:pick(packetObject),
       reduceMotion:packetObject.classList.contains('reduce-motion'),
       cameraTransition:getComputedStyle(packetObject.querySelector('.phase5-packet-camera')).transitionDuration,
+      labels:labelMetrics(packetObject,['.phase5c-application > span','.phase5c-application > strong','.phase5c-application > small','.phase5c-security > strong','.phase5c-security > small','.phase5c-transport-head > small','.phase5c-transport-head > b','.phase5c-transport > strong','.phase5c-ip-identity > small','.phase5c-ip-identity > strong','.phase5c-ttl > small','.phase5c-ttl > b']),
       layers:[...packetObject.querySelectorAll('[data-phase5-layer]')].map((layer)=>({
         id:layer.getAttribute('data-phase5-layer')||'',
         visible:layer.getAttribute('data-visible')==='true',
@@ -253,6 +260,7 @@ async function inspectState(cdp) {
       instrument:pick(physicalObject.querySelector('.phase5b-instrument')),
       dataUnit:pick(physicalObject.querySelector('.phase5b-data-unit')),
       dataUnitTabIndex:physicalObject.querySelector('.phase5b-data-unit')?.tabIndex??-1,
+      labels:labelMetrics(physicalObject,['.phase5b-ip-core > small','.phase5b-ip-core > b','.phase5b-ip-core > em','.phase5c-ttl-rotor > small','.phase5c-ttl-rotor > i','.phase5b-transport-core > small','.phase5b-transport-core > b']),
       serialization:(()=>{const rect=pick(physicalObject.querySelector('.phase5b-serialization'));return rect?{...rect,top:rect.top-14,height:rect.height+14}:null})(),
       serializationLabel:pseudoContentMetrics(physicalObject.querySelector('.phase5b-serialization')),
       activeDevices:[...physicalObject.querySelectorAll('.phase5b-device.is-active')].map((device)=>device.getAttribute('data-device')||''),
@@ -357,7 +365,7 @@ async function auditPacketInspector(cdp, viewport, events) {
   })()`);
   assert.equal(sought, true, `${viewport.id}: could not seek to the exploded packet.`);
   await waitForExpression(cdp, `document.querySelector('[data-phase5-packet-object="true"]')?.getAttribute('data-phase5-stage')==='exploded'`);
-  const opened = await cdp.evaluate(`(()=>{const layer=document.querySelector('.phase5-packet-shell.shell-network');if(!layer)return false;layer.click();return true})()`);
+  const opened = await cdp.evaluate(`(()=>{const layer=document.querySelector('[data-phase5-layer="network"]');if(!layer)return false;layer.click();return true})()`);
   assert.equal(opened, true, `${viewport.id}: could not select the IPv4 packet shell.`);
   await waitForExpression(cdp, `Boolean(document.querySelector('[data-phase5-inspector="true"]'))`);
   await sleep(260);
@@ -421,6 +429,12 @@ async function auditViewport(cdp, origin, viewport) {
       assert.equal(state.causal.protectionNodeCount, 1, `${viewport.id}/${labels[index]}: the TLS protection node is duplicated.`);
     }
     if (state.packet) {
+      if (!['collapsed', 'exploded'].includes(state.packet.stage)) {
+        assert.ok(state.packet.labels.every((label, index, labels) => labels.slice(index + 1).every((other) => !rectsIntersect(label.rect, other.rect))), `${viewport.id}/${labels[index]}: packet labels overlap: ${JSON.stringify(state.packet.labels)}.`);
+      }
+      const requestLabel = state.packet.labels.find((label) => label.selector === '.phase5c-application > small');
+      const requestTitle = state.packet.labels.find((label) => label.selector === '.phase5c-application > strong');
+      if (requestLabel && requestTitle) assert.ok(requestTitle.fontSize >= requestLabel.fontSize * 2, `${viewport.id}/${labels[index]}: application typography lost its hierarchy.`);
       const visibleLayers = state.packet.layers.filter((layer) => layer.visible);
       assert.ok(['application', 'security', 'transport', 'network', 'link', 'collapsed', 'exploded'].includes(state.packet.stage), `${viewport.id}/${labels[index]}: invalid Phase 5 packet stage ${state.packet.stage}.`);
       assert.ok(state.packet.signature.length > 20, `${viewport.id}/${labels[index]}: deterministic packet signature missing.`);
@@ -433,6 +447,10 @@ async function auditViewport(cdp, origin, viewport) {
       }
     }
     if (state.physical) {
+      assert.ok(state.physical.labels.every((label, index, labels) => labels.slice(index + 1).every((other) => !rectsIntersect(label.rect, other.rect))), `${viewport.id}/${labels[index]}: physical packet labels overlap: ${JSON.stringify(state.physical.labels)}.`);
+      const ttlLabel = state.physical.labels.find((label) => label.selector === '.phase5c-ttl-rotor > small');
+      const ttlValue = state.physical.labels.find((label) => label.selector === '.phase5c-ttl-rotor > i');
+      if (ttlLabel && ttlValue) assert.ok(ttlValue.fontSize >= ttlLabel.fontSize * 2, `${viewport.id}/${labels[index]}: TTL typography lost its hierarchy.`);
       if (['router-route', 'router-reencapsulate'].includes(state.physical.stage)) {
         const nodes = state.physical.routeNodes;
         assert.equal(nodes.length, 3, `${viewport.id}/${labels[index]}: expected three route candidates.`);

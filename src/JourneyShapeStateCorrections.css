@@ -39,7 +39,11 @@
   transform: translate(-50%,-50%) scale(.72) !important;
 }
 .journey-causal-world.causal-phase-http .causal-mechanism-axis {
-  opacity: .1 !important;
+  opacity: 0 !important;
+}
+.journey-causal-world.causal-phase-http .causal-world-thread,
+.journey-causal-world.causal-phase-http .causal-handoff-rail {
+  opacity: 0 !important;
 }
 .journey-causal-world.causal-phase-http .causal-object {
   width: 300px !important;

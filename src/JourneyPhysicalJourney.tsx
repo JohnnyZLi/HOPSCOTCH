@@ -91,9 +91,8 @@ export function JourneyPhysicalJourney({ projection, onSelectLayer }: {
               <i className="ttl-after">63</i>
             </span>
             <em>{projection.currentChecksum}</em>
+            <span className="phase5b-transport-core"><small>{projection.continuityId.includes('quic-h3') ? 'UDP · QUIC' : 'TCP · TLS'}</small><b>REQUEST / 01</b></span>
           </span>
-
-          <span className="phase5b-transport-core"><small>{projection.continuityId.includes('quic-h3') ? 'UDP · QUIC' : 'TCP · TLS'}</small><b>REQUEST / 01</b></span>
 
           <span className="phase5c-frame-shell shell-wan">
             <i className="phase5c-frame-rail rail-a"/><i className="phase5c-frame-rail rail-b"/>

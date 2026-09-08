@@ -823,6 +823,10 @@
 }
 
 .phase5b-ip-core {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  padding: 0;
   z-index: 8;
   width: 184px;
   height: 105px;
@@ -837,15 +841,19 @@
 .phase5b-ip-core > b { position: absolute; left: 15px; top: 32px; color: rgba(221, 254, 248, .78); font-size: 8px; letter-spacing: .06em; }
 .phase5b-ip-core > em { position: absolute; right: 12px; bottom: 10px; color: rgba(245, 243, 238, .32); font: 600 6px/1 var(--mono); font-style: normal; }
 
-.phase5b-transport-core {
+.phase5b-ip-core > .phase5b-transport-core {
   z-index: 9;
-  width: 138px;
-  height: 68px;
+  left: 15px;
+  top: auto;
+  bottom: 10px;
+  width: calc(100% - 78px);
+  height: 30px;
+  padding: 0;
   display: grid;
   place-content: center;
   gap: 5px;
   text-align: center;
-  transform: translate3d(-50%, -50%, 102px);
+  transform: translateZ(32px);
   border-top: 2px solid rgba(169, 168, 164, .6);
   border-bottom: 1px solid rgba(169, 168, 164, .22);
   background: rgba(5, 10, 17, .84);
@@ -945,7 +953,8 @@
 .phase5b-stage-router-reencapsulate .phase5c-ttl-rotor .ttl-after,
 .phase5b-stage-next-link .phase5c-ttl-rotor .ttl-after { transform: translate(-50%, -50%); opacity: 1; }
 .phase5b-stage-router-ttl .phase5c-ttl-rotor {
-  transform: scale(1.45) translate3d(-18px, 1px, 80px);
+  transform: translateZ(32px);
+  border-color: var(--phase5c-amber);
   box-shadow: 0 0 20px rgba(245, 243, 238, .18);
 }
 

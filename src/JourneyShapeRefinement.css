@@ -110,6 +110,18 @@
    IPv4 = closing address brackets
    Ethernet = outer frame/header/trailer
    This avoids five increasingly large generic boxes. */
+.journey-causal-world .phase5-packet-object .phase5c-application,
+.journey-causal-world .phase5b-ip-core {
+  background: #e8e4df !important;
+}
+
+/* These layers draw their own sleeves, caps, brackets, and clamps. Their large
+   inspection targets must not add another translucent sheet behind them. */
+.journey-causal-world .phase5-packet-object :is(.phase5c-security, .phase5c-transport, .phase5c-network, .phase5c-link) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 .phase5-packet-object .phase5c-packet-shadow {
   opacity: .28 !important;
   filter: blur(12px) !important;
