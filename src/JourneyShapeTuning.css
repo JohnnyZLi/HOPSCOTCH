@@ -178,10 +178,10 @@
 .phase5-packet-object .phase5c-network-wing.wing-right {
   transform: translateX(255px) rotateY(-18deg) !important;
 }
-.phase5-stage-network .phase5c-network-wing,
-.phase5-stage-link .phase5c-network-wing,
-.phase5-stage-collapsed .phase5c-network-wing,
-.phase5-stage-exploded .phase5c-network-wing {
+.phase5-packet-object.phase5-stage-network .phase5c-network-wing,
+.phase5-packet-object.phase5-stage-link .phase5c-network-wing,
+.phase5-packet-object.phase5-stage-collapsed .phase5c-network-wing,
+.phase5-packet-object.phase5-stage-exploded .phase5c-network-wing {
   transform: translateX(0) rotateY(0) !important;
 }
 .phase5-packet-object .phase5c-ttl {
@@ -242,7 +242,7 @@
   }
   .phase5-packet-object .phase5c-network {
     width: 390px !important;
-    height: 212px !important;
+    height: 244px !important;
   }
   .phase5-packet-object .phase5c-network-wing {
     top: 20px !important;

@@ -110,6 +110,18 @@
    IPv4 = closing address brackets
    Ethernet = outer frame/header/trailer
    This avoids five increasingly large generic boxes. */
+.journey-causal-world .phase5-packet-object .phase5c-application,
+.journey-causal-world .phase5b-physical .phase5b-ip-core {
+  background: #e8e4df !important;
+}
+
+/* These layers draw their own sleeves, caps, brackets, and clamps. Their large
+   inspection targets must not add another translucent sheet behind them. */
+.journey-causal-world .phase5-packet-object :is(.phase5c-security, .phase5c-transport, .phase5c-network, .phase5c-link) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 .phase5-packet-object .phase5c-packet-shadow {
   opacity: .28 !important;
   filter: blur(12px) !important;
@@ -124,10 +136,16 @@
   border: 1px solid rgba(48,45,43,.36) !important;
   border-radius: 3px !important;
 }
+.phase5-packet-object .phase5c-security > strong { top: 6px; }
+.phase5-packet-object .phase5c-security > small { bottom: 6px; }
+.phase5-packet-object .phase5c-security > :is(strong, small) {
+  padding: 2px 6px;
+  background: #e8e4df;
+  line-height: 1;
+  z-index: 1;
+}
 .phase5-packet-object .phase5c-security-orbit.orbit-b {
-  inset: 20px !important;
-  border: 1px solid rgba(48,45,43,.14) !important;
-  border-radius: 1px !important;
+  display: none;
 }
 
 /* The transport button keeps its large semantic/touch target, while only a
@@ -179,8 +197,8 @@
   border-color: rgba(48,45,43,.16) !important;
 }
 .phase5-packet-object .phase5c-transport > strong {
-  top: auto !important;
-  bottom: 37px !important;
+  top: 12px !important;
+  bottom: auto !important;
   color: rgba(48,45,43,.34) !important;
   font-size: 8px !important;
   letter-spacing: .18em !important;
@@ -207,11 +225,10 @@
     linear-gradient(270deg,rgba(48,45,43,.24),rgba(48,45,43,.24)) right bottom/72% 1px no-repeat !important;
 }
 .phase5-packet-object .phase5c-network-wing > i {
-  height: 1px !important;
-  background: rgba(48,45,43,.09) !important;
+  display: none;
 }
 .phase5-packet-object .phase5c-ip-identity {
-  top: 10px !important;
+  top: -28px !important;
 }
 .phase5-packet-object .phase5c-ip-identity small,
 .phase5-packet-object .phase5c-ip-identity strong {

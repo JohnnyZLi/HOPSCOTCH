@@ -15,6 +15,12 @@
   --journey-accent-soft: rgba(216, 79, 73, .12);
 }
 
+/* Font shorthands throughout Journey depend on this token. Keep it scoped so
+   a missing family cannot invalidate their size and line-height declarations. */
+.journey-visual-workspace {
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 html body:has(.journey-causal-world) {
   background: var(--journey-paper);
   color: var(--journey-ink);
@@ -261,7 +267,6 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-drawer__c
 .journey-causal-world .phase5-packet-object .phase5-packet-shell,
 .journey-causal-world .phase5-packet-object .phase5c-layer,
 .journey-causal-world .phase5b-physical .phase5c-frame-shell,
-.journey-causal-world .phase5b-physical .phase5b-data-unit,
 .journey-causal-world .phase5b-physical .phase5b-ip-core,
 .journey-causal-world .phase5b-physical .phase5b-transport-core {
   border-color: rgba(41,40,39,.34) !important;
