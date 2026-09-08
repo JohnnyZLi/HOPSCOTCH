@@ -292,7 +292,14 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
       const rgb=(value)=>{const values=value.match(/[\\d.]+/g)?.map(Number)??[];return values.slice(0,3).map((channel)=>{const normalized=channel/255;return normalized<=.04045?normalized/12.92:((normalized+.055)/1.055)**2.4})};
       const contrast=(foreground,background)=>{const a=rgb(foreground);const b=rgb(background);const first=.2126*a[0]+.7152*a[1]+.0722*a[2];const second=.2126*b[0]+.7152*b[1]+.0722*b[2];return (Math.max(first,second)+.05)/(Math.min(first,second)+.05)};
       const titleContrast=titleElement&&drawer?contrast(getComputedStyle(titleElement.querySelector('strong')??titleElement).color,getComputedStyle(drawer).backgroundColor):0;
-      const protocolContrast=drawer?[...drawer.querySelectorAll('.capture-flow-protocol')].map((label)=>({label:label.textContent,ratio:contrast(getComputedStyle(label).color,getComputedStyle(drawer).backgroundColor)})):[];
+      const protocolContrast=drawer?[...drawer.querySelectorAll('.capture-flow-protocol')].map((label)=>{
+        const background=getComputedStyle(drawer).backgroundColor;
+        const backdrop=background.match(/[\\d.]+/g).slice(0,3).map(Number);
+        const foreground=getComputedStyle(label).color.match(/[\\d.]+/g).slice(0,3).map(Number);
+        const opacity=Number(getComputedStyle(label.closest('button')).opacity);
+        const rendered=foreground.map((channel,index)=>channel*opacity+backdrop[index]*(1-opacity));
+        return {label:label.textContent,ratio:contrast('rgb('+rendered.join(',')+')',background)};
+      }):[];
       return {width:drawerRect?.width??0,backgroundAlpha:channels.length>=4?channels[3]:1,titleContrast,protocolContrast,collision:Boolean(corner&&title&&corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top),titleOnTop:Boolean(drawer&&topElement&&drawer.contains(topElement))};
     })()`);
     if (!flowDrawerGeometry.titleOnTop || flowDrawerGeometry.backgroundAlpha < .99 || flowDrawerGeometry.titleContrast < 4.5) throw new Error(`${profile.id} flow drawer is not an opaque, legible top-layer surface: ${JSON.stringify(flowDrawerGeometry)}.`);

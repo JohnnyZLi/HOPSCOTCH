@@ -445,6 +445,7 @@ html body .capture-flow-browser > header {
 }
 
 html body .capture-flow-list .capture-flow-protocol { color: #28665b !important; }
+html body .capture-replay[data-follow-flow="true"] .capture-flow-list > button:not(.active) { opacity: 1 !important; }
 html body .capture-flow-list > button[data-protocol="dns"] .capture-flow-protocol { color: #684890 !important; }
 html body .capture-flow-list > button[data-protocol="udp"] .capture-flow-protocol { color: #80520f !important; }
 html body .capture-flow-list > button[data-protocol="icmp"] .capture-flow-protocol { color: #3c578a !important; }
