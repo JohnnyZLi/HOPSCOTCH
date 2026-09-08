@@ -86,8 +86,6 @@ for (const token of [
   '.causal-mechanism-node',
   '.causal-route-target',
   '.causal-route-bits',
-  '.causal-handoff-rail',
-  '.journey-causal-world.is-packet-world > .causal-camera',
   '.packet-stage-application .causal-phase5-layer--assembly',
   '--causal-success:',
 ]) assert.ok(polish.includes(token), `Missing mechanism-polish contract: ${token}`);
@@ -141,8 +139,8 @@ for (const importPath of [
   "./JourneyDnsLidMotion.css",
 ]) assert.ok(entry.includes(importPath), `Journey motion/shape layer is not loaded: ${importPath}`);
 
-assert.match(polish, /\.journey-causal-world\.is-packet-world > \.causal-camera\s*\{[^}]*opacity:\s*1;[^}]*filter:\s*none;/s, 'Packet handoff must retain the same visible causal camera instead of blur/fade replacement.');
-assert.doesNotMatch(polish, /\.journey-causal-world\.is-packet-world > \.causal-camera\s*\{[^}]*opacity:\s*0/s, 'Mechanism polish must not reintroduce the old packet crossfade.');
+assert.match(component, /className="causal-camera" hidden=\{packetActive \|\| transitActive\}/, 'Packet scale must not paint the earlier request scaffold.');
+assert.match(css, /\.journey-causal-world \[hidden\]\s*\{\s*display: none !important;/, 'Inactive worlds must not fade stale geometry over the current phase.');
 assert.ok(css.includes('--causal-accent: #ff5a55'));
 assert.doesNotMatch(css, /#72f4e3|rgba\(114, 244, 227/);
 

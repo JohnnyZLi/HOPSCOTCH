@@ -397,10 +397,93 @@ async function auditPacketInspector(cdp, viewport, events) {
   return inspector;
 }
 
+// Sample actual painted frames, including the interval before a settled screenshot.
+// An outgoing world's state has already advanced, so fading it can reveal unrelated props.
+function startTransitionMonitor() {
+  const report = { frames: 0, events: {}, eventOrder: [], playbackRegressions: [], leaks: [] };
+  window.journeyTransitionReport = report;
+  const painted = (element) => {
+    if (!element || !element.getClientRects().length) return false;
+    let opacity = 1;
+    for (let node = element; node instanceof Element; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      if (style.display === 'none' || style.visibility === 'hidden') return false;
+      opacity *= Number(style.opacity);
+    }
+    return opacity > .01;
+  };
+  const sample = () => {
+    const world = document.querySelector('[data-journey-causal-world]');
+    if (world) {
+      const phase = world.dataset.causalPhase;
+      const event = world.dataset.causalEvent;
+      report.frames++;
+      report.events[event] = (report.events[event] || 0) + 1;
+      if (!report.eventOrder.includes(event)) report.eventOrder.push(event);
+      if (window.journeyMonitorPlayback) {
+        if (report.eventOrder.indexOf(event) < report.eventOrder.indexOf(window.journeyPreviousPlaybackEvent)) {
+          report.playbackRegressions.push({ from: window.journeyPreviousPlaybackEvent, to: event });
+        }
+        window.journeyPreviousPlaybackEvent = event;
+      }
+      const owners = [
+        ['.causal-dns-world', ['dns']], ['.causal-route-world', ['route', 'path']],
+        ['.causal-tcp-world', ['tcp']], ['.causal-tls-world', ['tls']],
+        ['.causal-http-flight', ['http']], ['.causal-response-flight', ['response']],
+      ];
+      if (world.querySelector('[data-phase5-packet-object], [data-phase5b-physical]')) owners.push(['.causal-camera', []]);
+      for (const [selector, phases] of owners) {
+        if (!phases.includes(phase) && painted(world.querySelector(selector)) && report.leaks.length < 30) {
+          report.leaks.push({ frame: report.frames, event, phase, selector });
+        }
+      }
+    }
+    window.journeyTransitionFrame = requestAnimationFrame(sample);
+  };
+  sample();
+}
+
+async function auditTransitions(cdp, viewport, events) {
+  // Fast reverse seeks interrupt in-flight animations and used to resurrect old frames.
+  for (const event of [...events].reverse()) {
+    await cdp.evaluate(`document.querySelectorAll('.visual-time-rail__events button')[${event.index}].click()`);
+    await sleep(40);
+  }
+  let playbackEvents = [];
+  if (viewport.id === 'wide' || viewport.id === 'mobile') {
+    const firstPacket = events.find((event) => event.packet);
+    await cdp.evaluate(`(() => {
+      document.querySelectorAll('.visual-time-rail__events button')[${firstPacket.index - 1}].click();
+      document.querySelector('[data-playback-speed="2"]').click();
+      window.journeyTransitionReport.events = {};
+    })()`);
+    await sleep(40);
+    await cdp.evaluate(`(() => {
+      window.journeyPreviousPlaybackEvent = document.querySelector('[data-journey-causal-world]').dataset.causalEvent;
+      window.journeyMonitorPlayback = true;
+      document.querySelector('.visual-time-rail__transport button[aria-label="Play scenario"]').click();
+    })()`);
+    await waitForExpression(cdp, `document.querySelector('[data-causal-phase="response"]') !== null`, 45000);
+    await cdp.evaluate(`document.querySelector('.visual-time-rail__transport button[aria-label="Pause scenario"]')?.click()`);
+    playbackEvents = await cdp.evaluate(`Object.keys(window.journeyTransitionReport.events)`);
+    assert.ok(playbackEvents.length >= 10, `${viewport.id}: playback skipped the packet handoffs: ${playbackEvents}`);
+  }
+  const report = await cdp.evaluate(`(() => {
+    cancelAnimationFrame(window.journeyTransitionFrame);
+    return window.journeyTransitionReport;
+  })()`);
+  writeFileSync(join(outputDir, `${viewport.id}-transitions.json`), JSON.stringify({ ...report, playbackEvents }, null, 2));
+  assert.ok(report.frames >= 100, `${viewport.id}: transition monitor did not sample enough frames.`);
+  assert.deepEqual(report.playbackRegressions, [], `${viewport.id}: playback briefly returned to an earlier event: ${JSON.stringify(report.playbackRegressions)}`);
+  assert.deepEqual(report.leaks, [], `${viewport.id}: inactive geometry flashed during a transition: ${JSON.stringify(report.leaks)}`);
+  return { frames: report.frames, playbackEvents, playbackRegressions: report.playbackRegressions, leaks: report.leaks };
+}
+
 async function auditViewport(cdp, origin, viewport) {
   await navigate(cdp, origin, viewport);
   const labels = await cdp.evaluate(`[...document.querySelectorAll('.visual-time-rail__events button')].map((button)=>button.getAttribute('aria-label')||'')`);
   assert.ok(labels.length >= 8, `${viewport.id}: expected canonical Journey events, found ${labels.length}.`);
+  await cdp.evaluate(`(${startTransitionMonitor.toString()})()`);
   const events = [];
   const labelCollisions = [];
 
@@ -512,10 +595,11 @@ async function auditViewport(cdp, origin, viewport) {
   assert.equal(physicalByStage['router-ttl'].checksum, '0xF323', `${viewport.id}: routed checksum did not update.`);
   assert.equal(physicalByStage['router-reencapsulate'].l2, 'wan', `${viewport.id}: router did not construct the next-hop L2 envelope.`);
   assert.notEqual(physicalByStage['router-reencapsulate'].incomingFrame, physicalByStage['router-reencapsulate'].outgoingFrame, `${viewport.id}: next-hop Ethernet envelope did not change.`);
+  const transitions = await auditTransitions(cdp, viewport, events);
   const physicalInspector = await auditPhysicalInspector(cdp, viewport, events);
   const packetInspector = await auditPacketInspector(cdp, viewport, events);
   const drawer = await auditDrawer(cdp, viewport);
-  return { viewport, eventCount: labels.length, phase5EventCount: phase5Events.length, physicalEventCount: physicalEvents.length, physicalInspector, packetInspector, drawer, events };
+  return { viewport, eventCount: labels.length, phase5EventCount: phase5Events.length, physicalEventCount: physicalEvents.length, physicalInspector, packetInspector, drawer, transitions, events };
 }
 
 async function main() {
