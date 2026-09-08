@@ -560,6 +560,7 @@ async function main() {
       { id: phase4VisualReview ? 'capture-replay-laptop' : 'captured-packet-laptop', width: 1366, height: 768, reducedMotion: false, visualReview: true, inspectReview: false },
       { id: phase4VisualReview ? 'capture-replay-narrow' : 'captured-packet-narrow', width: 900, height: 820, reducedMotion: false, visualReview: true, inspectReview: false },
       { id: phase4VisualReview ? 'capture-replay-mobile' : 'captured-packet-mobile', width: 390, height: 844, reducedMotion: false, visualReview: true, inspectReview: true },
+      ...(phase4VisualReview ? [{ id: 'capture-replay-reduced-motion', width: 1280, height: 900, reducedMotion: true, visualReview: true, inspectReview: true }] : []),
     ] : [
       { id: 'capture-desktop', width: 1440, height: 1000, reducedMotion: false },
       { id: 'capture-mobile', width: 390, height: 844, reducedMotion: false },
