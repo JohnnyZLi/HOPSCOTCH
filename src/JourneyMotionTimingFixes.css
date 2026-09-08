@@ -65,8 +65,8 @@
 .journey-causal-world .causal-response-flight > b { animation: response-return 720ms linear both !important; }
 
 /* Handoff should feel like one physical transfer, not a soft scene fade. */
-.journey-causal-world .causal-phase5-layer { animation: causal-phase5-enter var(--journey-motion-standard) var(--journey-ease-enter) both !important; }
-@keyframes causal-phase5-enter {
+.journey-causal-world .causal-phase5-layer { animation: journey-packet-handoff var(--journey-motion-standard) var(--journey-ease-enter) both !important; }
+@keyframes journey-packet-handoff {
   from { opacity: 1; transform: scale(1.025); }
   to { opacity: 1; transform: scale(1); }
 }
