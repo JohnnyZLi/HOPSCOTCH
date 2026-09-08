@@ -236,6 +236,7 @@ async function inspectState(cdp) {
       rect:pick(packetObject),
       reduceMotion:packetObject.classList.contains('reduce-motion'),
       cameraTransition:getComputedStyle(packetObject.querySelector('.phase5-packet-camera')).transitionDuration,
+      wingOffsets:[...packetObject.querySelectorAll('.phase5c-network-wing')].map((wing)=>new DOMMatrix(getComputedStyle(wing).transform).m41),
       labels:labelMetrics(packetObject,['.phase5c-application > span','.phase5c-application > strong','.phase5c-application > small','.phase5c-security > strong','.phase5c-security > small','.phase5c-transport-head > small','.phase5c-transport-head > b','.phase5c-transport > strong','.phase5c-ip-identity > small','.phase5c-ip-identity > strong','.phase5c-ttl > small','.phase5c-ttl > b']),
       layers:[...packetObject.querySelectorAll('[data-phase5-layer]')].map((layer)=>({
         id:layer.getAttribute('data-phase5-layer')||'',
@@ -432,6 +433,7 @@ async function auditViewport(cdp, origin, viewport) {
       assert.equal(state.causal.protectionNodeCount, 1, `${viewport.id}/${labels[index]}: the TLS protection node is duplicated.`);
     }
     if (state.packet) {
+      if (state.packet.stage === 'link') assert.ok(state.packet.wingOffsets.length === 2 && state.packet.wingOffsets.every((offset) => Math.abs(offset) <= 1), `${viewport.id}/${labels[index]}: IPv4 brackets never closed: ${JSON.stringify(state.packet.wingOffsets)}`);
       if (!['collapsed', 'exploded'].includes(state.packet.stage)) {
         for (const [i, label] of state.packet.labels.entries()) {
           for (const other of state.packet.labels.slice(i + 1)) if (rectsIntersect(label.rect, other.rect)) labelCollisions.push({stage: state.packet.stage, label, other});
