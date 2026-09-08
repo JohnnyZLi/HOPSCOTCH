@@ -264,6 +264,13 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
       const trigger=[...document.querySelectorAll('.capture-heading-actions .capture-action')].find((button)=>button.textContent.toUpperCase().includes('FLOWS'));
       if(!trigger)throw new Error('Missing Flows trigger');
       const samples=[];
+      const focusCalls=[];
+      const nativeFocus=HTMLElement.prototype.focus;
+      HTMLElement.prototype.focus=function(...args){
+        const result=nativeFocus.apply(this,args);
+        focusCalls.push({target:this.className,focused:document.activeElement===this,inert:Boolean(this.closest('[inert]')),visibility:getComputedStyle(this).visibility,connected:this.isConnected});
+        return result;
+      };
       trigger.focus();
       trigger.click();
       const started=performance.now();
@@ -275,12 +282,17 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
         if(title&&corner) samples.push({elapsedMs:performance.now()-started,left:title.left,cornerRight:corner.right,collision:corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top});
       } while(performance.now()-started<320);
       const drawer=document.querySelector('.capture-flow-browser');
-      return {samples,transitionDuration:drawer?getComputedStyle(drawer).transitionDuration:null,activeElement:document.activeElement?.outerHTML?.slice(0,500),initialTarget:drawer?.querySelector('.capture-drawer-close')?.outerHTML};
+      HTMLElement.prototype.focus=nativeFocus;
+      return {samples,focusCalls,transitionDuration:drawer?getComputedStyle(drawer).transitionDuration:null,activeElement:document.activeElement?.outerHTML?.slice(0,500),initialTarget:drawer?.querySelector('.capture-drawer-close')?.outerHTML};
     })()`);
     if (flowEntryGeometry.samples.length < 2 || flowEntryGeometry.samples.some((sample) => sample.collision)) throw new Error(`${profile.id} flow drawer title crosses corner navigation during entry: ${JSON.stringify(flowEntryGeometry)}.`);
     if (profile.reducedMotion && flowEntryGeometry.transitionDuration?.split(',').some((duration) => parseFloat(duration) > 0)) throw new Error(`${profile.id} flow drawer ignores reduced motion: ${JSON.stringify(flowEntryGeometry)}.`);
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='flows'`);
-    await waitForExpression(cdp, `document.activeElement?.classList.contains('capture-drawer-close')===true`, 1000);
+    try {
+      await waitForExpression(cdp, `document.activeElement?.classList.contains('capture-drawer-close')===true`, 1000);
+    } catch (error) {
+      throw new Error(`${profile.id}: ${error.message}: ${JSON.stringify(flowEntryGeometry)}`);
+    }
     const initialFocus = await cdp.evaluate(`document.activeElement?.classList.contains('capture-drawer-close')===true`);
     const flowDrawerGeometry = await cdp.evaluate(`(()=>{
       const corner=document.querySelector('.corner-navigator')?.getBoundingClientRect();
