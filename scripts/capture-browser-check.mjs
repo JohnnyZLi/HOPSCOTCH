@@ -275,7 +275,7 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
         if(title&&corner) samples.push({elapsedMs:performance.now()-started,left:title.left,cornerRight:corner.right,collision:corner.left<title.right&&corner.right>title.left&&corner.top<title.bottom&&corner.bottom>title.top});
       } while(performance.now()-started<320);
       const drawer=document.querySelector('.capture-flow-browser');
-      return {samples,transitionDuration:drawer?getComputedStyle(drawer).transitionDuration:null};
+      return {samples,transitionDuration:drawer?getComputedStyle(drawer).transitionDuration:null,activeElement:document.activeElement?.outerHTML?.slice(0,500),initialTarget:drawer?.querySelector('.capture-drawer-close')?.outerHTML};
     })()`);
     if (flowEntryGeometry.samples.length < 2 || flowEntryGeometry.samples.some((sample) => sample.collision)) throw new Error(`${profile.id} flow drawer title crosses corner navigation during entry: ${JSON.stringify(flowEntryGeometry)}.`);
     if (profile.reducedMotion && flowEntryGeometry.transitionDuration?.split(',').some((duration) => parseFloat(duration) > 0)) throw new Error(`${profile.id} flow drawer ignores reduced motion: ${JSON.stringify(flowEntryGeometry)}.`);
@@ -317,7 +317,7 @@ async function captureReplayPhase4VisualReview(cdp, profile) {
     await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
     await waitForExpression(cdp, `document.querySelector('.capture-replay')?.getAttribute('data-context-drawer')==='none'`);
     const restored = await cdp.evaluate(`document.activeElement?.textContent?.toLocaleUpperCase().includes('FLOWS')===true`);
-    if (!initialFocus || !shiftTabContained || !tabContained || !restored) throw new Error(`${profile.id} Capture Replay drawer focus lifecycle failed: ${JSON.stringify({initialFocus, shiftTabContained, tabContained, restored})}.`);
+    if (!initialFocus || !shiftTabContained || !tabContained || !restored) throw new Error(`${profile.id} Capture Replay drawer focus lifecycle failed: ${JSON.stringify({initialFocus, shiftTabContained, tabContained, restored, flowEntryGeometry})}.`);
     focusLifecycle = { initialFocus, shiftTabContained, tabContained, restored };
   }
 
