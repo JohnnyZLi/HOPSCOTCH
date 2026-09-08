@@ -267,7 +267,6 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-drawer__c
 .journey-causal-world .phase5-packet-object .phase5-packet-shell,
 .journey-causal-world .phase5-packet-object .phase5c-layer,
 .journey-causal-world .phase5b-physical .phase5c-frame-shell,
-.journey-causal-world .phase5b-physical .phase5b-data-unit,
 .journey-causal-world .phase5b-physical .phase5b-ip-core,
 .journey-causal-world .phase5b-physical .phase5b-transport-core {
   border-color: rgba(41,40,39,.34) !important;

@@ -111,7 +111,7 @@
    Ethernet = outer frame/header/trailer
    This avoids five increasingly large generic boxes. */
 .journey-causal-world .phase5-packet-object .phase5c-application,
-.journey-causal-world .phase5b-ip-core {
+.journey-causal-world .phase5b-physical .phase5b-ip-core {
   background: #e8e4df !important;
 }
 

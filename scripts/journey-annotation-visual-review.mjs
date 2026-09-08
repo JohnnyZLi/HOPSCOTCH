@@ -260,6 +260,8 @@ async function inspectState(cdp) {
       instrument:pick(physicalObject.querySelector('.phase5b-instrument')),
       dataUnit:pick(physicalObject.querySelector('.phase5b-data-unit')),
       dataUnitTabIndex:physicalObject.querySelector('.phase5b-data-unit')?.tabIndex??-1,
+      ipSurface:getComputedStyle(physicalObject.querySelector('.phase5b-ip-core')).backgroundColor,
+      dataUnitSurface:getComputedStyle(physicalObject.querySelector('.phase5b-data-unit')).backgroundColor,
       labels:labelMetrics(physicalObject,['.phase5b-ip-core > small','.phase5b-ip-core > b','.phase5b-ip-core > em','.phase5c-ttl-rotor > small','.phase5c-ttl-rotor > i','.phase5b-transport-core > small','.phase5b-transport-core > b']),
       serialization:(()=>{const rect=pick(physicalObject.querySelector('.phase5b-serialization'));return rect?{...rect,top:rect.top-14,height:rect.height+14}:null})(),
       serializationLabel:pseudoContentMetrics(physicalObject.querySelector('.phase5b-serialization')),
@@ -450,6 +452,8 @@ async function auditViewport(cdp, origin, viewport) {
       }
     }
     if (state.physical) {
+      assert.match(state.physical.ipSurface, /^rgb\(/, `${viewport.id}/${labels[index]}: IP packet surface is translucent: ${state.physical.ipSurface}`);
+      assert.equal(state.physical.dataUnitSurface, 'rgba(0, 0, 0, 0)', `${viewport.id}/${labels[index]}: physical inspection target draws a duplicate packet sheet.`);
       for (const [i, label] of state.physical.labels.entries()) {
         for (const other of state.physical.labels.slice(i + 1)) if (rectsIntersect(label.rect, other.rect)) labelCollisions.push({stage: state.physical.stage, label, other});
       }
