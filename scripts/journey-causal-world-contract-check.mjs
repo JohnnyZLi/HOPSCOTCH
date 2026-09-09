@@ -88,8 +88,6 @@ for (const token of [
   '@keyframes dns-query-recursive',
   '@keyframes dns-answer-return',
   '@keyframes dns-answer-hit',
-  '.flight-initial',
-  '.flight-server-initial',
   '.causal-route-fan',
   '.causal-tls-fields',
   '.payload-cipher',
@@ -118,6 +116,8 @@ for (const token of [
 for (const token of [
   'dns-query-recursive 620ms',
   'dns-answer-return 680ms',
+  '.flight-initial',
+  '.flight-server-initial',
   'tcp-flight-forward 700ms',
   'http-flow 720ms linear',
 ]) assert.ok(timing.includes(token), `Missing normalized animation timing: ${token}`);
