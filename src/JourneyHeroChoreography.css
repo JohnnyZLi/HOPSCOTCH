@@ -1033,15 +1033,6 @@
 .phase5b-stage-nic-serialize .phase5b-serialization {
   opacity: 1;
 }
-.phase5b-stage-nic-serialize .phase5b-serialization > i {
-  animation: phase5c-byte-unspool 1550ms var(--phase5c-snap) both;
-  animation-delay: calc(var(--signal-index) * 42ms);
-}
-@keyframes phase5c-byte-unspool {
-  0% { opacity: 0; transform: translateX(-36px) scaleY(.15) rotateY(72deg); }
-  55% { opacity: .9; transform: translateX(5px) scaleY(1.18) rotateY(-6deg); }
-  100% { opacity: .72; transform: translateX(0) scaleY(1) rotateY(0); }
-}
 
 .phase5b-stage-link-transmit .phase5b-serialization {
   left: 18%;
@@ -1058,14 +1049,6 @@
   background: var(--phase5c-cyan);
   border: 0;
   box-shadow: 0 0 10px rgba(245, 243, 238, .6);
-  animation: phase5c-symbol-run 1800ms linear both;
-  animation-delay: calc(var(--signal-index) * 55ms);
-}
-@keyframes phase5c-symbol-run {
-  0% { opacity: 0; transform: translate(-30px, 22px) scale(.25); }
-  12% { opacity: .9; }
-  76% { opacity: .9; }
-  100% { opacity: 0; transform: translate(330px, -12px) scale(.7); }
 }
 
 .phase5b-stage-next-link .phase5b-serialization {
@@ -1086,14 +1069,6 @@
   border: 0;
   background: var(--phase5c-amber);
   box-shadow: 0 0 9px rgba(255, 90, 85, .55);
-  animation: phase5c-wan-run 1550ms linear both;
-  animation-delay: calc(var(--signal-index) * 48ms);
-}
-@keyframes phase5c-wan-run {
-  0% { opacity: 0; transform: translateX(-20px) scale(.25); }
-  14% { opacity: .9; }
-  80% { opacity: .8; }
-  100% { opacity: 0; transform: translateX(245px) scale(.55); }
 }
 
 /* Switch lookup becomes a spatial CAM bank, not a table popup. */
