@@ -96,3 +96,99 @@ html body:has(.journey-causal-world) .explore-trigger span {
     border-bottom-color: rgba(41,40,39,.12);
   }
 }
+
+/* Controls use readable ink and stable geometry in every Journey phase.
+   Scene emphasis is owned by the drawing, never by fading the controls. */
+html body .journey-visual-workspace:has(.journey-causal-world) :is(.visual-workspace__toolbar, .visual-workspace__hud, .visual-time-rail) {
+  opacity: 1 !important;
+  transform: none !important;
+  pointer-events: auto !important;
+}
+html body .journey-visual-workspace:has(.journey-causal-world) :is(.visual-drawer-tabs button, .visual-tool-button) {
+  color: #403a35 !important;
+  font-size: 14px !important;
+  min-height: 40px !important;
+  letter-spacing: 0 !important;
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud span {
+  color: #60574f !important;
+  font-size: 12px !important;
+  line-height: 1.3 !important;
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud strong {
+  color: #302d2b !important;
+  font-size: 14px !important;
+  line-height: 1.3 !important;
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail__controls .visual-time-rail__speed-options button {
+  font-size: 14px !important;
+  color: #ece7e1 !important;
+  min-width: 40px !important;
+  min-height: 36px !important;
+}
+html body .journey-visual-workspace:has(.journey-causal-world) :is(.visual-time-rail__milestones span, .visual-time-rail__active-milestone, .visual-time-rail__caption, .visual-time-rail__meta) {
+  font-size: 12px !important;
+  color: #ece7e1 !important;
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar { top: 14px !important; left: 82px !important; right: 18px !important; }
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-identity { padding: 0 !important; border: 0 !important; background: transparent !important; }
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud { left: 82px !important; gap: 18px !important; }
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud > div { padding: 0 0 0 8px !important; border: 0 !important; border-left: 1px solid #b7afa7 !important; background: transparent !important; }
+@media (max-width: 760px) {
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar { left: 66px !important; right: 8px !important; width: auto !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world) :is(.visual-drawer-tabs button, .visual-tool-button) { padding-inline: 4px !important; font-size: 12px !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud { left: 12px !important; top: 68px !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 6px 16px !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud strong { font-size: 12px !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail { grid-template-columns: minmax(0, 1fr) !important; gap: 6px !important; padding: 8px 12px !important; min-height: var(--journey-rail-height) !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail__controls { width: 100% !important; flex-direction: row !important; justify-content: space-between !important; gap: 8px !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail__transport { width: 86px !important; height: 40px !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail__controls .visual-time-rail__transport > button { width: 40px !important; height: 40px !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail__speed-group { width: 190px !important; height: 40px !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail__speed-options { grid-template-columns: repeat(4, 1fr) !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail__track { width: 100% !important; height: 30px !important; }
+}
+html body .journey-visual-workspace:has(.journey-causal-world) {
+  --journey-rail-height: 76px;
+  --journey-rail-width: min(1180px, calc(100% - 36px));
+  --journey-rail-bottom: 18px;
+}
+html body .journey-visual-workspace:has(.journey-causal-world)::after {
+  content: '' !important;
+  position: absolute !important;
+  z-index: 16 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: var(--journey-rail-bottom) !important;
+  width: var(--journey-rail-width) !important;
+  height: var(--journey-rail-height) !important;
+  margin-inline: auto !important;
+  border-radius: 21px !important;
+  background: #302e2c !important;
+  pointer-events: none !important;
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail {
+  position: absolute !important;
+  z-index: 17 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: var(--journey-rail-bottom) !important;
+  width: var(--journey-rail-width) !important;
+  max-width: 1180px !important;
+  height: var(--journey-rail-height) !important;
+  min-height: var(--journey-rail-height) !important;
+  margin-inline: auto !important;
+  border-radius: 21px !important;
+  background: #302e2c !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+html body .journey-visual-workspace:has(.journey-causal-world) .journey-visual-tools { display: flex !important; gap: 4px !important; margin-left: auto !important; padding: 3px !important; border: 1px solid #b7afa7 !important; border-radius: 18px !important; background: #e8e4df !important; }
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-drawer-tabs { max-width: none !important; min-width: 0 !important; padding: 0 !important; gap: 0 !important; overflow: visible !important; mask-image: none !important; }
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-drawer-tabs button span { margin-left: 3px !important; font-size: 12px !important; }
+@media (max-width: 760px) {
+  html body .journey-visual-workspace:has(.journey-causal-world) { --journey-rail-height: 108px; --journey-rail-width: calc(100% - 12px); --journey-rail-bottom: 6px; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .journey-visual-tools { width: 100% !important; justify-content: space-between !important; gap: 0 !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-drawer-tabs { flex: 1 !important; justify-content: space-between !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail__readout,
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail__duration { display: none !important; }
+}

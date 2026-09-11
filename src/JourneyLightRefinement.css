@@ -10,15 +10,6 @@
 }
 
 /* Playback chrome should be present but secondary. */
-html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar {
-  opacity: .5 !important;
-}
-html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud {
-  opacity: .34 !important;
-}
-html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail {
-  opacity: .72 !important;
-}
 html body .journey-visual-workspace:has(.journey-causal-world) .visual-identity,
 html body .journey-visual-workspace:has(.journey-causal-world) .visual-drawer-tabs button,
 html body .journey-visual-workspace:has(.journey-causal-world) .visual-tool-button,
@@ -72,12 +63,12 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-hud-chip 
 }
 .journey-causal-world .causal-authority span {
   color: #47433f !important;
-  font-size: 10px !important;
+  font-size: 14px !important;
   font-weight: 600;
 }
 .journey-causal-world .causal-authority small {
   color: #6d6761 !important;
-  font-size: 7.5px !important;
+  font-size: 12px !important;
 }
 .journey-causal-world .causal-authority::before {
   background: rgba(41,40,39,.36) !important;
@@ -180,68 +171,6 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-hud-chip 
 .journey-causal-world .phase5-packet-object .phase5c-layer span { color: #292725 !important; }
 
 /* Physical forwarding: line-drawn devices and a switch-owned CAM lookup. */
-.journey-causal-world .phase5b-device {
-  border-color: rgba(41,40,39,.44) !important;
-  background: rgba(230,226,221,.22) !important;
-  box-shadow: none !important;
-}
-.journey-causal-world .phase5b-device.is-active {
-  border-color: rgba(216,79,73,.86) !important;
-  background: rgba(232,228,223,.42) !important;
-  box-shadow: 0 0 0 1px rgba(216,79,73,.08) !important;
-}
-.journey-causal-world .phase5c-device-body i,
-.journey-causal-world .phase5b-device > i {
-  background: rgba(41,40,39,.22) !important;
-  box-shadow: none !important;
-}
-.journey-causal-world .phase5b-device > strong,
-.journey-causal-world .phase5b-device.is-active > strong { color: #292725 !important; }
-.journey-causal-world .phase5b-device > span:first-child,
-.journey-causal-world .phase5b-device > small { color: #625c57 !important; }
-
-.journey-causal-world .phase5b-mac-projection {
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-.journey-causal-world .phase5c-cam-title {
-  color: #4d4844 !important;
-  letter-spacing: .18em;
-}
-.journey-causal-world .phase5c-cam-bank {
-  gap: 0 !important;
-  border-top: 1px solid rgba(41,40,39,.32);
-  border-bottom: 1px solid rgba(41,40,39,.32);
-  background: transparent !important;
-}
-.journey-causal-world .phase5c-cam-bank > i {
-  border: 0 !important;
-  border-bottom: 1px solid rgba(41,40,39,.16) !important;
-  border-radius: 0 !important;
-  color: #514b47 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-.journey-causal-world .phase5c-cam-bank > i:last-child { border-bottom: 0 !important; }
-.journey-causal-world .phase5c-cam-bank > i span,
-.journey-causal-world .phase5c-cam-bank > i b,
-.journey-causal-world .phase5c-cam-bank > i em { color: #5e5853 !important; }
-.journey-causal-world .phase5c-cam-bank > i.is-match {
-  background: rgba(216,79,73,.08) !important;
-  box-shadow: inset 2px 0 #d84f49 !important;
-}
-.journey-causal-world .phase5c-cam-bank > i.is-match span,
-.journey-causal-world .phase5c-cam-bank > i.is-match b,
-.journey-causal-world .phase5c-cam-bank > i.is-match em { color: #9f3a36 !important; }
-.journey-causal-world .phase5c-port-lock {
-  color: #9f3a36 !important;
-  border-color: rgba(216,79,73,.48) !important;
-  background: transparent !important;
-}
-.journey-causal-world .phase5b-mac-projection::after {
-  background: linear-gradient(rgba(41,40,39,.46), transparent) !important;
-}
 
 /* Completion should feel like a resolved mechanism, not a scene reset. */
 .journey-causal-world.causal-phase-complete .causal-camera {
@@ -273,16 +202,12 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-hud-chip 
 /* Mobile: give the animation priority over application chrome. */
 @media (max-width: 680px) {
   html body:has(.journey-causal-world) .build-state { display: none; }
-  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar { opacity: .52 !important; }
   html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud {
-    opacity: .28 !important;
-    transform: translateY(-4px) scale(.92) !important;
     transform-origin: top right;
   }
   html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail {
     width: calc(100% - 18px);
     margin-inline: auto;
-    opacity: .5 !important;
     border-radius: 18px;
   }
   html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail__milestones {
@@ -299,13 +224,9 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-hud-chip 
     height: 158px !important;
   }
 
-  .journey-causal-world .causal-authority span { font-size: 8px !important; }
-  .journey-causal-world .causal-authority small { font-size: 6.5px !important; }
+  .journey-causal-world .causal-authority span { font-size: 12px !important; }
+  .journey-causal-world .causal-authority small { font-size: 12px !important; }
+  .journey-causal-world .causal-authority--authority span { position: absolute !important; left: auto !important; right: 12px !important; top: 0 !important; width: max-content; text-align: right; }
   .journey-causal-world .causal-route-choice span { font-size: 8px !important; }
   .journey-causal-world .causal-route-choice small { font-size: 6.5px !important; }
-
-  .journey-causal-world .phase5b-mac-projection {
-    transform: scale(.88);
-    transform-origin: top center;
-  }
 }

@@ -63,19 +63,11 @@ html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-vi
 }
 
 /* Quiet edge tools replace the previous rows of dashboard chips. */
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__toolbar {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__toolbar {
   top: 18px !important;
   right: 18px !important;
   left: 82px !important;
   align-items: flex-start !important;
-}
-
-html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar {
-  opacity: .44 !important;
-}
-
-html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar:is(:hover, :focus-within) {
-  opacity: .66 !important;
 }
 
 html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-identity {
@@ -113,7 +105,7 @@ html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-vi
   letter-spacing: .04em !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) :is(.journey-visual-tools, .failure-visual-tools, .protocol-visual-tools) {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) :is(.journey-visual-tools, .failure-visual-tools, .protocol-visual-tools) {
   gap: 2px !important;
   padding: 3px !important;
   border: 1px solid var(--kinetic-rule-soft) !important;
@@ -123,7 +115,7 @@ html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-vi
   backdrop-filter: blur(14px) !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) :is(.visual-drawer-tabs button, .visual-tool-button) {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) :is(.visual-drawer-tabs button, .visual-tool-button) {
   min-height: 28px !important;
   padding: 0 9px !important;
   border: 0 !important;
@@ -137,24 +129,24 @@ html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-vi
   backdrop-filter: none !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) :is(.visual-drawer-tabs button, .visual-tool-button):is(:hover, :focus-visible, .active) {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) :is(.visual-drawer-tabs button, .visual-tool-button):is(:hover, :focus-visible, .active) {
   color: var(--kinetic-ink-strong) !important;
   background: rgba(255, 255, 255, .46) !important;
   outline: none !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-drawer-tabs button span {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-drawer-tabs button span {
   color: var(--kinetic-coral) !important;
   font-size: .42rem !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__hud {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__hud {
   top: 66px !important;
   left: 82px !important;
   gap: 18px !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) :is(.visual-workspace__hud > div, .visual-hud-chip) {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) :is(.visual-workspace__hud > div, .visual-hud-chip) {
   min-width: 0 !important;
   padding: 0 0 0 8px !important;
   border: 0 !important;
@@ -165,13 +157,13 @@ html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-vi
   backdrop-filter: none !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) :is(.visual-workspace__hud span, .visual-hud-chip span) {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) :is(.visual-workspace__hud span, .visual-hud-chip span) {
   color: var(--kinetic-ink-faint) !important;
   font-size: .39rem !important;
   letter-spacing: .1em !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) :is(.visual-workspace__hud strong, .visual-hud-chip strong) {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) :is(.visual-workspace__hud strong, .visual-hud-chip strong) {
   max-width: 160px;
   color: var(--kinetic-ink-strong) !important;
   font-size: .5rem !important;
@@ -220,7 +212,7 @@ html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-ent
 }
 
 /* A single floating instrument keeps the canvas available to the scene. */
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail {
   position: absolute !important;
   z-index: 17 !important;
   right: 0 !important;
@@ -241,43 +233,43 @@ html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-vi
   transition: opacity 200ms ease !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__transport,
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__speed-group {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__transport,
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__speed-group {
   height: 36px !important;
   border-color: rgba(255, 255, 255, .1) !important;
   background: rgba(255, 255, 255, .025) !important;
   box-shadow: none !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__controls button {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__controls button {
   color: #ddd8d2 !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__controls .visual-time-rail__speed-options button.active {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__controls .visual-time-rail__speed-options button.active {
   color: #fff !important;
   background: rgba(216, 79, 73, .16) !important;
   box-shadow: inset 0 0 0 1px rgba(216, 79, 73, .48) !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) :is(.visual-time-rail__readout span, .visual-time-rail__duration span, .visual-time-rail__milestones span) {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) :is(.visual-time-rail__readout span, .visual-time-rail__duration span, .visual-time-rail__milestones span) {
   color: #918b85 !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) :is(.visual-time-rail__readout strong, .visual-time-rail__duration strong) {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) :is(.visual-time-rail__readout strong, .visual-time-rail__duration strong) {
   color: #f1ece6 !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__track input::-webkit-slider-runnable-track {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__track input::-webkit-slider-runnable-track {
   background: rgba(255, 255, 255, .2) !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__track input::-webkit-slider-thumb {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__track input::-webkit-slider-thumb {
   border-color: #f3eee8 !important;
   background: var(--kinetic-coral) !important;
   box-shadow: none !important;
 }
 
-html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__events button.passed {
+html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__events button.passed {
   background: var(--kinetic-coral) !important;
 }
 
@@ -297,41 +289,10 @@ html body .journey-causal-world {
 
 /* Keep the causal object dominant. Chrome stays discoverable at the edge and
    resolves to full contrast only through the existing hover/focus rules. */
-html body .journey-visual-workspace:has(.journey-causal-world) :is(.visual-workspace__toolbar, .visual-workspace__hud) {
-  opacity: .44 !important;
-  transform: none !important;
-}
-
-html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud {
-  opacity: .32 !important;
-}
-
-html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail {
-  opacity: .54 !important;
-  transform: none !important;
-}
 
 /* The choreography deliberately recedes the rail as one group. Give it an
    independent opaque plate so Phase 5 scene labels cannot show through that
    faded group and collide with the timeline copy. */
-html body .journey-visual-workspace:has(.journey-causal-world)::after {
-  content: "";
-  position: absolute;
-  z-index: 16;
-  right: 0;
-  bottom: 18px;
-  left: 0;
-  width: min(1180px, calc(100% - 36px));
-  height: 60px;
-  margin-inline: auto;
-  border-radius: 21px;
-  background: #302e2c;
-  pointer-events: none;
-}
-
-html body .journey-visual-workspace:has(.journey-causal-world) :is(.visual-time-rail__readout span, .visual-time-rail__duration span, .visual-time-rail__milestones span) {
-  color: #f1ece6 !important;
-}
 
 html body .journey-causal-world :is(.causal-mechanism-core, .causal-object__payload) {
   border-color: rgba(41, 40, 39, .56) !important;
@@ -395,7 +356,7 @@ html body .journey-causal-world .dns-thread-progress {
 
 html body .journey-causal-world .causal-authority {
   color: var(--kinetic-ink-soft) !important;
-  opacity: .66 !important;
+  opacity: 1 !important;
 }
 
 html body .journey-causal-world .causal-authority span { color: var(--kinetic-ink-soft) !important; }
@@ -710,16 +671,8 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
 }
 
 @media (max-width: 900px) {
-  html body .journey-visual-workspace:has(.journey-causal-world)::after {
-    right: 10px;
-    bottom: 10px;
-    left: 10px;
-    width: auto;
-    height: 58px;
-    margin-inline: 0;
-  }
 
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail {
+  html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail {
     right: 10px !important;
     left: 10px !important;
     width: auto !important;
@@ -733,18 +686,12 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
 }
 
 @media (max-width: 680px) {
-  html body .journey-visual-workspace:has(.journey-causal-world)::after {
-    right: 6px;
-    bottom: 6px;
-    left: 6px;
-    border-radius: 17px;
-  }
 
   html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace).visual-workspace {
     min-height: 560px !important;
   }
 
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__toolbar {
+  html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__toolbar {
     top: 12px !important;
     right: 8px !important;
     left: 66px !important;
@@ -754,7 +701,7 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
     display: none !important;
   }
 
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) :is(.journey-visual-tools, .failure-visual-tools, .protocol-visual-tools) {
+  html body :is(.failure-visual-workspace, .protocol-visual-workspace) :is(.journey-visual-tools, .failure-visual-tools, .protocol-visual-tools) {
     max-width: 100% !important;
     margin-left: auto !important;
     overflow-x: auto !important;
@@ -763,15 +710,8 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
 
   /* Journey owns five primary actions on mobile. Keep every label visible in
      the fixed toolbar instead of letting the nested tab strip clip Evidence. */
-  html body .journey-visual-workspace .journey-visual-tools :is(.visual-drawer-tabs button, .visual-tool-button) {
-    padding-inline: 6px !important;
-  }
 
-  html body .journey-visual-workspace .journey-visual-tools .visual-drawer-tabs button span {
-    margin-left: 4px !important;
-  }
-
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__hud {
+  html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__hud {
     top: 58px !important;
     left: 12px !important;
     max-width: calc(100% - 24px) !important;
@@ -782,8 +722,8 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
   /* Keep scale and the active semantic state visible on narrow screens. The
      protocol is already named by the scene, while provenance remains
      available in Inspect. */
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__hud > div:nth-child(2),
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__hud > div:nth-child(n+4) {
+  html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__hud > div:nth-child(2),
+  html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-workspace__hud > div:nth-child(n+4) {
     display: none !important;
   }
 
@@ -791,14 +731,6 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
      HUD. Collapse the inherited four-column track as well, otherwise long
      forwarding stages wrap inside a quarter-width cell and strand a final
      character on its own line. */
-  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud {
-    grid-template-columns: 76px minmax(0, 1fr) !important;
-  }
-
-  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud > div:first-child strong {
-    overflow-wrap: normal !important;
-    white-space: nowrap !important;
-  }
 
   html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-entrance {
     padding: 104px 18px !important;
@@ -814,7 +746,7 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
   html body .failure-scene-camera { inset: 82px 0 86px !important; }
   html body .protocol-scene-kicker { display: none !important; }
 
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail {
+  html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail {
     grid-template-columns: 174px minmax(0, 1fr) !important;
     right: 6px !important;
     left: 6px !important;
@@ -825,39 +757,39 @@ html body .http-event-compare > div { border-color: var(--kinetic-rule-soft) !im
     border-radius: 17px !important;
   }
 
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__controls {
+  html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__controls {
     width: auto !important;
     flex-direction: row !important;
     gap: 4px !important;
   }
 
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__transport {
+  html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__transport {
     width: 68px !important;
   }
 
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__speed-group {
+  html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__speed-group {
     width: 102px !important;
     height: 34px !important;
   }
 
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__speed-options {
+  html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__speed-options {
     grid-template-columns: repeat(4, 1fr) !important;
   }
 
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__controls .visual-time-rail__speed-options button {
+  html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__controls .visual-time-rail__speed-options button {
     height: 26px !important;
     font-size: .39rem !important;
   }
 
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__track {
+  html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__track {
     height: 46px !important;
   }
 
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__active-milestone {
+  html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__active-milestone {
     color: #918b85 !important;
   }
 
-  html body :is(.journey-visual-workspace, .failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__duration {
+  html body :is(.failure-visual-workspace, .protocol-visual-workspace) .visual-time-rail__duration {
     display: none !important;
   }
 }

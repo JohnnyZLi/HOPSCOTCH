@@ -823,8 +823,7 @@
   inset: 0;
   opacity: 1;
 }
-.causal-phase5-layer > .phase5-packet-object,
-.causal-phase5-layer > .phase5b-physical { position: absolute; inset: 0; }
+.causal-phase5-layer > .phase5-packet-object { position: absolute; inset: 0; }
 
 .journey-causal-world.reduce-motion *,
 .journey-causal-world.reduce-motion *::before,
