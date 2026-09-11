@@ -454,16 +454,8 @@ html body .journey-visual-workspace:has(.journey-causal-world .phase5b-physical)
   inset-left: 12%;
   width: 76%;
 }
-@keyframes tcp-flight-forward {
-  0% { left: 23%; top: 52%; opacity: .25; transform: translate(-50%, -50%) scale(.78); }
-  55% { top: 36%; opacity: 1; }
-  100% { left: 77%; top: 52%; opacity: .9; transform: translate(-50%, -50%) scale(1); }
-}
-@keyframes tcp-flight-reverse {
-  0% { left: 77%; top: 52%; opacity: .25; transform: translate(-50%, -50%) scale(.78); }
-  55% { top: 36%; opacity: 1; }
-  100% { left: 23%; top: 52%; opacity: .9; transform: translate(-50%, -50%) scale(1); }
-}
+
+
 @media (min-width: 1100px) {
   .journey-causal-world.causal-phase-tcp .causal-camera { transform: scale(1.02) translate3d(0, 0, 0); }
 }

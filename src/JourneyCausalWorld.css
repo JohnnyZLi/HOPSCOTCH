@@ -143,13 +143,6 @@
     width 1200ms var(--causal-ease), height 1200ms var(--causal-ease),
     transform 1200ms var(--causal-ease), border-radius 900ms var(--causal-ease),
     border-color 700ms ease, background 700ms ease, opacity 420ms ease;
-  animation: causal-object-enter 1300ms var(--causal-snap) both;
-}
-
-@keyframes causal-object-enter {
-  0% { opacity: 0; transform: translate(-50%, -34%) rotateX(42deg) rotateZ(-4deg) scale(.72); }
-  58% { opacity: 1; transform: translate(-50%, -54%) rotateX(-3deg) rotateZ(.5deg) scale(1.025); }
-  100% { opacity: 1; transform: translate(-50%, -50%) rotateX(0) rotateZ(0) scale(1); }
 }
 
 .causal-object::before,
@@ -646,13 +639,7 @@
 .causal-tcp-flight > i { position: absolute; left: 10px; top: 50%; width: 6px; height: 6px; border-radius: 50%; background: var(--causal-accent); transform: translateY(-50%); }
 .causal-tcp-flight strong { color: var(--causal-text); font-size: 8px; font-weight: 500; }
 .causal-tcp-flight small { color: var(--causal-faint); font-size: 6px; }
-.flight-syn { animation: tcp-flight-forward 920ms var(--causal-ease) both; }
-.flight-synack { animation: tcp-flight-reverse 920ms var(--causal-ease) both; }
-.flight-ack { animation: tcp-flight-forward 920ms var(--causal-ease) both; }
-.flight-initial { animation: tcp-flight-forward 980ms var(--causal-ease) both; }
-.flight-server-initial { animation: tcp-flight-reverse 980ms var(--causal-ease) both; }
-@keyframes tcp-flight-forward { 0% { left: 18%; top: 52%; opacity: .25; transform: translate(-50%, -50%) scale(.78); } 55% { top: 36%; opacity: 1; } 100% { left: 82%; top: 52%; opacity: .9; transform: translate(-50%, -50%) scale(1); } }
-@keyframes tcp-flight-reverse { 0% { left: 82%; top: 52%; opacity: .25; transform: translate(-50%, -50%) scale(.78); } 55% { top: 36%; opacity: 1; } 100% { left: 18%; top: 52%; opacity: .9; transform: translate(-50%, -50%) scale(1); } }
+
 .causal-sequence-mark { position: absolute; top: 68%; display: flex; gap: 7px; color: var(--causal-faint); font: 500 7px/1 var(--mono); }
 .sequence-client { left: 16%; }
 .sequence-server { right: 16%; }
