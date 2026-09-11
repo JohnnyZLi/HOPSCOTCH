@@ -40,7 +40,7 @@
 .journey-causal-world.causal-event-dns-store .causal-dns-answer { animation: dns-answer-store 520ms var(--journey-ease-move) both !important; }
 .journey-causal-world .causal-dns-world.is-hit .causal-dns-answer { animation: dns-answer-hit 520ms var(--journey-ease-move) both !important; }
 
-/* Transport flights use one straight, readable travel grammar. */
+/* Transport flights use one endpoint-aware trajectory, shared by TCP and QUIC. */
 .journey-causal-world .causal-endpoint.is-awake > b { animation: endpoint-react 520ms var(--journey-ease-settle) both !important; }
 .journey-causal-world .flight-syn,
 .journey-causal-world .flight-ack,
@@ -48,16 +48,14 @@
 .journey-causal-world .flight-synack,
 .journey-causal-world .flight-server-initial { animation: tcp-flight-reverse 700ms var(--journey-ease-move) both !important; }
 @keyframes tcp-flight-forward {
-  0% { left: 18%; top: 50%; opacity: .12; transform: translate(-50%,-50%) scale(.9); }
-  12% { opacity: 1; }
-  88% { opacity: 1; }
-  100% { left: 82%; top: 50%; opacity: .72; transform: translate(-50%,-50%) scale(1); }
+  0% { left: 23%; top: 52%; opacity: .25; transform: translate(-50%, -50%) scale(.78); }
+  55% { top: 36%; opacity: 1; }
+  100% { left: 77%; top: 52%; opacity: .9; transform: translate(-50%, -50%) scale(1); }
 }
 @keyframes tcp-flight-reverse {
-  0% { left: 82%; top: 50%; opacity: .12; transform: translate(-50%,-50%) scale(.9); }
-  12% { opacity: 1; }
-  88% { opacity: 1; }
-  100% { left: 18%; top: 50%; opacity: .72; transform: translate(-50%,-50%) scale(1); }
+  0% { left: 77%; top: 52%; opacity: .25; transform: translate(-50%, -50%) scale(.78); }
+  55% { top: 36%; opacity: 1; }
+  100% { left: 23%; top: 52%; opacity: .9; transform: translate(-50%, -50%) scale(1); }
 }
 
 /* HTTP and response flights no longer take almost two presentation beats. */

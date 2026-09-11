@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { buildJourneyScenario, journeyStateAt } from '../src/journey/model.ts';
 
 const component = readFileSync(new URL('../src/JourneyCausalWorld.tsx', import.meta.url), 'utf8');
@@ -13,6 +13,25 @@ const dnsLidMotion = readFileSync(new URL('../src/JourneyDnsLidMotion.css', impo
 const workspace = readFileSync(new URL('../src/VisualWorkspace.tsx', import.meta.url), 'utf8');
 const entry = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
 const theater = readFileSync(new URL('../src/JourneyTheaterV2.tsx', import.meta.url), 'utf8');
+
+// Global CSS keyframe names must have one owner. A later lazy stylesheet
+// otherwise silently replaces the motion even when animation uses !important.
+const keyframeOwners = new Map();
+for (const file of readdirSync(new URL('../src/', import.meta.url)).filter((file) => file.endsWith('.css'))) {
+  const source = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
+  for (const [, name] of source.matchAll(/@keyframes\s+([\w-]+)/g)) {
+    keyframeOwners.set(name, [...(keyframeOwners.get(name) ?? []), file]);
+  }
+}
+for (const [name, owners] of keyframeOwners) {
+  if (owners.some((owner) => owner.startsWith('Journey'))) assert.equal(owners.length, 1, `Conflicting Journey animation ${name}: ${owners.join(', ')}`);
+}
+for (const name of ['causal-object-enter', 'tcp-flight-forward', 'tcp-flight-reverse']) {
+  assert.deepEqual(keyframeOwners.get(name), ['JourneyMotionTimingFixes.css']);
+}
+for (const name of ['phase5c-byte-unspool', 'phase5c-symbol-run', 'phase5c-wan-run']) {
+  assert.deepEqual(keyframeOwners.get(name), ['JourneyMotionShape.css']);
+}
 
 for (const dnsProfile of ['cache-miss', 'cache-hit']) {
   const scenario = buildJourneyScenario('example.test', {
@@ -66,14 +85,9 @@ assert.match(component, /useReducedMotion/);
 assert.doesNotMatch(component, /requestAnimationFrame|setInterval|setTimeout|onAnimationComplete|onTransitionEnd/);
 
 for (const token of [
-  '@keyframes causal-object-enter',
   '@keyframes dns-query-recursive',
   '@keyframes dns-answer-return',
   '@keyframes dns-answer-hit',
-  '@keyframes tcp-flight-forward',
-  '@keyframes tcp-flight-reverse',
-  '.flight-initial',
-  '.flight-server-initial',
   '.causal-route-fan',
   '.causal-tls-fields',
   '.payload-cipher',
@@ -102,6 +116,8 @@ for (const token of [
 for (const token of [
   'dns-query-recursive 620ms',
   'dns-answer-return 680ms',
+  '.flight-initial',
+  '.flight-server-initial',
   'tcp-flight-forward 700ms',
   'http-flow 720ms linear',
 ]) assert.ok(timing.includes(token), `Missing normalized animation timing: ${token}`);

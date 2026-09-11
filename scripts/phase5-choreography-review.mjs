@@ -243,6 +243,29 @@ async function transitionEvidence(cdp, spec, report) {
 async function animationEvidence(cdp, spec, report) {
   await seekEvent(cdp, spec.event);
   await sleep(spec.earlyMs ?? 110);
+  if (spec.constantSize) {
+    const sizes = await cdp.evaluate(`(() => {
+      const element = document.querySelector(${JSON.stringify(spec.selector)});
+      const animation = element?.getAnimations().find((animation) => animation instanceof CSSAnimation);
+      if (!animation) return [];
+      const originalTime = animation.currentTime;
+      const duration = animation.effect.getComputedTiming().duration;
+      animation.pause();
+      const sizes = [.2, .5, .8].map((progress) => {
+        animation.currentTime = duration * progress;
+        const rect = element.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      });
+      animation.currentTime = originalTime;
+      animation.play();
+      return sizes;
+    })()`);
+    assert.equal(sizes.length, 3, `${spec.id}: wire animation is missing.`);
+    for (const dimension of ['width', 'height']) {
+      const values = sizes.map((size) => size[dimension]);
+      assert.ok(Math.min(...values) > 0 && Math.max(...values) - Math.min(...values) <= 1, `${spec.id}: wire symbols changed size in flight: ${JSON.stringify(sizes)}`);
+    }
+  }
   const early = await metric(cdp, spec.selector);
   await screenshot(cdp, `${spec.id}-early.png`);
   await sleep((spec.midMs ?? 760) - (spec.earlyMs ?? 110));
@@ -590,6 +613,7 @@ async function main() {
 
     await animationEvidence(cdp, {
       id: '06-symbols-travel-access-link',
+      constantSize: true,
       event: 'Symbols cross the access link',
       selector: '.phase5b-serialization > i:first-child',
       earlyMs: 80,
@@ -598,6 +622,7 @@ async function main() {
     }, report);
     await animationEvidence(cdp, {
       id: '14-symbols-travel-wan-link',
+      constantSize: true,
       event: 'The re-encapsulated packet continues',
       selector: '.phase5b-serialization > i:first-child',
       earlyMs: 80,
