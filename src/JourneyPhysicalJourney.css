@@ -4,7 +4,7 @@
   --focus: 15;
   --device-body-height: 54px;
   --unit-x: 15%;
-  --unit-y: 55%;
+  --unit-y: calc(75% - 144px);
   --forwarding-ink: #302d2b;
   --forwarding-muted: #5e5751;
   --forwarding-paper: #e8e4df;
@@ -26,14 +26,14 @@
 .phase5b-stage-switch-inspect .access-link,
 .phase5b-stage-switch-forward .switch-router-link,
 .phase5b-stage-next-link .wan-link { stroke: var(--forwarding-accent); stroke-width: 2.5; }
-.phase5b-stage-link-transmit { --focus: 32; --unit-x: 42%; --unit-y: 49%; }
+.phase5b-stage-link-transmit { --focus: 32; --unit-x: 42%; --unit-y: 34%; }
 .phase5b-stage-switch-inspect { --focus: 43; --unit-x: 43%; }
 .phase5b-stage-switch-forward { --focus: 56; --unit-x: 56%; }
 .phase5b-stage-router-decapsulate,
 .phase5b-stage-router-ttl,
 .phase5b-stage-router-route,
 .phase5b-stage-router-reencapsulate { --focus: 72; --unit-x: 72%; }
-.phase5b-stage-next-link { --focus: 85; --unit-x: 94%; --unit-y: 46%; }
+.phase5b-stage-next-link { --focus: 85; --unit-x: 94%; --unit-y: 30%; }
 .phase5b-device { position: absolute; z-index: 2; top: 75%; width: 170px; display: grid; justify-items: center; gap: 5px; transform: translate(-50%, calc(var(--device-body-height) / -2)); text-align: center; color: var(--forwarding-muted); }
 .phase5b-device > span, .phase5b-device > small { font-size: 12px; line-height: 1.3; letter-spacing: .03em; }
 .phase5b-device > strong { font-size: 14px; line-height: 1.3; letter-spacing: .04em; }
@@ -125,7 +125,8 @@
 .phase5b-stage-switch-forward .phase5c-cam-bank > i { transform: translateY(0); }
 .phase5b-stage-switch-forward .phase5c-port-lock { opacity: 1; }
 .phase5b-route-projection { position: absolute; z-index: 6; left: 72%; top: 0; width: 330px; height: 150px; transform: translate(-50%, -20px); opacity: 0; pointer-events: none; transition: transform var(--journey-motion-spatial) var(--journey-ease-move), opacity .18s ease; }
-.phase5b-stage-router-route .phase5b-route-projection { opacity: 1; transform: translate(-50%, 0); }
+.phase5b-stage-router-route .phase5b-route-projection,
+.phase5b-stage-router-reencapsulate .phase5b-route-projection { opacity: 1; transform: translate(-50%, 0); }
 .phase5c-route-origin { position: absolute; left: 0; top: 55px; font-size: 12px; }
 .phase5c-route-fan { position: absolute; left: 78px; top: 0; width: 240px; height: 120px; }
 .phase5c-route-fan .route-candidate { position: absolute; left: 0; top: 62px; width: 155px; height: 2px; transform-origin: left; background: #8b8178; transition: transform var(--journey-motion-spatial) var(--journey-ease-move); }
@@ -141,14 +142,14 @@
 .phase5c-route-node.node-c { top: 94px; }
 .phase5c-route-lock { position: absolute; left: 0; bottom: -15px; font-size: 14px; color: var(--forwarding-accent); }
 .phase5c-route-lock i::after { content: '→'; margin-inline: 6px; }
-.phase5b-serialization { position: absolute; z-index: 3; left: 15%; top: 51%; width: 250px; height: 20px; opacity: 0; pointer-events: none; }
+.phase5b-serialization { position: absolute; z-index: 3; left: 15%; top: 66%; width: 250px; height: 20px; opacity: 0; pointer-events: none; }
 .phase5b-serialization::before { content: 'FRAME → SYMBOLS'; position: absolute; bottom: 30px; left: 0; font: 650 12px/1.2 var(--mono); color: var(--forwarding-accent); white-space: nowrap; }
 .phase5b-serialization > i { position: absolute; top: 0; left: 0; width: 8px; height: 8px; background: var(--forwarding-accent); font-size: 0; opacity: 0; }
 .phase5b-stage-nic-serialize .phase5b-serialization { left: 15%; top: 28%; opacity: 1; }
-.phase5b-stage-nic-serialize .phase5b-serialization > i { animation: phase5c-byte-unspool 620ms linear both; animation-delay: calc(var(--signal-index) * 18ms); }
+.phase5b-stage-nic-serialize .phase5b-serialization > i { left: calc(var(--signal-index) * 10px); animation: phase5c-byte-unspool 620ms linear both; animation-delay: calc(var(--signal-index) * 18ms); }
 .phase5b-stage-link-transmit .phase5b-serialization { opacity: 1; }
 .phase5b-stage-link-transmit .phase5b-serialization > i { animation: phase5c-symbol-run 720ms linear both; animation-delay: calc(var(--signal-index) * 20ms); }
-.phase5b-stage-next-link .phase5b-serialization { left: 72%; top: 24%; opacity: 1; }
+.phase5b-stage-next-link .phase5b-serialization { left: 72%; top: 66%; opacity: 1; }
 .phase5b-stage-next-link .phase5b-serialization::before { content: 'WAN SYMBOLS'; }
 .phase5b-stage-next-link .phase5b-serialization > i { animation: phase5c-wan-run 720ms linear both; animation-delay: calc(var(--signal-index) * 18ms); }
 .phase5c-port-flare, .phase5c-continuity-mark { display: none; }

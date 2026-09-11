@@ -505,12 +505,15 @@ async function auditViewport(cdp, origin, viewport) {
   await cdp.evaluate(`(${startTransitionMonitor.toString()})()`);
   const events = [];
   const labelCollisions = [];
+  const visualFailures = [];
 
   for (let index = 0; index < labels.length; index += 1) {
     const clicked = await cdp.evaluate(`(()=>{const button=document.querySelectorAll('.visual-time-rail__events button')[${index}];if(!button)return false;button.click();return true})()`);
     assert.equal(clicked, true, `${viewport.id}: could not click event ${index}.`);
     await sleep(620);
     const state = await inspectState(cdp);
+    await screenshot(cdp, join(outputDir, `${viewport.id}-${String(index + 1).padStart(2, '0')}-${slug(state.title || labels[index])}.png`));
+    try {
     assert.ok(state.boxes.callout && state.boxes.scene && state.boxes.stage, `${viewport.id}/${labels[index]}: missing callout/scene/stage.`);
     assert.equal(state.calloutSceneOverlap, false, `${viewport.id}/${labels[index]}: callout overlaps protected scene.`);
     assert.equal(state.calloutHudOverlap, false, `${viewport.id}/${labels[index]}: callout overlaps HUD.`);
@@ -601,10 +604,14 @@ async function auditViewport(cdp, origin, viewport) {
         assert.ok(state.physical.cameraTransition === '1e-05s' || state.physical.cameraTransition === '0s', `${viewport.id}/${labels[index]}: physical camera still has a long reduced-motion transition: ${state.physical.cameraTransition}`);
       }
     }
+    } catch (error) {
+      visualFailures.push(error instanceof Error ? error.message : String(error));
+    }
     events.push({ index, label: labels[index], ...state });
-    await screenshot(cdp, join(outputDir, `${viewport.id}-${String(index + 1).padStart(2, '0')}-${slug(state.title || labels[index])}.png`));
   }
 
+  writeFileSync(join(outputDir, `${viewport.id}-states.json`), JSON.stringify({ events, visualFailures }, null, 2));
+  assert.deepEqual(visualFailures, [], `${viewport.id}: visual failures: ${JSON.stringify(visualFailures)}`);
   assert.deepEqual(labelCollisions, [], `${viewport.id}: packet labels overlap: ${JSON.stringify(labelCollisions)}`);
   const phase5Events = events.filter((event) => event.packet);
   assert.ok(phase5Events.length >= 8, `${viewport.id}: expected the complete Phase 5 assembly and inspection sequence, found ${phase5Events.length}.`);

@@ -126,7 +126,7 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
   min-width: 40px !important;
   min-height: 36px !important;
 }
-html body .journey-visual-workspace:has(.journey-causal-world) :is(.visual-time-rail__milestones span, .visual-time-rail__caption, .visual-time-rail__meta) {
+html body .journey-visual-workspace:has(.journey-causal-world) :is(.visual-time-rail__milestones span, .visual-time-rail__active-milestone, .visual-time-rail__caption, .visual-time-rail__meta) {
   font-size: 12px !important;
   color: #ece7e1 !important;
 }
