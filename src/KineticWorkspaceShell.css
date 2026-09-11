@@ -356,7 +356,7 @@ html body .journey-causal-world .dns-thread-progress {
 
 html body .journey-causal-world .causal-authority {
   color: var(--kinetic-ink-soft) !important;
-  opacity: .66 !important;
+  opacity: 1 !important;
 }
 
 html body .journey-causal-world .causal-authority span { color: var(--kinetic-ink-soft) !important; }

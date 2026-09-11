@@ -16,12 +16,10 @@
   background: #d9d4cf;
   font-family: var(--mono);
 }
-.phase5b-physical > .phase5c-void { display: none; }
 .phase5b-world { position: absolute; inset: 145px max(24px, calc((100vw - 1240px) / 2)) 155px; }
 .phase5b-camera { position: absolute; inset: 0; transform: translateX(calc((50 - var(--focus)) * .65%)); transition: transform var(--journey-motion-spatial) var(--journey-ease-move); }
 .phase5c-link-map { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .phase5c-wire-path { fill: none; stroke: #8b8178; stroke-width: 1.5; vector-effect: non-scaling-stroke; transition: stroke .3s ease, stroke-width .3s ease; }
-.phase5c-route-ghost { display: none; }
 .phase5b-stage-link-transmit .access-link,
 .phase5b-stage-switch-inspect .access-link,
 .phase5b-stage-switch-forward .switch-router-link,
@@ -52,7 +50,6 @@
 .phase5c-device-body > i:nth-child(4n+4) { left: 74px; }
 .phase5c-device-body > i:nth-child(n+5) { bottom: 31px; }
 .phase5b-stage-switch-forward .device-switch .phase5c-device-body > i:last-child { border-color: var(--forwarding-accent); background: var(--forwarding-accent); }
-.phase5b-path { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .phase5b-data-unit { appearance: none; position: absolute; z-index: 4; left: var(--unit-x); top: var(--unit-y); width: 310px; height: 186px; padding: 0; border: 0; color: var(--forwarding-ink); background: transparent; cursor: pointer; transform: translate(-50%, -50%); transition: left var(--journey-motion-spatial) var(--journey-ease-move), top var(--journey-motion-spatial) var(--journey-ease-move), opacity .3s ease; }
 .phase5b-data-unit:focus-visible { outline: 2px solid var(--forwarding-accent); outline-offset: 8px; }
 /* The serialized representation owns travel. The inspectable packet stays at
@@ -62,6 +59,8 @@
 .phase5b-ip-core { position: absolute; z-index: 3; left: 50%; top: 50%; width: 258px; height: 130px; transform: translate(-50%, -50%); border: 1px solid #756c64; border-radius: 4px; background: var(--forwarding-paper); font-family: var(--mono); }
 .phase5b-ip-core > small { position: absolute; left: 14px; top: 12px; color: var(--forwarding-muted); font-size: 12px; }
 .phase5b-ip-core > b { position: absolute; left: 14px; top: 36px; font-size: 16px; line-height: 1.2; }
+.phase5b-stage-router-route .phase5b-ip-core > b,
+.phase5b-stage-switch-inspect .shell-lan > strong { color: var(--forwarding-accent); }
 .phase5b-ip-core > em { position: absolute; right: 12px; top: 12px; color: var(--forwarding-muted); font: 600 12px/1.2 var(--mono); }
 .phase5b-transport-core { position: absolute; left: 14px; bottom: 12px; display: grid; gap: 5px; text-align: left; }
 .phase5b-transport-core small { font-size: 12px; color: var(--forwarding-muted); }
@@ -106,8 +105,11 @@
 .phase5c-mac-token, .phase5c-ip-token { position: absolute; z-index: 5; left: 50%; top: 0; display: grid; gap: 4px; width: max-content; padding: 8px 12px; border: 1px solid #756c64; background: var(--forwarding-paper); opacity: 0; pointer-events: none; transform: translate(-50%, 20px); transition: transform var(--journey-motion-spatial) var(--journey-ease-move), opacity .18s ease; }
 .phase5c-mac-token small, .phase5c-ip-token small { font: 600 12px/1.2 var(--mono); color: var(--forwarding-muted); }
 .phase5c-mac-token b, .phase5c-ip-token b { font: 650 14px/1.2 var(--mono); }
+.phase5c-mac-token { left: -205px; top: 60px; transform: translateY(95px); }
+.phase5c-ip-token { left: -80px; top: 40px; transform: translateY(80px); }
 .phase5b-stage-switch-inspect .phase5c-mac-token,
-.phase5b-stage-router-route .phase5c-ip-token { opacity: 1; transform: translate(-50%, -72px); }
+.phase5b-stage-router-route .phase5c-ip-token { opacity: 1; transform: translateY(0); }
+
 .phase5b-mac-projection { position: absolute; z-index: 6; left: 43%; top: 0; width: 430px; height: 185px; transform: translate(-50%, -20px); opacity: 0; pointer-events: none; transition: transform var(--journey-motion-spatial) var(--journey-ease-move), opacity .18s ease; }
 .phase5c-cam-title { display: block; margin-bottom: 10px; color: var(--forwarding-ink); font: 650 14px/1.3 var(--mono); }
 .phase5c-cam-bank { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
@@ -127,7 +129,7 @@
 .phase5b-route-projection { position: absolute; z-index: 6; left: 72%; top: 0; width: 330px; height: 150px; transform: translate(-50%, -20px); opacity: 0; pointer-events: none; transition: transform var(--journey-motion-spatial) var(--journey-ease-move), opacity .18s ease; }
 .phase5b-stage-router-route .phase5b-route-projection,
 .phase5b-stage-router-reencapsulate .phase5b-route-projection { opacity: 1; transform: translate(-50%, 0); }
-.phase5c-route-origin { position: absolute; left: 0; top: 55px; font-size: 12px; }
+.phase5c-route-origin { visibility: hidden; position: absolute; left: 0; top: 55px; font-size: 12px; }
 .phase5c-route-fan { position: absolute; left: 78px; top: 0; width: 240px; height: 120px; }
 .phase5c-route-fan .route-candidate { position: absolute; left: 0; top: 62px; width: 155px; height: 2px; transform-origin: left; background: #8b8178; transition: transform var(--journey-motion-spatial) var(--journey-ease-move); }
 .candidate-a { transform: rotate(-20deg) scaleX(.15); }
@@ -152,7 +154,6 @@
 .phase5b-stage-next-link .phase5b-serialization { left: 72%; top: 66%; opacity: 1; }
 .phase5b-stage-next-link .phase5b-serialization::before { content: 'WAN SYMBOLS'; }
 .phase5b-stage-next-link .phase5b-serialization > i { animation: phase5c-wan-run 720ms linear both; animation-delay: calc(var(--signal-index) * 18ms); }
-.phase5c-port-flare, .phase5c-continuity-mark { display: none; }
 .journey-forwarding-caption { position: absolute; left: 24px; right: 24px; bottom: 105px; display: grid; justify-items: center; gap: 8px; text-align: center; }
 .journey-forwarding-caption span { font: 600 12px/1.3 var(--mono); color: var(--forwarding-muted); text-transform: uppercase; letter-spacing: .08em; }
 .journey-forwarding-caption strong { max-width: 650px; font: 600 18px/1.4 var(--mono); color: var(--forwarding-ink); }
@@ -160,6 +161,10 @@
   .phase5b-world { inset: 155px 0 180px; }
   .phase5b-camera { left: 50%; right: auto; width: 900px; transform: translateX(calc(var(--focus) * -1%)); }
   .phase5b-device { width: 160px; }
+  /* On a narrow screen the lookup already repeats the selected address.
+     Keep the source highlighted without another floating copy over the result. */
+  .phase5c-mac-token, .phase5c-ip-token { display: none; }
+  .phase5c-route-origin { visibility: visible; }
   .phase5b-mac-projection { width: 320px; }
   .phase5c-cam-bank > i:not(.is-match) { display: none; }
   .phase5c-cam-bank { grid-template-columns: 1fr; }

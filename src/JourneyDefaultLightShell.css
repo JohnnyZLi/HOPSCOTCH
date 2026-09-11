@@ -130,6 +130,10 @@ html body .journey-visual-workspace:has(.journey-causal-world) :is(.visual-time-
   font-size: 12px !important;
   color: #ece7e1 !important;
 }
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar { top: 14px !important; left: 82px !important; right: 18px !important; }
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-identity { padding: 0 !important; border: 0 !important; background: transparent !important; }
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud { left: 82px !important; gap: 18px !important; }
+html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud > div { padding: 0 0 0 8px !important; border: 0 !important; border-left: 1px solid #b7afa7 !important; background: transparent !important; }
 @media (max-width: 760px) {
   html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar { left: 66px !important; right: 8px !important; width: auto !important; }
   html body .journey-visual-workspace:has(.journey-causal-world) :is(.visual-drawer-tabs button, .visual-tool-button) { padding-inline: 4px !important; font-size: 12px !important; }

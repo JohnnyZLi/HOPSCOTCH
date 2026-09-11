@@ -63,12 +63,12 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-hud-chip 
 }
 .journey-causal-world .causal-authority span {
   color: #47433f !important;
-  font-size: 10px !important;
+  font-size: 14px !important;
   font-weight: 600;
 }
 .journey-causal-world .causal-authority small {
   color: #6d6761 !important;
-  font-size: 7.5px !important;
+  font-size: 12px !important;
 }
 .journey-causal-world .causal-authority::before {
   background: rgba(41,40,39,.36) !important;
@@ -224,8 +224,9 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-hud-chip 
     height: 158px !important;
   }
 
-  .journey-causal-world .causal-authority span { font-size: 8px !important; }
-  .journey-causal-world .causal-authority small { font-size: 6.5px !important; }
+  .journey-causal-world .causal-authority span { font-size: 12px !important; }
+  .journey-causal-world .causal-authority small { font-size: 12px !important; }
+  .journey-causal-world .causal-authority--authority span { left: auto; right: 0; text-align: right; }
   .journey-causal-world .causal-route-choice span { font-size: 8px !important; }
   .journey-causal-world .causal-route-choice small { font-size: 6.5px !important; }
 }
