@@ -75,11 +75,11 @@
 .shell-wan { opacity: 0; }
 .shell-wan .rail-a { transform: translate(-110px, -55px); }
 .shell-wan .rail-b { transform: translate(110px, 55px); }
-.phase5b-stage-router-decapsulate .shell-lan { background: transparent; border-color: transparent; }
-.phase5b-stage-router-decapsulate .shell-lan > small,
-.phase5b-stage-router-decapsulate .shell-lan > strong { opacity: 0; }
-.phase5b-stage-router-decapsulate .shell-lan .rail-a { transform: translate(-100px, -55px); }
-.phase5b-stage-router-decapsulate .shell-lan .rail-b { transform: translate(100px, 55px); }
+.l2-none .shell-lan { background: transparent; border-color: transparent; }
+.l2-none .shell-lan > small,
+.l2-none .shell-lan > strong { opacity: 0; }
+.l2-none .shell-lan .rail-a { transform: translate(-100px, -55px); }
+.l2-none .shell-lan .rail-b { transform: translate(100px, 55px); }
 .phase5b-stage-router-ttl .shell-lan,
 .phase5b-stage-router-route .shell-lan,
 .phase5b-stage-router-reencapsulate .shell-lan,
@@ -135,9 +135,12 @@
 .candidate-a { transform: rotate(-20deg) scaleX(.15); }
 .candidate-b { transform: scaleX(.15); }
 .candidate-c { transform: rotate(20deg) scaleX(.15); }
-.phase5b-stage-router-route .candidate-a { transform: rotate(-20deg) scaleX(1); }
-.phase5b-stage-router-route .candidate-b { transform: scaleX(1); background: var(--forwarding-accent); }
-.phase5b-stage-router-route .candidate-c { transform: rotate(20deg) scaleX(1); }
+.phase5b-stage-router-route .candidate-a,
+.phase5b-stage-router-reencapsulate .candidate-a { transform: rotate(-20deg) scaleX(1); }
+.phase5b-stage-router-route .candidate-b,
+.phase5b-stage-router-reencapsulate .candidate-b { transform: scaleX(1); background: var(--forwarding-accent); }
+.phase5b-stage-router-route .candidate-c,
+.phase5b-stage-router-reencapsulate .candidate-c { transform: rotate(20deg) scaleX(1); }
 .phase5c-route-node { position: absolute; left: 164px; padding: 4px 8px; color: var(--forwarding-muted); background: var(--forwarding-paper); font-size: 14px; }
 .phase5c-route-node.node-a { top: 0; }
 .phase5c-route-node.node-b { top: 48px; border: 1px solid var(--forwarding-accent); color: var(--forwarding-accent); }

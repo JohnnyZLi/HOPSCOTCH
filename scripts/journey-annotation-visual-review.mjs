@@ -445,6 +445,13 @@ function startTransitionMonitor() {
         }
         window.journeyPreviousPlaybackEvent = event;
       }
+      const removedEnvelope = world.querySelector('.phase5b-physical.l2-none .shell-lan');
+      if (removedEnvelope && painted(removedEnvelope) && report.leaks.length < 30) {
+        const color = getComputedStyle(removedEnvelope).backgroundColor;
+        const components = color.match(/[\d.]+/g)?.map(Number) || [];
+        const alpha = color.startsWith('rgba') ? components[3] : 1;
+        if (alpha > .01) report.leaks.push({ frame: report.frames, event, phase, selector: '.l2-none .shell-lan', reason: 'Removed Ethernet envelope repainted its background' });
+      }
       const owners = [
         ['.causal-dns-world', ['dns']], ['.causal-route-world', ['route', 'path']],
         ['.causal-tcp-world', ['tcp']], ['.causal-tls-world', ['tls']],
