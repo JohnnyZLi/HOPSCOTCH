@@ -20,6 +20,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Enforce high-severity dependency audit
+        run: npm audit --audit-level=high
       - run: npm run check
       - name: Verify DNS actor-anchor geometry
         run: node scripts/dns-workspace-geometry-review.mjs
