@@ -22,6 +22,8 @@ jobs:
       - run: npm ci
       - name: Enforce high-severity dependency audit
         run: npm audit --audit-level=high
+      - name: Verify production governance contract
+        run: node scripts/production-governance-contract.mjs
       - run: npm run check
       - name: Verify DNS actor-anchor geometry
         id: dns-geometry
