@@ -258,36 +258,24 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-drawer__c
 
 /* Phase 5 object language: retain depth but swap opaque dark slabs for pale
    drafting surfaces and charcoal outlines. */
-.journey-causal-world .phase5-packet-object,
-.journey-causal-world .phase5b-physical {
+.journey-causal-world .phase5-packet-object {
   color: #292827;
   --phase5-paper: #e1ddd8;
   --phase5-ink: #292827;
 }
 .journey-causal-world .phase5-packet-object .phase5-packet-shell,
-.journey-causal-world .phase5-packet-object .phase5c-layer,
-.journey-causal-world .phase5b-physical .phase5c-frame-shell,
-.journey-causal-world .phase5b-physical .phase5b-ip-core,
-.journey-causal-world .phase5b-physical .phase5b-transport-core {
+.journey-causal-world .phase5-packet-object .phase5c-layer {
   border-color: rgba(41,40,39,.34) !important;
   color: #302e2c !important;
   background: rgba(229,225,220,.76) !important;
   box-shadow: 0 12px 26px rgba(55,49,44,.05) !important;
 }
 .journey-causal-world .phase5-packet-object [class*="label"],
-.journey-causal-world .phase5b-physical [class*="label"],
-.journey-causal-world .phase5-packet-object small,
-.journey-causal-world .phase5b-physical small {
+.journey-causal-world .phase5-packet-object small {
   color: #6f6963 !important;
 }
-.journey-causal-world .phase5-packet-object strong,
-.journey-causal-world .phase5b-physical strong {
+.journey-causal-world .phase5-packet-object strong {
   color: #2d2b29 !important;
-}
-.journey-causal-world .phase5b-physical .phase5c-wire-path,
-.journey-causal-world .phase5b-physical .phase5b-path {
-  stroke: rgba(41,40,39,.36) !important;
-  filter: none !important;
 }
 
 /* Active causal detail remains the one saturated color. */

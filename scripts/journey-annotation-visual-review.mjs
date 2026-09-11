@@ -246,7 +246,26 @@ async function inspectState(cdp) {
         tabIndex:layer.tabIndex,
       })),
     }:null;
+    const readableText=(root)=>{
+      if(!root)return [];
+      const stage=root.dataset.phase5bStage;
+      const selectors=['.phase5b-device.is-active > strong'];
+      if(!['link-transmit','next-link'].includes(stage))selectors.push('.phase5b-ip-core > small','.phase5b-ip-core > b','.phase5b-ip-core > em','.phase5b-transport-core > small','.phase5b-transport-core > b','.phase5c-ttl-rotor > small');
+      if(['switch-inspect','switch-forward'].includes(stage))selectors.push('.phase5c-cam-title','.phase5c-cam-bank .is-match b','.phase5c-cam-bank .is-match em');
+      if(stage==='router-route')selectors.push('.phase5c-route-lock');
+      const rgb=(color)=>color.match(/[\\d.]+/g)?.map(Number)||[0,0,0];
+      const luminance=(c)=>c.slice(0,3).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+      return selectors.flatMap(selector=>[...root.querySelectorAll(selector)].map(el=>{
+        const style=getComputedStyle(el),rect=pick(el),fg=rgb(style.color);
+        let opacity=1,bg=[217,212,207];
+        const ancestors=[];for(let n=el;n;n=n.parentElement){ancestors.unshift(n);opacity*=Number(getComputedStyle(n).opacity);}
+        for(const n of ancestors){const c=rgb(getComputedStyle(n).backgroundColor),a=c[3]??1;bg=bg.map((v,i)=>v*(1-a)+c[i]*a);}
+        const alpha=(fg[3]??1)*opacity,paint=bg.map((v,i)=>v*(1-alpha)+fg[i]*alpha),a=luminance(paint),b=luminance(bg);
+        return {selector,text:el.textContent,rect,fontSize:parseFloat(style.fontSize)*rect.height/(el.offsetHeight||rect.height),contrast:(Math.max(a,b)+.05)/(Math.min(a,b)+.05)};
+      }));
+    };
     const physical=physicalObject?{
+      readability:readableText(physicalObject),
       stage:physicalObject.getAttribute('data-phase5b-stage')||'',
       signature:physicalObject.getAttribute('data-phase5b-signature')||'',
       l2:physicalObject.getAttribute('data-phase5b-l2')||'',
@@ -554,6 +573,12 @@ async function auditViewport(cdp, origin, viewport) {
         if (state.physical.stage === 'router-route') {
           assert.ok(nodes.every((node) => !rectsIntersect(node.rect, state.physical.destinationToken)), `${viewport.id}/${labels[index]}: destination token covers a route candidate.`);
         }
+      }
+      assert.ok(state.physical.readability.length > 0, `${viewport.id}: forwarding readability evidence is missing.`);
+      for (const label of state.physical.readability) {
+        assert.ok(label.fontSize >= 11.5, `${viewport.id}/${labels[index]}: undersized forwarding label: ${JSON.stringify(label)}`);
+        assert.ok(label.contrast >= 4.5, `${viewport.id}/${labels[index]}: low-contrast forwarding label: ${JSON.stringify(label)}`);
+        assert.ok(label.rect.left >= 0 && label.rect.right <= state.innerWidth && label.rect.top >= 0 && label.rect.bottom <= state.innerHeight, `${viewport.id}/${labels[index]}: forwarding label escaped the viewport: ${JSON.stringify(label)}`);
       }
       assert.ok(['nic-serialize', 'link-transmit', 'switch-inspect', 'switch-forward', 'router-decapsulate', 'router-ttl', 'router-route', 'router-reencapsulate', 'next-link'].includes(state.physical.stage), `${viewport.id}/${labels[index]}: invalid Phase 5B stage ${state.physical.stage}.`);
       assert.ok(state.physical.signature.length > 40, `${viewport.id}/${labels[index]}: deterministic physical signature missing.`);

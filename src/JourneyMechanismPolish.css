@@ -24,9 +24,6 @@
 .journey-causal-world .causal-world-thread path { stroke: rgba(244,241,234,.62); stroke-width: .68; }
 
 /* Playback chrome should recede, not disappear. */
-.journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar { opacity: .44; transform: translateY(-2px); }
-.journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud { opacity: .32; transform: translateY(-2px); }
-.journey-visual-workspace:has(.journey-causal-world) .visual-time-rail { opacity: .54; transform: translateY(3px); }
 .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar:hover,
 .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar:focus-within,
 .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud:hover,
@@ -452,9 +449,6 @@
 }
 
 @media (max-width: 680px) {
-  .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar { opacity: .66; }
-  .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud { opacity: .5; }
-  .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail { opacity: .68; }
   .journey-causal-world .causal-object::before { width: 136px; height: 136px; }
   .journey-causal-world .causal-object::after { width: 174px; height: 174px; }
   .causal-mechanism-node.node-name { width: 82px; height: 82px; }

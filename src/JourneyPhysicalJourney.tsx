@@ -4,6 +4,7 @@ import type { JourneyPacketLayerId } from './journey/packet-visual.ts';
 import type { JourneyPhysicalProjection } from './journey/physical-journey.ts';
 import './JourneyHeroChoreography.css';
 import './JourneyHeroOverrides.css';
+import './JourneyPhysicalJourney.css';
 
 const signalCells = Array.from({ length: 18 }, (_, index) => index);
 const camCells = Array.from({ length: 8 }, (_, index) => index);
@@ -48,17 +49,18 @@ export function JourneyPhysicalJourney({ projection, onSelectLayer }: {
   >
     <div className="phase5c-void" aria-hidden="true"><i/><i/><i/></div>
 
+
+
+    <div className="phase5b-world">
+      <div className="phase5b-camera">
     <svg className="phase5c-link-map" viewBox="0 0 1000 520" preserveAspectRatio="none" aria-hidden="true">
-      <path className="phase5c-wire-path access-link" d="M155 330 C270 285 365 290 455 300"/>
-      <path className="phase5c-wire-path switch-router-link" d="M505 300 C610 292 680 290 745 285"/>
-      <path className="phase5c-wire-path wan-link" d="M790 280 C870 245 925 205 982 165"/>
+      <path className="phase5c-wire-path access-link" d="M150 390 C250 330 330 330 430 390"/>
+      <path className="phase5c-wire-path switch-router-link" d="M430 390 C530 330 620 330 720 390"/>
+      <path className="phase5c-wire-path wan-link" d="M720 390 C790 310 870 310 940 390"/>
       <path className="phase5c-route-ghost route-one" d="M756 274 C820 216 884 208 944 234"/>
       <path className="phase5c-route-ghost route-two" d="M756 274 C828 274 884 274 954 274"/>
       <path className="phase5c-route-ghost route-three" d="M756 274 C820 332 884 338 944 310"/>
     </svg>
-
-    <div className="phase5b-world">
-      <div className="phase5b-camera">
         <Device id="client" eyebrow="HOST" label="CLIENT NIC" port="eth0" active={projection.activeDevice === 'client'}/>
         <Device id="switch" eyebrow="L2" label="ACCESS SWITCH" port="Gi0/3 · Gi0/24" active={switchActive}/>
         <Device id="router" eyebrow="L3" label="EDGE ROUTER" port="lan0 · wan0" active={routerActive}/>
@@ -108,7 +110,7 @@ export function JourneyPhysicalJourney({ projection, onSelectLayer }: {
         </button>
 
         <section className="phase5b-mac-projection" aria-label="Switch MAC table projection">
-          <span className="phase5c-cam-title">CAM</span>
+          <span className="phase5c-cam-title">Destination MAC → output port</span>
           <div className="phase5c-cam-bank">
             {camCells.map((index) => (
               <i key={index} className={index === 5 ? 'is-match' : ''} style={{ '--cam-index': index } as CSSProperties}>
@@ -135,10 +137,20 @@ export function JourneyPhysicalJourney({ projection, onSelectLayer }: {
       </div>
     </div>
 
-    <div className="phase5c-beat" aria-hidden="true">
-      <span>REQUEST / 01</span>
-      <strong>{projection.stage === 'router-ttl' ? `TTL ${projection.ttlBefore} → ${projection.ttlAfter}` : projection.selectedField}</strong>
-      <i/>
+    <div className="journey-forwarding-caption">
+      <span>{projection.stage.replaceAll('-', ' ')}</span>
+      <strong>{({
+        'idle': 'The frame is ready for forwarding.',
+        'nic-serialize': 'The NIC turns the frame into wire symbols.',
+        'link-transmit': 'Symbols cross the access link to the switch.',
+        'switch-inspect': 'The switch looks up the destination MAC.',
+        'switch-forward': 'The matching MAC entry selects Gi0/24.',
+        'router-decapsulate': 'The router removes the incoming Ethernet envelope.',
+        'router-ttl': `TTL ${projection.ttlBefore} → ${projection.ttlAfter}. The IPv4 checksum changes.`,
+        'router-route': 'The destination IP selects the next hop.',
+        'router-reencapsulate': 'A new Ethernet envelope addresses the next hop.',
+        'next-link': 'The same IP packet continues inside its new frame.',
+      })[projection.stage]}</strong>
     </div>
 
     <div className="phase5c-continuity-mark" aria-hidden="true">

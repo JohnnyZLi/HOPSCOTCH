@@ -289,10 +289,10 @@ async function navigateJourney(cdp, origin, dns = 'cache-miss', transport = 'tcp
 }
 
 function assertChromeRange(frame, context) {
-  assert.ok(frame.toolbar !== null && frame.toolbar >= .24 && frame.toolbar <= .66, `${context}: toolbar should be quiet but discoverable: ${JSON.stringify(frame)}`);
-  assert.ok(frame.hud !== null && frame.hud >= .14 && frame.hud <= .52, `${context}: HUD should be quiet but legible: ${JSON.stringify(frame)}`);
+  assert.equal(frame.toolbar, 1, `${context}: toolbar text must not be faded by its container.`);
+  assert.equal(frame.hud, 1, `${context}: metadata must retain full text contrast.`);
   assert.ok(frame.callout !== null && frame.callout <= .08, `${context}: narration card still substitutes for animation: ${JSON.stringify(frame)}`);
-  assert.ok(frame.timeline !== null && frame.timeline >= .38 && frame.timeline <= .74, `${context}: timeline should recede without disappearing: ${JSON.stringify(frame)}`);
+  assert.equal(frame.timeline, 1, `${context}: playback controls must retain full contrast.`);
 }
 
 async function assertVisualHandoff(cdp, report) {

@@ -11,8 +11,7 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
   background: #d84f49 !important;
 }
 
-.journey-causal-world .phase5-packet-object,
-.journey-causal-world .phase5b-physical {
+.journey-causal-world .phase5-packet-object {
   --phase5c-cyan: #393633;
   --phase5c-blue: #6f6963;
   --phase5c-violet: #8b857f;
@@ -39,13 +38,10 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
   border-color: rgba(41,40,39,.11) !important;
 }
 
-.journey-causal-world .phase5c-beat span,
-.journey-causal-world .phase5b-instrument span,
-.journey-causal-world .phase5b-continuity span {
+.journey-causal-world .phase5c-beat span {
   color: rgba(41,40,39,.5) !important;
 }
-.journey-causal-world .phase5c-beat strong,
-.journey-causal-world .phase5b-instrument strong {
+.journey-causal-world .phase5c-beat strong {
   color: rgba(41,40,39,.86) !important;
 }
 .journey-causal-world .phase5c-beat > i {
@@ -84,125 +80,10 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
 }
 
 /* Physical forwarding becomes a line-drawn topology on the same paper. */
-.journey-causal-world .phase5b-physical::before {
-  background:
-    radial-gradient(circle at 66% 48%, rgba(41,40,39,.035), transparent 25%),
-    radial-gradient(circle at 38% 48%, rgba(216,79,73,.035), transparent 22%),
-    linear-gradient(112deg, transparent 24%, rgba(41,40,39,.025) 50%, transparent 76%) !important;
-}
-.journey-causal-world .phase5b-instrument {
-  border-top-color: rgba(41,40,39,.26) !important;
-}
-.journey-causal-world .phase5b-axis::before,
-.journey-causal-world .phase5b-path::before {
-  background: rgba(41,40,39,.2) !important;
-}
-.journey-causal-world .phase5b-axis i {
-  background: linear-gradient(transparent, rgba(41,40,39,.1), transparent) !important;
-}
-.journey-causal-world .phase5b-axis span {
-  color: rgba(41,40,39,.34) !important;
-}
-.journey-causal-world .phase5b-path i {
-  border-color: rgba(41,40,39,.38) !important;
-  background: #d9d4cf !important;
-  box-shadow: none !important;
-}
-.journey-causal-world .phase5b-stage-link-transmit .path-a i,
-.journey-causal-world .phase5b-stage-next-link .path-b i {
-  border-color: #d84f49 !important;
-  background: #d84f49 !important;
-  box-shadow: none !important;
-}
-
-.journey-causal-world .phase5b-device {
-  border-color: rgba(41,40,39,.3) !important;
-  color: #292827 !important;
-  background: rgba(225,221,216,.6) !important;
-  box-shadow: 0 16px 28px rgba(55,49,44,.045), inset 0 0 0 1px rgba(255,255,255,.22) !important;
-}
-.journey-causal-world .phase5b-device > span:first-child,
-.journey-causal-world .phase5b-device > small {
-  color: rgba(41,40,39,.5) !important;
-}
-.journey-causal-world .phase5b-device > strong,
-.journey-causal-world .phase5b-device.is-active > strong {
-  color: #302e2c !important;
-}
-.journey-causal-world .phase5b-device > i {
-  background: rgba(41,40,39,.18) !important;
-  box-shadow: none !important;
-}
-.journey-causal-world .phase5b-device.is-active {
-  border-color: rgba(216,79,73,.72) !important;
-  box-shadow: 0 0 0 1px rgba(216,79,73,.06), 0 18px 34px rgba(55,49,44,.055) !important;
-}
-.journey-causal-world .phase5b-device.is-active > i {
-  background: #d84f49 !important;
-}
-
-.journey-causal-world .phase5b-nic-queue {
-  border-color: rgba(41,40,39,.24) !important;
-  color: #5f5a55 !important;
-  background: rgba(231,227,222,.92) !important;
-}
-.journey-causal-world .phase5b-nic-queue b { color: #d84f49 !important; }
-.journey-causal-world .phase5b-switch-ports b,
-.journey-causal-world .phase5b-router-ring,
-.journey-causal-world .phase5b-router-ring b {
-  border-color: rgba(41,40,39,.3) !important;
-}
-.journey-causal-world .phase5b-router-ring b { background: #d9d4cf !important; }
-
-.journey-causal-world .phase5b-old-envelope,
-.journey-causal-world .phase5b-new-envelope,
-.journey-causal-world .phase5c-frame-shell,
-.journey-causal-world .phase5b-ip-core,
-.journey-causal-world .phase5b-transport-core {
-  border-color: rgba(41,40,39,.38) !important;
-  color: #292827 !important;
-  background: rgba(230,226,221,.82) !important;
-  box-shadow: 0 12px 25px rgba(55,49,44,.05) !important;
-}
-.journey-causal-world .phase5b-old-envelope small,
-.journey-causal-world .phase5b-new-envelope small,
-.journey-causal-world .phase5b-old-envelope b,
-.journey-causal-world .phase5b-new-envelope b {
-  color: #5e5954 !important;
-}
 
 /* Forwarding labels share the packet's pale material and charcoal ink. */
-.journey-causal-world .phase5c-route-node,
-.journey-causal-world .phase5c-mac-token,
-.journey-causal-world .phase5c-ip-token,
-.journey-causal-world .phase5c-ttl-rotor {
-  border-color: rgba(41,40,39,.3) !important;
-  color: #393633 !important;
-  background: #e6e2dd !important;
-  box-shadow: none !important;
-}
-.journey-causal-world .phase5c-route-node.node-b {
-  border-color: #d84f49 !important;
-  color: #a6332f !important;
-}
-.journey-causal-world .phase5c-mac-token small,
-.journey-causal-world .phase5c-ip-token small,
-.journey-causal-world .phase5c-ttl-rotor > small,
-.journey-causal-world .phase5b-ip-core > small,
-.journey-causal-world .phase5b-ip-core > em,
-.journey-causal-world .phase5b-transport-core > small {
-  color: #5e5954 !important;
-}
-.journey-causal-world .phase5c-mac-token b,
-.journey-causal-world .phase5c-ip-token b,
-.journey-causal-world .phase5c-ttl-rotor > i,
-.journey-causal-world .phase5b-ip-core > b,
-.journey-causal-world .phase5b-transport-core > b {
-  color: #302e2c !important;
-}
 
 /* Remove legacy neon/drop-shadow language from SVG and active tokens. */
-.journey-causal-world .phase5b-physical svg *,
 .journey-causal-world .phase5-packet-object svg * {
   filter: none !important;
 }

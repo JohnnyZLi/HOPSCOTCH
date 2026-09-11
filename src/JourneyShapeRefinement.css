@@ -3,12 +3,6 @@
 
 /* Projection labels should be legible early while their object continues to
    travel into place. This also avoids a 640ms fade masquerading as motion. */
-.phase5b-physical .phase5c-mac-token,
-.phase5b-physical .phase5c-ip-token,
-.phase5b-physical .phase5b-mac-projection,
-.phase5b-physical .phase5b-route-projection {
-  transition: transform var(--journey-motion-spatial) var(--journey-ease-move), opacity var(--journey-motion-micro) ease !important;
-}
 
 /* Routing candidates are endpoint markers on rails, not bubbles/cards. */
 .journey-causal-world .causal-route-choice {
@@ -110,8 +104,7 @@
    IPv4 = closing address brackets
    Ethernet = outer frame/header/trailer
    This avoids five increasingly large generic boxes. */
-.journey-causal-world .phase5-packet-object .phase5c-application,
-.journey-causal-world .phase5b-physical .phase5b-ip-core {
+.journey-causal-world .phase5-packet-object .phase5c-application {
   background: #e8e4df !important;
 }
 

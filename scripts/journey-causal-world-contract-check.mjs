@@ -110,8 +110,9 @@ for (const token of [
   '--journey-motion-spatial: 640ms',
   '.phase5-packet-object .phase5c-transport',
   '.phase5-packet-object .phase5c-network-wing',
-  '.phase5b-physical .phase5b-data-unit',
 ]) assert.ok(motion.includes(token), `Missing normalized motion/shape contract: ${token}`);
+
+assert.match(readFileSync(new URL('../src/JourneyPhysicalJourney.css', import.meta.url), 'utf8'), /left var\(--journey-motion-spatial\)/, 'Forwarding motion must use the shared timing owner.');
 
 for (const token of [
   'dns-query-recursive 620ms',
