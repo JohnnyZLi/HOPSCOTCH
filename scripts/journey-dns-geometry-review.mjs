@@ -157,6 +157,7 @@ async function measureDns(cdp, origin, width, height) {
         id:actor.getAttribute('data-dns-authority'),
         reached:actor.classList.contains('is-reached'),
         rect:actorRect,
+        label:rect(actor.querySelector('span')),
         anchor:anchorRect,
         inside:actorRect.left>=stageRect.left-2&&actorRect.right<=stageRect.right+2&&actorRect.top>=stageRect.top-2&&actorRect.bottom<=stageRect.bottom+2,
       };
@@ -187,6 +188,7 @@ async function measureDns(cdp, origin, width, height) {
   assert.equal(geometry.authorities.length, 4, `${width}x${height}: expected recursive, root, TLD, and authoritative anchors.`);
   assert.ok(geometry.reachedCount >= 1, `${width}x${height}: recursive query must visibly reach its first upstream actor.`);
   assert.ok(geometry.authorities.every((actor) => actor.inside), `${width}x${height}: a namespace actor escaped the stage.`);
+  assert.ok(geometry.authorities.every((actor) => actor.label.left >= geometry.stage.left && actor.label.right <= geometry.stage.right), `${width}x${height}: a DNS label is clipped: ${JSON.stringify(geometry.authorities)}`);
   assert.ok(geometry.pathLength > 400, `${width}x${height}: namespace traversal thread is too short to communicate travel.`);
   assert.ok(geometry.queryToRecursive <= (width <= 680 ? 105 : 165), `${width}x${height}: query is ${geometry.queryToRecursive.toFixed(1)}px from the recursive anchor.`);
   assert.equal(geometry.queryObjectOverlap, 0, `${width}x${height}: traveling query overlaps the persistent request object.`);

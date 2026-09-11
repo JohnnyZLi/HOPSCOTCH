@@ -137,7 +137,7 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace
 @media (max-width: 760px) {
   html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar { left: 66px !important; right: 8px !important; width: auto !important; }
   html body .journey-visual-workspace:has(.journey-causal-world) :is(.visual-drawer-tabs button, .visual-tool-button) { padding-inline: 4px !important; font-size: 12px !important; }
-  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud { top: 68px !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 6px 16px !important; }
+  html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud { left: 12px !important; top: 68px !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 6px 16px !important; }
   html body .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__hud strong { font-size: 12px !important; }
   html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail { grid-template-columns: minmax(0, 1fr) !important; gap: 6px !important; padding: 8px 12px !important; min-height: var(--journey-rail-height) !important; }
   html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail__controls { width: 100% !important; flex-direction: row !important; justify-content: space-between !important; gap: 8px !important; }

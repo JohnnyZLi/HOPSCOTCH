@@ -226,7 +226,7 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-hud-chip 
 
   .journey-causal-world .causal-authority span { font-size: 12px !important; }
   .journey-causal-world .causal-authority small { font-size: 12px !important; }
-  .journey-causal-world .causal-authority--authority span { left: auto !important; right: 0 !important; text-align: right; }
+  .journey-causal-world .causal-authority--authority span { position: absolute !important; left: auto !important; right: 0 !important; top: 0 !important; width: max-content; text-align: right; }
   .journey-causal-world .causal-route-choice span { font-size: 8px !important; }
   .journey-causal-world .causal-route-choice small { font-size: 6.5px !important; }
 }
