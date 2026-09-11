@@ -1,0 +1,30 @@
+name: Security lockfile refresh
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    if: github.head_ref == 'fix/npm-security-audit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Resolve the first Wrangler release beyond the vulnerable range
+        run: npm install --save-dev wrangler@4.131.0 --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Upload npm-authored dependency files
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-security-lockfile
+          path: |
+            package.json
+            package-lock.json
+          if-no-files-found: error
+          retention-days: 1
