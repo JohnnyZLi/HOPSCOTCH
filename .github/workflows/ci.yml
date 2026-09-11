@@ -24,9 +24,10 @@ jobs:
         run: npm audit --audit-level=high
       - run: npm run check
       - name: Verify DNS actor-anchor geometry
+        id: dns-geometry
         run: node scripts/dns-workspace-geometry-review.mjs
       - name: Upload DNS geometry review
-        if: always()
+        if: always() && steps.dns-geometry.outcome != 'skipped'
         uses: actions/upload-artifact@v4
         with:
           name: hopscotch-dns-workspace-geometry-review
