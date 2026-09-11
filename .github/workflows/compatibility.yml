@@ -222,3 +222,45 @@ jobs:
           path: artifacts/overview-layout-stability-review
           if-no-files-found: error
           retention-days: 7
+
+  compatibility-gate:
+    if: always()
+    needs:
+      - chrome-gpu-matrix
+      - firefox-semantic
+      - capture-replay
+      - phase3-visual-review
+      - phase4-visual-review
+      - timeline-visual-review
+      - journey-annotation-visual-review
+      - kinetic-overview-visual-review
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every compatibility job to pass
+        env:
+          CHROME_GPU_MATRIX: ${{ needs.chrome-gpu-matrix.result }}
+          FIREFOX_SEMANTIC: ${{ needs.firefox-semantic.result }}
+          CAPTURE_REPLAY: ${{ needs.capture-replay.result }}
+          PHASE3_VISUAL_REVIEW: ${{ needs.phase3-visual-review.result }}
+          PHASE4_VISUAL_REVIEW: ${{ needs.phase4-visual-review.result }}
+          TIMELINE_VISUAL_REVIEW: ${{ needs.timeline-visual-review.result }}
+          JOURNEY_ANNOTATION_VISUAL_REVIEW: ${{ needs.journey-annotation-visual-review.result }}
+          KINETIC_OVERVIEW_VISUAL_REVIEW: ${{ needs.kinetic-overview-visual-review.result }}
+        run: |
+          failed=0
+          for result in \
+            "$CHROME_GPU_MATRIX" \
+            "$FIREFOX_SEMANTIC" \
+            "$CAPTURE_REPLAY" \
+            "$PHASE3_VISUAL_REVIEW" \
+            "$PHASE4_VISUAL_REVIEW" \
+            "$TIMELINE_VISUAL_REVIEW" \
+            "$JOURNEY_ANNOTATION_VISUAL_REVIEW" \
+            "$KINETIC_OVERVIEW_VISUAL_REVIEW"; do
+            if [[ "$result" != "success" ]]; then
+              echo "Compatibility dependency finished with result: $result" >&2
+              failed=1
+            fi
+          done
+          exit "$failed"
