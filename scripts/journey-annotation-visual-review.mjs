@@ -249,7 +249,7 @@ async function inspectState(cdp) {
     const readableText=(root)=>{
       if(!root)return [];
       const stage=root.dataset.phase5bStage;
-      const selectors=['.phase5b-device.is-active > strong'];
+      const selectors=['.phase5b-device.is-active > strong','.journey-forwarding-caption strong','.journey-forwarding-caption span'];
       if(!['link-transmit','next-link'].includes(stage))selectors.push('.phase5b-ip-core > small','.phase5b-ip-core > b','.phase5b-ip-core > em','.phase5b-transport-core > small','.phase5b-transport-core > b','.phase5c-ttl-rotor > small');
       if(['switch-inspect','switch-forward'].includes(stage))selectors.push('.phase5c-cam-title','.phase5c-cam-bank .is-match b','.phase5c-cam-bank .is-match em');
       if(stage==='router-route')selectors.push('.phase5c-route-lock');

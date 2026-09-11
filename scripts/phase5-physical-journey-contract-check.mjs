@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { buildJourneyScenario, journeyStateAt } from '../src/journey/model.ts';
 import { projectJourneyPacketVisual } from '../src/journey/packet-visual.ts';
 import { JOURNEY_PHYSICAL_STAGES, projectJourneyPhysicalState } from '../src/journey/physical-journey.ts';
@@ -81,6 +81,12 @@ for (const profile of ['tcp-h2', 'quic-h3']) {
 
 const component = readFileSync(new URL('../src/JourneyPhysicalJourney.tsx', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../src/JourneyPhysicalJourney.css', import.meta.url), 'utf8');
+assert.match(component, /import '\.\/JourneyPhysicalJourney\.css'/, 'Forwarding must load its canonical stylesheet.');
+assert.match(component, /className="phase5b-camera">\s*<svg className="phase5c-link-map"/, 'Links and devices must share the moving camera.');
+for (const name of readdirSync(new URL('../src/', import.meta.url)).filter((name) => name.endsWith('.css') && name !== 'JourneyPhysicalJourney.css')) {
+  const source = readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /\.phase5b-(?:camera|data-unit|device|mac-projection|route-projection)\b[^{}]*\{/, `${name} must not override canonical forwarding geometry.`);
+}
 assert.match(component, /useReducedMotion/);
 assert.match(component, /data-phase5b-signature/);
 assert.match(component, /data-phase5b-incoming-frame/);

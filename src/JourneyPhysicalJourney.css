@@ -2,6 +2,7 @@
    carries both links and devices; mobile follows the active hop at 1:1 scale. */
 .phase5b-physical {
   --focus: 15;
+  --device-body-height: 54px;
   --unit-x: 15%;
   --unit-y: 55%;
   --forwarding-ink: #302d2b;
@@ -17,7 +18,7 @@
 }
 .phase5b-physical > .phase5c-void { display: none; }
 .phase5b-world { position: absolute; inset: 145px max(24px, calc((100vw - 1240px) / 2)) 155px; }
-.phase5b-camera { position: absolute; inset: 0; transition: transform var(--journey-motion-spatial) var(--journey-ease-move); }
+.phase5b-camera { position: absolute; inset: 0; transform: translateX(calc((50 - var(--focus)) * .65%)); transition: transform var(--journey-motion-spatial) var(--journey-ease-move); }
 .phase5c-link-map { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .phase5c-wire-path { fill: none; stroke: #8b8178; stroke-width: 1.5; vector-effect: non-scaling-stroke; transition: stroke .3s ease, stroke-width .3s ease; }
 .phase5c-route-ghost { display: none; }
@@ -33,7 +34,7 @@
 .phase5b-stage-router-route,
 .phase5b-stage-router-reencapsulate { --focus: 72; --unit-x: 72%; }
 .phase5b-stage-next-link { --focus: 85; --unit-x: 94%; --unit-y: 46%; }
-.phase5b-device { position: absolute; z-index: 2; top: 75%; width: 170px; display: grid; justify-items: center; gap: 5px; transform: translate(-50%, -30%); text-align: center; color: var(--forwarding-muted); }
+.phase5b-device { position: absolute; z-index: 2; top: 75%; width: 170px; display: grid; justify-items: center; gap: 5px; transform: translate(-50%, calc(var(--device-body-height) / -2)); text-align: center; color: var(--forwarding-muted); }
 .phase5b-device > span, .phase5b-device > small { font-size: 12px; line-height: 1.3; letter-spacing: .03em; }
 .phase5b-device > strong { font-size: 14px; line-height: 1.3; letter-spacing: .04em; }
 .phase5b-device.is-active { color: var(--forwarding-ink); }
@@ -41,7 +42,7 @@
 .device-switch { left: 43%; }
 .device-router { left: 72%; }
 .device-next { left: 94%; }
-.phase5c-device-body { order: -1; position: relative; width: 112px; height: 54px; border: 1px solid #8b8178; border-radius: 4px; background: #ded9d4; transition: border-color .3s ease, background .3s ease; }
+.phase5c-device-body { order: -1; position: relative; width: 112px; height: var(--device-body-height); border: 1px solid #8b8178; border-radius: 4px; background: #ded9d4; transition: border-color .3s ease, background .3s ease; }
 .device-router .phase5c-device-body { border-radius: 14px; }
 .phase5b-device.is-active .phase5c-device-body { border: 2px solid var(--forwarding-accent); background: #e8e4df; }
 .phase5c-device-body > i { position: absolute; bottom: 12px; width: 10px; height: 6px; border: 1px solid #8b8178; }
@@ -111,6 +112,7 @@
 .phase5c-cam-title { display: block; margin-bottom: 10px; color: var(--forwarding-ink); font: 650 14px/1.3 var(--mono); }
 .phase5c-cam-bank { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .phase5c-cam-bank > i { display: grid; grid-template-columns: 1fr auto; gap: 4px; padding: 7px 10px; background: #e8e4df; border-left: 2px solid #9c9288; font-style: normal; transform: translateY(-18px); transition: transform .4s var(--journey-ease-move); transition-delay: calc(var(--cam-index) * 25ms); }
+.phase5c-cam-bank > i:nth-child(n+4):not(.is-match) { display: none; }
 .phase5c-cam-bank > i span { display: none; }
 .phase5c-cam-bank > i b { grid-column: 1 / -1; font-size: 12px; color: var(--forwarding-muted); }
 .phase5c-cam-bank > i em { font: 650 12px/1.2 var(--mono); color: var(--forwarding-muted); }
@@ -166,7 +168,7 @@
   .phase5b-stage-switch-forward .phase5b-mac-projection { left: 56%; }
   .phase5b-stage-link-transmit .phase5b-data-unit { --unit-x: 57%; }
   .phase5b-stage-next-link .phase5b-data-unit { --unit-x: 106%; }
-  .journey-forwarding-caption { left: 18px; right: 18px; bottom: 112px; }
+  .journey-forwarding-caption { left: 18px; right: 18px; bottom: 134px; }
   .journey-forwarding-caption strong { font-size: 16px; }
 }
 @media (max-height: 700px) and (min-width: 761px) {
