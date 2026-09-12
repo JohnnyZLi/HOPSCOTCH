@@ -10,6 +10,7 @@ import './JourneyMechanismPolish.css';
 import './JourneyMechanismVisibility.css';
 import { useJourneyDnsGeometry } from './journey/useJourneyDnsGeometry.ts';
 import './JourneyDnsAnchors.css';
+import './JourneyCaption.css';
 
 type CausalPhase = 'intent' | 'dns' | 'route' | 'path' | 'tcp' | 'tls' | 'http' | 'packet' | 'response' | 'complete';
 
@@ -72,24 +73,6 @@ function tlsProgress(state: JourneyState): number {
   if (state.activeEvent.id === 'tls-serverhello') return 2;
   if (state.tls === 'negotiating') return 1;
   return 0;
-}
-
-function annotationFor(state: JourneyState): { index: string; label: string; note: string } {
-  const phase = phaseFor(state);
-  if (phase === 'intent') return { index: '01', label: 'Intent becomes a dependency', note: 'The hostname is the first causal object.' };
-  if (phase === 'dns') {
-    if (state.dnsProfile === 'cache-hit') return { index: '02', label: 'Local answer', note: 'The cache closes the dependency. No upstream query exists.' };
-    if (state.activeEvent.id === 'dns-cache') return { index: '02', label: 'Cache opens', note: 'No reusable record is present.' };
-    if (state.activeEvent.id === 'dns-answer' || state.activeEvent.id === 'dns-store') return { index: '02', label: 'Name gains an address', note: 'The answer docks into the same request object.' };
-    return { index: '02', label: 'Namespace walk', note: 'One A question advances through authority.' };
-  }
-  if (phase === 'route' || phase === 'path') return { index: '03', label: 'Destination selects a path', note: 'Candidates fan out; the viable next hop locks.' };
-  if (phase === 'tcp') return { index: '04', label: 'Transport reacts on arrival', note: 'SYN, SYN-ACK, and ACK alter endpoint state.' };
-  if (phase === 'tls') return { index: '05', label: 'Protection assembles', note: 'Negotiated parameters lock before the payload turns opaque.' };
-  if (phase === 'http') return { index: '06', label: 'Request ready', note: 'HTTP meaning flows directly into packet assembly.' };
-  if (phase === 'packet') return { index: '07', label: 'One object, deeper scale', note: 'The causal mechanism becomes the packet assembly scaffold.' };
-  if (phase === 'response') return { index: '08', label: 'Response returns', note: 'The established world carries application data back.' };
-  return { index: '09', label: 'Intent satisfied', note: 'The same timeline can reconstruct every causal boundary.' };
 }
 
 function DnsWorld({ state, hostname }: { state: JourneyState; hostname: string }) {
@@ -209,7 +192,6 @@ export function JourneyCausalWorld({ state, hostname, address, packetProjection,
 }) {
   const reduceMotion = useReducedMotion();
   const phase = phaseFor(state);
-  const annotation = annotationFor(state);
   const encrypted = state.tls === 'handshake-keys' || state.tls === 'application-keys';
   const applicationProtected = state.tls === 'application-keys';
   const packetActive = state.activeEvent.kind === 'packet.assembly' || state.activeEvent.kind === 'packet.inspect';
@@ -229,8 +211,6 @@ export function JourneyCausalWorld({ state, hostname, address, packetProjection,
     data-packet-stage={packetProjection.stage}
     aria-label={`Continuous Journey world, ${state.activeEvent.title}`}
   >
-    <div className="causal-field" aria-hidden="true"><i/><i/><i/><span/></div>
-    <svg className="causal-world-thread" viewBox="0 0 1400 760" preserveAspectRatio="none" aria-hidden="true"><path d="M100 430 C270 330 420 344 570 392 S880 470 1040 354 S1240 282 1340 330"/></svg>
 
     {/* Packet assembly and transit own the request geometry at packet scale.
         Keep the earlier camera mounted for continuity, but never paint it underneath. */}
@@ -264,8 +244,10 @@ export function JourneyCausalWorld({ state, hostname, address, packetProjection,
       <div className="causal-response-flight" hidden={phase !== 'response'} aria-hidden="true"><i/><span>response</span><strong>200</strong><b/></div>
     </div>
 
-    <aside className="causal-annotation" aria-hidden="true"><i/><div><span>{annotation.index}</span><strong>{annotation.label}</strong><small>{annotation.note}</small></div></aside>
-    <div className="causal-continuity" aria-hidden="true"><span>intent</span><i/><span>name</span><i/><span>address</span><i/><span>path</span><i/><span>connection</span><i/><span>protected request</span></div>
+    <aside className="causal-annotation" hidden={packetActive || transitActive} aria-label="Current event" data-caption-event={state.activeEvent.id}>
+      <strong>{state.activeEvent.title}</strong>
+      <p>{state.activeEvent.summary}</p>
+    </aside>
 
     {packetActive && <div className="causal-phase5-layer causal-phase5-layer--assembly"><JourneyPacketObject projection={packetProjection} onSelectLayer={onSelectLayer}/></div>}
     {transitActive && <div className="causal-phase5-layer causal-phase5-layer--transit"><JourneyPhysicalJourney projection={physicalProjection} onSelectLayer={onSelectLayer}/></div>}

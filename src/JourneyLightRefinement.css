@@ -38,14 +38,6 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-hud-chip 
   --causal-muted: #57514c;
   --causal-faint: #746e68;
 }
-.journey-causal-world .causal-field > i { background: rgba(41,40,39,.58) !important; }
-.journey-causal-world .causal-field > span { border-color: rgba(41,40,39,.09) !important; }
-.journey-causal-world .causal-world-thread { opacity: .2 !important; }
-.journey-causal-world .causal-world-thread path { stroke: rgba(41,40,39,.68) !important; }
-.journey-causal-world .causal-annotation { opacity: .96 !important; }
-.journey-causal-world .causal-annotation strong { color: #383431 !important; }
-.journey-causal-world .causal-annotation small { color: #625c57 !important; }
-.journey-causal-world .causal-continuity { color: #625c57 !important; opacity: .8; }
 
 /* Bring the mechanism closer during the explanatory phases. */
 @media (min-width: 1100px) {

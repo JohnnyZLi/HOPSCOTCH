@@ -382,28 +382,6 @@ html body .journey-causal-world .causal-dns-query span {
 
 html body .journey-causal-world .causal-dns-query .namespace-focus { color: var(--kinetic-coral) !important; }
 
-html body .journey-causal-world .causal-world-thread {
-  opacity: .56 !important;
-}
-
-html body .journey-causal-world .causal-world-thread path {
-  stroke: rgba(41, 40, 39, .64) !important;
-}
-
-html body .journey-causal-world .causal-annotation {
-  opacity: 1 !important;
-}
-
-html body .journey-causal-world .causal-annotation strong {
-  color: var(--kinetic-ink-strong) !important;
-  font-weight: 700 !important;
-}
-
-html body .journey-causal-world .causal-annotation small,
-html body .journey-causal-world .causal-continuity {
-  color: var(--kinetic-ink-soft) !important;
-}
-
 /* Failure: the topology should read like a moving technical drawing. */
 html body .failure-cinematic-stage::after {
   opacity: .7 !important;

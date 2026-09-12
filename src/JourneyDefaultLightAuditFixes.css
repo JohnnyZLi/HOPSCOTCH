@@ -45,12 +45,6 @@
 .journey-causal-world .dns-answer-thread {
   stroke: #d84f49 !important;
 }
-.journey-causal-world .causal-world-thread {
-  opacity: .2 !important;
-}
-.journey-causal-world .causal-world-thread path {
-  stroke: rgba(41,40,39,.62) !important;
-}
 
 /* The completed Journey should resolve into a crisp technical object rather
    than fading into the paper. */

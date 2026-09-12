@@ -59,16 +59,30 @@ async function waitForDevTools(port, timeoutMs = 10000) {
 }
 
 async function launchChrome(chromePath) {
-  const port = await freePort();
-  const userDataDir = mkdtempSync(join(tmpdir(), 'hopscotch-dns-geometry-'));
-  const chrome = spawn(chromePath, [
-    '--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check',
-    '--disable-background-networking', '--disable-default-apps', '--disable-extensions', '--disable-sync', '--mute-audio',
-    '--remote-debugging-address=127.0.0.1', `--remote-debugging-port=${port}`, '--remote-allow-origins=*',
-    `--user-data-dir=${userDataDir}`, 'about:blank',
-  ], { stdio: ['ignore', 'ignore', 'pipe'] });
-  await waitForDevTools(port);
-  return { chrome, port, userDataDir };
+  const attempts = [];
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const port = await freePort();
+    const userDataDir = mkdtempSync(join(tmpdir(), `hopscotch-dns-geometry-${attempt}-`));
+    const state = { stderr: '', exitCode: null };
+    const chrome = spawn(chromePath, [
+      '--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check',
+      '--disable-background-networking', '--disable-default-apps', '--disable-extensions', '--disable-sync', '--mute-audio',
+      '--remote-debugging-address=127.0.0.1', `--remote-debugging-port=${port}`, '--remote-allow-origins=*',
+      `--user-data-dir=${userDataDir}`, 'about:blank',
+    ], { stdio: ['ignore', 'ignore', 'pipe'] });
+    chrome.stderr.setEncoding('utf8');
+    chrome.stderr.on('data', (chunk) => { state.stderr = `${state.stderr}${chunk}`.slice(-12000); });
+    chrome.once('exit', (code) => { state.exitCode = code; });
+    try {
+      await waitForDevTools(port);
+      return { chrome, port, userDataDir, attempts };
+    } catch (error) {
+      if (!chrome.killed) chrome.kill('SIGKILL');
+      attempts.push({ attempt, error: error instanceof Error ? error.message : String(error), exitCode: state.exitCode, stderrTail: state.stderr || null });
+      rmSync(userDataDir, { recursive: true, force: true, maxRetries: 4, retryDelay: 100 });
+    }
+  }
+  throw new Error(`Chrome failed to launch after 3 attempts: ${JSON.stringify(attempts)}`);
 }
 
 class CdpClient {
