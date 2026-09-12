@@ -174,7 +174,7 @@ async function measureDns(cdp, origin, width, height, event = 'dns-recursive', t
     const anchorErrors=authorities.map(actor=>Math.min(...samples.map(p=>Math.hypot(p.x-actor.anchor.centerX,p.y-actor.anchor.centerY))));
     const labelOverlaps=authorities.filter(actor=>Math.min(queryRect.right,actor.label.right)>Math.max(queryRect.left,actor.label.left)&&Math.min(queryRect.bottom,actor.label.bottom)>Math.max(queryRect.top,actor.label.top)).map(actor=>actor.id);
     const ink=thread.querySelector('.dns-thread-progress');
-    const inkEnd=path.getPointAtLength(pathLength*(1-Number(getComputedStyle(ink).strokeDashoffset))).matrixTransform(matrix);
+    const inkEnd=path.getPointAtLength(pathLength*(1-parseFloat(getComputedStyle(ink).strokeDashoffset))).matrixTransform(matrix);
     const reached=authorities.filter(actor=>actor.reached).at(-1)?.anchor;
     return {
       viewport:{innerWidth,innerHeight,devicePixelRatio},
@@ -197,6 +197,8 @@ async function measureDns(cdp, origin, width, height, event = 'dns-recursive', t
   })()`);
 
   assert.ok(geometry, `${width}x${height}: causal DNS world was not measurable.`);
+  await screenshot(cdp, `journey-${event}-${width}x${height}.png`);
+  writeFileSync(join(outputDir, `${event}-${width}x${height}.json`), JSON.stringify(geometry, null, 2));
   assert.equal(geometry.authorities.length, 4, `${width}x${height}: expected recursive, root, TLD, and authoritative anchors.`);
   assert.ok(geometry.reachedCount >= 1, `${width}x${height}: recursive query must visibly reach its first upstream actor.`);
   assert.ok(geometry.authorities.every((actor) => actor.inside), `${width}x${height}: a namespace actor escaped the stage.`);
@@ -206,12 +208,12 @@ async function measureDns(cdp, origin, width, height, event = 'dns-recursive', t
   assert.ok(geometry.inkEndError<2, `${width}x${height}: progress does not stop at the reached anchor: ${geometry.inkEndError}`);
   assert.deepEqual(geometry.labelOverlaps, [], `${width}x${height}:${event}: query covers DNS labels.`);
   assert.ok(geometry.queryFontSize>=12, `${width}x${height}: query text is too small.`);
+  assert.ok(geometry.query.left>=geometry.stage.left && geometry.query.right<=geometry.stage.right, `${width}x${height}: query is clipped by the viewport.`);
   if(event==='dns-recursive') assert.ok(geometry.queryToRecursive <= (width <= 680 ? 105 : 165), `${width}x${height}: query is ${geometry.queryToRecursive.toFixed(1)}px from the recursive anchor.`);
   assert.equal(geometry.queryObjectOverlap, 0, `${width}x${height}: traveling query overlaps the persistent request object.`);
   assert.notEqual(geometry.cacheLidTransform, 'none', `${width}x${height}: cache lid did not physically open.`);
   assert.ok(geometry.scrollWidth <= width + 1, `${width}x${height}: Journey horizontally overflows.`);
 
-  await screenshot(cdp, `journey-${event}-${width}x${height}.png`);
   return geometry;
 }
 

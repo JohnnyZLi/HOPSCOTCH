@@ -58,7 +58,7 @@ export function useJourneyDnsGeometry(eventId: string, visible: boolean, progres
       if (query) {
         const queryBox = box(query);
         const width = queryBox.right - queryBox.left, height = queryBox.bottom - queryBox.top;
-        const viewport = { ...point(12, 0), right: point(innerWidth - 12, 0).x };
+        const viewport = { left: point(12, 0).x, right: point(innerWidth - 12, 0).x };
         const toolbar = document.querySelector('.journey-visual-workspace .visual-workspace__toolbar');
         const rail = document.querySelector('.journey-visual-workspace .visual-time-rail');
         const minY = toolbar ? box(toolbar).bottom + 12 : point(0, 130).y;
@@ -69,7 +69,7 @@ export function useJourneyDnsGeometry(eventId: string, visible: boolean, progres
           const candidates: { p: Point; overlap: number; distance: number }[] = [];
           for (const gap of [44, 64, 84, 104, 124, 144]) {
             for (const direction of [-1, 1]) {
-              const left = Math.max(viewport.x, Math.min(anchor.x - width / 2, viewport.right - width));
+              const left = Math.max(viewport.left, Math.min(anchor.x - width / 2, viewport.right - width));
               const top = Math.max(minY, Math.min(anchor.y + direction * gap - height / 2, maxY - height));
               const r = { left, top, right: left + width, bottom: top + height };
               const overlap = obstacles.reduce((area, b) => area +
