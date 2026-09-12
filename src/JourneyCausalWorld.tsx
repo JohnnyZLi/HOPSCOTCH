@@ -8,6 +8,8 @@ import { JourneyPhysicalJourney } from './JourneyPhysicalJourney.tsx';
 import './JourneyCausalWorld.css';
 import './JourneyMechanismPolish.css';
 import './JourneyMechanismVisibility.css';
+import { useJourneyDnsGeometry } from './journey/useJourneyDnsGeometry.ts';
+import './JourneyDnsAnchors.css';
 
 type CausalPhase = 'intent' | 'dns' | 'route' | 'path' | 'tcp' | 'tls' | 'http' | 'packet' | 'response' | 'complete';
 
@@ -95,17 +97,18 @@ function DnsWorld({ state, hostname }: { state: JourneyState; hostname: string }
   const hit = state.dnsProfile === 'cache-hit';
   const answerVisible = state.resolvedAddress !== null;
   const labels = hostname.split('.');
-  return <div className={`causal-dns-world ${hit ? 'is-hit' : 'is-miss'} dns-progress-${progress}`} data-causal-dns="true" hidden={phaseFor(state) !== 'dns'}>
+  const dnsRef = useJourneyDnsGeometry(state.activeEvent.id, phaseFor(state) === 'dns', progress, hostname);
+  return <div ref={dnsRef} className={`causal-dns-world ${hit ? 'is-hit' : 'is-miss'} dns-progress-${progress}`} data-causal-dns="true" hidden={phaseFor(state) !== 'dns'}>
     <div className="causal-cache" data-causal-cache={hit ? 'hit' : state.activeEvent.id === 'dns-store' ? 'stored' : 'miss'} aria-label={`DNS cache ${hit ? 'hit' : 'miss'}`}>
       <div className="causal-cache__lid"><span>resolver cache</span><i/><i/><i/></div>
       <div className="causal-cache__tray"><i/><i/><i/><span className="causal-cache__record"><b>{hostname}</b><strong>{state.resolvedAddress ?? '203.0.113.42'}</strong><small>TTL {state.dnsTtlSeconds ?? 300}s</small></span></div>
       <div className="causal-cache__status"><i/><span>{hit ? 'record found' : state.activeEvent.id === 'dns-store' ? 'record stored' : 'empty slot'}</span></div>
     </div>
 
-    <svg className="causal-dns-thread" viewBox="0 0 1000 420" preserveAspectRatio="none" aria-hidden="true">
-      <path className="dns-thread-base" d="M270 222 C390 130 470 128 545 190 S685 276 774 180 S880 104 944 178"/>
-      <path className="dns-thread-progress" pathLength="1" d="M270 222 C390 130 470 128 545 190 S685 276 774 180 S880 104 944 178"/>
-      <path className="dns-answer-thread" d="M936 190 C786 308 613 314 338 246"/>
+    <svg className="causal-dns-thread" aria-hidden="true">
+      <path className="dns-thread-base"/>
+      <path className="dns-thread-progress" pathLength="1"/>
+      <path className="dns-answer-thread"/>
     </svg>
 
     <div className="causal-namespace" aria-label={hit ? 'Upstream DNS skipped' : 'DNS namespace traversal'}>

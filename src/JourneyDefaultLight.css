@@ -208,8 +208,6 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-drawer__c
 .journey-causal-world .causal-authority span { color: #5f5a55 !important; }
 .journey-causal-world .causal-authority small { color: #8e8882 !important; }
 .journey-causal-world .causal-authority.is-reached span { color: #292827 !important; }
-.journey-causal-world .causal-authority::before { border-color: rgba(41,40,39,.18) !important; }
-.journey-causal-world .causal-authority.is-reached::before { border-color: rgba(41,40,39,.48) !important; }
 .journey-causal-world .causal-dns-query small,
 .journey-causal-world .causal-dns-query span,
 .journey-causal-world .causal-dns-query b {

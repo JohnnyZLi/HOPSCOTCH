@@ -70,9 +70,6 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-hud-chip 
   color: #6d6761 !important;
   font-size: 12px !important;
 }
-.journey-causal-world .causal-authority::before {
-  background: rgba(41,40,39,.36) !important;
-}
 .journey-causal-world .causal-authority > i {
   border-color: rgba(41,40,39,.58) !important;
   background: #d9d4cf !important;

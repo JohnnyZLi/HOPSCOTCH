@@ -48,8 +48,6 @@
   transition-timing-function: var(--journey-ease-move) !important;
 }
 .journey-causal-world .causal-authority,
-.journey-causal-world .causal-authority::before,
-.journey-causal-world .causal-authority::after,
 .journey-causal-world .causal-dns-query,
 .journey-causal-world .causal-dns-answer,
 .journey-causal-world .causal-route-candidate,
@@ -70,7 +68,6 @@
 /* Remove springy/rotating ornament from semantic mechanisms. Network objects
    should close, slide, dock, and lock—not bounce. */
 .journey-causal-world .causal-authority.is-reached { transform: scale(1.02) !important; }
-.journey-causal-world .causal-authority.is-reached::after { transform: translate(-50%,-50%) scale(1) !important; }
 .phase5-stage-security .phase5c-security .orbit-a,
 .phase5-stage-security .phase5c-security .orbit-b { animation: none !important; }
 
@@ -132,19 +129,6 @@
   border-color: rgba(216,79,73,.62) !important;
   background: rgba(216,79,73,.05) !important;
 }
-.journey-causal-world .causal-authority::before {
-  width: 58px !important;
-  height: 58px !important;
-  border-color: rgba(48,45,43,.3) !important;
-  background: transparent !important;
-}
-.journey-causal-world .causal-authority::after {
-  width: 72px !important;
-  height: 72px !important;
-  border-style: solid !important;
-  border-color: rgba(48,45,43,.1) !important;
-}
-.journey-causal-world .causal-authority.is-reached::before { border-color: rgba(216,79,73,.72) !important; }
 
 /* ---------- Routing: rails, not cards ---------- */
 .journey-causal-world .causal-route-target,

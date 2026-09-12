@@ -424,15 +424,6 @@
   transform: translateY(18px);
   transition: opacity 620ms ease, transform 820ms var(--causal-ease), color 520ms ease;
 }
-.causal-authority::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 1px;
-  height: 29px;
-  background: var(--causal-line);
-}
 .causal-authority > i { position: absolute; left: -3px; top: 26px; width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 50%; background: var(--causal-ink); }
 .causal-authority span { font-size: 10px; color: currentColor; }
 .causal-authority small { color: var(--causal-faint); font-size: 7px; line-height: 1.4; }
@@ -472,9 +463,9 @@
 .query-dns-tld { animation: dns-query-tld 930ms var(--causal-ease) both; }
 .query-dns-answer,
 .query-dns-store { left: 89%; top: 45%; }
-@keyframes dns-query-recursive { from { left: 23%; top: 38%; opacity: 0; } to { left: 42%; top: 45%; opacity: 1; } }
-@keyframes dns-query-root { from { left: 42%; top: 45%; opacity: .5; } to { left: 57%; top: 30%; opacity: 1; } }
-@keyframes dns-query-tld { from { left: 57%; top: 30%; opacity: .5; } to { left: 72%; top: 52%; opacity: 1; } }
+@keyframes dns-query-recursive { from { left: var(--dns-dock-0-x); top: var(--dns-dock-0-y); opacity: .5; } to { left: var(--dns-dock-1-x); top: var(--dns-dock-1-y); opacity: 1; } }
+@keyframes dns-query-root { from { left: var(--dns-dock-1-x); top: var(--dns-dock-1-y); opacity: .5; } to { left: var(--dns-dock-2-x); top: var(--dns-dock-2-y); opacity: 1; } }
+@keyframes dns-query-tld { from { left: var(--dns-dock-2-x); top: var(--dns-dock-2-y); opacity: .5; } to { left: var(--dns-dock-3-x); top: var(--dns-dock-3-y); opacity: 1; } }
 .causal-dns-answer { left: 89%; top: 43%; border-color: rgba(255, 90, 85, .42); opacity: 0; }
 .causal-dns-answer b { color: var(--causal-text); font-size: 9px; font-weight: 500; }
 .causal-dns-answer i { width: 5px; height: 5px; border-radius: 50%; background: var(--causal-accent); }
@@ -864,7 +855,6 @@
   .causal-cache__tray { padding: 12px; }
   .causal-cache__record { inset: 12px; padding: 8px; }
   .causal-authority { width: 60px; padding-top: 25px; }
-  .causal-authority::before { height: 20px; }
   .causal-authority > i { top: 17px; }
   .causal-authority span { font-size: 7px; }
   .causal-authority small { display: none; }

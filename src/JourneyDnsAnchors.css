@@ -1,0 +1,25 @@
+/* Rings are children of the connection anchor. Text cannot move their center. */
+.journey-causal-world .causal-authority > i::before,
+.journey-causal-world .causal-authority > i::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 58px;
+  height: 58px;
+  border: 1px solid rgba(48,45,43,.3);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(.8);
+  transition: transform var(--journey-motion-standard) var(--journey-ease-move), border-color var(--journey-motion-micro) ease;
+  pointer-events: none;
+}
+.journey-causal-world .causal-authority > i::after { width: 72px; height: 72px; border-color: rgba(48,45,43,.1); }
+.journey-causal-world .causal-authority.is-reached > i::before { transform: translate(-50%, -50%) scale(1); border-color: #d84f49; }
+.journey-causal-world .causal-authority.is-reached > i::after { transform: translate(-50%, -50%) scale(1); }
+.journey-causal-world .causal-dns-thread { inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.journey-causal-world .causal-dns-world:not([data-dns-geometry-ready]) .causal-dns-thread,
+.journey-causal-world .causal-dns-world:not([data-dns-geometry-ready]) .causal-dns-query { visibility: hidden; }
+.journey-causal-world .causal-dns-world.is-hit .causal-dns-thread { visibility: hidden; }
+.journey-causal-world .causal-dns-query :is(small, span, b) { font-size: 12px !important; }
+.journey-causal-world .query-dns-answer,
+.journey-causal-world .query-dns-store { display: none; }
