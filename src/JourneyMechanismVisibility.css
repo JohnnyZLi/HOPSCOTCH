@@ -87,8 +87,6 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
 .journey-causal-world .causal-authority--authority small { top: -22px; }
 .journey-causal-world .causal-authority--tld span,
 .journey-causal-world .causal-authority--tld small { top: 16px; }
-.journey-causal-world .causal-authority::before { border-color: rgba(244,241,234,.16); }
-.journey-causal-world .causal-authority.is-reached::before { border-color: rgba(244,241,234,.42); }
 .journey-causal-world .causal-dns-query small,
 .journey-causal-world .causal-dns-query span,
 .journey-causal-world .causal-dns-query b {

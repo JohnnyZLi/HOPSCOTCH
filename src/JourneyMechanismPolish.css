@@ -242,22 +242,7 @@
   opacity: .36;
   transition: opacity .5s ease, transform .8s var(--causal-ease), color .5s ease;
 }
-.journey-causal-world .causal-authority::before,
-.journey-causal-world .causal-authority::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  border: 1px solid rgba(244,241,234,.1);
-  border-radius: 50%;
-  transform: translate(-50%,-50%) scale(.68);
-  transition: transform .9s var(--causal-ease), border-color .5s ease, opacity .5s ease;
-}
-.journey-causal-world .causal-authority::before { width: 72px; height: 72px; }
-.journey-causal-world .causal-authority::after { width: 102px; height: 102px; border-style: dashed; opacity: .45; }
 .journey-causal-world .causal-authority.is-reached { opacity: 1; transform: scale(1.05); }
-.journey-causal-world .causal-authority.is-reached::before { transform: translate(-50%,-50%) scale(1); border-color: rgba(244,241,234,.33); }
-.journey-causal-world .causal-authority.is-reached::after { transform: translate(-50%,-50%) scale(1) rotate(20deg); }
 .journey-causal-world .causal-authority.is-reached > i { background: var(--causal-focus); border-color: var(--causal-focus); box-shadow: none; }
 
 .journey-causal-world .causal-dns-query {
@@ -464,8 +449,6 @@
   .journey-causal-world .causal-object__address strong { font-size: 8px; }
   .causal-route-target { left: 50%; top: 27%; width: 200px; }
   .causal-route-bits i { height: 12px; }
-  .journey-causal-world .causal-authority::before { width: 48px; height: 48px; }
-  .journey-causal-world .causal-authority::after { width: 66px; height: 66px; }
   .journey-causal-world .causal-dns-query small,
   .journey-causal-world .causal-dns-query span,
   .journey-causal-world .causal-dns-query b { height: 24px; min-width: 24px; padding: 0 6px; font-size: 7px; }
@@ -479,7 +462,5 @@
   .causal-handoff-rail,
   .causal-route-bits i,
   .journey-causal-world .causal-authority,
-  .journey-causal-world .causal-authority::before,
-  .journey-causal-world .causal-authority::after,
   .journey-causal-world .causal-dns-query span { transition-duration: 0s !important; }
 }
