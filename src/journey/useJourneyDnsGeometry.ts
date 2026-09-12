@@ -67,7 +67,7 @@ export function useJourneyDnsGeometry(eventId: string, visible: boolean, progres
           [...actor.querySelectorAll('span, small')].filter(el => el.getBoundingClientRect().height > 0).map(box))];
         const dock = (anchor: Point): Point => {
           const candidates: { p: Point; overlap: number; distance: number }[] = [];
-          for (const gap of [44, 64, 84, 104, 124, 144]) {
+          for (let gap = 40; gap <= 144; gap += 8) {
             for (const direction of [-1, 1]) {
               const left = Math.max(viewport.left, Math.min(anchor.x - width / 2, viewport.right - width));
               const top = Math.max(minY, Math.min(anchor.y + direction * gap - height / 2, maxY - height));
