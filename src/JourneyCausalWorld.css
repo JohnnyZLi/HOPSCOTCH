@@ -645,7 +645,7 @@
 .causal-tls-server {
   position: absolute;
   left: 50%;
-  bottom: 8%;
+  bottom: 25%;
   display: grid;
   gap: 4px;
   min-width: 260px;
@@ -799,7 +799,7 @@
   .causal-client-hello { width: 240px; height: 140px; }
   .causal-phase-tls .causal-object { width: 220px; height: 110px; }
   .causal-phase-tls .causal-object__payload { inset: 16px 14px 16px 54px; }
-  .causal-tls-server { min-width: 210px; bottom: 4%; }
+  .causal-tls-server { min-width: 210px; }
   .causal-key-boundary { left: 22%; right: 22%; }
   .causal-phase-http .causal-object { width: 210px; height: 108px; }
   .causal-http-flight { width: 210px; height: 108px; transform: translate(-50%, -50%) scale(1.05); }

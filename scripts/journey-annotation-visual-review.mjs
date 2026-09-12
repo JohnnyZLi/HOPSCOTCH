@@ -227,6 +227,8 @@ async function inspectState(cdp) {
     const physicalObject=document.querySelector('[data-phase5b-physical="true"]');
     const boxes={callout:pick(callout),scene:pick(scene),stage:pick(stage),hud:pick(hud),toolbar:pick(toolbar),rail:pick(rail),depth:pick(depth)};
     const captionElement=document.querySelector('.causal-annotation:not([hidden])');
+    const tlsSelection=document.querySelector('.causal-tls-world:not([hidden]) .causal-tls-server');
+    const tlsSelectionRect=tlsSelection&&Number(getComputedStyle(tlsSelection).opacity)>.5?pick(tlsSelection):null;
     const caption=captionElement?{
       rect:pick(captionElement),
       title:captionElement.querySelector('strong')?.textContent,
@@ -236,6 +238,8 @@ async function inspectState(cdp) {
       summarySize:parseFloat(getComputedStyle(captionElement.querySelector('p')).fontSize),
       railOverlap:intersects(pick(captionElement),boxes.rail),
       hudOverlap:intersects(pick(captionElement),boxes.hud),
+      tlsSelectionOverlap:intersects(pick(captionElement),tlsSelectionRect),
+      tlsSelectionRailOverlap:intersects(tlsSelectionRect,boxes.rail),
     }:null;
     const railSurface=rail?(()=>{const style=getComputedStyle(rail);const workspace=document.querySelector('.journey-visual-workspace');const plate=workspace?getComputedStyle(workspace,'::after'):null;const alpha=(color)=>color==='transparent'?0:color.startsWith('rgba')?Number(color.slice(color.lastIndexOf(',')+1,-1).trim()):1;return {opacity:Number(style.opacity),backgroundAlpha:alpha(style.backgroundColor),plate:plate?{content:plate.content,backgroundAlpha:alpha(plate.backgroundColor),width:Number.parseFloat(plate.width),height:Number.parseFloat(plate.height),zIndex:Number(plate.zIndex)}:null}})():null;
     const markers=[...document.querySelectorAll('.visual-time-rail__events button')].map((button)=>{const r=button.getBoundingClientRect();return {label:button.getAttribute('aria-label')||'',width:r.width,height:r.height}});
@@ -556,6 +560,8 @@ async function auditViewport(cdp, origin, viewport) {
         assert.ok(state.caption.rect.left>=0&&state.caption.rect.right<=viewport.width&&state.caption.rect.top>=0&&state.caption.rect.bottom<=viewport.height,`${viewport.id}: caption is clipped.`);
         assert.equal(state.caption.railOverlap,false,`${viewport.id}: caption overlaps playback controls.`);
         assert.equal(state.caption.hudOverlap,false,`${viewport.id}: caption overlaps the HUD.`);
+        assert.equal(state.caption.tlsSelectionOverlap,false,`${viewport.id}: caption overlaps the TLS server selection.`);
+        assert.equal(state.caption.tlsSelectionRailOverlap,false,`${viewport.id}: TLS server selection overlaps playback controls.`);
       }
       assert.equal(state.causal.backgroundAlpha, 0, `${viewport.id}/${labels[index]}: the request mechanism regained an opaque card background.`);
       assert.equal(state.causal.backgroundImage, 'none', `${viewport.id}/${labels[index]}: the request mechanism regained a card gradient.`);
