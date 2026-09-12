@@ -171,23 +171,6 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-drawer__c
     linear-gradient(145deg, #ddd8d3, var(--journey-paper) 60%, #d1cbc5) !important;
 }
 
-.journey-causal-world .causal-field {
-  opacity: .62;
-  background:
-    radial-gradient(circle at 50% 48%, transparent 0 24%, rgba(41,40,39,.04) 24.2%, transparent 24.6%),
-    radial-gradient(circle at 50% 48%, transparent 0 42%, rgba(41,40,39,.03) 42.2%, transparent 42.5%);
-}
-.journey-causal-world .causal-field > i {
-  background: rgba(41,40,39,.42);
-  box-shadow: 0 0 0 2px rgba(41,40,39,.035);
-}
-.journey-causal-world .causal-field > span {
-  border-color: rgba(41,40,39,.055);
-}
-.journey-causal-world .causal-world-thread path {
-  stroke: rgba(41,40,39,.55);
-}
-
 .journey-causal-world .causal-mechanism-node {
   border-color: rgba(41,40,39,.34) !important;
   background:
@@ -249,10 +232,6 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-drawer__c
 .journey-causal-world .causal-tls-fields > div strong { color: #302d2b !important; }
 .journey-causal-world .causal-tls-fields > div.is-selected { border-color: rgba(41,40,39,.52) !important; }
 .journey-causal-world .causal-tls-server { border-color: rgba(41,40,39,.22) !important; }
-
-.journey-causal-world .causal-annotation strong { color: #4e4945 !important; }
-.journey-causal-world .causal-annotation small,
-.journey-causal-world .causal-continuity { color: #77716b !important; }
 
 /* Phase 5 object language: retain depth but swap opaque dark slabs for pale
    drafting surfaces and charcoal outlines. */

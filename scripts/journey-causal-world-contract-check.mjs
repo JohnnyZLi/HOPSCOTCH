@@ -63,6 +63,8 @@ assert.match(theater, /journey-callout-anchor/, 'The causal stage must replace l
 assert.match(theater, /key=\{mode === 'causal-world' \? mode : `\$\{state\.scale\}:\$\{mode\}`\}/, 'Scale changes must not remount the persistent causal world.');
 assert.doesNotMatch(theater, /<VisualWorkspaceShell[\s\S]{0,120}entrance=/, 'The Journey must animate its causal object at time zero without a title interstitial.');
 assert.match(component, /data-journey-causal-world="true"/);
+assert.doesNotMatch(component, /className="(?:causal-field|causal-world-thread|causal-continuity)"/, 'Unrelated decorative tracks must not paint behind protocol-owned paths.');
+assert.match(component, /data-caption-event=\{state\.activeEvent\.id\}/, 'The event caption must follow canonical event truth.');
 assert.match(component, /data-causal-object="request-01"/);
 assert.match(component, /causal-object__mechanism/);
 assert.match(component, /node-name/);

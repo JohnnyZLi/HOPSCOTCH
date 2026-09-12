@@ -226,6 +226,17 @@ async function inspectState(cdp) {
     const packetObject=document.querySelector('[data-phase5-packet-object="true"]');
     const physicalObject=document.querySelector('[data-phase5b-physical="true"]');
     const boxes={callout:pick(callout),scene:pick(scene),stage:pick(stage),hud:pick(hud),toolbar:pick(toolbar),rail:pick(rail),depth:pick(depth)};
+    const captionElement=document.querySelector('.causal-annotation:not([hidden])');
+    const caption=captionElement?{
+      rect:pick(captionElement),
+      title:captionElement.querySelector('strong')?.textContent,
+      event:captionElement.getAttribute('data-caption-event'),
+      currentEvent:document.querySelector('[data-causal-event]')?.getAttribute('data-causal-event'),
+      titleSize:parseFloat(getComputedStyle(captionElement.querySelector('strong')).fontSize),
+      summarySize:parseFloat(getComputedStyle(captionElement.querySelector('p')).fontSize),
+      railOverlap:intersects(pick(captionElement),boxes.rail),
+      hudOverlap:intersects(pick(captionElement),boxes.hud),
+    }:null;
     const railSurface=rail?(()=>{const style=getComputedStyle(rail);const workspace=document.querySelector('.journey-visual-workspace');const plate=workspace?getComputedStyle(workspace,'::after'):null;const alpha=(color)=>color==='transparent'?0:color.startsWith('rgba')?Number(color.slice(color.lastIndexOf(',')+1,-1).trim()):1;return {opacity:Number(style.opacity),backgroundAlpha:alpha(style.backgroundColor),plate:plate?{content:plate.content,backgroundAlpha:alpha(plate.backgroundColor),width:Number.parseFloat(plate.width),height:Number.parseFloat(plate.height),zIndex:Number(plate.zIndex)}:null}})():null;
     const markers=[...document.querySelectorAll('.visual-time-rail__events button')].map((button)=>{const r=button.getBoundingClientRect();return {label:button.getAttribute('aria-label')||'',width:r.width,height:r.height}});
     const hudValues=[...document.querySelectorAll('.visual-workspace__hud strong')].map((value)=>{const rect=value.getBoundingClientRect();const range=document.createRange();range.selectNodeContents(value);const lineTops=new Set([...range.getClientRects()].map((line)=>Math.round(line.top*10)/10));return {text:value.textContent?.trim()||'',clientWidth:value.clientWidth,scrollWidth:value.scrollWidth,whiteSpace:getComputedStyle(value).whiteSpace,visible:rect.width>0&&rect.height>0,lineCount:lineTops.size}});
@@ -306,6 +317,7 @@ async function inspectState(cdp) {
       markers,
       hudValues,
       causal,
+      caption,
       packet,
       physical,
       innerWidth,
@@ -538,6 +550,13 @@ async function auditViewport(cdp, origin, viewport) {
       assert.ok(state.hudValues.filter((value) => value.visible).every((value) => value.lineCount <= 2), `${viewport.id}/${labels[index]}: HUD value wraps into an orphan line: ${JSON.stringify(state.hudValues)}.`);
     }
     if (state.causal) {
+      if (state.caption) {
+        assert.equal(state.caption.event,state.caption.currentEvent,`${viewport.id}: stale event caption.`);
+        assert.ok(state.caption.titleSize>=16&&state.caption.summarySize>=14,`${viewport.id}: caption text is too small.`);
+        assert.ok(state.caption.rect.left>=0&&state.caption.rect.right<=viewport.width&&state.caption.rect.top>=0&&state.caption.rect.bottom<=viewport.height,`${viewport.id}: caption is clipped.`);
+        assert.equal(state.caption.railOverlap,false,`${viewport.id}: caption overlaps playback controls.`);
+        assert.equal(state.caption.hudOverlap,false,`${viewport.id}: caption overlaps the HUD.`);
+      }
       assert.equal(state.causal.backgroundAlpha, 0, `${viewport.id}/${labels[index]}: the request mechanism regained an opaque card background.`);
       assert.equal(state.causal.backgroundImage, 'none', `${viewport.id}/${labels[index]}: the request mechanism regained a card gradient.`);
       assert.equal(state.causal.borderRadius, '0px', `${viewport.id}/${labels[index]}: the request mechanism regained rounded card chrome.`);

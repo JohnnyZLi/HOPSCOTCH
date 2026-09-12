@@ -87,9 +87,6 @@ html body:has(.journey-causal-world) .explore-trigger span {
 .journey-causal-world .causal-mechanism-axis {
   opacity: .82;
 }
-.journey-causal-world .causal-annotation {
-  opacity: .9;
-}
 
 @media (max-width: 680px) {
   html body:has(.journey-causal-world) .topbar {

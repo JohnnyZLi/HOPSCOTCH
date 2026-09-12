@@ -163,10 +163,6 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
 .journey-causal-world .causal-tls-leaders { opacity: .7; }
 
 /* Annotations are secondary, but readable. */
-.journey-causal-world .causal-annotation { opacity: .8; }
-.journey-causal-world .causal-annotation strong { color: #c9c4bc; }
-.journey-causal-world .causal-annotation small { color: #8f8a82; }
-.journey-causal-world .causal-continuity { color: #8f8a82; opacity: .68; }
 
 @media (max-width: 680px) {
   /* Restore the compact namespace footprint from the base mobile layout. The
@@ -190,9 +186,6 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
 
 /* Quiet is not invisible. The controls and annotation layer keep enough
    luminance to be discoverable without taking the hero away from the motion. */
-.journey-causal-world .causal-annotation { opacity: .92; }
-.journey-causal-world .causal-annotation strong { color: #ddd8cf; }
-.journey-causal-world .causal-annotation small { color: #aaa49b; }
 .journey-causal-world .causal-authority small,
 .journey-causal-world .causal-route-choice small,
 .journey-causal-world .causal-client-hello > strong,
@@ -280,31 +273,6 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
 
 /* The continuity rail now communicates current state instead of permanently
    highlighting its final label. Earlier milestones remain completed but quiet. */
-.journey-causal-world .causal-continuity span {
-  color: #77736d !important;
-  transition: color .35s ease, opacity .35s ease;
-}
-.journey-causal-world .causal-continuity i { background: rgba(244,241,234,.15); }
-.journey-causal-world.has-address .causal-continuity span:nth-of-type(1),
-.journey-causal-world.has-address .causal-continuity span:nth-of-type(2),
-.journey-causal-world.has-route .causal-continuity span:nth-of-type(3),
-.journey-causal-world.has-connection .causal-continuity span:nth-of-type(4),
-.journey-causal-world.has-connection .causal-continuity span:nth-of-type(5),
-.journey-causal-world.has-protection .causal-continuity span:nth-of-type(6) {
-  color: #a7a29a !important;
-}
-.journey-causal-world.causal-phase-intent .causal-continuity span:nth-of-type(1),
-.journey-causal-world.causal-phase-dns .causal-continuity span:nth-of-type(2),
-.journey-causal-world.causal-phase-route .causal-continuity span:nth-of-type(3),
-.journey-causal-world.causal-phase-path .causal-continuity span:nth-of-type(4),
-.journey-causal-world.causal-phase-tcp .causal-continuity span:nth-of-type(5),
-.journey-causal-world.causal-phase-tls .causal-continuity span:nth-of-type(6),
-.journey-causal-world.causal-phase-http .causal-continuity span:nth-of-type(6),
-.journey-causal-world.causal-phase-packet .causal-continuity span:nth-of-type(6),
-.journey-causal-world.causal-phase-response .causal-continuity span:nth-of-type(6),
-.journey-causal-world.causal-phase-complete .causal-continuity span:nth-of-type(6) {
-  color: #f0ede6 !important;
-}
 
 /* The connection stages were visually too small on wide displays. Bring the
    camera closer while leaving the packet stages unchanged. */
@@ -344,12 +312,6 @@ html body .journey-visual-workspace:has(.journey-causal-world) .visual-time-rail
   .journey-causal-world .phase5-stage-exploded .phase5c-protagonist {
     width: 92vw;
     transform: translate(-50%, -50%) rotateX(3deg) rotateY(-4deg) scale(.66);
-  }
-
-  .journey-causal-world .causal-continuity {
-    right: 16px;
-    bottom: 78px;
-    opacity: .76;
   }
 }
 

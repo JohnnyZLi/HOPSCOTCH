@@ -19,10 +19,6 @@
     linear-gradient(150deg, #161617, #0f0f10 66%);
 }
 
-.journey-causal-world .causal-field { opacity: .46; }
-.journey-causal-world .causal-world-thread { opacity: .2; }
-.journey-causal-world .causal-world-thread path { stroke: rgba(244,241,234,.62); stroke-width: .68; }
-
 /* Playback chrome should recede, not disappear. */
 .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar:hover,
 .journey-visual-workspace:has(.journey-causal-world) .visual-workspace__toolbar:focus-within,
@@ -390,10 +386,6 @@
 .packet-stage-collapsed .causal-phase5-layer--assembly { opacity: 1; transform: scale(1); }
 
 /* Quieter annotations with readable contrast. */
-.journey-causal-world .causal-annotation { opacity: .68; }
-.journey-causal-world .causal-annotation small,
-.journey-causal-world .causal-continuity { color: #969189; }
-.journey-causal-world .causal-continuity { opacity: .58; }
 
 /* Legacy modifier/failure scenes keep their semantics but inherit the restrained material language. */
 .journey-visual-workspace:not(:has(.journey-causal-world)) .journey-cinematic-stage,

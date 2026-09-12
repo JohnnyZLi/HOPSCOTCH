@@ -1,6 +1,4 @@
 /* Keyframed motion that cannot be normalized by transition tokens alone. */
-
-.journey-causal-world .causal-world-thread { transition: opacity var(--journey-motion-standard) ease !important; }
 .journey-causal-world .causal-dns-world,
 .journey-causal-world .causal-route-world,
 .journey-causal-world .causal-tcp-world,
