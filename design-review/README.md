@@ -22,6 +22,7 @@ the existing synthetic tests. Run these from `design-review/source/` after a bui
 
 ```sh
 node complete-review/check-source-semantics.mjs
+node complete-review/check-network-framing.mjs
 node complete-review/check-bounded-composition.mjs
 node complete-review/check-composition-motion.mjs
 node complete-review/check-related-motion.mjs

@@ -33,7 +33,7 @@ Immediate screenshots after actions sometimes contain the previous compositor
 frame even when the accessibility tree has updated. Settled follow-up images
 were used before classifying a persistent defect.
 
-## Implemented repairs, pending deployed visual recheck
+## Implemented repairs — deployed in PR #200
 
 - Data-driven state-field formatting uses consecutive canonical TCP states to
   show actual congestion-window/threshold transitions and recovery phase.
@@ -53,3 +53,46 @@ were used before classifying a persistent defect.
 No source event, state, timestamp, packet byte, or canonical fixture bundle was
 edited. This focused audit does not establish acceptance for all workspaces,
 scenario variants, continuous frames, Safari, physical devices, or accessibility.
+
+## Deployed recheck
+
+Production commit: `a52479111b0598e46fd8f4d68ab798c98a5618ae`. All required
+GitHub checks and the Cloudflare production build succeeded. Live observations:
+
+- The 390-pixel light TCP fast-recovery card now shows 6 MSS cwnd and the actual
+  12 MSS → 3 MSS threshold change. The reader follows the changed source fields.
+- The 320 × 640 dark retransmit view fits its controls, retained-state dock, and
+  bounded source-glyph reader. The common field font remains unchanged.
+- Active resize from 320 × 640 to 390 × 844 keeps the composition top within
+  one CSS pixel of the viewport top; the source sequence continues through
+  recovery and forward progress.
+- The final 390 × 844 dark TLS card shows Application traffic: Ready, Server
+  certificate: Valid, Application protocol: h2, while retaining the channel dock.
+  It stays visible when playback completes. See `tls-outcome-after.jpg`.
+- Opening the full-state disclosure exposes TLS 1.3,
+  TLS_AES_128_GCM_SHA256, X25519, symbolic key classes, and the exact transcript.
+
+## Additional observations and Builder repair
+
+The wider live pass reconfirmed two open design failures: Journey DNS wire events
+are rendered as local metadata cards, and GRE replaces the visible inner packet
+instead of enclosing it. MPLS still renders operation text without persistent
+payload/label choreography. These are not accepted as complete integrations.
+
+At 390 pixels, Builder's Frame network clips CLIENT and APP. Browser DOM bounds
+confirm CLIENT spans x = −74.3…−6.3 and APP x = 394.9…449.3 inside a map spanning
+x = 16…359. See `builder-frame-before.jpg`. The camera uses a fixed 0.85 minimum
+zoom, which prevents an actual fit.
+
+The prepared repair uses a reusable geometric frame for the full world and the
+actual selected forwarding path, including routed connection points. Zoom out
+respects that derived fit and cannot jump back to 0.85. Framing contracts verify
+all relevant node corners and route points fit at four widths and preserve
+configuration/history/device selection. Its deployed visual recheck is pending.
+
+The migration smoke pass also loaded the narrow Evidence and Connected studies.
+In Capture, selecting TCP and captured byte 47 (`02`) selects the SYN Flags field
+while preserving frame #1 and all 54 captured bytes. In Connected, opening TCP
+from Journey's SYN-ACK at 5320 ms and returning restores that exact event/time and
+the Details pane. The companion still presents an independent model reference;
+this does not establish full workspace integration.
