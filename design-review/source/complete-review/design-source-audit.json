@@ -1,0 +1,74 @@
+{
+  "kind": "Current emitted-source consistency audit; no live-browser or full visual signoff",
+  "sources": [
+    {
+      "path": "/workspace/hopscotch-causal-lifecycle.html",
+      "checks": {
+        "source_digest": true,
+        "fragment_under_1mb": true,
+        "script_syntax": true,
+        "real_shell_background": true,
+        "working_area_ambient": true,
+        "semantic_action_role": true,
+        "active_depth_shadows_use_shadow_roles": true,
+        "no_network_calls": true,
+        "unique_root": true,
+        "no_unexpanded_tokens": true
+      },
+      "emitted_javascript_sha256": "848b25912c33d3855f4605d1fb478233e22d818ac4ab3f1340b28044e15211ad"
+    },
+    {
+      "path": "/workspace/hopscotch-builder-workbench.html",
+      "checks": {
+        "source_digest": true,
+        "fragment_under_1mb": true,
+        "script_syntax": true,
+        "real_shell_background": true,
+        "working_area_ambient": true,
+        "semantic_action_role": true,
+        "active_depth_shadows_use_shadow_roles": true,
+        "no_network_calls": true,
+        "unique_root": true,
+        "no_unexpanded_tokens": true
+      },
+      "emitted_javascript_sha256": "83427d6c33b93f1c8115892886e315434ebc8b5dd6da1a69a1cdb1126593c38e"
+    },
+    {
+      "path": "/workspace/hopscotch-evidence-workspaces.html",
+      "checks": {
+        "source_digest": true,
+        "fragment_under_1mb": true,
+        "script_syntax": true,
+        "real_shell_background": true,
+        "working_area_ambient": true,
+        "semantic_action_role": true,
+        "active_depth_shadows_use_shadow_roles": true,
+        "no_network_calls": true,
+        "unique_root": true,
+        "no_unexpanded_tokens": true
+      },
+      "emitted_javascript_sha256": "7dc7f78b10f12ac4eb9b2736f4f200d655ee0c747c826ed35c4b4010087473df"
+    }
+  ],
+  "accepted_foundations_unchanged": true,
+  "shared_font": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+  "inherited_shadow": "The extracted foundation has an earlier foreground-based transfer shadow. The later equal-specificity review role overrides it; actor, lens, transfer and envelope effective shadows were reviewed.",
+  "final_change": "CSS-only envelope shadow and table-fact button role repairs; emitted JavaScript digests unchanged from the completed functional/TCP phase run.",
+  "final_source_manifest": [
+    {
+      "path": "/workspace/hopscotch-causal-lifecycle.html",
+      "bytes": 477866,
+      "sha256": "7c91b099c805c741ccc506049aac6df1640447d37968c8c0771b4a85307b32bd"
+    },
+    {
+      "path": "/workspace/hopscotch-builder-workbench.html",
+      "bytes": 806438,
+      "sha256": "fb406b7a693460388bb66ac7da9675706724f4bd1f88b28d7daf7b9d7eae718f"
+    },
+    {
+      "path": "/workspace/hopscotch-evidence-workspaces.html",
+      "bytes": 590668,
+      "sha256": "27746bbeb079aaa42517370910799b6c884eac2ce8aff719f6a965a34b0a055e"
+    }
+  ]
+}

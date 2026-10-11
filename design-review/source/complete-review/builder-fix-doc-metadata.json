@@ -1,0 +1,38 @@
+[
+  {
+    "name": "HOPSCOTCH-Design-Specification.md",
+    "version": "36",
+    "bytes": 228046,
+    "ref": "libfile_db06f314f3488191a2bbcedebed36b13"
+  },
+  {
+    "name": "HOPSCOTCH-Author-Audit.md",
+    "version": "2",
+    "bytes": 8575,
+    "ref": "libfile_788505d44e9081919d3c5eebfb2d77ba"
+  },
+  {
+    "name": "HOPSCOTCH-Final-Manual-Review.md",
+    "version": null,
+    "bytes": 9022,
+    "ref": "libfile_0b03e90a22a8819183575dffe7458fa1"
+  },
+  {
+    "name": "HOPSCOTCH-Design-Review-Plan.md",
+    "version": "31",
+    "bytes": 98364,
+    "ref": "libfile_e8b8443c04348191b0638576bd794973"
+  },
+  {
+    "name": "HOPSCOTCH-Workspace-Coverage.md",
+    "version": "4",
+    "bytes": 35630,
+    "ref": "libfile_d720ea26090c8191a925aa4de7f14db6"
+  },
+  {
+    "name": "HOPSCOTCH-Implementation-Handoff.md",
+    "version": "4",
+    "bytes": 42395,
+    "ref": "libfile_853294284678819195f1ab72fd5d77f0"
+  }
+]

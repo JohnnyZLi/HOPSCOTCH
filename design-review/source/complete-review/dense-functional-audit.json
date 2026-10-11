@@ -1,0 +1,48 @@
+{
+  "kind": "Actual emitted native disclosure/table runtime; synthetic geometry and fonts only",
+  "cases": [
+    {
+      "width": 320,
+      "systems": 12
+    },
+    {
+      "width": 390,
+      "systems": 12
+    },
+    {
+      "width": 736,
+      "systems": 12
+    },
+    {
+      "width": 1024,
+      "systems": 12
+    },
+    {
+      "width": 1440,
+      "systems": 12
+    }
+  ],
+  "checks": 26075,
+  "source_manifest": [
+    {
+      "path": "/workspace/hopscotch-causal-lifecycle.html",
+      "bytes": 525430,
+      "sha256": "bbccd0ddbb3e823ee4a05a53dd515c4385b0bf27efba3ebc013ea7ca54ba1ed7"
+    },
+    {
+      "path": "/workspace/hopscotch-builder-workbench.html",
+      "bytes": 848889,
+      "sha256": "7150ebfb3c57d6e96a1e2d26afa9902aa688523270abb30bb23cc53b94668dc0"
+    },
+    {
+      "path": "/workspace/hopscotch-evidence-workspaces.html",
+      "bytes": 631627,
+      "sha256": "6cfa86fd423b72f7ff46c2902ba668fa0de257cc68faa4047119c4397e25c726"
+    },
+    {
+      "path": "/workspace/hopscotch-connected-workspaces.html",
+      "bytes": 503867,
+      "sha256": "3e6cbc7de37c27680b88dc0c7134ad1d0b3ce9d4ebd01113bbd5c9fe0a524433"
+    }
+  ]
+}

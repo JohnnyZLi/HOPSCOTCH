@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Viewport review · HOPSCOTCH</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#e7ecf2;color:#172332;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    header{padding:12px 20px;background:#f7f9fc;border-bottom:1px solid #c7d2df;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+    a{color:inherit}label{display:flex;gap:6px;align-items:center}select{font:inherit;padding:8px;border:1px solid #afbdcd;border-radius:8px;background:white;color:inherit}
+    p{margin:0;font-size:12px;color:#4b5c70}main{overflow:auto;padding:20px;min-height:calc(100vh - 100px)}iframe{display:block;background:white;border:0;box-shadow:0 6px 24px #17233222;margin:auto;width:390px;height:844px}
+    :focus-visible{outline:3px solid #2675d5;outline-offset:3px}
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/review/">Review index</a>
+    <label>Study <select id="study"><option value="lifecycle">Packet lifecycle</option><option value="builder">Network Builder</option><option value="evidence">Evidence workspaces</option><option value="connected">Connected workspaces</option></select></label>
+    <label>Width <select id="width"><option>320</option><option selected>390</option><option>1024</option><option>1440</option></select></label>
+    <label>Height <select id="height"><option>640</option><option selected>844</option><option>1000</option></select></label>
+    <p>CSS viewport sizes in this browser. Physical devices, touch behavior, and Safari require separate checks.</p>
+  </header>
+  <main><iframe id="preview" title="Design review viewport" src="/review/lifecycle.html"></iframe></main>
+  <script>
+    const frame=document.getElementById('preview');
+    document.getElementById('study').addEventListener('change',event=>{frame.src='/review/'+event.target.value+'.html';});
+    for(const axis of ['width','height'])document.getElementById(axis).addEventListener('change',event=>{frame.style[axis]=event.target.value+'px';});
+  </script>
+</body>
+</html>

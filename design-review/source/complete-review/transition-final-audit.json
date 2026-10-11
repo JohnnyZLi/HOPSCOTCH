@@ -1,0 +1,32 @@
+{
+  "source_manifest": [
+    {
+      "path": "/workspace/hopscotch-causal-lifecycle.html",
+      "bytes": 479462,
+      "sha256": "8af72e817a79b09e16a16dd50321f03ce5b12e1cbfe69bb724118150e9c0f91a"
+    },
+    {
+      "path": "/workspace/hopscotch-builder-workbench.html",
+      "bytes": 808527,
+      "sha256": "b1bcfcac226545a3f9d06167a5d580c32e8a406fbcf824a2186ee26f283b98d9"
+    },
+    {
+      "path": "/workspace/hopscotch-evidence-workspaces.html",
+      "bytes": 592413,
+      "sha256": "04c35831bec3c51e353d39366aa62baed9e3930d9a23b05a33bfc8c30d7a7712"
+    },
+    {
+      "path": "/workspace/hopscotch-connected-workspaces.html",
+      "bytes": 457370,
+      "sha256": "8475da74d9c52cfdaed58169ac1c7a1e37f611778abf10d6e734b4cd5793e898"
+    }
+  ],
+  "checks": [
+    "height changes retain shared-anchor transit",
+    "width changes cancel obsolete geometry",
+    "captured byte/field return context remains exact",
+    "visible share path retains non-event exact time",
+    "captured field focus survives selection redraw"
+  ],
+  "kind": "Emitted scripts in synthetic DOM; no pixel/motion certification"
+}

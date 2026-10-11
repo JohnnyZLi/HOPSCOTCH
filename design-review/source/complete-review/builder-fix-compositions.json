@@ -1,0 +1,1775 @@
+[
+  {
+    "width": 390,
+    "plan": {
+      "nodes": [
+        {
+          "id": "app",
+          "label": "APP",
+          "kind": "endpoint",
+          "builtin": true,
+          "x": 664,
+          "y": 232,
+          "w": 48,
+          "radius": 15,
+          "h": 48,
+          "labelLines": [
+            "APP"
+          ],
+          "sides": [
+            [],
+            [],
+            [
+              {
+                "id": "core-app",
+                "order": 408
+              }
+            ],
+            []
+          ],
+          "ports": {
+            "core-app": {
+              "pt": [
+                640,
+                232
+              ],
+              "stub": [
+                624,
+                232
+              ],
+              "dir": 4
+            }
+          }
+        },
+        {
+          "id": "client",
+          "label": "CLIENT",
+          "kind": "endpoint",
+          "builtin": true,
+          "x": 120,
+          "y": 232,
+          "w": 80,
+          "radius": 15,
+          "h": 48,
+          "labelLines": [
+            "CLIENT"
+          ],
+          "sides": [
+            [
+              {
+                "id": "client-edge",
+                "order": 408
+              }
+            ],
+            [],
+            [],
+            []
+          ],
+          "ports": {
+            "client-edge": {
+              "pt": [
+                160,
+                232
+              ],
+              "stub": [
+                176,
+                232
+              ],
+              "dir": 0
+            }
+          }
+        },
+        {
+          "id": "core",
+          "label": "CORE",
+          "kind": "router",
+          "builtin": true,
+          "x": 520,
+          "y": 232,
+          "w": 64,
+          "radius": 15,
+          "h": 64,
+          "labelLines": [
+            "CORE"
+          ],
+          "sides": [
+            [
+              {
+                "id": "core-app",
+                "order": 408
+              }
+            ],
+            [],
+            [
+              {
+                "id": "r1-core",
+                "order": 280
+              },
+              {
+                "id": "r2-core",
+                "order": 544
+              }
+            ],
+            []
+          ],
+          "ports": {
+            "core-app": {
+              "pt": [
+                552,
+                232
+              ],
+              "stub": [
+                568,
+                232
+              ],
+              "dir": 0
+            },
+            "r1-core": {
+              "pt": [
+                488,
+                224
+              ],
+              "stub": [
+                472,
+                224
+              ],
+              "dir": 4
+            },
+            "r2-core": {
+              "pt": [
+                488,
+                232
+              ],
+              "stub": [
+                472,
+                232
+              ],
+              "dir": 4
+            }
+          }
+        },
+        {
+          "id": "edge",
+          "label": "EDGE",
+          "kind": "router",
+          "builtin": true,
+          "x": 240,
+          "y": 232,
+          "w": 64,
+          "radius": 15,
+          "h": 48,
+          "labelLines": [
+            "EDGE"
+          ],
+          "sides": [
+            [],
+            [
+              {
+                "id": "edge-r2",
+                "order": 368
+              }
+            ],
+            [
+              {
+                "id": "client-edge",
+                "order": 408
+              }
+            ],
+            [
+              {
+                "id": "edge-r1",
+                "order": 368
+              }
+            ]
+          ],
+          "ports": {
+            "edge-r2": {
+              "pt": [
+                240,
+                256
+              ],
+              "stub": [
+                240,
+                272
+              ],
+              "dir": 2
+            },
+            "client-edge": {
+              "pt": [
+                208,
+                232
+              ],
+              "stub": [
+                192,
+                232
+              ],
+              "dir": 4
+            },
+            "edge-r1": {
+              "pt": [
+                240,
+                208
+              ],
+              "stub": [
+                240,
+                192
+              ],
+              "dir": 6
+            }
+          }
+        },
+        {
+          "id": "r1",
+          "label": "R1",
+          "kind": "router",
+          "builtin": true,
+          "x": 360,
+          "y": 104,
+          "w": 64,
+          "radius": 15,
+          "h": 48,
+          "labelLines": [
+            "R1"
+          ],
+          "sides": [
+            [
+              {
+                "id": "r1-core",
+                "order": 408
+              }
+            ],
+            [
+              {
+                "id": "edge-r1",
+                "order": 240
+              },
+              {
+                "id": "r1-r2",
+                "order": 368
+              }
+            ],
+            [],
+            []
+          ],
+          "ports": {
+            "r1-core": {
+              "pt": [
+                392,
+                104
+              ],
+              "stub": [
+                408,
+                104
+              ],
+              "dir": 0
+            },
+            "edge-r1": {
+              "pt": [
+                352,
+                128
+              ],
+              "stub": [
+                352,
+                144
+              ],
+              "dir": 2
+            },
+            "r1-r2": {
+              "pt": [
+                360,
+                128
+              ],
+              "stub": [
+                360,
+                144
+              ],
+              "dir": 2
+            }
+          }
+        },
+        {
+          "id": "r2",
+          "label": "R2",
+          "kind": "router",
+          "builtin": true,
+          "x": 360,
+          "y": 368,
+          "w": 64,
+          "radius": 15,
+          "h": 48,
+          "labelLines": [
+            "R2"
+          ],
+          "sides": [
+            [
+              {
+                "id": "r2-core",
+                "order": 408
+              }
+            ],
+            [],
+            [],
+            [
+              {
+                "id": "edge-r2",
+                "order": 240
+              },
+              {
+                "id": "r1-r2",
+                "order": 368
+              }
+            ]
+          ],
+          "ports": {
+            "r2-core": {
+              "pt": [
+                392,
+                368
+              ],
+              "stub": [
+                408,
+                368
+              ],
+              "dir": 0
+            },
+            "edge-r2": {
+              "pt": [
+                352,
+                344
+              ],
+              "stub": [
+                352,
+                328
+              ],
+              "dir": 6
+            },
+            "r1-r2": {
+              "pt": [
+                360,
+                344
+              ],
+              "stub": [
+                360,
+                328
+              ],
+              "dir": 6
+            }
+          }
+        }
+      ],
+      "width": 768,
+      "height": 472,
+      "links": [
+        {
+          "id": "r1-r2",
+          "a": "r1",
+          "b": "r2",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              360,
+              128
+            ],
+            [
+              360,
+              344
+            ]
+          ]
+        },
+        {
+          "id": "r2-core",
+          "a": "r2",
+          "b": "core",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              392,
+              368
+            ],
+            [
+              408,
+              368
+            ],
+            [
+              472,
+              304
+            ],
+            [
+              472,
+              232
+            ],
+            [
+              488,
+              232
+            ]
+          ]
+        },
+        {
+          "id": "r1-core",
+          "a": "r1",
+          "b": "core",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              392,
+              104
+            ],
+            [
+              408,
+              104
+            ],
+            [
+              472,
+              168
+            ],
+            [
+              472,
+              224
+            ],
+            [
+              488,
+              224
+            ]
+          ]
+        },
+        {
+          "id": "edge-r2",
+          "a": "edge",
+          "b": "r2",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              240,
+              256
+            ],
+            [
+              240,
+              272
+            ],
+            [
+              296,
+              328
+            ],
+            [
+              352,
+              328
+            ],
+            [
+              352,
+              344
+            ]
+          ]
+        },
+        {
+          "id": "edge-r1",
+          "a": "edge",
+          "b": "r1",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              240,
+              208
+            ],
+            [
+              240,
+              144
+            ],
+            [
+              352,
+              144
+            ],
+            [
+              352,
+              128
+            ]
+          ]
+        },
+        {
+          "id": "core-app",
+          "a": "core",
+          "b": "app",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              552,
+              232
+            ],
+            [
+              640,
+              232
+            ]
+          ]
+        },
+        {
+          "id": "client-edge",
+          "a": "client",
+          "b": "edge",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              160,
+              232
+            ],
+            [
+              208,
+              232
+            ]
+          ]
+        }
+      ],
+      "report": {
+        "shared": 0,
+        "collisions": 0,
+        "crossings": 0,
+        "shallow": 0,
+        "contacts": 0,
+        "duplicatePorts": 0,
+        "bends": 11
+      },
+      "score": 120.39042984922165
+    },
+    "camera": {
+      "x": -147.39999999999998,
+      "y": -30.599999999999994,
+      "z": 0.85
+    },
+    "viewport": {
+      "w": 358,
+      "h": 340
+    },
+    "crossings": [],
+    "status": {
+      "title": "Ping delivered",
+      "detail": "APP replied · simulated RTT 40 ms · path MTU 1500 · NAT state matched.",
+      "source": "Live · event 5"
+    },
+    "disclosure": {
+      "title": "Selection and reusable authoring tools›",
+      "mid": {
+        "wanted": true,
+        "progress": 0.7027816115427158,
+        "height": 126.50069007768884,
+        "targetHeight": 180,
+        "moving": true
+      },
+      "settled": {
+        "wanted": true,
+        "progress": 1,
+        "height": 180,
+        "targetHeight": 180,
+        "moving": false
+      }
+    },
+    "manifest": [
+      {
+        "path": "/workspace/hopscotch-causal-lifecycle.html",
+        "bytes": 496743,
+        "sha256": "d14f202fbf92127ad7545b625d701221f2361b1fcfd354eb3088c5fe3082579f"
+      },
+      {
+        "path": "/workspace/hopscotch-builder-workbench.html",
+        "bytes": 826024,
+        "sha256": "a9d57aab75a6f94c6f3ff9ccc33df25eebc1f1cb05e0245e654a3530cd0c27c5"
+      },
+      {
+        "path": "/workspace/hopscotch-evidence-workspaces.html",
+        "bytes": 609646,
+        "sha256": "0ebe1b4d10182637f412a97aaa2a38043afbe9de84efbf27cfe0d84ff0dcc61c"
+      },
+      {
+        "path": "/workspace/hopscotch-connected-workspaces.html",
+        "bytes": 474735,
+        "sha256": "8194c9e8df00ebcf21d73c46493362ced0c8e913b5fecc492d76cded99236424"
+      }
+    ]
+  },
+  {
+    "width": 736,
+    "plan": {
+      "nodes": [
+        {
+          "id": "app",
+          "label": "APP",
+          "kind": "endpoint",
+          "builtin": true,
+          "x": 664,
+          "y": 232,
+          "w": 48,
+          "radius": 15,
+          "h": 48,
+          "labelLines": [
+            "APP"
+          ],
+          "sides": [
+            [],
+            [],
+            [
+              {
+                "id": "core-app",
+                "order": 408
+              }
+            ],
+            []
+          ],
+          "ports": {
+            "core-app": {
+              "pt": [
+                640,
+                232
+              ],
+              "stub": [
+                624,
+                232
+              ],
+              "dir": 4
+            }
+          }
+        },
+        {
+          "id": "client",
+          "label": "CLIENT",
+          "kind": "endpoint",
+          "builtin": true,
+          "x": 120,
+          "y": 232,
+          "w": 80,
+          "radius": 15,
+          "h": 48,
+          "labelLines": [
+            "CLIENT"
+          ],
+          "sides": [
+            [
+              {
+                "id": "client-edge",
+                "order": 408
+              }
+            ],
+            [],
+            [],
+            []
+          ],
+          "ports": {
+            "client-edge": {
+              "pt": [
+                160,
+                232
+              ],
+              "stub": [
+                176,
+                232
+              ],
+              "dir": 0
+            }
+          }
+        },
+        {
+          "id": "core",
+          "label": "CORE",
+          "kind": "router",
+          "builtin": true,
+          "x": 520,
+          "y": 232,
+          "w": 64,
+          "radius": 15,
+          "h": 64,
+          "labelLines": [
+            "CORE"
+          ],
+          "sides": [
+            [
+              {
+                "id": "core-app",
+                "order": 408
+              }
+            ],
+            [],
+            [
+              {
+                "id": "r1-core",
+                "order": 280
+              },
+              {
+                "id": "r2-core",
+                "order": 544
+              }
+            ],
+            []
+          ],
+          "ports": {
+            "core-app": {
+              "pt": [
+                552,
+                232
+              ],
+              "stub": [
+                568,
+                232
+              ],
+              "dir": 0
+            },
+            "r1-core": {
+              "pt": [
+                488,
+                224
+              ],
+              "stub": [
+                472,
+                224
+              ],
+              "dir": 4
+            },
+            "r2-core": {
+              "pt": [
+                488,
+                232
+              ],
+              "stub": [
+                472,
+                232
+              ],
+              "dir": 4
+            }
+          }
+        },
+        {
+          "id": "edge",
+          "label": "EDGE",
+          "kind": "router",
+          "builtin": true,
+          "x": 240,
+          "y": 232,
+          "w": 64,
+          "radius": 15,
+          "h": 48,
+          "labelLines": [
+            "EDGE"
+          ],
+          "sides": [
+            [],
+            [
+              {
+                "id": "edge-r2",
+                "order": 368
+              }
+            ],
+            [
+              {
+                "id": "client-edge",
+                "order": 408
+              }
+            ],
+            [
+              {
+                "id": "edge-r1",
+                "order": 368
+              }
+            ]
+          ],
+          "ports": {
+            "edge-r2": {
+              "pt": [
+                240,
+                256
+              ],
+              "stub": [
+                240,
+                272
+              ],
+              "dir": 2
+            },
+            "client-edge": {
+              "pt": [
+                208,
+                232
+              ],
+              "stub": [
+                192,
+                232
+              ],
+              "dir": 4
+            },
+            "edge-r1": {
+              "pt": [
+                240,
+                208
+              ],
+              "stub": [
+                240,
+                192
+              ],
+              "dir": 6
+            }
+          }
+        },
+        {
+          "id": "r1",
+          "label": "R1",
+          "kind": "router",
+          "builtin": true,
+          "x": 360,
+          "y": 104,
+          "w": 64,
+          "radius": 15,
+          "h": 48,
+          "labelLines": [
+            "R1"
+          ],
+          "sides": [
+            [
+              {
+                "id": "r1-core",
+                "order": 408
+              }
+            ],
+            [
+              {
+                "id": "edge-r1",
+                "order": 240
+              },
+              {
+                "id": "r1-r2",
+                "order": 368
+              }
+            ],
+            [],
+            []
+          ],
+          "ports": {
+            "r1-core": {
+              "pt": [
+                392,
+                104
+              ],
+              "stub": [
+                408,
+                104
+              ],
+              "dir": 0
+            },
+            "edge-r1": {
+              "pt": [
+                352,
+                128
+              ],
+              "stub": [
+                352,
+                144
+              ],
+              "dir": 2
+            },
+            "r1-r2": {
+              "pt": [
+                360,
+                128
+              ],
+              "stub": [
+                360,
+                144
+              ],
+              "dir": 2
+            }
+          }
+        },
+        {
+          "id": "r2",
+          "label": "R2",
+          "kind": "router",
+          "builtin": true,
+          "x": 360,
+          "y": 368,
+          "w": 64,
+          "radius": 15,
+          "h": 48,
+          "labelLines": [
+            "R2"
+          ],
+          "sides": [
+            [
+              {
+                "id": "r2-core",
+                "order": 408
+              }
+            ],
+            [],
+            [],
+            [
+              {
+                "id": "edge-r2",
+                "order": 240
+              },
+              {
+                "id": "r1-r2",
+                "order": 368
+              }
+            ]
+          ],
+          "ports": {
+            "r2-core": {
+              "pt": [
+                392,
+                368
+              ],
+              "stub": [
+                408,
+                368
+              ],
+              "dir": 0
+            },
+            "edge-r2": {
+              "pt": [
+                352,
+                344
+              ],
+              "stub": [
+                352,
+                328
+              ],
+              "dir": 6
+            },
+            "r1-r2": {
+              "pt": [
+                360,
+                344
+              ],
+              "stub": [
+                360,
+                328
+              ],
+              "dir": 6
+            }
+          }
+        }
+      ],
+      "width": 768,
+      "height": 472,
+      "links": [
+        {
+          "id": "r1-r2",
+          "a": "r1",
+          "b": "r2",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              360,
+              128
+            ],
+            [
+              360,
+              344
+            ]
+          ]
+        },
+        {
+          "id": "r2-core",
+          "a": "r2",
+          "b": "core",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              392,
+              368
+            ],
+            [
+              408,
+              368
+            ],
+            [
+              472,
+              304
+            ],
+            [
+              472,
+              232
+            ],
+            [
+              488,
+              232
+            ]
+          ]
+        },
+        {
+          "id": "r1-core",
+          "a": "r1",
+          "b": "core",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              392,
+              104
+            ],
+            [
+              408,
+              104
+            ],
+            [
+              472,
+              168
+            ],
+            [
+              472,
+              224
+            ],
+            [
+              488,
+              224
+            ]
+          ]
+        },
+        {
+          "id": "edge-r2",
+          "a": "edge",
+          "b": "r2",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              240,
+              256
+            ],
+            [
+              240,
+              272
+            ],
+            [
+              296,
+              328
+            ],
+            [
+              352,
+              328
+            ],
+            [
+              352,
+              344
+            ]
+          ]
+        },
+        {
+          "id": "edge-r1",
+          "a": "edge",
+          "b": "r1",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              240,
+              208
+            ],
+            [
+              240,
+              144
+            ],
+            [
+              352,
+              144
+            ],
+            [
+              352,
+              128
+            ]
+          ]
+        },
+        {
+          "id": "core-app",
+          "a": "core",
+          "b": "app",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              552,
+              232
+            ],
+            [
+              640,
+              232
+            ]
+          ]
+        },
+        {
+          "id": "client-edge",
+          "a": "client",
+          "b": "edge",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              160,
+              232
+            ],
+            [
+              208,
+              232
+            ]
+          ]
+        }
+      ],
+      "report": {
+        "shared": 0,
+        "collisions": 0,
+        "crossings": 0,
+        "shallow": 0,
+        "contacts": 0,
+        "duplicatePorts": 0,
+        "bends": 11
+      },
+      "score": 120.39042984922165
+    },
+    "camera": {
+      "x": 15.600000000000023,
+      "y": -2.240000000000009,
+      "z": 0.85
+    },
+    "viewport": {
+      "w": 684,
+      "h": 396.71999999999997
+    },
+    "crossings": [],
+    "status": {
+      "title": "Ping delivered",
+      "detail": "APP replied · simulated RTT 40 ms · path MTU 1500 · NAT state matched.",
+      "source": "Live · event 5"
+    },
+    "disclosure": {
+      "title": "Selection and reusable authoring tools›",
+      "mid": {
+        "wanted": true,
+        "progress": 0.7027816115427158,
+        "height": 126.50069007768884,
+        "targetHeight": 180,
+        "moving": true
+      },
+      "settled": {
+        "wanted": true,
+        "progress": 1,
+        "height": 180,
+        "targetHeight": 180,
+        "moving": false
+      }
+    },
+    "manifest": [
+      {
+        "path": "/workspace/hopscotch-causal-lifecycle.html",
+        "bytes": 496743,
+        "sha256": "d14f202fbf92127ad7545b625d701221f2361b1fcfd354eb3088c5fe3082579f"
+      },
+      {
+        "path": "/workspace/hopscotch-builder-workbench.html",
+        "bytes": 826024,
+        "sha256": "a9d57aab75a6f94c6f3ff9ccc33df25eebc1f1cb05e0245e654a3530cd0c27c5"
+      },
+      {
+        "path": "/workspace/hopscotch-evidence-workspaces.html",
+        "bytes": 609646,
+        "sha256": "0ebe1b4d10182637f412a97aaa2a38043afbe9de84efbf27cfe0d84ff0dcc61c"
+      },
+      {
+        "path": "/workspace/hopscotch-connected-workspaces.html",
+        "bytes": 474735,
+        "sha256": "8194c9e8df00ebcf21d73c46493362ced0c8e913b5fecc492d76cded99236424"
+      }
+    ]
+  },
+  {
+    "width": 1024,
+    "plan": {
+      "nodes": [
+        {
+          "id": "app",
+          "label": "APP",
+          "kind": "endpoint",
+          "builtin": true,
+          "x": 664,
+          "y": 232,
+          "w": 48,
+          "radius": 15,
+          "h": 48,
+          "labelLines": [
+            "APP"
+          ],
+          "sides": [
+            [],
+            [],
+            [
+              {
+                "id": "core-app",
+                "order": 408
+              }
+            ],
+            []
+          ],
+          "ports": {
+            "core-app": {
+              "pt": [
+                640,
+                232
+              ],
+              "stub": [
+                624,
+                232
+              ],
+              "dir": 4
+            }
+          }
+        },
+        {
+          "id": "client",
+          "label": "CLIENT",
+          "kind": "endpoint",
+          "builtin": true,
+          "x": 120,
+          "y": 232,
+          "w": 80,
+          "radius": 15,
+          "h": 48,
+          "labelLines": [
+            "CLIENT"
+          ],
+          "sides": [
+            [
+              {
+                "id": "client-edge",
+                "order": 408
+              }
+            ],
+            [],
+            [],
+            []
+          ],
+          "ports": {
+            "client-edge": {
+              "pt": [
+                160,
+                232
+              ],
+              "stub": [
+                176,
+                232
+              ],
+              "dir": 0
+            }
+          }
+        },
+        {
+          "id": "core",
+          "label": "CORE",
+          "kind": "router",
+          "builtin": true,
+          "x": 520,
+          "y": 232,
+          "w": 64,
+          "radius": 15,
+          "h": 64,
+          "labelLines": [
+            "CORE"
+          ],
+          "sides": [
+            [
+              {
+                "id": "core-app",
+                "order": 408
+              }
+            ],
+            [],
+            [
+              {
+                "id": "r1-core",
+                "order": 280
+              },
+              {
+                "id": "r2-core",
+                "order": 544
+              }
+            ],
+            []
+          ],
+          "ports": {
+            "core-app": {
+              "pt": [
+                552,
+                232
+              ],
+              "stub": [
+                568,
+                232
+              ],
+              "dir": 0
+            },
+            "r1-core": {
+              "pt": [
+                488,
+                224
+              ],
+              "stub": [
+                472,
+                224
+              ],
+              "dir": 4
+            },
+            "r2-core": {
+              "pt": [
+                488,
+                232
+              ],
+              "stub": [
+                472,
+                232
+              ],
+              "dir": 4
+            }
+          }
+        },
+        {
+          "id": "edge",
+          "label": "EDGE",
+          "kind": "router",
+          "builtin": true,
+          "x": 240,
+          "y": 232,
+          "w": 64,
+          "radius": 15,
+          "h": 48,
+          "labelLines": [
+            "EDGE"
+          ],
+          "sides": [
+            [],
+            [
+              {
+                "id": "edge-r2",
+                "order": 368
+              }
+            ],
+            [
+              {
+                "id": "client-edge",
+                "order": 408
+              }
+            ],
+            [
+              {
+                "id": "edge-r1",
+                "order": 368
+              }
+            ]
+          ],
+          "ports": {
+            "edge-r2": {
+              "pt": [
+                240,
+                256
+              ],
+              "stub": [
+                240,
+                272
+              ],
+              "dir": 2
+            },
+            "client-edge": {
+              "pt": [
+                208,
+                232
+              ],
+              "stub": [
+                192,
+                232
+              ],
+              "dir": 4
+            },
+            "edge-r1": {
+              "pt": [
+                240,
+                208
+              ],
+              "stub": [
+                240,
+                192
+              ],
+              "dir": 6
+            }
+          }
+        },
+        {
+          "id": "r1",
+          "label": "R1",
+          "kind": "router",
+          "builtin": true,
+          "x": 360,
+          "y": 104,
+          "w": 64,
+          "radius": 15,
+          "h": 48,
+          "labelLines": [
+            "R1"
+          ],
+          "sides": [
+            [
+              {
+                "id": "r1-core",
+                "order": 408
+              }
+            ],
+            [
+              {
+                "id": "edge-r1",
+                "order": 240
+              },
+              {
+                "id": "r1-r2",
+                "order": 368
+              }
+            ],
+            [],
+            []
+          ],
+          "ports": {
+            "r1-core": {
+              "pt": [
+                392,
+                104
+              ],
+              "stub": [
+                408,
+                104
+              ],
+              "dir": 0
+            },
+            "edge-r1": {
+              "pt": [
+                352,
+                128
+              ],
+              "stub": [
+                352,
+                144
+              ],
+              "dir": 2
+            },
+            "r1-r2": {
+              "pt": [
+                360,
+                128
+              ],
+              "stub": [
+                360,
+                144
+              ],
+              "dir": 2
+            }
+          }
+        },
+        {
+          "id": "r2",
+          "label": "R2",
+          "kind": "router",
+          "builtin": true,
+          "x": 360,
+          "y": 368,
+          "w": 64,
+          "radius": 15,
+          "h": 48,
+          "labelLines": [
+            "R2"
+          ],
+          "sides": [
+            [
+              {
+                "id": "r2-core",
+                "order": 408
+              }
+            ],
+            [],
+            [],
+            [
+              {
+                "id": "edge-r2",
+                "order": 240
+              },
+              {
+                "id": "r1-r2",
+                "order": 368
+              }
+            ]
+          ],
+          "ports": {
+            "r2-core": {
+              "pt": [
+                392,
+                368
+              ],
+              "stub": [
+                408,
+                368
+              ],
+              "dir": 0
+            },
+            "edge-r2": {
+              "pt": [
+                352,
+                344
+              ],
+              "stub": [
+                352,
+                328
+              ],
+              "dir": 6
+            },
+            "r1-r2": {
+              "pt": [
+                360,
+                344
+              ],
+              "stub": [
+                360,
+                328
+              ],
+              "dir": 6
+            }
+          }
+        }
+      ],
+      "width": 768,
+      "height": 472,
+      "links": [
+        {
+          "id": "r1-r2",
+          "a": "r1",
+          "b": "r2",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              360,
+              128
+            ],
+            [
+              360,
+              344
+            ]
+          ]
+        },
+        {
+          "id": "r2-core",
+          "a": "r2",
+          "b": "core",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              392,
+              368
+            ],
+            [
+              408,
+              368
+            ],
+            [
+              472,
+              304
+            ],
+            [
+              472,
+              232
+            ],
+            [
+              488,
+              232
+            ]
+          ]
+        },
+        {
+          "id": "r1-core",
+          "a": "r1",
+          "b": "core",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              392,
+              104
+            ],
+            [
+              408,
+              104
+            ],
+            [
+              472,
+              168
+            ],
+            [
+              472,
+              224
+            ],
+            [
+              488,
+              224
+            ]
+          ]
+        },
+        {
+          "id": "edge-r2",
+          "a": "edge",
+          "b": "r2",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              240,
+              256
+            ],
+            [
+              240,
+              272
+            ],
+            [
+              296,
+              328
+            ],
+            [
+              352,
+              328
+            ],
+            [
+              352,
+              344
+            ]
+          ]
+        },
+        {
+          "id": "edge-r1",
+          "a": "edge",
+          "b": "r1",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              240,
+              208
+            ],
+            [
+              240,
+              144
+            ],
+            [
+              352,
+              144
+            ],
+            [
+              352,
+              128
+            ]
+          ]
+        },
+        {
+          "id": "core-app",
+          "a": "core",
+          "b": "app",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              552,
+              232
+            ],
+            [
+              640,
+              232
+            ]
+          ]
+        },
+        {
+          "id": "client-edge",
+          "a": "client",
+          "b": "edge",
+          "failed": false,
+          "builtin": true,
+          "points": [
+            [
+              160,
+              232
+            ],
+            [
+              208,
+              232
+            ]
+          ]
+        }
+      ],
+      "report": {
+        "shared": 0,
+        "collisions": 0,
+        "crossings": 0,
+        "shallow": 0,
+        "contacts": 0,
+        "duplicatePorts": 0,
+        "bends": 11
+      },
+      "score": 120.39042984922165
+    },
+    "camera": {
+      "x": 15.600000000000023,
+      "y": -2.240000000000009,
+      "z": 0.85
+    },
+    "viewport": {
+      "w": 684,
+      "h": 396.71999999999997
+    },
+    "crossings": [],
+    "status": {
+      "title": "Ping delivered",
+      "detail": "APP replied · simulated RTT 40 ms · path MTU 1500 · NAT state matched.",
+      "source": "Live · event 5"
+    },
+    "disclosure": {
+      "title": "Selection and reusable authoring tools›",
+      "mid": {
+        "wanted": true,
+        "progress": 0.7027816115427158,
+        "height": 126.50069007768884,
+        "targetHeight": 180,
+        "moving": true
+      },
+      "settled": {
+        "wanted": true,
+        "progress": 1,
+        "height": 180,
+        "targetHeight": 180,
+        "moving": false
+      }
+    },
+    "manifest": [
+      {
+        "path": "/workspace/hopscotch-causal-lifecycle.html",
+        "bytes": 496743,
+        "sha256": "d14f202fbf92127ad7545b625d701221f2361b1fcfd354eb3088c5fe3082579f"
+      },
+      {
+        "path": "/workspace/hopscotch-builder-workbench.html",
+        "bytes": 826024,
+        "sha256": "a9d57aab75a6f94c6f3ff9ccc33df25eebc1f1cb05e0245e654a3530cd0c27c5"
+      },
+      {
+        "path": "/workspace/hopscotch-evidence-workspaces.html",
+        "bytes": 609646,
+        "sha256": "0ebe1b4d10182637f412a97aaa2a38043afbe9de84efbf27cfe0d84ff0dcc61c"
+      },
+      {
+        "path": "/workspace/hopscotch-connected-workspaces.html",
+        "bytes": 474735,
+        "sha256": "8194c9e8df00ebcf21d73c46493362ced0c8e913b5fecc492d76cded99236424"
+      }
+    ]
+  }
+]

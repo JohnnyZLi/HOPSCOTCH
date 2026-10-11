@@ -1,0 +1,53 @@
+{
+  "kind": "Emitted-runtime geometry, interruption, native-state, camera and reuse contracts in synthetic DOM; not browser compositing acceptance",
+  "count": 447,
+  "cases": [
+    {
+      "width": 320,
+      "nodes": 6,
+      "links": 7
+    },
+    {
+      "width": 390,
+      "nodes": 6,
+      "links": 7
+    },
+    {
+      "width": 736,
+      "nodes": 6,
+      "links": 7
+    },
+    {
+      "width": 1024,
+      "nodes": 6,
+      "links": 7
+    },
+    {
+      "width": 1440,
+      "nodes": 6,
+      "links": 7
+    }
+  ],
+  "manifest": [
+    {
+      "path": "/workspace/hopscotch-causal-lifecycle.html",
+      "bytes": 528728,
+      "sha256": "247322516846e1befbde80d3254aae69c5039864cac0afc66cef387e0658e32d"
+    },
+    {
+      "path": "/workspace/hopscotch-builder-workbench.html",
+      "bytes": 851250,
+      "sha256": "d9665c41f141371fc865611fe20400a32528a5fe3b7e9a9782ff27fb6511f8b8"
+    },
+    {
+      "path": "/workspace/hopscotch-evidence-workspaces.html",
+      "bytes": 633996,
+      "sha256": "82a386ecc2606cd632662ba7681cf7a5dea41bb33765e0e403e9de7498277b12"
+    },
+    {
+      "path": "/workspace/hopscotch-connected-workspaces.html",
+      "bytes": 507506,
+      "sha256": "5b79718336b5239d7c8e6c25de7ac4214b229032eefb785ffc1831695f80718d"
+    }
+  ]
+}

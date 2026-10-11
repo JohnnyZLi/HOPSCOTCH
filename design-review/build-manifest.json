@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "inputs": {
+    "design-review/build.py": "d900878e917d312de64b449153d9c8467ac12ff4e7934bed75e58d65b69b0c6a",
+    "design-review/source/base-study.html": "cedcfd274898b271c138241df65bc8dda14a4cd46fd1dd61e8c3a11c76958667",
+    "design-review/source/complete-review/assemble.py": "59af9cded1b718bbb6c12588fcf8e3441b59cb16ed14de16ce490f43ad089243",
+    "design-review/source/complete-review/connected.css": "bff0cffeb23c29b9cca2dd88a5fbd431b3c1f127907bc2c250b387c4eae770c1",
+    "design-review/source/complete-review/connected.html": "35d26ea3d933a262efaa84309df744198e496f89cac3a5fb1ffa36f3afdfc322",
+    "design-review/source/complete-review/connected.js": "d01b5cf6672ef7adfb9e03ad47d5fcff5174bcd2141ba22d4226892c01eebb68",
+    "design-review/source/complete-review/d3-array.min.js": "8b5dfd8d07c71c44a5eeb290ef7dacdbf47cbe1e06e3c333c6c8132018f8f72f",
+    "design-review/source/complete-review/d3-geo.min.js": "f68f1d07c7b9ea5db6f85f371e0076f6fe702c10f06012ce1e49edeb824c22ea",
+    "design-review/source/complete-review/domain.bundle.js": "428e415ba73a47bb247ec0bb255aeadd5feda1503c8e5140094f5b3feda3e58d",
+    "design-review/source/complete-review/entry-domain.bundle.js": "7e12f09a35235d6bcb358121961717ab81b6871d7f86d6b97a69a2058fac0360",
+    "design-review/source/complete-review/evidence-domain.bundle.js": "6bdda42d427e5743b42f564d71b6bf6029c613258276dcc82aa07ddf1d70dbf4",
+    "design-review/source/complete-review/evidence.html": "23cf27ef60ca30e5bd64f6ec891e570d4d541a45c284776785f4d52e79dbf4ae",
+    "design-review/source/complete-review/evidence.js": "315a91926678ab26a4d1fd7e65753000fb46c269321a5805d2013f7b12a0d7da",
+    "design-review/source/complete-review/motion.html": "6cdcd521ef78d3843ff8f49d3d3b812b7be0d69ec4f3b96090263e30a2f6c7f0",
+    "design-review/source/complete-review/motion.js": "226b671a11cbd2b4045730935d3f6d608145890cdc61dd409bc40699bb674a93",
+    "design-review/source/complete-review/review.css": "f3d041cd51b99946c714b15b0e6a86da3cf2cceec4b18bd00efac2eb9aeed3b2",
+    "design-review/source/complete-review/shared-bytes.js": "4b62b6fd20b330260c1da7452934fe4321e2f53a4a0c1844639effcca667c35b",
+    "design-review/source/complete-review/shared-network.js": "4bf50c695f924db1e79457af5dca03d152960cdab84bdb0dc787115c5a4686b8",
+    "design-review/source/complete-review/shared-painter.js": "0c13346427de27f902585adc68d2103ecb78f4aad4e140e3489c0b8225be30b7",
+    "design-review/source/complete-review/shared-presentation.js": "5cc11e66a8376de96bc3dfb1c7ecb349eb1816f2d1ad51464e73bf6260af2d72",
+    "design-review/source/complete-review/shared-reservation.js": "a884316ff0dc59740997852a287b880a0e6e20ddc70365a0918627e1d3e70283",
+    "design-review/source/complete-review/shared-ui.js": "41e745d3aed821c6442aec70aae9464c39079b446e827416f7d11407cc327765",
+    "design-review/source/complete-review/source-data.json": "3d727d60ec4605973a5fc2ff73958c2f720d0c1060b9a219cb573d9d98fe019e",
+    "design-review/source/complete-review/workbench.html": "21c4740a7f6ce3214297665fc3c4f6f7cbd4fc01a06d8c3fd753c6bb9359860d",
+    "design-review/source/complete-review/workbench.js": "9e3bd230a82eb52a02b0833662c3310681d941f0c763307bdd5eeb4da0cce453",
+    "design-review/source/complete-review/world-110m.topojson": "e5d20e03dc01a0aaf2e2434377fc26b421e8bf852957bcc8afadb44d320e92bb",
+    "design-review/source/workspace-reference-models.json": "542927d1b170bf0a3eace9a60855ac44ec111e09c0d47db591eff5bfafaf85b3",
+    "design-review/viewport.html": "4d10dff4d13c07ba4558ec9f2b5389a9156aa0ee7eaf8f8ab27295af3c029051",
+    "design-review/wrap-pages.py": "01c7ca56d2aa575f2dffe57f55bb57e93186922c37e68561fb93ff93800d770d"
+  },
+  "outputs": {
+    "public/review/builder.html": "04fa99810f4fe8047007f0e28d1670db0b10140468c45897130103d1719f6730",
+    "public/review/connected.html": "749a3bcb655c8ff954a84d4c76fda2860b7a953a9d185188abe3f536626a86ec",
+    "public/review/evidence.html": "bbcd180dd5abc318876a415727d1c92bc92a2c6e20744aa71ebc0fe8d66b33d8",
+    "public/review/index.html": "6a9c09e26f33d40273c1bb299f71be1b8fc7b7c9cf1c5438cd99887de1a44f41",
+    "public/review/lifecycle.html": "53b1505e5ba70563a27e5082920b84a5ddc86614aa286a3313d354ec12c4fc7a",
+    "public/review/viewport.html": "4d10dff4d13c07ba4558ec9f2b5389a9156aa0ee7eaf8f8ab27295af3c029051"
+  }
+}

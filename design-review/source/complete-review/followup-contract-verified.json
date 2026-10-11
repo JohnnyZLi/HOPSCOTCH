@@ -1,0 +1,31 @@
+{
+  "kind": "Actual emitted scripts in synthetic DOM/font/WebGL contract environment; not a browser or hardware result",
+  "checks": 124358,
+  "widths": [
+    320,
+    390,
+    736,
+    1024,
+    1440
+  ],
+  "reduced": true,
+  "graphicsFallback": true,
+  "source_manifest": [
+    {
+      "path": "/workspace/hopscotch-causal-lifecycle.html",
+      "bytes": 472761,
+      "sha256": "9e7ed12ff2dcdda97bf5c92ef2a327f790ef924e9b9f20875a29599b0422828b"
+    },
+    {
+      "path": "/workspace/hopscotch-builder-workbench.html",
+      "bytes": 801495,
+      "sha256": "937346e7231ecd571681d5c20d77c73eba9b34c8f1ea559471664350e694bd15"
+    },
+    {
+      "path": "/workspace/hopscotch-evidence-workspaces.html",
+      "bytes": 584384,
+      "sha256": "a75ac81f186433bcac01daf5d03421d6df379d052448ae8dd8e9e86f128fe8e7"
+    }
+  ],
+  "scope": "Complete matrix immediately before the final ACK ownership and durable import-error message corrections; those final changes have dedicated assertions and a complete motion rerun."
+}

@@ -1,0 +1,29 @@
+{
+  "kind": "Actual emitted scripts in synthetic DOM/font/WebGL; not browser, phone or hardware verification",
+  "checks": 1865,
+  "fullMotionChecks": 115772,
+  "widths": [
+    320,
+    390,
+    736,
+    1024,
+    1440
+  ],
+  "source_manifest": [
+    {
+      "path": "/workspace/hopscotch-causal-lifecycle.html",
+      "bytes": 473123,
+      "sha256": "a53501e6335590b8f208cd83315817ffaa0d5f8c9af85f2c6c6bc5423f8b4101"
+    },
+    {
+      "path": "/workspace/hopscotch-builder-workbench.html",
+      "bytes": 801495,
+      "sha256": "937346e7231ecd571681d5c20d77c73eba9b34c8f1ea559471664350e694bd15"
+    },
+    {
+      "path": "/workspace/hopscotch-evidence-workspaces.html",
+      "bytes": 584680,
+      "sha256": "803b640ef55a02afe49ab1fdab7fcc71ed466c096dd97aa94ac29dd899108a48"
+    }
+  ]
+}

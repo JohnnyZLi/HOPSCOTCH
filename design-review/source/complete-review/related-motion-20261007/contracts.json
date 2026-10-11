@@ -1,0 +1,199 @@
+{
+  "kind": "Source coordinate ownership plus emitted runtime boundary and visible-pose history invariance in synthetic DOM/glyph geometry. Not browser pixel verification.",
+  "manifest": [
+    {
+      "path": "../dist/fragment-hopscotch-causal-lifecycle.html",
+      "bytes": 536711,
+      "sha256": "1bc3ff1a237194b1074723c0d9d6ae48a3fc824b6e1aef6dbce4d03bd1a1fabd"
+    },
+    {
+      "path": "../dist/fragment-hopscotch-builder-workbench.html",
+      "bytes": 853911,
+      "sha256": "284f945c3d4cd9e78685780f459bac530d75be483bbf8ddb0057fe910d821776"
+    },
+    {
+      "path": "../dist/fragment-hopscotch-evidence-workspaces.html",
+      "bytes": 636683,
+      "sha256": "a34aa232e14cfed3d335c04e076d986ab8fe1ba3506b8e8ffc12b261e5a8345e"
+    },
+    {
+      "path": "../dist/fragment-hopscotch-connected-workspaces.html",
+      "bytes": 510320,
+      "sha256": "d233623f73ff1642b2c67879464889c02267ed417f3ebbf06782548b65dc29f0"
+    }
+  ],
+  "cases": [
+    {
+      "width": 320,
+      "scene": "tcp",
+      "boundaries": 112,
+      "historyComparisons": 8
+    },
+    {
+      "width": 320,
+      "scene": "packet",
+      "boundaries": 9,
+      "historyComparisons": 8
+    },
+    {
+      "width": 320,
+      "scene": "packetOps",
+      "boundaries": 13,
+      "historyComparisons": 12
+    },
+    {
+      "width": 320,
+      "scene": "dns",
+      "boundaries": 59,
+      "historyComparisons": 8
+    },
+    {
+      "width": 320,
+      "scene": "tls",
+      "boundaries": 69,
+      "historyComparisons": 8
+    },
+    {
+      "width": 320,
+      "scene": "journey",
+      "boundaries": 191,
+      "historyComparisons": 8
+    },
+    {
+      "width": 320,
+      "scene": "provider",
+      "boundaries": 19,
+      "historyComparisons": 10
+    },
+    {
+      "width": 390,
+      "scene": "tcp",
+      "boundaries": 112,
+      "historyComparisons": 8
+    },
+    {
+      "width": 390,
+      "scene": "packet",
+      "boundaries": 9,
+      "historyComparisons": 8
+    },
+    {
+      "width": 390,
+      "scene": "packetOps",
+      "boundaries": 13,
+      "historyComparisons": 12
+    },
+    {
+      "width": 390,
+      "scene": "dns",
+      "boundaries": 59,
+      "historyComparisons": 8
+    },
+    {
+      "width": 390,
+      "scene": "tls",
+      "boundaries": 69,
+      "historyComparisons": 8
+    },
+    {
+      "width": 390,
+      "scene": "journey",
+      "boundaries": 191,
+      "historyComparisons": 8
+    },
+    {
+      "width": 390,
+      "scene": "provider",
+      "boundaries": 19,
+      "historyComparisons": 10
+    },
+    {
+      "width": 1024,
+      "scene": "tcp",
+      "boundaries": 112,
+      "historyComparisons": 8
+    },
+    {
+      "width": 1024,
+      "scene": "packet",
+      "boundaries": 9,
+      "historyComparisons": 8
+    },
+    {
+      "width": 1024,
+      "scene": "packetOps",
+      "boundaries": 13,
+      "historyComparisons": 12
+    },
+    {
+      "width": 1024,
+      "scene": "dns",
+      "boundaries": 59,
+      "historyComparisons": 8
+    },
+    {
+      "width": 1024,
+      "scene": "tls",
+      "boundaries": 69,
+      "historyComparisons": 8
+    },
+    {
+      "width": 1024,
+      "scene": "journey",
+      "boundaries": 191,
+      "historyComparisons": 8
+    },
+    {
+      "width": 1024,
+      "scene": "provider",
+      "boundaries": 19,
+      "historyComparisons": 10
+    },
+    {
+      "width": 1440,
+      "scene": "tcp",
+      "boundaries": 112,
+      "historyComparisons": 8
+    },
+    {
+      "width": 1440,
+      "scene": "packet",
+      "boundaries": 9,
+      "historyComparisons": 8
+    },
+    {
+      "width": 1440,
+      "scene": "packetOps",
+      "boundaries": 13,
+      "historyComparisons": 12
+    },
+    {
+      "width": 1440,
+      "scene": "dns",
+      "boundaries": 59,
+      "historyComparisons": 8
+    },
+    {
+      "width": 1440,
+      "scene": "tls",
+      "boundaries": 69,
+      "historyComparisons": 8
+    },
+    {
+      "width": 1440,
+      "scene": "journey",
+      "boundaries": 191,
+      "historyComparisons": 8
+    },
+    {
+      "width": 1440,
+      "scene": "provider",
+      "boundaries": 19,
+      "historyComparisons": 10
+    }
+  ],
+  "before": {
+    "transferMissingOrigin": true,
+    "payloadSeek": "Halfway appended chunks retain translateY(3px) at settled hold in previous runtime"
+  }
+}

@@ -1,0 +1,17 @@
+from pathlib import Path
+p=Path('complete-review/motion.js');s=p.read_text()
+s=s.replace("actor.append(face,capsule);q('.rv-actors')", "if(sceneId==='packetOps'){const payload=node('section','rv-payload-body');payload.append(node('p','rv-payload-heading','Payload · '+f.state.payloadBytes+' B'));const chunks=node('div','rv-payload-chunks'),bytes=f.state.segments.find(s=>s.id==='payload').bytes;for(let offset=0;offset<bytes.length;offset+=16){const chunk=node('div','rv-payload-chunk'),slice=bytes.slice(offset,offset+16);chunk.dataset.offset=String(offset);chunk.append(node('span','rv-payload-range',offset+'–'+(offset+slice.length-1)),node('span','rv-payload-pattern',String.fromCharCode(...slice)));chunks.append(chunk);}payload.append(chunks);payload.hidden=!bytes.length;face.append(payload);}\n  actor.append(face,capsule);q('.rv-actors')")
+s=s.replace("prepared.push({focus,lens,read,origin,targets,emphasis,fit,attach,detach});", "const payload=a.face.querySelector('.rv-payload-body'),pr=payload?.getBoundingClientRect(),payloadRect=pr?{x:pr.left-origin.left,y:pr.top-origin.top,w:pr.width,h:pr.height}:null;prepared.push({focus,lens,read,origin,targets,emphasis,fit,attach,detach,payloadRect});")
+s=s.replace("g.mutations=[];for(const field", "g.mutations=[];if(f.operation==='remove'){const oldPayload=actors[i-1].face.querySelector('.rv-payload-body'),rect=prepared[i-1].payloadRect;if(oldPayload&&rect){const copy=oldPayload.cloneNode(true);copy.className+=' rv-deleted-payload';copy.setAttribute('aria-hidden','true');copy.inert=true;Object.assign(copy.style,{position:'absolute',left:rect.x+'px',top:rect.y+'px',width:rect.w+'px',opacity:'0'});actors[i].face.append(copy);g.deletedPayload=copy;}}for(const field")
+s=s.replace("for(const ghost of root.querySelectorAll('.rv-change-token'))ghost.remove();", "for(const ghost of root.querySelectorAll('.rv-change-token,.rv-deleted-payload'))ghost.remove();")
+s=s.replace(" const parcel=q('.rv-payload-addon');", " const currentActor=actors[at.index];for(const chunk of currentActor.face.querySelectorAll('.rv-payload-chunk'))chunk.style.opacity='1';if(g.deletedPayload)g.deletedPayload.style.opacity='0';if(at.kind==='modify'){const before=frames[Math.max(0,at.index-1)].state;if(f.operation==='append'){for(const chunk of currentActor.face.querySelectorAll('.rv-payload-chunk'))if(Number(chunk.dataset.offset)>=before.payloadBytes){chunk.style.opacity=String(ease((at.p-.35)/.65));chunk.style.transform='translateY('+((1-ease(at.p))*6)+'px)';}}if(g.deletedPayload){g.deletedPayload.style.opacity=String(1-ease(at.p));g.deletedPayload.style.transform='translateY('+(ease(at.p)*8)+'px)';}}\n const parcel=q('.rv-payload-addon');")
+p.write_text(s)
+p=Path('complete-review/review.css');s=p.read_text()+'''
+#__ROOT__ .rv-payload-body{margin-top:16px}
+#__ROOT__ .rv-payload-heading{color:var(--hs-material-muted);font-size:12px;margin:0 0 10px}
+#__ROOT__ .rv-payload-chunks{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px}
+#__ROOT__ .rv-payload-chunk{border-radius:12px;padding:9px 12px;background:color-mix(in srgb,var(--hs-panel) 34%,transparent);color:var(--hs-material-ink);min-width:0}
+#__ROOT__ .rv-payload-chunk span{display:block;overflow-wrap:anywhere;line-height:1.5;font-size:12px}
+#__ROOT__ .rv-payload-range{color:var(--hs-material-muted);margin-bottom:4px;font-variant-numeric:tabular-nums}
+#__ROOT__ .rv-payload-pattern{color:var(--hs-material-ink);font-family:inherit}
+''';p.write_text(s)

@@ -9,3 +9,7 @@ artifacts/
 .DS_Store
 coverage/
 *.log
+
+# Authoring intermediates; public/review is the verified deployable output.
+design-review/dist/
+__pycache__/

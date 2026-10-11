@@ -1,0 +1,21 @@
+{
+  "verified": "All fixture and canonical domain bytes match the recovered October 8 audit source",
+  "files": [
+    {
+      "file": "source-data.json",
+      "sha256": "3d727d60ec4605973a5fc2ff73958c2f720d0c1060b9a219cb573d9d98fe019e"
+    },
+    {
+      "file": "domain.bundle.js",
+      "sha256": "428e415ba73a47bb247ec0bb255aeadd5feda1503c8e5140094f5b3feda3e58d"
+    },
+    {
+      "file": "evidence-domain.bundle.js",
+      "sha256": "6bdda42d427e5743b42f564d71b6bf6029c613258276dcc82aa07ddf1d70dbf4"
+    },
+    {
+      "file": "entry-domain.bundle.js",
+      "sha256": "7e12f09a35235d6bcb358121961717ab81b6871d7f86d6b97a69a2058fac0360"
+    }
+  ]
+}

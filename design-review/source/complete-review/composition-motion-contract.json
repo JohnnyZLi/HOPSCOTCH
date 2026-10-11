@@ -1,0 +1,12 @@
+{
+  "kind": "Emitted runtime in synthetic DOM; not browser validation",
+  "checks": 32357,
+  "widths": [
+    320,
+    390,
+    1024,
+    1440
+  ],
+  "reduced": true,
+  "browserVerified": false
+}
