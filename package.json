@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p tsconfig.app.json --noEmit && vite build",
+    "build": "npm run review:check && tsc -p tsconfig.app.json --noEmit && vite build",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.worker.json --noEmit",
     "test:builder-contract": "node scripts/builder-contract-check.mjs",
     "test:worker-contract": "node scripts/worker-contract-check.mjs",
@@ -92,7 +92,9 @@
     "test:builder-explain-contract": "node scripts/builder-explain-contract-check.mjs",
     "test:product-integration-contract": "node scripts/product-integration-contract-check.mjs",
     "test:ui-stability-contract": "node scripts/ui-stability-contract-check.mjs && npm run test:mechanism-second-pass-contract",
-    "test:visual-workspace-contract": "node scripts/visual-workspace-contract-check.mjs"
+    "test:visual-workspace-contract": "node scripts/visual-workspace-contract-check.mjs",
+    "review:build": "python3 design-review/build.py",
+    "review:check": "node scripts/review-integrity.mjs"
   },
   "dependencies": {
     "animejs": "4.5.0",

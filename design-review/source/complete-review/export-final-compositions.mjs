@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+import {environment} from './check-complete.mjs';
+const models=[];
+function tree(e){if(!e||e.hidden||['canvas','script','style','svg'].includes(e.tag))return null;return {tag:e.tag,cls:e.className,text:e._text,attrs:{...e.attrs,...Object.fromEntries(Object.entries(e.dataset).map(([k,v])=>['data-'+k,v]))},open:Boolean(e.open),value:e.value,children:e.children.map(tree).filter(Boolean)};}
+for(const width of [390,1024]){
+ const c=await environment('connected',width),api=c.root.connectedStudy;
+ async function capture(id){for(let i=0;i<5;i++){for(const a of c.animationJobs)if(!a.cancelled)a.finish();await c.flush();}models.push({family:'connected',id,width,header:tree(c.q('.rv-header')),body:tree(c.q('.rv-main')),state:JSON.parse(JSON.stringify(api.snapshot()))});}
+ await capture('overview');api.openCatalog();await capture('catalog');api.launch();api.seek(api.snapshot().scenario.events.find(e=>e.detailLab==='tcp').atMs);await capture('journey');api.openDetail('tcp');await capture('journey-tcp-detail');api.returnContext();api.launch('path-outage');api.seek(13250);await capture('path-outage');api.launch('route-leak');api.seek(4200);await capture('route-leak');api.openWorkspace('capture');api.chooseFrame('frame-000005');await capture('capture');api.selectByte(22);api.openMicroscope();api.selectByte(34);await capture('captured-microscope');api.returnContext();await capture('captured-return');
+ const b=await environment('workbench',width),ba=b.root.builderStudy;ba.selectPage('systems');
+ for(const [id,index]of [['routing',1],['addressing',0],['ipv6',1],['scenario',0]]){ba.selectSystem(id,index);for(const detail of b.q('.wb-systems-content').querySelectorAll('details'))detail.open=true;models.push({family:'dense',id:'builder-'+id,width,header:tree(b.q('.rv-header')),body:tree(b.q('.wb-systems')),title:b.q('.wb-system-title').textContent});}
+ ba.selectPage('cli');ba.runCommand('show route');for(const detail of b.q('.wb-command-result').querySelectorAll('details'))detail.open=true;models.push({family:'dense',id:'builder-cli',width,header:tree(b.q('.rv-header')),body:tree(b.q('.wb-command-result')),title:'CLI · source route records'});
+ const e=await environment('evidence',width),ea=e.root.evidenceStudy;ea.select('measured');for(const category of ['interface','route']){e.change('.ev-category',category);models.push({family:'dense',id:'measured-'+category,width,header:tree(e.q('.rv-header')),body:tree(e.q('.ev-content')),inspector:tree(e.q('.ev-inspector')),title:e.q('.ev-title').textContent});}
+ ea.select('capture');ea.loadCapture('pcapng');ea.inspectByte(22);for(const detail of e.q('.ev-content').querySelectorAll('details'))detail.open=true;models.push({family:'dense',id:'capture-opened',width,header:tree(e.q('.rv-header')),body:tree(e.q('.ev-content')),inspector:tree(e.q('.ev-inspector')),title:e.q('.ev-title').textContent});
+}
+fs.writeFileSync('complete-review/final-composition-models.json',JSON.stringify(models,null,2));console.log('Exported',models.length,'real DOM states');

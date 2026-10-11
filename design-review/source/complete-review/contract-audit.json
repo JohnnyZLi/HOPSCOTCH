@@ -1,0 +1,13 @@
+{
+  "kind": "Actual emitted scripts in synthetic DOM/font/WebGL contract environment; not a browser or hardware result",
+  "checks": 124358,
+  "widths": [
+    320,
+    390,
+    736,
+    1024,
+    1440
+  ],
+  "reduced": true,
+  "graphicsFallback": true
+}

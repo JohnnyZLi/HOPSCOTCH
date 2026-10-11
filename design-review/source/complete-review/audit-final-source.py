@@ -1,0 +1,12 @@
+from pathlib import Path
+import re,json,hashlib,subprocess
+manifest=json.loads(Path('complete-review/source-manifest.json').read_text());result={'kind':'Final emitted-source and design-role audit; actual browser acceptance remains open','sources':[]}
+for entry in manifest:
+ p=Path(entry['path']);source=p.read_text();script=re.search(r'<script>(.*?)</script>',source,re.S)[1];root=re.search(r'<div id="([^"]+)"',source)[1];css=re.search(r'<style>(.*?)</style>',source,re.S)[1];compiled=Path('complete-review')/( {'hop-causal-review':'motion','hop-builder-review':'workbench','hop-evidence-review':'evidence','hop-connected-review':'connected'}[root]+'-compiled.js')
+ checks={'digest':hashlib.sha256(p.read_bytes()).hexdigest()==entry['sha256'],'under_1mb':len(p.read_bytes())<1000000,'unique_root':source.count('id="'+root+'"')==1,'real_shell_background':'.rv-shell{' in css and 'background:var(--hs-bg)' in css,'ambient_behind_working_area':'.rv-main::before{' in css,'one_system_sans':not re.search(r'font-family:[^;{}]*(monospace|serif,|Courier|Consolas)',css,re.I),'no_network_calls':not re.search(r'\b(fetch|XMLHttpRequest|WebSocket)\s*\(',script),'no_unexpanded_tokens':not re.search(r'__[A-Z_]+__',source),'continuous_control_roles':'transition:background-color 220ms' in css,'mobile_semantic_tables':'content:attr(data-column-name)' in css,'distinct_dark_tokens':'[data-theme=dark]{--rv-teal:' in css,'rounded_field_emphasis':'.rv-field::before{' in css,'bounded_disclosure_memory':'while(opened.size>512)' in script}
+ subprocess.run(['node','--check',str(compiled)],check=True,capture_output=True);checks['script_syntax']=True
+ assert all(checks.values()),(p,checks);result['sources'].append({'path':str(p),'sha256':entry['sha256'],'javascript_sha256':hashlib.sha256(script.encode()).hexdigest(),'checks':checks})
+foundations={'/workspace/hopscotch-resilient-glass.html':'cedcfd274898b271c138241df65bc8dda14a4cd46fd1dd61e8c3a11c76958667','/workspace/hopscotch-tcp-resilient-glass.html':'176ab8cde257438033f8e17b571153e0b46a69b90ab04bf98fa4781b67e60938'}
+result['foundations']=[{'path':p,'sha256':sha,'unchanged':hashlib.sha256(Path(p).read_bytes()).hexdigest()==sha} for p,sha in foundations.items()];assert all(x['unchanged'] for x in result['foundations'])
+result['production_changes']=False;result['source_baseline']='be21750003cf3c097c917ae4340c78a0035ccbc6'
+Path('complete-review/final-source-audit.json').write_text(json.dumps(result,indent=2));print('PASS final source and design roles',len(manifest),'studies')

@@ -1,0 +1,103 @@
+{
+  "kind": "Final emitted-source and design-role audit; actual browser acceptance remains open",
+  "sources": [
+    {
+      "path": "/workspace/hopscotch-causal-lifecycle.html",
+      "sha256": "c395103ea3a1955c1bde12e99e239b8624f86696e4e17aa466b8c063bb328d37",
+      "javascript_sha256": "826ba5c632c5116990fca3669d8bbdc194e07ffdd63887f2d77816e1d2f84054",
+      "checks": {
+        "digest": true,
+        "under_1mb": true,
+        "unique_root": true,
+        "real_shell_background": true,
+        "ambient_behind_working_area": true,
+        "one_system_sans": true,
+        "no_network_calls": true,
+        "no_unexpanded_tokens": true,
+        "continuous_control_roles": true,
+        "mobile_semantic_tables": true,
+        "distinct_dark_tokens": true,
+        "rounded_field_emphasis": true,
+        "bounded_disclosure_memory": true,
+        "script_syntax": true
+      }
+    },
+    {
+      "path": "/workspace/hopscotch-builder-workbench.html",
+      "sha256": "9545526eabc1d825e3773e707bd18b884c7fd828ff8df80809309177dde8cb65",
+      "javascript_sha256": "5495ed83b802cd8cce072abb4986f40c9d82a1aa9f46484adb2896d88d90d4d6",
+      "checks": {
+        "digest": true,
+        "under_1mb": true,
+        "unique_root": true,
+        "real_shell_background": true,
+        "ambient_behind_working_area": true,
+        "one_system_sans": true,
+        "no_network_calls": true,
+        "no_unexpanded_tokens": true,
+        "continuous_control_roles": true,
+        "mobile_semantic_tables": true,
+        "distinct_dark_tokens": true,
+        "rounded_field_emphasis": true,
+        "bounded_disclosure_memory": true,
+        "script_syntax": true
+      }
+    },
+    {
+      "path": "/workspace/hopscotch-evidence-workspaces.html",
+      "sha256": "c58b43c88def6e7a3cdd9d399c6603005184858cb2141dba9972c57ff5e42351",
+      "javascript_sha256": "2956d252f2f4bbfc443f1d417c64b92bb98b4dd5c839383fa7981937d650eb0d",
+      "checks": {
+        "digest": true,
+        "under_1mb": true,
+        "unique_root": true,
+        "real_shell_background": true,
+        "ambient_behind_working_area": true,
+        "one_system_sans": true,
+        "no_network_calls": true,
+        "no_unexpanded_tokens": true,
+        "continuous_control_roles": true,
+        "mobile_semantic_tables": true,
+        "distinct_dark_tokens": true,
+        "rounded_field_emphasis": true,
+        "bounded_disclosure_memory": true,
+        "script_syntax": true
+      }
+    },
+    {
+      "path": "/workspace/hopscotch-connected-workspaces.html",
+      "sha256": "31b5230d4d81a6691d648739ed548b4c3fab6de605838ee365be6aa492d795ad",
+      "javascript_sha256": "c13e0f3ae54302e53484d7a5c274f54717a74a683a63c42e59caaa74e6ef4d91",
+      "checks": {
+        "digest": true,
+        "under_1mb": true,
+        "unique_root": true,
+        "real_shell_background": true,
+        "ambient_behind_working_area": true,
+        "one_system_sans": true,
+        "no_network_calls": true,
+        "no_unexpanded_tokens": true,
+        "continuous_control_roles": true,
+        "mobile_semantic_tables": true,
+        "distinct_dark_tokens": true,
+        "rounded_field_emphasis": true,
+        "bounded_disclosure_memory": true,
+        "script_syntax": true
+      }
+    }
+  ],
+  "foundations": [
+    {
+      "path": "/workspace/hopscotch-resilient-glass.html",
+      "sha256": "cedcfd274898b271c138241df65bc8dda14a4cd46fd1dd61e8c3a11c76958667",
+      "unchanged": true
+    },
+    {
+      "path": "/workspace/hopscotch-tcp-resilient-glass.html",
+      "sha256": "176ab8cde257438033f8e17b571153e0b46a69b90ab04bf98fa4781b67e60938",
+      "unchanged": true
+    }
+  ],
+  "production_changes": false,
+  "source_baseline": "be21750003cf3c097c917ae4340c78a0035ccbc6"
+}

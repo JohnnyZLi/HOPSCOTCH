@@ -1,0 +1,15 @@
+{
+  "kind": "Actual 32-node/96-link source fixture through shared measured-node/routing contract; synthetic DOM measurements, not browser layout",
+  "report": {
+    "shared": 0,
+    "collisions": 0,
+    "crossings": 61,
+    "shallow": 0,
+    "contacts": 0,
+    "duplicatePorts": 0,
+    "bends": 241
+  },
+  "nodes": 32,
+  "links": 96,
+  "endpointErrors": []
+}

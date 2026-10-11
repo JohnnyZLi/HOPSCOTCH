@@ -1,0 +1,227 @@
+[
+  {
+    "name": "Reply labels and positions",
+    "rows": [
+      {
+        "scene": "tcp",
+        "event": "synack",
+        "from": "Server",
+        "to": "Client",
+        "labels": [
+          "Client",
+          "Server"
+        ],
+        "depart": 221.61999999999998
+      },
+      {
+        "scene": "tcp",
+        "event": "dup-ack-1",
+        "from": "Server",
+        "to": "Client",
+        "labels": [
+          "Client",
+          "Server"
+        ],
+        "depart": 221.61999999999998
+      },
+      {
+        "scene": "tcp",
+        "event": "dup-ack-2",
+        "from": "Server",
+        "to": "Client",
+        "labels": [
+          "Client",
+          "Server"
+        ],
+        "depart": 221.61999999999998
+      },
+      {
+        "scene": "tcp",
+        "event": "dup-ack-3",
+        "from": "Server",
+        "to": "Client",
+        "labels": [
+          "Client",
+          "Server"
+        ],
+        "depart": 221.61999999999998
+      },
+      {
+        "scene": "tcp",
+        "event": "cumulative-ack",
+        "from": "Server",
+        "to": "Client",
+        "labels": [
+          "Client",
+          "Server"
+        ],
+        "depart": 221.61999999999998
+      },
+      {
+        "scene": "tcp",
+        "event": "post-recovery-ack",
+        "from": "Server",
+        "to": "Client",
+        "labels": [
+          "Client",
+          "Server"
+        ],
+        "depart": 221.61999999999998
+      },
+      {
+        "scene": "tcp",
+        "event": "server-finack",
+        "from": "Server",
+        "to": "Client",
+        "labels": [
+          "Client",
+          "Server"
+        ],
+        "depart": 221.61999999999998
+      },
+      {
+        "scene": "tls",
+        "event": "server-hello",
+        "from": "Server",
+        "to": "Client",
+        "labels": [
+          "Client",
+          "Server"
+        ],
+        "depart": 187
+      },
+      {
+        "scene": "tls",
+        "event": "encrypted-extensions",
+        "from": "Server",
+        "to": "Client",
+        "labels": [
+          "Client",
+          "Server"
+        ],
+        "depart": 187
+      },
+      {
+        "scene": "tls",
+        "event": "certificate",
+        "from": "Server",
+        "to": "Client",
+        "labels": [
+          "Client",
+          "Server"
+        ],
+        "depart": 187
+      },
+      {
+        "scene": "tls",
+        "event": "certificate-verify",
+        "from": "Server",
+        "to": "Client",
+        "labels": [
+          "Client",
+          "Server"
+        ],
+        "depart": 187
+      },
+      {
+        "scene": "tls",
+        "event": "server-finished",
+        "from": "Server",
+        "to": "Client",
+        "labels": [
+          "Client",
+          "Server"
+        ],
+        "depart": 187
+      },
+      {
+        "scene": "tls",
+        "event": "application-data-response",
+        "from": "Server",
+        "to": "Client",
+        "labels": [
+          "Client",
+          "Server"
+        ],
+        "depart": 187
+      },
+      {
+        "scene": "dns",
+        "event": "root-referral",
+        "from": "root",
+        "to": "recursive",
+        "labels": [
+          "recursive",
+          "root"
+        ],
+        "depart": 241.07999999999998
+      },
+      {
+        "scene": "journey",
+        "event": "tcp-synack",
+        "from": "server TCP",
+        "to": "client TCP",
+        "labels": [
+          "client TCP",
+          "server TCP"
+        ],
+        "depart": 187
+      },
+      {
+        "scene": "journey",
+        "event": "tls-serverhello",
+        "from": "TLS server",
+        "to": "TLS client",
+        "labels": [
+          "TLS client",
+          "TLS server"
+        ],
+        "depart": 187
+      }
+    ]
+  },
+  {
+    "name": "Filtered measurement selection",
+    "category": "dns",
+    "selectedCategory": "dns"
+  },
+  {
+    "name": "Capture field focus and disclosure",
+    "byte": 34,
+    "connectedFocus": true,
+    "open": true,
+    "field": "tcp.source-port"
+  },
+  {
+    "name": "Empty valid capture",
+    "success": true,
+    "count": 0,
+    "title": "Capture scope",
+    "clock": "No captured frame timestamp",
+    "caption": "A valid capture with no frames."
+  },
+  {
+    "name": "Builder cross-plane search",
+    "selected": {
+      "plane": "routed",
+      "id": "core"
+    },
+    "graphIds": [
+      "lan-a",
+      "lan-b",
+      "lan-c",
+      "lan-r1",
+      "lan-sw1",
+      "lan-sw2",
+      "lan-sw3"
+    ]
+  },
+  {
+    "name": "Builder removed selection on undo and history",
+    "selected": {
+      "plane": "routed",
+      "id": "client"
+    },
+    "present": true
+  }
+]

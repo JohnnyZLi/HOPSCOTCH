@@ -1,0 +1,71 @@
+<div id="__ROOT__" data-theme="light">
+<style>
+__SHARED_CSS__
+__CSS__
+#__ROOT__ .ev-pane{min-width:0}
+#__ROOT__ .ev-primary{min-height:340px}
+#__ROOT__ .ev-inspector{min-height:340px}
+#__ROOT__ .ev-detail-group{padding:14px 0;border-top:1px solid var(--hs-line)}
+#__ROOT__ .ev-fact-button{width:100%;text-align:left;border:0;background:transparent;border-radius:10px;padding:8px 0;display:block;font-size:13px;line-height:1.6;overflow-wrap:anywhere;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+#__ROOT__ .ev-fact-button[aria-pressed=true]{background:transparent;color:var(--hs-accent);box-shadow:none}
+#__ROOT__ .ev-field-row{display:grid;grid-template-columns:1fr;gap:6px;padding:10px 0;border-top:1px solid var(--hs-line)}
+#__ROOT__ .ev-field-row strong{font-size:17px;line-height:1.45;font-weight:500;font-variant-numeric:tabular-nums}
+#__ROOT__ .ev-field-row span{font-size:12px;line-height:1.6;color:var(--hs-muted);overflow-wrap:anywhere}
+#__ROOT__ .ev-field-row{position:relative;isolation:isolate}
+#__ROOT__ .ev-field-row::before{content:"";position:absolute;inset:3px -8px;z-index:-1;pointer-events:none;border-radius:12px;background:var(--hs-material-wash);opacity:0;transition:opacity 220ms ease}
+#__ROOT__ .ev-field-row[data-selected=true]::before{opacity:1}
+#__ROOT__ .ev-packet{padding:24px;border-radius:24px;position:relative;isolation:isolate;overflow:hidden;color:var(--hs-material-ink)}
+#__ROOT__ .ev-layout{--rv-pane-mode:parallel}
+#__ROOT__ .ev-packet>canvas{position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit}
+#__ROOT__ .ev-packet h3{color:var(--hs-material-ink);margin-bottom:12px}
+#__ROOT__ .ev-packet .ev-field-row span{color:var(--hs-material-muted)}
+#__ROOT__ .ev-timeline{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+#__ROOT__ .ev-timeline button{min-width:44px;flex:1 1 80px}
+#__ROOT__ .ev-timeline button[aria-pressed=true]{background:var(--hs-tint);color:var(--hs-accent)}
+#__ROOT__ .ev-islands{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:18px}
+#__ROOT__ .ev-island{padding:18px;border-radius:18px;min-width:0}
+#__ROOT__ .ev-island .ev-path{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:14px}
+#__ROOT__ .ev-path span{font-size:14px;font-variant-numeric:tabular-nums;color:var(--hs-ink)}
+#__ROOT__ .ev-path i{width:12px;height:1px;background:var(--hs-route-line)}
+#__ROOT__ .ev-provenance{font-size:12px;line-height:1.6;color:var(--hs-muted);padding-bottom:12px}
+#__ROOT__ .ev-source-note{margin:16px 0;font-size:12px;line-height:1.6;overflow-wrap:anywhere;color:var(--hs-muted)}
+#__ROOT__ .ev-source-note strong{color:var(--hs-ink);font-weight:500}
+#__ROOT__ .ev-mobile-panes{display:none}
+#__ROOT__ .ev-globe{width:100%;height:auto;display:block;touch-action:pan-y;overflow:visible}
+#__ROOT__ .ev-map{position:relative;min-height:360px;overflow:hidden;border-radius:18px;touch-action:none}
+#__ROOT__ .ev-as-svg{width:100%;height:100%;display:block;overflow:hidden}
+#__ROOT__ .ev-as-nodes{position:absolute;inset:0;transform-origin:0 0;pointer-events:none}
+#__ROOT__ .ev-as-node{position:absolute;border-radius:15px;font-size:14px;pointer-events:auto;background:var(--rv-control-fill);border:1px solid var(--rv-control-rim);padding:8px;min-height:44px;line-height:1.4}
+#__ROOT__ .ev-as-paths path[data-edge]{transition:stroke 220ms ease,opacity 220ms ease}
+#__ROOT__ .ev-as-node[aria-pressed=true]{background:var(--rv-selected-fill);color:var(--rv-selected-ink)}
+#__ROOT__ .ev-bridge{padding:16px;border-left:2px solid var(--hs-line);margin:20px 0}
+#__ROOT__ .ev-empty{padding:24px 0;min-height:200px}
+#__ROOT__ .ev-empty h3{margin-bottom:12px}
+#__ROOT__ .ev-chart{width:100%;height:auto;display:block}
+@container review (max-width:760px){#__ROOT__ .ev-layout{--rv-pane-mode:exclusive}#__ROOT__ .ev-mobile-panes{display:flex}#__ROOT__ .ev-layout:not([data-layout-mode])[data-pane=scene] .ev-inspector{display:none}#__ROOT__ .ev-layout:not([data-layout-mode])[data-pane=detail] .ev-primary{display:none}#__ROOT__ .ev-layout{min-height:340px}}
+</style>
+<section class="rv-shell">
+<header class="rv-header" data-ui-surface="chrome"><span class="rv-brand">HOPSCOTCH</span><label>Workspace<select class="ev-workspace cursor-interaction" aria-label="Evidence workspace" data-ui-surface="control"><option value="measured">Local Measured</option><option value="capture">Capture</option><option value="observed">Observed Internet</option><option value="physical">Physical Internet</option><option value="internet">AS Internet</option></select></label><label>Appearance<select class="rv-theme cursor-interaction" aria-label="Appearance" data-ui-surface="control"><option value="light">Light</option><option value="dark">Dark</option><option value="system">System</option></select></label></header>
+<main class="rv-main"><p class="rv-eyebrow ev-eyebrow">Evidence and vantage</p><h2 class="ev-title">What this host can actually see.</h2><p class="rv-subtitle ev-subtitle"></p>
+<details class="ev-review-states"><summary>Review states</summary><div class="rv-toolbar"><label>Reference state<select class="ev-state cursor-interaction" aria-label="Evidence reference state"><option value="populated">Populated</option><option value="empty">Empty</option><option value="loading">Loading</option><option value="partial">Partial</option><option value="error">Error · retain valid data</option></select></label><button class="ev-load cursor-interaction" data-action-role="primary" type="button">Load reference</button><button class="ev-clear cursor-interaction" type="button">Clear</button></div></details>
+<p class="ev-source-note"></p>
+<div class="rv-error ev-error" role="alert" hidden data-ui-surface="record"><strong>Acquisition did not replace the evidence.</strong><p></p><button class="ev-retry cursor-interaction" type="button">Return to retained evidence</button></div>
+<div class="rv-status ev-loading" role="status" hidden>Acquiring one explicit snapshot. Previously valid evidence remains available.</div>
+<div class="rv-tabbar ev-mobile-panes" aria-label="Compact evidence view"><button class="cursor-interaction" data-pane="scene" type="button" aria-pressed="true">Scene</button><button class="cursor-interaction" data-pane="detail" type="button" aria-pressed="false">Details</button></div>
+<div class="rv-content-layout ev-layout" data-pane="scene"><section class="ev-primary ev-pane"><div class="ev-controls rv-toolbar"></div><div class="ev-content"></div></section><aside class="rv-record ev-inspector ev-pane" data-ui-surface="record" aria-label="Selected evidence"><h3 class="ev-detail-title">Selected fact</h3><div class="ev-detail-content"></div></aside></div>
+<details class="ev-setup" hidden><summary>Acquisition and privacy</summary><div class="rv-record" data-ui-surface="record"><h3>Import a local report</h3><p>One selected report is parsed locally. No background polling or report upload.</p><label>Report JSON<input class="ev-measured-file" type="file" accept=".json,application/json" aria-label="Import local measurement report"></label><h3>Optional local bridge</h3><p>Connect explicitly to the configured bridge, inspect its capabilities, then request one report. A failed attempt retains the current snapshot.</p><div class="rv-toolbar"><label>Bridge state<select class="ev-bridge-state cursor-interaction" aria-label="Bridge connection reference"><option value="disconnected">Disconnected</option><option value="connecting">Connecting</option><option value="ready">Ready · report-v2</option><option value="error">Connection error</option></select></label></div><p class="ev-bridge-caption">No bridge connection has been requested.</p></div></details>
+<details class="ev-capture-import" hidden><summary>Import a capture</summary><p>PCAP or PCAPNG is parsed locally. Exact captured bytes stay read-only.</p><label>Capture file<input class="ev-capture-file" type="file" accept=".pcap,.pcapng,.cap" aria-label="Import PCAP or PCAPNG"></label></details>
+<footer class="rv-console" data-ui-surface="chrome"><div class="rv-caption" aria-live="polite" aria-atomic="true"><strong class="ev-caption-title">The source stays attached to the fact.</strong><p class="ev-caption-detail"></p></div><div class="rv-source"><span class="ev-clock"></span><span class="ev-availability"></span></div></footer>
+</main><footer class="rv-foot" data-ui-surface="chrome"><span>Evidence, simulation, and inference remain explicit</span><span>Source-backed design study</span></footer>
+</section>
+<script>
+__GEO__
+__SHARED__
+__HELPERS__
+__DATA__
+__DOMAIN__
+__PAINTER__
+__RUNTIME__
+__RECORDS__
+</script>
+</div>

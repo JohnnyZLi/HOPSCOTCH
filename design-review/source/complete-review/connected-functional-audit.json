@@ -1,0 +1,65 @@
+{
+  "widths": [
+    320,
+    390,
+    736,
+    1024,
+    1440
+  ],
+  "cases": [
+    {
+      "width": 320,
+      "scenarios": 9,
+      "routes": 13,
+      "captureFrames": 9
+    },
+    {
+      "width": 390,
+      "scenarios": 9,
+      "routes": 13,
+      "captureFrames": 9
+    },
+    {
+      "width": 736,
+      "scenarios": 9,
+      "routes": 13,
+      "captureFrames": 9
+    },
+    {
+      "width": 1024,
+      "scenarios": 9,
+      "routes": 13,
+      "captureFrames": 9
+    },
+    {
+      "width": 1440,
+      "scenarios": 9,
+      "routes": 13,
+      "captureFrames": 9
+    }
+  ],
+  "kind": "Emitted runtime with synthetic DOM/font/WebGL; no browser layout or motion-pixel certification",
+  "checks": 35464,
+  "source_manifest": [
+    {
+      "path": "../dist/fragment-hopscotch-causal-lifecycle.html",
+      "bytes": 534721,
+      "sha256": "fa226769874d21afb6f647ec5afe2aed145bc8688bff06d7c0f4c8b7da365880"
+    },
+    {
+      "path": "../dist/fragment-hopscotch-builder-workbench.html",
+      "bytes": 853704,
+      "sha256": "405d6cfb0b42765f88359c215c83988d66e8187886741c3aec77049ad76f0c15"
+    },
+    {
+      "path": "../dist/fragment-hopscotch-evidence-workspaces.html",
+      "bytes": 636474,
+      "sha256": "dd93c4b4ece39eb96d205fb912b9c96fd7d67bb6ac592d809e60eb5fe52305df"
+    },
+    {
+      "path": "../dist/fragment-hopscotch-connected-workspaces.html",
+      "bytes": 510109,
+      "sha256": "c6730b5eec40bae72a54a8c4f95ad054d8cb3fb97dd4ad1e321d083cbbf5e07e"
+    }
+  ]
+}
