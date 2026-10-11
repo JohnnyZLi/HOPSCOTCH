@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { environment } from './check-complete.mjs';
 
 for (const width of [320, 390, 1024, 1440]) {
-  const env = await environment('motion', width);
+  const env = await environment('motion', width, { artifactPath: '../../public/review/lifecycle.html' });
   const api = env.root.causalStudy;
   const source = JSON.stringify(env.root.reviewData);
   api.select('tcp');
