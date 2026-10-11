@@ -19,14 +19,45 @@ function buildDock(){
  }else if(sceneId==='tls'){for(const [label,cls]of [['Certificate','rv-tls-certificate'],['Application channel','rv-tls-channel']]){const fact=node('div','rv-fact');fact.append(node('dt','',label),node('dd',cls,cls==='rv-tls-certificate'?'Unchecked':'Not ready'));dock.append(fact);}}
 }
 
-let sceneId='tcp',frames=[],actors=[],plan=null,clock=0,playing=false,job=0,last=0,layoutJob=0,layoutKey='',captionKey='',lensKey='',recordKey='',activeActor=-1,variant=0,dnsMode='miss',byte=-1,disposed=false;
+let sceneId='tcp',frames=[],actors=[],plan=null,clock=0,playing=false,job=0,last=0,layoutJob=0,layoutKey='',captionKey='',lensKey='',recordKey='',activeActor=-1,variant=0,dnsMode='miss',byte=-1,disposed=false,alignAfterResize=false;
 const transferView=transfer.makeView(q('.rv-transfer'),q('.rv-transfer-value'),q('.rv-transfer-note'));
 function node(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=String(text);return n;}
 function titleCase(value){return String(value||'').toLowerCase().replace(/(^|[\s-])\p{L}/gu,m=>m.toUpperCase());}
 function facts(before,after){const a=new Map((before||[]).map(x=>[x.label,x.value]));return (after||[]).filter(x=>String(a.get(x.label))!==String(x.value)).map(x=>({text:x.label,value:x.value}));}
 function modelFrames(id){return data.referenceModels.find(m=>m.id===id)?.frames||[];}
+// A local operation exposes its actual state changes. Wire-message fields stay
+// on wire messages; formatted values never change the canonical source state.
+function stateFields(previous,state,schema){
+ return schema.filter(([key])=>state[key]!==undefined&&state[key]!==null).map(([key,label,format=String])=>{
+  const changed=previous?.[key]!==undefined&&JSON.stringify(previous[key])!==JSON.stringify(state[key]);
+  return {id:'state-'+key,label,value:changed?format(previous[key])+' → '+format(state[key]):format(state[key]),changed};
+ });
+}
+function tlsOperation(e,state,previous){
+ if(e.direction!=='local')return null;
+ const ready=v=>v?'Ready':'Not ready',classes=v=>v.join(' · '),modes={
+  'certificate-validation':[['certificateState','Certificate state',titleCase],['negotiatedVersion','Negotiated version'],['negotiatedAlpn','Application protocol']],
+  'handshake-keys':[['activeKeys','Active secret classes · symbolic',classes],['negotiatedGroup','Key exchange group'],['applicationReady','Application traffic',ready]],
+  'application-keys':[['activeKeys','Active secret classes · symbolic',classes],['applicationReady','Application traffic',ready],['negotiatedAlpn','Application protocol']],
+  complete:[['applicationReady','Application traffic',ready],['certificateState','Server certificate',titleCase],['negotiatedAlpn','Application protocol']]
+ };
+ const fields=stateFields(e.phase==='complete'?null:previous,state,modes[e.phase]||[['phaseLabel','Source outcome']]);
+ const changed=fields.filter(f=>f.changed);
+ return {fields,readIds:(changed.length?changed:fields).map(f=>f.id),records:[
+  {label:'Negotiated version',value:state.negotiatedVersion||'Not negotiated'},
+  {label:'Negotiated cipher',value:state.negotiatedCipher||'Not negotiated'},
+  {label:'Key exchange group',value:state.negotiatedGroup||'Not negotiated'},
+  {label:'Application protocol',value:state.negotiatedAlpn||'Not negotiated'},
+  {label:'Active secret classes · symbolic',value:classes(state.activeKeys)},
+  {label:'Transcript messages',value:state.transcript.join(' → ')}
+ ]};
+}
 function sourceFrameAdapter(id){
- if(id==='tcp')return data.tcp.frames.map(({event:e,state},i)=>({id:e.id,at:e.atMs,title:e.title,summary:e.summary,detail:e.detail,kind:e.kind,local:e.direction==='local',lost:e.kind==='data.loss',from:e.direction==='server-to-client'?'Server':'Client',to:e.direction==='server-to-client'?'Client':'Server',protocol:'tcp',objectTitle:e.flags||'Congestion control',fields:[{id:'seq',label:'Sequence',value:e.seq??'Local state'},{id:'ack',label:'Acknowledgment',value:e.ack??'Not active'},{id:'flags',label:'Flags',value:e.flags||'Reno · illustrated'},{id:'length',label:'Data length',value:(e.length||0)+' B'}],readIds:e.seq===undefined?['flags']:e.ack===undefined?['seq']:e.length?['seq','length']:['ack'],records:[{label:'Congestion window',value:state.cwndMss+' MSS'},{label:'Slow-start threshold',value:state.ssthreshMss+' MSS'},{label:'Duplicate ACKs',value:state.duplicateAcks},{label:'Next expected byte',value:state.expectedAck},{label:'Highest ACK at sender',value:state.highestAck}],state,event:e}));
+ if(id==='tcp')return data.tcp.frames.map(({event:e,state},i)=>{
+  const local=e.direction==='local',previous=data.tcp.frames[i-1]?.state;
+  const fields=local?stateFields(previous,state,[['cwndMss','Congestion window',v=>v+' MSS'],['ssthreshMss','Slow-start threshold',v=>v+' MSS'],['duplicateAcks','Duplicate ACKs'],['phase','Recovery phase',titleCase]]):[{id:'seq',label:'Sequence',value:e.seq??'Not active'},{id:'ack',label:'Acknowledgment',value:e.ack??'Not active'},{id:'flags',label:'Flags',value:e.flags},{id:'length',label:'Data length',value:(e.length||0)+' B'}];
+  return {id:e.id,at:e.atMs,title:e.title,summary:e.summary,detail:e.detail,kind:e.kind,local,lost:e.kind==='data.loss',from:e.direction==='server-to-client'?'Server':'Client',to:e.direction==='server-to-client'?'Client':'Server',protocol:'tcp',objectTitle:e.flags||'Congestion control',fields,readIds:local?fields.filter(f=>f.changed).map(f=>f.id):e.ack===undefined?['seq']:e.length?['seq','length']:['ack'],records:[{label:'Congestion window',value:state.cwndMss+' MSS'},{label:'Slow-start threshold',value:state.ssthreshMss+' MSS'},{label:'Duplicate ACKs',value:state.duplicateAcks},{label:'Next expected byte',value:state.expectedAck},{label:'Highest ACK at sender',value:state.highestAck}],state,event:e};
+ });
  if(id==='packet'){
   const packet=data.packetVariants[variant];return packet.segments.map((segment,i)=>({id:segment.id,identity:'frame-'+packet.config.family+'-'+packet.config.transport,at:null,title:segment.label+' · exact anatomy',summary:'Bytes '+segment.offset+'–'+(segment.offset+segment.length-1)+' remain part of the same '+packet.frameBytes+'-byte source frame. FCS is absent from these model bytes.',detail:'SIMULATED · field values and checksum bytes come from buildPacket. Layer opening is a presentation operation.',kind:'anatomy',from:'Sender',to:'Receiver',protocol:segment.id==='network'?packet.config.family:segment.id==='ethernet'?'ethernet':segment.id==='payload'?'payload':packet.config.transport,objectTitle:segment.label,fields:segment.fields.map(f=>({...f,value:String(f.value)})),readIds:segment.fields.map(f=>f.id),records:[{label:'Frame length',value:packet.frameBytes+' B'},{label:'Network length',value:packet.networkBytes+' B'},{label:'Selected layer',value:segment.label},{label:'Exact byte range',value:segment.offset+' + '+segment.length+' B'}],bytes:packet.bytes,segment,state:packet}));
  }
@@ -53,9 +84,9 @@ function sourceFrameAdapter(id){
  if(id==='http')return data.http.frames.map(({event:e,state},i)=>({...modelFrames('http')[i],id:e.id,at:e.atMs,title:e.title,summary:e.summary,kind:'comparison',local:true,state,event:e,records:[]}));
  const actual=id==='dns'?data.dns[dnsMode].frames:data[id].frames,normalized=id==='dns'&&dnsMode!=='miss'?[]:modelFrames(id);
  return actual.map(({event:e,state},i)=>{
-  const f=normalized[i]||{},fields=f.fields||[{label:'Question',value:e.qname||'www.example.test'},{label:'Answer',value:state.answer||'Not available'},{label:'Cache TTL',value:state.cacheTtlSeconds??'No cache entry'}];
+  const f=normalized[i]||{},operation=id==='tls'?tlsOperation(e,state,actual[i-1]?.state):null,fields=operation?.fields||f.fields||[{label:'Question',value:e.qname||'www.example.test'},{label:'Answer',value:state.answer||'Not available'},{label:'Cache TTL',value:state.cacheTtlSeconds??'No cache entry'}];
   const local=id==='dns'?e.phase==='complete'||e.from===e.to||e.from==='local'||e.kind.startsWith('cache'):id==='tls'?e.direction==='local'||!e.direction:id==='journey'?!['transport.segment','http.request','http.response','tls.message'].includes(e.kind):false;
-  return {...f,id:e.id,at:e.atMs,title:e.title,summary:e.summary,detail:e.detail,kind:e.kind||e.phase,local,from:e.from||e.actor||'Client',to:e.to||e.target||(e.direction==='server-to-client'?'Client':'Server'),protocol:id==='journey'?String(e.protocol||'network').toLowerCase():id,objectTitle:f.objectTitle||e.message||e.protocol||'DNS message',fields:fields.map((x,j)=>({...x,id:'field-'+j,value:String(x.value)})),readIds:fields.map((_,j)=>'field-'+j),records:f.records||[{label:'Cache',value:state.cacheState},{label:'TTL',value:state.cacheTtlSeconds??'Not available'},{label:'Answer',value:state.answer||'Not available'}],state,event:e};
+  return {...f,id:e.id,at:e.atMs,title:e.title,summary:e.summary,detail:e.detail,kind:e.kind||e.phase,local,from:e.from||e.actor||'Client',to:e.to||e.target||(e.direction==='server-to-client'?'Client':'Server'),protocol:id==='journey'?String(e.protocol||'network').toLowerCase():id,objectTitle:f.objectTitle||e.message||e.protocol||'DNS message',fields:fields.map((x,j)=>({...x,id:x.id||'field-'+j,value:String(x.value)})),readIds:operation?.readIds||fields.map((x,j)=>x.id||'field-'+j),records:operation?.records||f.records||[{label:'Cache',value:state.cacheState},{label:'TTL',value:state.cacheTtlSeconds??'Not available'},{label:'Answer',value:state.answer||'Not available'}],state,event:e};
  });
 }
 function frameAdapter(id){
@@ -132,7 +163,7 @@ function reflow(){
   const context=document.createElement('canvas').getContext('2d');context.font=style.fontWeight+' '+style.fontSize+' '+style.fontFamily;
   for(const el of a.fields.children)el.dataset.wide=String(context.measureText(el.querySelector('.rv-field-value').textContent).width>column-16);
   const height=a.face.offsetHeight,origin=a.face.getBoundingClientRect(),lens={w:clamp(font*1.2*1.6,34,62),h:Math.max(46,font*1.2*2.05)},targets=(frames[i].readIds||[]).map(id=>{const el=a.fieldMap.get(id);return {id,label:el?.querySelector('.rv-field-label').textContent||id,lines:el?textLines(el.querySelector('.rv-field-value'),origin):[]};}),read=makePlan(targets,lens);
-  const consoleHeight=q('.rv-console').offsetHeight,parallel=getComputedStyle(composition).display==='grid',available=viewport-32-(parallel?0:consoleHeight)-focusY-16,viewHeight=bounded()?Math.min(height,Math.max(132,available)):height;
+  const consoleHeight=q('.rv-console').offsetHeight,parallel=getComputedStyle(composition).display==='grid',available=viewport-32-(parallel?0:consoleHeight)-focusY-16,minimumViewHeight=Math.ceil((parseFloat(fs.paddingTop)||24)+(parseFloat(fs.paddingBottom)||24)+Math.max(lens.h,...targets.flatMap(t=>t.lines.map(line=>line.h)))),viewHeight=bounded()?Math.min(height,Math.max(minimumViewHeight,available)):height;
   const focus={x:(width-cardWidth)/2,y:focusY,w:cardWidth,h:viewHeight},fit=motion.fitGeometry(cardWidth,[envelopeH||60,height,trailerH||48],1),attach=motion.makeAttachmentPlan(1,0,fit),detach=motion.makeAttachmentPlan(0,1,fit),emphasis=root.emphasis.compile(root.emphasis.readWindows(read,0,id=>a.fieldMap.get(id)));const payload=a.face.querySelector('.rv-payload-body'),pr=payload?.getBoundingClientRect(),payloadRect=pr?{x:pr.left-origin.left,y:pr.top-origin.top,w:pr.width,h:pr.height}:null;prepared.push({focus,fullHeight:height,lens,read,origin,targets,emphasis,fit,attach,detach,payloadRect});maxHeight=Math.max(maxHeight,height);a.face.style.position='absolute';
  }
  stage.style.height=(['failure','http'].includes(sceneId)?0:focusY+(bounded()?prepared[0].focus.h:maxHeight)+(sceneId==='packetOps'?trailerH+60:16))+'px';
@@ -170,7 +201,7 @@ function reflow(){
  plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH};
  if(old){const match=phases.find(p=>frames[p.index].id===old.id&&p.kind===old.kind)||phases.find(p=>frames[p.index].id===old.id&&old.kind==='retainFocus'&&p.kind==='retain');clock=match?mix(match.start,match.end,match.kind===old.kind?old.p:0):0;}else clock=0;
  q('.rv-event-picker').replaceChildren(...frames.map((f,i)=>{const option=node('option','',f.title);option.value=String(i);return option;}));
- layoutKey=key;lensKey='';reserveCaption();render();root.recordMaterial?.invalidate();
+ layoutKey=key;lensKey='';reserveCaption();render();root.recordMaterial?.invalidate();if(alignAfterResize){alignAfterResize=false;if(playing&&bounded())composition.scrollIntoView?.({block:'start',behavior:'auto'});}
 }
 function locate(t){const phase=plan.phases.find(p=>t<p.end)||plan.phases.at(-1);return {...phase,p:clamp((t-phase.start)/(phase.end-phase.start)),elapsed:clamp(t-phase.start,0,phase.end-phase.start)};}
 function interpolate(a,b,t){return {x:mix(a.x,b.x,t),y:mix(a.y,b.y,t),w:mix(a.w,b.w,t),h:mix(a.h,b.h,t)};}
@@ -310,7 +341,7 @@ function select(id){
 }
 function appearance(){const value=q('.rv-theme').value;root.dataset.theme=value==='system'?(dark.matches?'dark':'light'):value;root.surfacePainter.invalidate();layoutKey='';networkKey='';queueLayout();}
 q('.rv-play').addEventListener('click',()=>playing?pause():play());q('.rv-replay').addEventListener('click',()=>{pause();clock=0;play();});q('.rv-next').addEventListener('click',next);q('.rv-event-picker').addEventListener('change',e=>seek(plan.starts[Number(e.target.value)]));q('.rv-scrub').addEventListener('input',e=>seek(Number(e.target.value)/1000*plan.total));q('.rv-scene-picker').addEventListener('change',e=>select(e.target.value));q('.rv-theme').addEventListener('change',appearance);dark.addEventListener('change',()=>{if(q('.rv-theme').value==='system')appearance();});reduced.addEventListener('change',()=>{pause();render();});
-details.addEventListener('toggle',()=>{if(details.open)pause();});root.addEventListener('review-disclosure-layout',e=>{if([settings,explanation].includes(e.detail.element)){if(root.disclosures.wanted(e.detail.element))pause();layoutKey='';queueLayout();}});const viewportResize=()=>{layoutKey='';queueLayout();};window.addEventListener('resize',viewportResize);
+details.addEventListener('toggle',()=>{if(details.open)pause();});root.addEventListener('review-disclosure-layout',e=>{if([settings,explanation].includes(e.detail.element)){if(root.disclosures.wanted(e.detail.element))pause();layoutKey='';queueLayout();}});const viewportResize=()=>{alignAfterResize=playing&&bounded();layoutKey='';queueLayout();};window.addEventListener('resize',viewportResize);
 let observedMainWidth=q('.rv-main').clientWidth;const resize=new ResizeObserver(()=>{const width=q('.rv-main').clientWidth;if(bounded()&&Math.abs(width-observedMainWidth)<.5)return;observedMainWidth=width;layoutKey='';queueLayout();});resize.observe(q('.rv-main'));document.fonts?.ready.then(()=>{layoutKey='';queueLayout();});document.fonts?.addEventListener('loadingdone',()=>{layoutKey='';queueLayout();});document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});root.addEventListener('review-material-change',()=>{root.surfacePainter.invalidate();layoutKey='';queueLayout();});
 root.byteWindows.watch(q('.rv-byte-details'),()=>{if(sceneId==='packet')root.byteWindows.layout(q('.rv-bytes'),q('.rv-byte-details'));});
 root.causalStudy=Object.freeze({select,seek,next,play,pause,reflow,appearance,snapshot:()=>({sceneId,clock,playing,plan,frames,at:plan?locate(clock):null,committed:plan?stateIndex():-1,plannerUsesCachedGeometry:true,material:root.surfacePainter.stats()}),sample:t=>plan?{at:locate(t),pose:['failure','http'].includes(sceneId)?null:pose(locate(t))}:null,dispose:()=>{root.reviewUI.settle();root.byteWindows.dispose();root.layoutReservation.dispose();pause();disposed=true;if(layoutJob)cancelAnimationFrame(layoutJob);resize.disconnect();window.removeEventListener?.('resize',viewportResize);}});
