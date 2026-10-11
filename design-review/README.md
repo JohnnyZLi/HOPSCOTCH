@@ -21,6 +21,7 @@ The Python assembler also writes local fragment intermediates to `dist/` for
 the existing synthetic tests. Run these from `design-review/source/` after a build:
 
 ```sh
+node complete-review/check-source-semantics.mjs
 node complete-review/check-bounded-composition.mjs
 node complete-review/check-composition-motion.mjs
 node complete-review/check-related-motion.mjs
@@ -60,6 +61,9 @@ glyph placement, or compositor behavior.
 6. Run the required production checks plus the visual matrix. Record physical
    Safari/iPhone, assistive-technology, hardware-performance, and owner acceptance
    separately. Replace the default experience only after acceptance.
+
+The source-semantics contract also runs in `npm run check`. It verifies that local
+TCP/TLS presentations use canonical state and preserve the complete source.
 
 The live review is the visual inspection surface. The historical private Site
 remains a recovery reference until the migration has been accepted.

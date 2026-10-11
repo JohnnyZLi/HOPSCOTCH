@@ -1,8 +1,8 @@
 import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';
 let checks=0;function ok(v,m){assert.ok(v,m);checks++;}function eq(a,b,m){assert.deepEqual(a,b,m);checks++;}const plain=x=>JSON.parse(JSON.stringify(x));
-export async function environment(kind,width=1024,{reduced=false,failGL=false,scale=1}={}){
+export async function environment(kind,width=1024,{reduced=false,failGL=false,scale=1,artifactPath=null}={}){
  const files={motion:'../dist/fragment-hopscotch-causal-lifecycle.html',workbench:'../dist/fragment-hopscotch-builder-workbench.html',evidence:'../dist/fragment-hopscotch-evidence-workspaces.html',connected:'../dist/fragment-hopscotch-connected-workspaces.html'},ids={motion:'hop-causal-review',workbench:'hop-builder-review',evidence:'hop-evidence-review',connected:'hop-connected-review'};
- const html=fs.readFileSync(files[kind],'utf8'),script=html.match(/<script>([\s\S]*?)<\/script>/)[1];let serial=0,now=0,reads=0,draws=0,fontScale=scale;const roots=new Map(),jobs=new Map(),media=[],resizes=[],mutations=[],gpu=[],animationJobs=[],documentEvents={};let root;
+ const html=fs.readFileSync(artifactPath||files[kind],'utf8'),script=html.match(/<script>([\s\S]*?)<\/script>/)[1];let serial=0,now=0,reads=0,draws=0,fontScale=scale;const roots=new Map(),jobs=new Map(),media=[],resizes=[],mutations=[],gpu=[],animationJobs=[],documentEvents={};let root;
  const gl=new Proxy({getParameter:()=>4096,isContextLost:()=>false,getShaderParameter:()=>true,getProgramParameter:()=>true,getUniformLocation:(_,name)=>name,drawArrays:()=>draws++},{get:(o,k)=>o[k]??(k===k.toUpperCase()?1:()=>({}))});
  const dk=k=>k.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase());
  function style(){const s={setProperty(k,v){s[k]=v;},getPropertyValue(k){return s[k]||'';},removeProperty(k){delete s[k];}};Object.defineProperty(s,'cssText',{set(v){for(const p of String(v).split(';')){const i=p.indexOf(':');if(i>0){const k=p.slice(0,i).trim().replace(/-([a-z])/g,(_,c)=>c.toUpperCase());s[k]=p.slice(i+1).trim();}}},get(){return '';}});return s;}
