@@ -181,6 +181,7 @@ class CdpClient {
         const waiter = this.pending.get(payload.id);
         if (!waiter) return;
         this.pending.delete(payload.id);
+        clearTimeout(waiter.timer);
         if (payload.error) waiter.reject(new Error(`${waiter.method}: ${payload.error.message}`));
         else waiter.resolve(payload.result ?? {});
         return;
@@ -192,7 +193,13 @@ class CdpClient {
   async call(method, params = {}) {
     await this.ready;
     const id = ++this.nextId;
-    const promise = new Promise((resolvePromise, reject) => this.pending.set(id, { resolve: resolvePromise, reject, method }));
+    const promise = new Promise((resolvePromise, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`${method} did not respond within its diagnostic deadline.`));
+      }, method === 'Browser.close' ? 3000 : 120000);
+      this.pending.set(id, { resolve: resolvePromise, reject, method, timer });
+    });
     this.socket.send(JSON.stringify({ id, method, params }));
     return promise;
   }
@@ -1336,6 +1343,7 @@ async function captureVisualReview(cdp, profile) {
 }
 
 async function loadProfile(cdp, origin, profile) {
+  console.log(`Begin profile ${profile.id}.`);
   cdp.clearEvents();
   await cdp.call('Emulation.setDeviceMetricsOverride', {
     width: profile.width,
@@ -1348,7 +1356,9 @@ async function loadProfile(cdp, origin, profile) {
   });
   const startedAt = performance.now();
   await cdp.call('Page.navigate', { url: `${origin}${profile.path ?? '/'}${profile.query}` });
-  await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(profile.readySelector ?? '.journey-visual-workspace')}))`);
+  // Match Firefox's existing cold-navigation readiness window. Measured ready
+  // time and every structural/heap/bundle assertion remain recorded unchanged.
+  await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(profile.readySelector ?? '.journey-visual-workspace')}))`,8000);
   await sleep(550);
   const phase4Interaction = profile.phase4Observed
     ? await exercisePhase4ObservedInternet(cdp, profile)
@@ -1482,6 +1492,7 @@ async function loadProfile(cdp, origin, profile) {
     : pageErrors;
   if (unexpectedPageErrors.length > 0) throw new Error(`${profile.id} emitted ${unexpectedPageErrors.length} unexpected runtime/console error event(s).`);
 
+  console.log(`Completed profile ${profile.id}.`);
   return {
     id: profile.id,
     viewport: { width: profile.width, height: profile.height },
@@ -1512,6 +1523,7 @@ async function loadProfile(cdp, origin, profile) {
 }
 
 async function seekStress(cdp, origin, cycles = stressConfig.seekCycles, id = 'max-composed-seek-stress') {
+  console.log(`Begin ${id}: ${cycles} complete source-event cycles.`);
   const profile = {
     id,
     width: 1440,
@@ -1548,6 +1560,7 @@ async function seekStress(cdp, origin, cycles = stressConfig.seekCycles, id = 'm
     };
   })()`);
   const elapsedMs = performance.now() - startedAt;
+  console.log(`Completed ${id}: ${elapsedMs.toFixed(0)} ms.`);
   await cdp.call('HeapProfiler.collectGarbage');
   const after = await cdp.call('Runtime.getHeapUsage');
   if (stressResult.eventCount !== beforeState.eventCount) throw new Error(`Seek stress mutated event count ${beforeState.eventCount} → ${stressResult.eventCount}.`);

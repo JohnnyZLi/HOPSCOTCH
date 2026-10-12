@@ -216,7 +216,11 @@ async function inspectState(cdp) {
     }).map((element)=>{const range=document.createRange();range.selectNodeContents(element);return {selector,text:element.textContent.trim(),rect:textBox(element),lineCount:range.getClientRects().length,fontSize:parseFloat(getComputedStyle(element).fontSize)}}));
     const pseudoContentMetrics=(element)=>{if(!element)return null;const style=getComputedStyle(element,'::before');const content=style.content.replace(/^["']|["']$/g,'');const canvas=document.createElement('canvas');const context=canvas.getContext('2d');if(!context)return null;context.font=style.font;const spacing=Number.parseFloat(style.letterSpacing)||0;const textWidth=context.measureText(content).width+Math.max(0,content.length-1)*spacing;const laneWidth=element.getBoundingClientRect().width;return {content,textWidth,laneWidth,fits:textWidth<=laneWidth+1}};
     const reviewedRoot=document.querySelector('.journey-reviewed-scene[data-hidden="false"] .review-runtime');
-    const callout=reviewedRoot?.querySelector('.rv-caption')??document.querySelector('.journey-callout-overlay');
+    const painted=(element)=>{if(!element?.getClientRects().length)return false;for(let node=element;node instanceof Element;node=node.parentElement){const style=getComputedStyle(node);if(style.display==='none'||style.visibility==='hidden'||Number(style.opacity)<.01)return false;}return true;};
+    // Native packet worlds explain their fields in-place. Their old, aria-hidden
+    // callout anchor is not a painted caption and must not become a zero-size box.
+    const inlineCaption=document.querySelector('.causal-annotation:not([hidden])');
+    const callout=reviewedRoot?.querySelector('.rv-caption')??[document.querySelector('.journey-callout-overlay'),inlineCaption].find(painted);
     const scene=reviewedRoot?.querySelector('.rv-stage')??document.querySelector('.journey-scene-transition');
     const stage=document.querySelector('.visual-workspace__stage');
     const hud=document.querySelector('.visual-workspace__hud');
@@ -312,8 +316,9 @@ async function inspectState(cdp) {
     }:null;
     return {
       title:callout?.querySelector('h2,strong')?.textContent?.trim()||'',
+      reviewed:Boolean(reviewedRoot),
       boxes,
-      calloutSceneOverlap:intersects(boxes.callout,boxes.scene),
+      calloutSceneOverlap:callout===inlineCaption?false:intersects(boxes.callout,boxes.scene),
       calloutHudOverlap:intersects(boxes.callout,boxes.hud),
       calloutToolbarOverlap:intersects(boxes.callout,boxes.toolbar),
       calloutRailOverlap:intersects(boxes.callout,boxes.rail),
@@ -540,16 +545,22 @@ async function auditViewport(cdp, origin, viewport) {
     const state = await inspectState(cdp);
     await screenshot(cdp, join(outputDir, `${viewport.id}-${String(index + 1).padStart(2, '0')}-${slug(state.title || labels[index])}.png`));
     try {
-    assert.ok(state.boxes.callout && state.boxes.scene && state.boxes.stage, `${viewport.id}/${labels[index]}: missing callout/scene/stage.`);
+    assert.ok(state.boxes.scene && state.boxes.stage && (!state.reviewed || state.boxes.callout), `${viewport.id}/${labels[index]}: missing visible caption/scene/stage.`);
     assert.equal(state.calloutSceneOverlap, false, `${viewport.id}/${labels[index]}: callout overlaps protected scene.`);
     assert.equal(state.calloutHudOverlap, false, `${viewport.id}/${labels[index]}: callout overlaps HUD.`);
     assert.equal(state.calloutToolbarOverlap, false, `${viewport.id}/${labels[index]}: callout overlaps toolbar.`);
     assert.equal(state.calloutRailOverlap, false, `${viewport.id}/${labels[index]}: callout overlaps Time Machine.`);
-    assert.ok((state.railSurface?.plate?.backgroundAlpha ?? 0) >= .99, `${viewport.id}/${labels[index]}: Time Machine has no opaque isolation plate: ${JSON.stringify(state.railSurface)}.`);
-    assert.equal(state.railSurface?.plate?.zIndex, 16, `${viewport.id}/${labels[index]}: Time Machine isolation plate left the rail stacking layer: ${JSON.stringify(state.railSurface)}.`);
-    assert.ok(Math.abs((state.railSurface?.plate?.width ?? 0) - state.boxes.rail.width) <= 1 && Math.abs((state.railSurface?.plate?.height ?? 0) - state.boxes.rail.height) <= 1, `${viewport.id}/${labels[index]}: Time Machine isolation plate does not cover the rail: ${JSON.stringify({rail:state.boxes.rail,surface:state.railSurface})}.`);
-    assert.ok(state.boxes.callout.left >= state.boxes.stage.left - 1 && state.boxes.callout.right <= state.boxes.stage.right + 1, `${viewport.id}/${labels[index]}: callout escapes stage horizontally.`);
-    assert.ok(state.boxes.callout.top >= state.boxes.stage.top - 1 && state.boxes.callout.bottom <= state.boxes.stage.bottom + 1, `${viewport.id}/${labels[index]}: callout escapes stage vertically.`);
+    if (state.railSurface?.plate?.content !== 'none') {
+      assert.ok((state.railSurface?.plate?.backgroundAlpha ?? 0) >= .99, `${viewport.id}/${labels[index]}: Time Machine has no opaque isolation plate: ${JSON.stringify(state.railSurface)}.`);
+      assert.equal(state.railSurface?.plate?.zIndex, 16, `${viewport.id}/${labels[index]}: Time Machine isolation plate left the rail stacking layer: ${JSON.stringify(state.railSurface)}.`);
+      assert.ok(Math.abs((state.railSurface?.plate?.width ?? 0) - state.boxes.rail.width) <= 1 && Math.abs((state.railSurface?.plate?.height ?? 0) - state.boxes.rail.height) <= 1, `${viewport.id}/${labels[index]}: Time Machine isolation plate does not cover the rail: ${JSON.stringify({rail:state.boxes.rail,surface:state.railSurface})}.`);
+    } else {
+      assert.ok(state.railSurface.opacity >= .99 && state.railSurface.backgroundAlpha >= .99, `${viewport.id}/${labels[index]}: playback controls lost their opaque surface: ${JSON.stringify(state.railSurface)}.`);
+    }
+    if (state.boxes.callout) {
+      assert.ok(state.boxes.callout.left >= state.boxes.stage.left - 1 && state.boxes.callout.right <= state.boxes.stage.right + 1, `${viewport.id}/${labels[index]}: callout escapes stage horizontally.`);
+      assert.ok(state.boxes.callout.top >= state.boxes.stage.top - 1 && state.boxes.callout.bottom <= state.boxes.stage.bottom + 1, `${viewport.id}/${labels[index]}: callout escapes stage vertically.`);
+    }
     assert.ok(state.scrollWidth <= state.innerWidth + 1, `${viewport.id}/${labels[index]}: horizontal overflow ${state.scrollWidth} > ${state.innerWidth}.`);
     assert.ok(state.markers.every((marker) => marker.width >= 14 && marker.height >= 18), `${viewport.id}/${labels[index]}: timeline hit target regressed: ${JSON.stringify(state.markers)}`);
     if (viewport.id === 'mobile') {

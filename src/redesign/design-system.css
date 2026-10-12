@@ -27,6 +27,7 @@ html[data-design=reviewed] :is(.visual-identity,.visual-hud-chip,.visual-workspa
 html[data-design=reviewed] :is(.visual-identity strong,.visual-hud-chip strong,.visual-workspace__hud strong,.builder-stage-meta strong){color:var(--design-ink);font-size:13px;font-weight:500;letter-spacing:normal}
 html[data-design=reviewed] :is(.visual-identity>span,.visual-hud-chip span,.visual-workspace__hud span,.builder-stage-meta span){color:var(--design-muted);font-size:11px;font-weight:500;letter-spacing:.02em}
 html[data-design=reviewed] :is(.visual-time-rail,.visual-timeline,.visual-workspace__timeline){background:var(--design-panel);color:var(--design-ink);border-color:var(--design-line);border-radius:0 0 20px 20px}
+html[data-design=reviewed] body .journey-visual-workspace .visual-time-rail{background:var(--design-panel)!important;opacity:1!important}
 html[data-design=reviewed] :is(.visual-drawer,.visual-drawer__header,.protocol-inspect-event,.protocol-model-drawer>section,.protocol-inspect-drawer>section,.journey-inspect-drawer>section,.builder-context-drawer,.builder-device-workbench,.measured-card,.capture-panel,.capture-toolbar,.capture-sidebar,.explore-dialog,.explore-panel){background:var(--design-panel);color:var(--design-ink);border-color:var(--design-line);box-shadow:0 8px 24px var(--design-shadow)}
 html[data-design=reviewed] :is(.visual-drawer h2,.visual-drawer h3,.visual-drawer strong,.protocol-fact-grid strong,.protocol-meter-pair strong,.journey-inspect-event h3,.builder-context-drawer strong,.measured-card strong,.capture-panel strong){color:var(--design-ink)}
 html[data-design=reviewed] :is(.visual-drawer p,.visual-drawer small,.protocol-fact-grid small,.protocol-meter-pair small,.builder-context-drawer small){color:var(--design-muted)}
@@ -77,6 +78,8 @@ html[data-design=reviewed] .capture-replay .capture-flow-list>button{opacity:1!i
 html[data-design=reviewed] .capture-replay .capture-flow-list>button .capture-flow-protocol{color:var(--design-accent)!important}
 html[data-design=reviewed] .capture-analysis-drawer :is(.capture-track-h-summary>div,.capture-theater-stages article){background:transparent!important;box-shadow:none}
 @media(max-width:680px){
+ html[data-design=reviewed] .capture-replay .capture-heading-actions{flex-wrap:wrap;overflow:visible;max-width:100%;width:100%;gap:6px}
+ html[data-design=reviewed] .capture-replay .capture-heading-actions .capture-session{position:static;background:var(--design-control);box-shadow:none}
  html[data-design=reviewed] .builder-visual-workspace .builder-canvas::after{display:none}
  html[data-design=reviewed] :is(.journey-visual-tools,.protocol-visual-tools){width:100%}
  html[data-design=reviewed] .http-workspace-stage{overflow:auto}
