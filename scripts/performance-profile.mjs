@@ -186,6 +186,10 @@ class CdpClient {
         else waiter.resolve(payload.result ?? {});
         return;
       }
+      if (payload.method === 'Runtime.consoleAPICalled') {
+        const message = payload.params?.args?.map(arg => arg.value ?? '').join(' ') ?? '';
+        if (message.startsWith('[hopscotch-seek]')) console.log(message);
+      }
       this.events.push(payload);
     });
   }
@@ -1546,7 +1550,8 @@ async function seekStress(cdp, origin, cycles = stressConfig.seekCycles, id = 'm
     const cycles=${Number(cycles)};
     const buttons=[...document.querySelectorAll('.visual-time-rail__events button')];
     for(let cycle=0;cycle<cycles;cycle+=1){
-      for(const button of buttons){
+      for(const [index,button] of buttons.entries()){
+        if(index%20===0)console.info('[hopscotch-seek] cycle '+(cycle+1)+' event '+index+' '+button.getAttribute('aria-label'));
         button.click();
         await new Promise((resolve)=>requestAnimationFrame(()=>resolve()));
       }

@@ -57,6 +57,7 @@ html[data-design=reviewed] .builder-link-cost{fill:var(--design-muted)}
 html[data-design=reviewed] :is(.journey-callout,.journey-causal-caption){background:var(--design-control);color:var(--design-ink);border-color:var(--design-line);box-shadow:none}
 html[data-design=reviewed] :is(.journey-callout h2,.journey-callout p,.journey-callout small){color:inherit}
 html[data-design=reviewed] .journey-callout-anchor{display:none}
+html[data-design=reviewed] .journey-visual-workspace .phase5b-data-unit{background:transparent;box-shadow:none}
 /* Preserve the native worlds' usable geometry without restoring their skin. */
 html[data-design=reviewed] :is(.capture-replay,.measured-workspace,.internet-scale,.builder-workspace){width:calc(100% - 20px);max-width:none}
 html[data-design=reviewed] :is(.journey-visual-tools,.protocol-visual-tools){display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;max-width:100%}
@@ -78,6 +79,7 @@ html[data-design=reviewed] .capture-replay .capture-flow-list>button{opacity:1!i
 html[data-design=reviewed] .capture-replay .capture-flow-list>button .capture-flow-protocol{color:var(--design-accent)!important}
 html[data-design=reviewed] .capture-analysis-drawer :is(.capture-track-h-summary>div,.capture-theater-stages article){background:transparent!important;box-shadow:none}
 @media(max-width:680px){
+ html[data-design=reviewed] .capture-replay{width:100%}
  html[data-design=reviewed] .capture-replay .capture-heading-actions{flex-wrap:wrap;overflow:visible;max-width:100%;width:100%;gap:6px}
  html[data-design=reviewed] .capture-replay .capture-heading-actions .capture-session{position:static;background:var(--design-control);box-shadow:none}
  html[data-design=reviewed] .builder-visual-workspace .builder-canvas::after{display:none}
