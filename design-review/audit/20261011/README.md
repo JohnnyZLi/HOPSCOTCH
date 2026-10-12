@@ -113,3 +113,20 @@ follow-up fits actual node corners/route points and explicitly brings the map
 into view after either user framing action. Automatic entry framing does not
 move the page. Overview labels still require zoom or device selection for
 detailed inspection at narrow widths; this is not full usability acceptance.
+
+## Final deployed Builder recheck — PR #202
+
+Production commit: `4e35da5fba157f95a1a7748490f09310ff8f490c`. All required PR
+checks and the Cloudflare production build succeeded. The 390 × 844 dark browser
+view now frames actual drawn geometry and brings it into view. The map's settled
+vertical bounds are y = 241.78…601.78 inside the 844-pixel iframe. All six devices
+are visible after Frame network. After Show forwarding path, all five path
+devices (CLIENT, EDGE, R1, CORE, APP) fit inside the map's actual DOM bounds.
+See `builder-final.jpg`. This verifies the observed framing/scrolling defect;
+narrow overview labels still require zoom or the device workbench for detail.
+
+The current default application has not been integrated with these studies.
+Outstanding work remains Journey/DNS semantic presentation, persistent inner
+identity and real label/envelope choreography for GRE/MPLS, and complete
+Connected companion workspaces. The limited public browser pass and synthetic
+contracts must not be described as full production acceptance.
