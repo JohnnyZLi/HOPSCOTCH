@@ -463,7 +463,12 @@ function build(graph,measure){graph=canonical(graph);const begin=Date.now(),opti
 async function buildAsync(graph,measure,onProgress=()=>{},authored=null){graph=canonical(graph);const options=[];let done=0;for(const scale of [1.1,1.4,1.8])for(const reverse of [false,true]){onProgress(++done,6);await new Promise(r=>setTimeout(r,0));try{const c=candidate(graph,measure,scale,reverse,typeof authored==="undefined"?null:authored);if(c)options.push(c);}catch{}}if(!options.length)throw Error('No readable layout found within this study’s search budget');options.sort((a,b)=>a.score-b.score);return options[0];}
 
 
-root.networkPlanner=Object.freeze({build,buildAsync,layout,solve,audit,canonical});})();(()=>{
+root.networkPlanner=Object.freeze({build,buildAsync,layout,solve,audit,canonical});})();// One geometric camera law serves the review and the production Builder.
+function frameCamera(bounds,viewport,padding=16,maxZoom=1){
+ const gap=Math.max(0,Math.min(padding,viewport.w/4,viewport.h/4)),w=Math.max(1,bounds.right-bounds.left),h=Math.max(1,bounds.bottom-bounds.top),z=Math.min(maxZoom,Math.max(1,viewport.w-gap*2)/w,Math.max(1,viewport.h-gap*2)/h);
+ return {x:viewport.w/2-(bounds.left+bounds.right)*z/2,y:viewport.h/2-(bounds.top+bounds.bottom)*z/2,z};
+}
+(()=>{
 'use strict';
 const root=document.getElementById('hop-causal-review'),reduced=matchMedia('(prefers-reduced-motion: reduce)'),records=new Map(),byInner=new WeakMap();
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),ease=t=>1-Math.pow(1-t,3);
@@ -722,12 +727,6 @@ function zoomCamera(camera,viewport,zoom){
  const world={x:(viewport.w/2-camera.x)/camera.z,y:(viewport.h/2-camera.y)/camera.z};
  return {x:viewport.w/2-world.x*zoom,y:viewport.h/2-world.y*zoom,z:zoom};
 }
-// Framing is a geometric fit, independent of the preferred inspection zoom.
-// The same bounds can describe a complete world or one selected path.
-function frameCamera(bounds,viewport,padding=16,maxZoom=1){
- const gap=Math.max(0,Math.min(padding,viewport.w/4,viewport.h/4)),w=Math.max(1,bounds.right-bounds.left),h=Math.max(1,bounds.bottom-bounds.top),z=Math.min(maxZoom,Math.max(1,viewport.w-gap*2)/w,Math.max(1,viewport.h-gap*2)/h);
- return {x:viewport.w/2-(bounds.left+bounds.right)*z/2,y:viewport.h/2-(bounds.top+bounds.bottom)*z/2,z};
-}
 // Native controls may be recreated when their semantic source changes. Retain
 // their focus and disclosure by identity, without constructing selectors from
 // arbitrary imported labels. A persistent focused control is never refocused.
@@ -955,22 +954,22 @@ function dnsFrames(actual) {
  });
 }
 function providerFrames(p) {
- const innerFields=Object.entries(p.packet.inner).map(([key,value])=>({id:'inner-'+key,label:'Inner '+words(key),value:key==='bytes'?value+' B':display(value)}));
+ const innerFields=Object.entries(p.packet?.inner||{}).map(([key,value])=>({id:'inner-'+key,label:'Inner '+words(key),value:key==='bytes'?value+' B':display(value)}));
  const source=[
-  {id:'inner',title:'The inner packet keeps its identity',summary:'These inner addresses and length persist while separate outer pieces change.',operation:'inner',envelope:null,state:p.packet},
-  {id:'encapsulated',title:'A GRE envelope attaches',summary:'The '+p.gre.encapsulationOverheadBytes+' B outer envelope seats around the same '+p.packet.inner.bytes+' B inner packet.',operation:'attach',envelope:p.packet.outer,state:p.packet},
-  ...p.lsp.operations.map((op,index)=>({id:'mpls-'+index,title:op.routerId.toUpperCase()+' · '+op.operation+' label',
+  ...(p.packet?[{id:'inner',title:'The inner packet keeps its identity',summary:'These inner addresses and length persist while separate outer pieces change.',operation:'inner',envelope:null,state:p.packet},
+   {id:'encapsulated',title:p.packet.state==='ENCAPSULATED'?'An outer '+p.packet.outer.protocol+' envelope attaches':'The underlay blocks encapsulation',summary:p.packet.reason,operation:p.packet.state==='ENCAPSULATED'?'attach':'boundary',envelope:p.packet.state==='ENCAPSULATED'?p.packet.outer:null,state:p.packet}]:[]),
+  ...(p.lsp?.operations||[]).map((op,index)=>({id:'mpls-'+index,title:op.routerId.toUpperCase()+' · '+op.operation+' label',
    summary:'Independent MPLS projection: label '+(op.inLabel??'none')+' → '+(op.outLabel??'none')+' for '+op.fecPrefix+'. Its payload remains the same; payload bytes are not supplied.',
    operation:op.operation.toLowerCase(),labelOperation:op,envelope:null,state:p.lsp})),
-  {id:'mtu',title:'Too large for the overlay',summary:p.tooLarge.reason,operation:'boundary',envelope:p.packet.outer,state:p.tooLarge,
-   outcome:[{label:'Requested inner length',value:p.tooLarge.inner.bytes+' B'},{label:'Effective overlay MTU',value:p.tooLarge.effectiveOverlayMtuBytes+' B'},{label:'Outcome',value:p.tooLarge.state}]},
-  {id:'failed-underlay',title:'The overlay depends on its underlay',summary:p.failedGre.reason,operation:'boundary',envelope:p.packet.outer,state:p.failedGre,
-   outcome:[{label:'Underlay reachable',value:display(p.failedGre.underlayReachable)},{label:'Overlay reachable',value:display(p.failedGre.overlayReachable)},{label:'Tunnel state',value:p.failedGre.state}]}
+  ...(p.tooLarge?[{id:'mtu',title:'Too large for the overlay',summary:p.tooLarge.reason,operation:'boundary',envelope:p.packet?.outer||null,state:p.tooLarge,
+   outcome:[{label:'Requested inner length',value:p.tooLarge.inner.bytes+' B'},{label:'Effective overlay MTU',value:p.tooLarge.effectiveOverlayMtuBytes+' B'},{label:'Outcome',value:p.tooLarge.state}]}]:[]),
+  ...(p.failedGre?[{id:'failed-underlay',title:'The overlay depends on its underlay',summary:p.failedGre.reason,operation:'boundary',envelope:p.packet?.outer||null,state:p.failedGre,
+   outcome:[{label:'Underlay reachable',value:display(p.failedGre.underlayReachable)},{label:'Overlay reachable',value:display(p.failedGre.overlayReachable)},{label:'Tunnel state',value:p.failedGre.state}]}]:[])
  ];
  return source.map(f=>({...f,at:null,identity:f.labelOperation?'mpls-payload':'provider-inner',kind:'provider-operation',local:true,physical:true,from:'Ingress',to:'Egress',protocol:'ipv4',
-  objectTitle:f.labelOperation?'MPLS payload · symbolic':'Inner IPv4 packet',fields:f.labelOperation?[{id:'fec',label:'Forwarding class',value:f.labelOperation.fecPrefix},{id:'payload',label:'Payload bytes',value:'Not supplied by the LSP projection'}]:innerFields,readIds:f.operation==='inner'?innerFields.map(f=>f.id):[],records:[
+  objectTitle:f.labelOperation?'MPLS payload · symbolic':'Inner IPv4 packet',fields:f.labelOperation?[{id:'fec',label:'Forwarding class',value:f.labelOperation.fecPrefix},{id:'payload',label:'Payload bytes',value:'Not supplied by the LSP projection'}]:innerFields,readIds:f.labelOperation?['fec']:innerFields.map(f=>f.id),records:[
    {label:'Projection',value:'Independent GRE and MPLS contract projections · no source clock or raw bytes'},
-   {label:'Underlay',value:p.gre.underlayLinkIds.join(' → ')},
+   {label:'Underlay',value:(p.gre?.underlayLinkIds||p.lsp?.linkIds||[]).join(' → ')},
    ...(f.labelOperation?Object.entries(f.labelOperation).map(([label,value])=>({label:words(label),value:display(value)})):[]),...(f.outcome||[])]}));
 }
 root.sourcePresentation=Object.freeze({journeyFrames,dnsFrames,providerFrames});
@@ -1131,7 +1130,7 @@ const settingLabels=[...q('.rv-controls').children].filter(n=>n.matches('label')
 const explanation=node('details','rv-explanation');explanation.append(node('summary','','Explanation'),q('.rv-caption-detail'));q('.rv-console').append(explanation);
 function bounded(){return ['tcp','tls','dns','journey','provider'].includes(sceneId);}
 function buildDock(){
- dock.replaceChildren();dock.hidden=!bounded();
+ dock.replaceChildren();dock.hidden=!bounded()||sceneId==='provider';
  if(sceneId==='tcp'){
   for(const [label,cls,value]of [['Highest ACK at sender','rv-ack','0'],['Next expected byte','rv-expected','1001']]){const fact=node('div','rv-fact');fact.append(node('dt','',label),node('dd',cls,value));dock.append(fact);}
  }else if(sceneId==='tls'){for(const [label,cls]of [['Certificate','rv-tls-certificate'],['Application channel','rv-tls-channel']]){const fact=node('div','rv-fact');fact.append(node('dt','',label),node('dd',cls,cls==='rv-tls-certificate'?'Unchecked':'Not ready'));dock.append(fact);}}
@@ -1139,7 +1138,7 @@ function buildDock(){
  else if(sceneId==='provider'){const fact=node('div','rv-fact');fact.append(node('dt','','Source boundary'),node('dd','','GRE / MPLS projections · no model clock'));dock.append(fact);}
 }
 
-let sceneId='tcp',frames=[],actors=[],plan=null,clock=0,playing=false,job=0,last=0,layoutJob=0,layoutKey='',captionKey='',lensKey='',recordKey='',activeActor=-1,variant=0,dnsMode='miss',byte=-1,disposed=false,alignAfterResize=false;
+let sceneId='tcp',frames=[],actors=[],plan=null,clock=0,playing=false,job=0,last=0,layoutJob=0,layoutKey='',captionKey='',lensKey='',recordKey='',activeActor=-1,variant=0,dnsMode=data.bootstrapDnsMode||'miss',byte=-1,disposed=false,alignAfterResize=false;
 const transferView=transfer.makeView(q('.rv-transfer'),q('.rv-transfer-value'),q('.rv-transfer-note'));
 function node(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=String(text);return n;}
 function titleCase(value){return String(value||'').toLowerCase().replace(/(^|[\s-])\p{L}/gu,m=>m.toUpperCase());}
@@ -1194,20 +1193,11 @@ function sourceFrameAdapter(id){
   return specs.map(spec=>{const packet=data.packetOperations[spec.source],network=packet.segments.find(s=>s.id==='network'),transport=packet.segments.find(s=>s.id==='transport'),fields=[{id:'ip-version',label:'Version',value:String(packet.bytes[network.offset]>>>4)},{id:'ip-ihl',label:'IHL',value:String(packet.bytes[network.offset]&15)},...network.fields.filter(f=>['ip-ttl','ip-length','ip-checksum','ip-src','ip-dst'].includes(f.id)),...transport.fields.filter(f=>f.id==='tcp-checksum').map(f=>({...f,label:transport.label+' checksum'})),{id:'payload-count',label:'Payload',value:packet.payloadBytes+' B'}].map(f=>({...f,value:String(f.value)}));
    return{...spec,id:spec.key,identity:'construction-frame',at:null,kind:'assembly',local:true,from:'Construction',to:'Inspection',protocol:'network',objectTitle:'IPv4 packet',fields,readIds:spec.operation==='replace'?['ip-ttl','ip-checksum']:spec.operation==='append'||spec.operation==='remove'?['payload-count','ip-length','tcp-checksum']:['ip-version','ip-ttl','ip-dst'],records:[{label:'Ethernet header',value:'14 B'},{label:'IPv4 packet',value:packet.networkBytes+' B'},{label:'Payload',value:packet.payloadBytes+' B'},{label:'FCS',value:'Unavailable · absent from model bytes'}],state:packet,bytes:packet.bytes};});
  }
- if(id==='provider'){
-  const p=data.provider;return [
-   {id:'inner',objectTitle:'Inner IPv4 packet',title:'The inner packet keeps its identity',summary:'The provider projection supplies an inner packet before GRE encapsulation.',fields:Object.entries(p.packet.inner).map(([label,value])=>({label:titleCase(label),value:String(value)})),state:p.packet},
-   {id:'encapsulated',objectTitle:'GRE envelope',title:'An outer envelope attaches',summary:'GRE adds '+p.gre.encapsulationOverheadBytes+' bytes. The inner addresses remain '+p.packet.inner.source+' → '+p.packet.inner.destination+'.',fields:Object.entries(p.packet.outer).map(([label,value])=>({label:titleCase(label),value:String(value)})),state:p.packet},
-   {id:'mtu',objectTitle:'MTU boundary',title:'Too large for the overlay',summary:'The source projection rejects the larger packet. It does not invent successful delivery.',fields:[{label:'Requested inner length',value:'1480 B'},{label:'Effective overlay MTU',value:p.gre.effectiveOverlayMtuBytes+' B'},{label:'Outcome',value:p.tooLarge.state}],state:p.tooLarge},
-   {id:'mpls',objectTitle:'MPLS label operations',title:'Push, swap, and pop keep the payload',summary:'Labels are separate envelopes. The LFIB determines each operation along the actual underlay.',fields:p.lsp.operations.map((x,i)=>({label:'Hop '+(i+1)+' · '+x.routerId,value:x.operation+' · '+(x.inLabel??'none')+' → '+(x.outLabel??'none')})),state:p.lsp},
-   {id:'failed-underlay',objectTitle:'Underlay unavailable',title:'The overlay depends on its underlay',summary:p.failedGre.reason,fields:[{label:'Underlay',value:String(p.failedGre.underlayReachable)},{label:'Overlay',value:String(p.failedGre.overlayReachable)},{label:'Tunnel state',value:p.failedGre.state}],state:p.failedGre}
-  ].map((f,i)=>({...f,at:null,kind:i===1?'attach':'derive',local:true,from:'Ingress',to:'Egress',protocol:'network',fields:f.fields.map((x,j)=>({...x,id:'provider-'+i+'-'+j})),readIds:f.fields.map((_,j)=>'provider-'+i+'-'+j),records:[{label:'Source',value:'Repository provider contract fixture'},{label:'Underlay',value:p.gre.underlayLinkIds.join(' → ')},{label:'Effective MTU',value:p.gre.effectiveOverlayMtuBytes+' B'}]}));
- }
  if(id==='failure')return data.failure.frames.map(({event:e,state})=>({id:e.id,at:e.atMs,title:e.payload.title,summary:e.payload.summary,detail:e.payload.detail,kind:e.kind,local:true,state,event:e,records:[{label:'Forwarding path',value:state.activePathId},{label:'Failed link',value:state.failedLinkIds.join(', ')||'None'},{label:'Control propagation',value:state.controlLinkIds.join(', ')||'None'}]}));
  if(id==='http')return data.http.frames.map(({event:e,state},i)=>({...modelFrames('http')[i],id:e.id,at:e.atMs,title:e.title,summary:e.summary,kind:'comparison',local:true,state,event:e,records:[]}));
  const actual=id==='dns'?data.dns[dnsMode].frames:data[id].frames,normalized=id==='dns'&&dnsMode!=='miss'?[]:modelFrames(id);
  return actual.map(({event:e,state},i)=>{
-  const f=normalized[i]||{},operation=id==='tls'?tlsOperation(e,state,actual[i-1]?.state):null,fields=operation?.fields||f.fields||[{label:'Question',value:e.qname||'www.example.test'},{label:'Answer',value:state.answer||'Not available'},{label:'Cache TTL',value:state.cacheTtlSeconds??'No cache entry'}];
+  const f=normalized[i]||{},operation=id==='tls'?tlsOperation(e,state,actual[i-1]?.state):null,fields=operation?.fields||(id==='tls'?(e.fields?.length?e.fields:[{label:'Handshake message',value:e.message},{label:'Protection',value:e.protection}]):f.fields)||[{label:'Question',value:e.qname||'www.example.test'},{label:'Answer',value:state.answer||'Not available'},{label:'Cache TTL',value:state.cacheTtlSeconds??'No cache entry'}];
   const local=id==='dns'?e.phase==='complete'||e.from===e.to||e.from==='local'||e.kind.startsWith('cache'):id==='tls'?e.direction==='local'||!e.direction:id==='journey'?!['transport.segment','http.request','http.response','tls.message'].includes(e.kind):false;
   return {...f,id:e.id,at:e.atMs,title:e.title,summary:e.summary,detail:e.detail,kind:e.kind||e.phase,local,from:e.from||e.actor||'Client',to:e.to||e.target||(e.direction==='server-to-client'?'Client':'Server'),protocol:id==='journey'?String(e.protocol||'network').toLowerCase():id,objectTitle:f.objectTitle||e.message||e.protocol||'DNS message',fields:fields.map((x,j)=>({...x,id:x.id||'field-'+j,value:String(x.value)})),readIds:operation?.readIds||fields.map((x,j)=>x.id||'field-'+j),records:operation?.records||f.records||[{label:'Cache',value:state.cacheState},{label:'TTL',value:state.cacheTtlSeconds??'Not available'},{label:'Answer',value:state.answer||'Not available'}],state,event:e};
  });
@@ -1233,7 +1223,7 @@ function createActors(){
  activeActor=-1;lensKey='';q('.rv-actors').replaceChildren();actors=[];
  for(const f of frames){
   if(['failure','http'].includes(sceneId)){actors.push(null);continue;}
-  const actor=node('div','rv-actor'),face=node('div','rv-actor-face'),heading=node('div','rv-actor-heading'),title=node('span','rv-actor-title',f.objectTitle),role=node('span','rv-actor-role',f.local?'Local state operation':f.from+' → '+f.to),fields=node('div','rv-fields'),capsule=node('div','rv-capsule');
+  const actor=node('div','rv-actor'),face=node('div','rv-actor-face'),heading=node('div','rv-actor-heading'),title=node('span','rv-actor-title',f.objectTitle),role=node('span','rv-actor-role',f.local?(f.physical?'Retained packet · local operation':'Local state operation'):f.from+' → '+f.to),fields=node('div','rv-fields'),capsule=node('div','rv-capsule');
   root.presentation.material(actor,{role:root.presentation.frameRole(f),identity:f.protocol,moving:true});actor.dataset.identity=f.id;actor.setAttribute('aria-label',f.objectTitle+' · '+f.id);actor.style.opacity='0';actor.inert=true;actor.setAttribute('aria-hidden','true');
   heading.append(title,role);face.append(heading,fields);capsule.append(node('span','rv-protocol'),node('span','',root.presentation.frameRole(f)==='operation'?'Local decision':f.objectTitle));
   for(const field of f.fields||[]){const el=node('div','rv-field'),label=node('span','rv-field-label',field.label),value=node('span','rv-field-value',field.value);el.dataset.field=field.id;el.append(label,value);fields.append(el);}
@@ -1290,7 +1280,8 @@ function reserveState(){
 }
 function reflow(){
  layoutJob=0;if(disposed)return;q('.rv-envelopes').hidden=!['packetOps','provider'].includes(sceneId);const width=stage.clientWidth||q('.rv-main').clientWidth;if(width<160)return;
- const probe=q('.rv-field-value')||q('.rv-title'),style=getComputedStyle(probe),viewport=typeof innerHeight==='number'?innerHeight:900,key=[sceneId,variant,dnsMode,width,viewport,style.fontSize,style.fontFamily,root.dataset.theme,devicePixelRatio||1].join('|');if(key===layoutKey)return;
+ for(const actor of new Set(actors.filter(Boolean).map(a=>a.actor)))if(actor.parentElement!==q('.rv-actors'))q('.rv-actors').append(actor);
+ const probe=q('.rv-field-value')||q('.rv-title'),style=getComputedStyle(probe),viewport=root.dataset.integrated==='true'?root.clientHeight:typeof innerHeight==='number'?innerHeight:900,key=[sceneId,variant,dnsMode,width,viewport,style.fontSize,style.fontFamily,root.dataset.theme,devicePixelRatio||1].join('|');if(key===layoutKey)return;
  if(bounded())reserveCaption();const old=currentPosition(),cardWidth=Math.min(540,width-8),endpoints=q('.rv-endpoints');
  // Reserve the actual peer labels before locating the path. Names can wrap at
  // enlarged type or compact widths; no event-specific header height is needed.
@@ -1299,7 +1290,7 @@ function reflow(){
   for(const f of frames){clone.textContent=f.endpoints?.[side]||'';max=Math.max(max,clone.getBoundingClientRect().height);}clone.remove();owner.style.minHeight=Math.ceil(max)+'px';
  }
  const dockHeight=bounded()?dock.offsetHeight:0;dock.style.top=endpoints.offsetHeight+'px';const pathY=endpoints.offsetHeight+dockHeight+24;
- const top=q('.rv-envelope-header'),bottom=q('.rv-envelope-trailer');q('.rv-envelope-direction').textContent=sceneId==='provider'?data.provider.packet.outer.source+' → '+data.provider.packet.outer.destination:'02:48:4f:50:00:01 → 02:48:4f:50:00:02';top.querySelector('span').textContent=sceneId==='provider'?'GRE outer envelope · '+data.provider.gre.encapsulationOverheadBytes+' B':'Ethernet II · 14 B';bottom.querySelector('span').textContent=sceneId==='provider'?'MPLS label · 229811':'FCS · unavailable in model bytes';for(const piece of [top,bottom]){piece.style.width=cardWidth+'px';piece.style.height='auto';}const envelopeH=['packetOps','provider'].includes(sceneId)?Math.max(44,top.offsetHeight):0,trailerH=['packetOps','provider'].includes(sceneId)?Math.max(44,bottom.offsetHeight):0,focusY=pathY+(bounded()?36:62)+(['packetOps','provider'].includes(sceneId)?envelopeH+20:0),compactLabelStyle=getComputedStyle(q('.rv-capsule')||q('.rv-title')),compactFont=parseFloat(compactLabelStyle.fontSize)||13,compactContext=document.createElement('canvas').getContext('2d');compactContext.font='500 '+compactFont+'px '+compactLabelStyle.fontFamily;const compactLabels=frames.map(f=>f.local?'Local state':f.kind==='anatomy'?'Frame':f.objectTitle),compactText=Math.max(...compactLabels.map(text=>compactContext.measureText(text).width)),compactW=Math.min((width-24)/2,Math.max(88,compactText+32)),compactH=Math.max(44,Math.ceil(compactText/Math.max(1,compactW-32))*compactFont*1.2+16),ports={a:{x:4,y:pathY-22,w:compactW,h:compactH},b:{x:width-compactW-4,y:pathY-22,w:compactW,h:compactH}};
+ const top=q('.rv-envelope-header'),bottom=q('.rv-envelope-trailer');q('.rv-envelope-direction').textContent=sceneId==='provider'?(data.provider.packet?.outer.source??'No outer header')+' → '+(data.provider.packet?.outer.destination??'Not supplied'):'02:48:4f:50:00:01 → 02:48:4f:50:00:02';top.querySelector('span').textContent=sceneId==='provider'?'Outer '+(data.provider.packet?.outer.protocol||'envelope')+' · '+(data.provider.gre?.encapsulationOverheadBytes??0)+' B':'Ethernet II · 14 B';bottom.querySelector('span').textContent=sceneId==='provider'?'MPLS label · 229811':'FCS · unavailable in model bytes';for(const piece of [top,bottom]){piece.style.width=cardWidth+'px';piece.style.height='auto';}const envelopeH=['packetOps','provider'].includes(sceneId)?Math.max(44,top.offsetHeight):0,trailerH=['packetOps','provider'].includes(sceneId)?Math.max(44,bottom.offsetHeight):0,focusY=pathY+(bounded()?(root.dataset.integrated==='true'?12:36):62)+(['packetOps','provider'].includes(sceneId)?envelopeH+20:0),compactLabelStyle=getComputedStyle(q('.rv-capsule')||q('.rv-title')),compactFont=parseFloat(compactLabelStyle.fontSize)||13,compactContext=document.createElement('canvas').getContext('2d');compactContext.font='500 '+compactFont+'px '+compactLabelStyle.fontFamily;const compactLabels=frames.map(f=>f.local?'Local state':f.kind==='anatomy'?'Frame':f.objectTitle),compactText=Math.max(...compactLabels.map(text=>compactContext.measureText(text).width)),compactW=Math.min((width-24)/2,Math.max(88,compactText+32)),compactH=Math.max(44,Math.ceil(compactText/Math.max(1,compactW-32))*compactFont*1.2+16),ports={a:{x:4,y:pathY-22,w:compactW,h:compactH},b:{x:width-compactW-4,y:pathY-22,w:compactW,h:compactH}};
  for(const ghost of root.querySelectorAll('.rv-change-token,.rv-deleted-payload'))ghost.remove();const prepared=[];let maxHeight=0;
  for(let i=0;i<actors.length;i++){
   const a=actors[i];if(!a){prepared.push({read:{total:0},focus:{x:0,y:0,w:width,h:320},lens:{w:38,h:48}});continue;}
@@ -1349,7 +1340,7 @@ function reflow(){
  plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH};
  if(old){const match=phases.find(p=>frames[p.index].id===old.id&&p.kind===old.kind)||phases.find(p=>frames[p.index].id===old.id&&old.kind==='retainFocus'&&p.kind==='retain');clock=match?mix(match.start,match.end,match.kind===old.kind?old.p:0):0;}else clock=0;
  q('.rv-event-picker').replaceChildren(...frames.map((f,i)=>{const option=node('option','',f.title);option.value=String(i);return option;}));
- layoutKey=key;lensKey='';reserveCaption();render();root.recordMaterial?.invalidate();if(alignAfterResize){alignAfterResize=false;if(playing&&bounded())composition.scrollIntoView?.({block:'start',behavior:'auto'});}
+ layoutKey=key;lensKey='';reserveCaption();render();root.recordMaterial?.invalidate();if(root.dataset.integrated==='true')root.dispatchEvent(new CustomEvent('review-plan-ready',{detail:{budgets:frames.map((f,i)=>({id:f.id,atMs:f.at,duration:(plan.starts[i+1]??plan.total)-plan.starts[i]}))}}));if(alignAfterResize){alignAfterResize=false;if(playing&&bounded())composition.scrollIntoView?.({block:'start',behavior:'auto'});}
 }
 function locate(t){const phase=plan.phases.find(p=>t<p.end)||plan.phases.at(-1);return {...phase,p:clamp((t-phase.start)/(phase.end-phase.start)),elapsed:clamp(t-phase.start,0,phase.end-phase.start)};}
 function interpolate(a,b,t){return {x:mix(a.x,b.x,t),y:mix(a.y,b.y,t),w:mix(a.w,b.w,t),h:mix(a.h,b.h,t)};}
@@ -1384,6 +1375,7 @@ function renderState(at){
 }
 function readerOffset(at){
  const g=plan.prepared[at.index];if(!bounded()||g.fullHeight<=g.focus.h)return 0;
+ if(!g.read.total)return 0;
  if(at.kind==='retainFocus')return mix(g.retainStartOffset,g.retainOffset,ease(at.p));if(['retain','hold','release'].includes(at.kind)&&g.retainOffset!==undefined)return g.retainOffset;const time=at.kind==='read'?at.elapsed:['retain','hold','release'].includes(at.kind)?g.read.total:0,s=samplePlan(g.read,time);
  return clamp(s.y-g.focus.h/2,0,g.fullHeight-g.focus.h);
 }
@@ -1401,6 +1393,10 @@ function renderLens(at,shape){
 function renderActor(at){
  if(['failure','http'].includes(sceneId))return;
  const a=actors[at.index],f=frames[at.index],s=pose(at);
+ // Source plans retain their measured nodes, but the live DOM contains only
+ // the current carrier and an outgoing layer during an actual focus handoff.
+ const retained=new Set([a.actor,...(at.kind==='focus'&&actors[at.index-1]?[actors[at.index-1].actor]:[])]),host=q('.rv-actors');
+ for(const actor of new Set(actors.filter(Boolean).map(a=>a.actor))){if(retained.has(actor)){if(actor.parentElement!==host)host.append(actor);}else if(actor.parentElement===host)actor.remove();}
  if(a.deck){prepareFields(at.index);const active=f.assembly.stage,layer=[...a.deck.children].find(n=>n.dataset.layer===active);if(layer&&at.kind==='layerChange'){const progress=motion.attachmentState(plan.prepared[at.index].attach,at.elapsed);layer.style.transform='translateY('+(-plan.prepared[at.index].fit.spread*progress.amount)+'px)';layer.style.opacity=String(ease(at.p/.3));}}
  if(activeActor!==at.index){for(const n of actors)if(n){if(n.actor!==a.actor){n.actor.style.opacity='0';n.actor.inert=true;n.actor.setAttribute('aria-hidden','true');}n.face.style.opacity='0';n.face.style.visibility='hidden';}root.presentation.material(a.actor,{role:root.presentation.frameRole(f),identity:f.protocol,moving:true});a.actor.prepend(liveCanvas);liveCanvas.dataset.paintKey='';activeActor=at.index;}
  if(bounded()){const g=plan.prepared[at.index];a.face.style.transform='translateY('+(-readerOffset(at))+'px)';const height=(g.focus.y+g.focus.h+16)+'px';if(stage.style.height!==height)stage.style.height=height;}
@@ -1483,6 +1479,13 @@ function tick(now){job=0;if(!playing||disposed||!root.isConnected||document.hidd
 function play(){if(bounded())composition.scrollIntoView?.({block:'start',behavior:'auto'});if(reduced.matches){next();return;}if(clock>=plan.total)clock=0;playing=true;last=0;render();if(!job)job=requestAnimationFrame(tick);}
 function next(){pause();const at=locate(clock),target=clock<plan.commits[at.index]?at.index:Math.min(frames.length-1,at.index+1);clock=reduced.matches?plan.commits[target]:plan.starts[Math.min(frames.length-1,at.index+1)];render();}
 function seek(value){pause();clock=clamp(Number(value)||0,0,plan.total);render();}
+function presentSource(timeMs,durationMs,settle=false){
+ settle=settle||reduced.matches;
+ if(!plan)return;const next=frames.findIndex(f=>f.at>timeMs),index=next<0?frames.length-1:Math.max(0,next-1),start=plan.starts[index],end=plan.starts[index+1]??plan.total,sourceStart=frames[index].at??0,sourceEnd=frames[index+1]?.at??durationMs;
+ playing=false;if(job)cancelAnimationFrame(job);job=0;last=0;
+ clock=settle?plan.commits[index]:mix(start,end,clamp((timeMs-sourceStart)/Math.max(1,sourceEnd-sourceStart)));
+ render();
+}
 function buildLocalControls(){
  const c=q('.rv-local-controls');c.replaceChildren();c.hidden=!['packet','dns'].includes(sceneId);
  if(sceneId==='packet'){const label=node('label','','Packet'),select=node('select','cursor-interaction');select.setAttribute('aria-label','Packet family and protocol');data.packetVariants.forEach((p,i)=>{const o=node('option','',p.config.family.toUpperCase()+' · '+p.config.transport.toUpperCase());o.value=String(i);select.append(o);});select.value=String(variant);select.addEventListener('change',()=>{pause();variant=Number(select.value);frames=frameAdapter(sceneId);createActors();layoutKey='';queueLayout();renderBytes();});label.append(select);c.append(label);}
@@ -1513,8 +1516,8 @@ q('.rv-play').addEventListener('click',()=>playing?pause():play());q('.rv-replay
 details.addEventListener('toggle',()=>{if(details.open)pause();});root.addEventListener('review-disclosure-layout',e=>{if([settings,explanation].includes(e.detail.element)){if(root.disclosures.wanted(e.detail.element))pause();layoutKey='';queueLayout();}});const viewportResize=()=>{alignAfterResize=playing&&bounded();layoutKey='';queueLayout();};window.addEventListener('resize',viewportResize);
 let observedMainWidth=q('.rv-main').clientWidth;const resize=new ResizeObserver(()=>{const width=q('.rv-main').clientWidth;if(bounded()&&Math.abs(width-observedMainWidth)<.5)return;observedMainWidth=width;layoutKey='';queueLayout();});resize.observe(q('.rv-main'));document.fonts?.ready.then(()=>{layoutKey='';queueLayout();});document.fonts?.addEventListener('loadingdone',()=>{layoutKey='';queueLayout();});document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});root.addEventListener('review-material-change',()=>{root.surfacePainter.invalidate();layoutKey='';queueLayout();});
 root.byteWindows.watch(q('.rv-byte-details'),()=>{if(sceneId==='packet')root.byteWindows.layout(q('.rv-bytes'),q('.rv-byte-details'));});
-root.causalStudy=Object.freeze({select,seek,next,play,pause,reflow,appearance,snapshot:()=>({sceneId,clock,playing,plan,frames,at:plan?locate(clock):null,committed:plan?stateIndex():-1,plannerUsesCachedGeometry:true,material:root.surfacePainter.stats()}),sample:t=>plan?{at:locate(t),pose:['failure','http'].includes(sceneId)?null:pose(locate(t))}:null,dispose:()=>{root.reviewUI.settle();root.byteWindows.dispose();root.layoutReservation.dispose();pause();disposed=true;if(layoutJob)cancelAnimationFrame(layoutJob);resize.disconnect();window.removeEventListener?.('resize',viewportResize);}});
-select('tcp');
+root.causalStudy=Object.freeze({select,seek,next,play,pause,reflow,appearance,presentSource,snapshot:()=>({sceneId,clock,playing,plan,frames,at:plan?locate(clock):null,committed:plan?stateIndex():-1,plannerUsesCachedGeometry:true,material:root.surfacePainter.stats()}),sample:t=>plan?{at:locate(t),pose:['failure','http'].includes(sceneId)?null:pose(locate(t))}:null,dispose:()=>{root.reviewUI.settle();root.byteWindows.dispose();root.layoutReservation.dispose();pause();disposed=true;if(layoutJob)cancelAnimationFrame(layoutJob);resize.disconnect();window.removeEventListener?.('resize',viewportResize);}});
+select(data.bootstrapScene||'tcp');
 })();
 
 (()=>{

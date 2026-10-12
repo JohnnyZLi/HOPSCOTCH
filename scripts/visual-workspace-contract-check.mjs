@@ -125,12 +125,10 @@ for (const theater of protocolTheaters) {
   for (const forbidden of theater.forbidden) assert.ok(!theater.source.includes(forbidden), `${theater.name} must not retain ${forbidden}`);
 }
 
-assert.match(tcp, /tcp-sequence-space/);
-assert.match(tcp, /tcp-congestion-panel/);
-assert.match(dns, /dns-namespace-ladder/);
-assert.match(dns, /data-dns-actor/);
-assert.match(tls, /tls-key-schedule/);
-assert.match(tls, /tls-cipher-field/);
+for(const [source,selector] of [[tcp,'tcpStateAt(event.atMs)'],[dns,'dnsStateAt(mode,event.atMs)'],[tls,'tlsStateAt(event.atMs)']]) {
+ assert.ok(source.includes('<ReviewedScene')&&source.includes(selector),'The primary protocol object must come from the real canonical selector');
+ assert.ok(source.includes('useReviewedAttention')&&source.includes('events: presentation.events'),'Measured reading budgets must drive the existing canonical timeline');
+}
 assert.match(http, /http-divergence-axis/);
 assert.match(http, /<Lane lane="h2"/);
 assert.match(http, /<Lane lane="h3"/);

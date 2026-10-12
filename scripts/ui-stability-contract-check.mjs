@@ -48,7 +48,8 @@ assert.ok(journeySource.includes('className="journey-visual-workspace"') && !jou
 assert.ok(journeyCss.includes('.journey-cinematic-stage .journey-scene-transition') && journeyCss.includes('position: absolute;'));
 
 for (const [name, source] of [['TCP', tcpSource], ['DNS', dnsSource], ['TLS', tlsSource], ['HTTP', httpSource]]) {
-  assert.ok(source.includes('protocol-cinematic-stage') && source.includes('protocol-scene-annotation'), `${name} scene contract regressed`);
+  if(name==='HTTP')assert.ok(source.includes('protocol-cinematic-stage') && source.includes('protocol-scene-annotation'), `${name} scene contract regressed`);
+  else assert.ok(source.includes('<ReviewedScene') && source.includes('useReviewedAttention') && source.includes('events: presentation.events'), `${name} must use the shared source-backed renderer and its measured reading budget`);
   const playbackToggle = source.match(/const togglePlayback = \(\) => \{([\s\S]*?)\n  \};/)?.[1] ?? '';
   assert.ok(playbackToggle && !playbackToggle.includes('setActiveDrawer'));
 }
@@ -107,7 +108,10 @@ for (const token of ['.explore-search', '.explore-scale-map', '@media (prefers-r
   assert.ok(exploreCss.includes(token), `Missing always-loaded navigation mechanism contract ${token}`);
 }
 assert.ok(editorialWorkspaceLoader.includes("import('./SiteEditorialWorkspaceSystem.css')"));
-assert.ok(entry.includes("./SiteEditorialCore.css") && entry.includes("./SiteEditorialWorkspaceLoader"));
+const reviewedCss = readFileSync(new URL('../src/redesign/design-system.css', import.meta.url), 'utf8');
+assert.ok(entry.includes("./redesign/design-system.css"));
+assert.ok(!entry.includes("./SiteEditorialCore.css") && !entry.includes("./SiteEditorialWorkspaceLoader"), 'Only the reviewed product theme owns the active app shell');
+for (const token of ['data-theme=dark', '.design-header', '.visual-workspace', 'forced-colors', 'prefers-reduced-motion']) assert.ok(reviewedCss.includes(token), `Missing reviewed product contract ${token}`);
 assert.ok(!entry.includes('./ScaleInspectorPolish.css') && !entry.includes('./OverviewLayoutStability.css'));
 
 console.log('UI stability contract passed: full-viewport kinetic overview, compact corner navigation, reduced-motion coverage, and stable overlay-based workspaces.');

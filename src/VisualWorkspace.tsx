@@ -24,6 +24,7 @@ export interface VisualTimelineEvent {
   atMs: number;
   label: string;
   tone?: 'neutral' | 'warning' | 'danger' | 'success' | 'evidence';
+  presentationMs?: number;
 }
 
 export interface VisualTimelineMilestone {
@@ -35,7 +36,7 @@ export interface VisualTimelineMilestone {
 export type VisualPlaybackSpeed = 0.5 | 1 | 1.5 | 2;
 export const VISUAL_PLAYBACK_SPEEDS: readonly VisualPlaybackSpeed[] = [0.5, 1, 1.5, 2];
 
-type VisualPresentationCue = Pick<VisualTimelineEvent, 'atMs' | 'tone'>;
+type VisualPresentationCue = Pick<VisualTimelineEvent, 'atMs' | 'tone' | 'presentationMs'>;
 
 export interface VisualPresentationSegment {
   modelStartMs: number;
@@ -82,11 +83,13 @@ export function buildVisualPresentationTimeline(
   if (safeDuration === 0) return [];
 
   const cueToneByTime = new Map<number, NonNullable<VisualTimelineEvent['tone']>>();
+  const cueBudgetByTime = new Map<number, number>();
   for (const cue of cues) {
     const atMs = Math.max(0, Math.min(safeDuration, cue.atMs));
     const tone = cue.tone ?? 'neutral';
     const previous = cueToneByTime.get(atMs);
     cueToneByTime.set(atMs, previous ? strongerTone(previous, tone) : tone);
+    if (Number.isFinite(cue.presentationMs)) cueBudgetByTime.set(atMs, Math.max(cueBudgetByTime.get(atMs) ?? 0, cue.presentationMs!));
   }
 
   const anchors = Array.from(new Set([0, ...cueToneByTime.keys(), safeDuration])).sort((a, b) => a - b);
@@ -104,6 +107,7 @@ export function buildVisualPresentationTimeline(
     const presentationDeltaMs = Math.max(
       modelDeltaMs * PRESENTATION_BASE_SLOWDOWN,
       PRESENTATION_DWELL_MS[activeTone],
+      cueBudgetByTime.get(modelStartMs) ?? 0,
     );
     const segment: VisualPresentationSegment = {
       modelStartMs,
@@ -176,10 +180,12 @@ export function useVisualPresentationPlayback({
   initialSpeed?: VisualPlaybackSpeed;
 }) {
   const [playbackSpeed, setPlaybackSpeed] = useState<VisualPlaybackSpeed>(initialSpeed);
+  const [parentHidden, setParentHidden] = useState(false);
+  useEffect(()=>{const update=()=>setParentHidden(document.documentElement.dataset.workspaceHidden==='true');window.addEventListener('hopscotch-workspace-visibility',update);return()=>window.removeEventListener('hopscotch-workspace-visibility',update);},[]);
   const timeRef = useRef(timeMs);
   const onTimeChangeRef = useRef(onTimeChange);
   const onCompleteRef = useRef(onComplete);
-  const eventSignature = events.map((event) => `${event.atMs}:${event.tone ?? 'neutral'}`).join('|');
+  const eventSignature = events.map((event) => `${event.atMs}:${event.tone ?? 'neutral'}:${event.presentationMs ?? ''}`).join('|');
 
   useEffect(() => {
     timeRef.current = timeMs;
@@ -191,7 +197,7 @@ export function useVisualPresentationPlayback({
   }, [onTimeChange, onComplete]);
 
   useEffect(() => {
-    if (!playing || durationMs <= 0) return;
+    if (!playing || parentHidden || durationMs <= 0) return;
     const segments = buildVisualPresentationTimeline(durationMs, events);
     if (segments.length === 0) {
       onCompleteRef.current();
@@ -221,7 +227,7 @@ export function useVisualPresentationPlayback({
 
     frameId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frameId);
-  }, [playing, durationMs, eventSignature, playbackSpeed]);
+  }, [playing, parentHidden, durationMs, eventSignature, playbackSpeed]);
 
   return { playbackSpeed, setPlaybackSpeed } as const;
 }

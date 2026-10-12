@@ -1,6 +1,7 @@
 import { animate, stagger } from 'animejs';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import {ReviewedScene, useReviewedAttention} from './redesign/ReviewedScene';
 import {
   VisualDrawerTabs,
   VisualTimeRail,
@@ -80,11 +81,13 @@ export function TcpTheater({ onExit, onOpenPacket }: { onExit: () => void; onOpe
   const activeEvent = useMemo(() => tcpLatestEventAtOrBefore(timeMs), [timeMs]);
   const activeIndex = tcpScenario.events.indexOf(activeEvent);
   const timelineEvents: VisualTimelineEvent[] = tcpScenario.events.map((event) => ({ id: event.id, atMs: event.atMs, label: event.title, tone: eventTone(event.severity) }));
+  const presentation = useReviewedAttention(timelineEvents);
+  const presentationData = useMemo(() => ({bootstrapScene:'tcp',referenceModels:[],tcp:{frames:tcpScenario.events.map(event => ({event,state:tcpStateAt(event.atMs)}))}}), []);
   const { playbackSpeed, setPlaybackSpeed } = useVisualPresentationPlayback({
-    playing,
+    playing: playing && presentation.ready,
     timeMs,
     durationMs: tcpScenario.durationMs,
-    events: timelineEvents,
+    events: presentation.events,
     onTimeChange: setTimeMs,
     onComplete: () => setPlaying(false),
   });
@@ -199,20 +202,6 @@ export function TcpTheater({ onExit, onOpenPacket }: { onExit: () => void; onOpe
     hud={<><div><span>PHASE</span><strong>{state.connectionLabel}</strong></div><div><span>EXPECTED ACK</span><strong>{state.expectedAck || '—'}</strong></div><div><span>DUP ACKS</span><strong>{state.duplicateAcks} / 3</strong></div><div><span>PROVENANCE</span><strong>SIMULATED</strong></div></>}
     timeline={<VisualTimeRail timeMs={timeMs} durationMs={tcpScenario.durationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="TCP trace" context={`${state.cwndMss} MSS cwnd · ${state.ssthreshMss} MSS threshold`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
   >
-    <div ref={rootRef} className={`protocol-cinematic-stage tcp-cinematic-stage phase-${state.phase}`}>
-      <div className="protocol-scene-kicker"><span>TCP / BYTE STREAM</span><strong>{activeEvent.direction === 'local' ? 'ENDPOINT STATE' : activeEvent.direction.replaceAll('-', ' ').toUpperCase()}</strong></div>
-      <div className="tcp-stage tcp-workspace-stage">
-        <div className="tcp-wire-stage">
-          <div className="tcp-stream-ribbon" aria-hidden="true">{[1, 2, 3, 4, 5, 6].map((index) => <i key={index} className={`status-${segmentState(index, timeMs)}`} />)}</div>
-          <div className="tcp-ack-gate" aria-hidden="true" style={{ '--tcp-dup-acks': state.duplicateAcks } as CSSProperties}><i/><i/><i/><b>{state.expectedAck || 1001}</b></div>
-          <div className="tcp-endpoint endpoint-client"><i aria-hidden="true"/><span>CLIENT</span><strong>192.0.2.10</strong><small>SEQ SPACE · {activeEvent.direction === 'client-to-server' ? 'SENDER' : 'PEER'}</small></div>
-          <div className="tcp-wire" aria-hidden="true"><i/><b/><i/></div>
-          <div className="tcp-endpoint endpoint-server"><i aria-hidden="true"/><span>SERVER</span><strong>198.51.100.42:443</strong><small>RECEIVE NEXT · {state.expectedAck || 1001}</small></div>
-          <div className={`tcp-message-token severity-${activeEvent.severity} kind-${activeEvent.kind.replaceAll('.', '-')}`}><i className="tcp-packet-core" aria-hidden="true"/><span>{activeEvent.flags ?? 'LOCAL'}</span><strong>{activeEvent.direction === 'local' ? activeEvent.title : eventWireLabel(activeEvent)}</strong>{activeEvent.kind === 'data.loss' && <b aria-hidden="true">×</b>}</div><div className="tcp-local-pulse" aria-hidden="true"/><AnimatePresence mode="wait" initial={false}><motion.article key={activeEvent.id} className={`protocol-scene-annotation tcp-scene-annotation severity-${activeEvent.severity}`} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 9 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: reduceMotion ? 0 : 0.24 }}><i aria-hidden="true"/><div><span>{formatTime(activeEvent.atMs)} · {activeEvent.kind.replaceAll('.', ' ')}</span><strong>{activeEvent.title}</strong><p>{activeEvent.summary}</p></div></motion.article></AnimatePresence>
-        </div>
-        <div className="tcp-sequence-space"><div className="tcp-subhead"><div><span>CLIENT SEQUENCE SPACE</span><strong>1460-BYTE MSS SEGMENTS</strong></div><small>Hole repair is cumulative</small></div><div className="tcp-sequence-axis" aria-hidden="true"><span>1001</span><i/><span>{1001 + tcpScenario.mss * 6}</span></div><div className="tcp-segment-grid">{[1, 2, 3, 4, 5, 6].map((index) => { const status = segmentState(index, timeMs); const start = segmentStart(index); return <motion.div layout key={index} className={`tcp-segment status-${status}${index === activeEvent.segmentIndex ? ' current' : ''}`}><span>SEG {index}</span><strong>{start}–{start + tcpScenario.mss - 1}</strong><small>{status.toUpperCase()}</small></motion.div>; })}</div></div>
-        <div className="tcp-congestion-panel"><div className="tcp-subhead"><div><span>CONGESTION WINDOW</span><strong>{state.cwndMss} MSS · THRESHOLD {state.ssthreshMss}</strong></div><small>CURATED RENO</small></div><div className="tcp-window-field" aria-hidden="true"><motion.i className="tcp-window-aperture" animate={reduceMotion ? undefined : { width: `${Math.max(8, state.cwndMss / 12 * 100)}%` }} transition={{ type: 'spring', stiffness: 240, damping: 28 }}/><b style={{ left: `${state.ssthreshMss / 12 * 100}%` }}/></div><div className="tcp-window-slots" aria-label={`Congestion window ${state.cwndMss} MSS, threshold ${state.ssthreshMss} MSS`}>{Array.from({ length: 12 }, (_, index) => { const number = index + 1; return <i key={number} className={`${number <= state.cwndMss ? 'is-active' : ''}${number === state.ssthreshMss ? ' is-threshold' : ''}`} title={`${number} MSS`}/>; })}</div><div className="tcp-window-legend"><span><i className="legend-cwnd"/> ACTIVE cwnd</span><span><i className="legend-threshold"/> ssthresh</span></div></div>
-      </div>
-    </div>
+    <ReviewedScene data={presentationData} timeMs={timeMs} durationMs={tcpScenario.durationMs} playing={playing} onBudgets={presentation.onBudgets}/>
   </VisualWorkspaceShell>;
 }

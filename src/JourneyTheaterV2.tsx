@@ -20,6 +20,7 @@ import {
   type VisualTimelineEvent,
   type VisualTimelineMilestone,
 } from './VisualWorkspace';
+import {ReviewedScene, useReviewedAttention} from './redesign/ReviewedScene';
 import { readJourneyBrowserConfig, writeJourneyBrowserConfig } from './journey/browser.ts';
 import {
   buildJourneyScenario,
@@ -309,7 +310,7 @@ function SemanticScene({ state, hostname, address, packetProjection, physicalPro
   return <ApplicationScene state={state} hostname={hostname} address={address}/>;
 }
 
-export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, measuredState, onHostnameChange, onTimeChange, onEvidenceChange, onOpenDetail, onExit }: {
+export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, measuredState, onHostnameChange, onTimeChange, onEvidenceChange, onOpenDetail, onExit, active = true }: {
   hostname: string;
   timeMs: number;
   startPlaying: boolean;
@@ -320,6 +321,7 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, measu
   onEvidenceChange: (evidence: InternetEvidenceSnapshot | null) => void;
   onOpenDetail: (lab: JourneyDetailLab, timeMs: number) => void;
   onExit: () => void;
+  active?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
   const initialConfig = useMemo(initialBrowserConfig, []);
@@ -366,14 +368,17 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, measu
           ? 'neutral'
           : 'evidence',
   }));
+  const presentation = useReviewedAttention(timelineEvents);
+  const presentationData = useMemo(() => ({bootstrapScene:'journey',referenceModels:[],journey:{context:{hostname:scenario.hostname,requestId:scenario.id},frames:scenario.events.map(event=>({event,state:journeyStateAt(scenario,event.atMs)}))}}), [scenario]);
   const { playbackSpeed, setPlaybackSpeed } = useVisualPresentationPlayback({
-    playing,
+    playing: playing && active && presentation.ready,
     timeMs,
     durationMs: scenario.durationMs,
-    events: timelineEvents,
+    events: presentation.events,
     onTimeChange,
     onComplete: () => setPlaying(false),
   });
+  useEffect(() => {if (!active) setPlaying(false);}, [active]);
 
   useEffect(() => {
     writeJourneyBrowserConfig({ transportProfile: profile, dnsProfile, impairmentProfile, modifierIds: selectedModifiers });
@@ -526,9 +531,10 @@ export function JourneyTheater({ hostname, timeMs, startPlaying, evidence, measu
     hud={<><div><span>SCALE</span><strong>{state.scale.toUpperCase()}</strong></div><div><span>PROTOCOL</span><strong>{state.protocol}</strong></div><div><span>{physicalJourneyActive ? 'FORWARDING' : packetObjectActive ? 'ASSEMBLY' : 'ACTIVE STATE'}</span><strong className={toneClass}>{physicalJourneyActive ? state.packetTransitStage.toUpperCase() : packetObjectActive ? state.packetAssemblyStage.toUpperCase() : state.impairmentState.toUpperCase()}</strong></div><div><span>PROVENANCE</span><strong className={provenanceClass(state.provenance)}>{state.provenance}</strong></div></>}
     timeline={<VisualTimeRail timeMs={timeMs} durationMs={scenario.durationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="Request journey" context={`${profileLabel} · ${dnsLabel} · ${godModeLabel}`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={()=>seek(0)} onSeek={seek}/>}
   >
+    <div className="journey-reviewed-scene" data-hidden={packetObjectActive || physicalJourneyActive || state.scale === 'internet'} aria-hidden={packetObjectActive || physicalJourneyActive || state.scale === 'internet'} inert={packetObjectActive || physicalJourneyActive || state.scale === 'internet'}><ReviewedScene data={presentationData} timeMs={timeMs} durationMs={scenario.durationMs} playing={playing && active} onBudgets={presentation.onBudgets}/></div>
     <div className={`journey-cinematic-stage ${causalWorldActive ? 'causal-world-active' : ''} ${packetObjectActive ? 'phase5-object-active' : ''} ${physicalJourneyActive ? 'phase5-physical-active' : ''} ${toneClass}`} data-profile={profile} data-dns-profile={dnsProfile} data-impairment={impairmentProfile} data-modifiers={selectedModifiers.join(' ')}>
       <nav className="journey-depth journey-depth-overlay" aria-label="Active Journey scale">{scaleOrder.map((scale)=><div key={scale} className={`${scale===state.scale?'active':''} ${JOURNEY_SCALE_DEPTH[scale] < state.scaleDepth?'behind':''}`}><i/><span>{scale.toUpperCase()}</span><small>0{JOURNEY_SCALE_DEPTH[scale]+1}</small></div>)}</nav>
-      <div className={`journey-scene-shell ${packetObjectActive ? 'phase5-packet-active' : ''} ${physicalJourneyActive ? 'phase5-physical-active' : ''} ${measuredState && measuredScene ? 'measured-evidence-active' : ''}`}><div className="depth-rings" aria-hidden="true"><i/><i/><i/><i/></div><AnimatePresence mode="wait" initial={false}><motion.div key={mode === 'causal-world' ? mode : `${state.scale}:${mode}`} className="journey-scene-transition" initial={reduceMotion ? {opacity:1}:{opacity:0,scale:enteringScale,filter:'blur(12px)'}} animate={{opacity:1,scale:1,filter:'blur(0px)'}} exit={reduceMotion ? {opacity:0}:{opacity:0,scale:state.zoom==='out'?.72:1.24,filter:'blur(10px)'}} transition={reduceMotion ? {duration:0} : {duration:.46,ease:[.16,1,.3,1]}}><SemanticScene state={state} hostname={scenario.hostname} address={scenario.destinationAddress} packetProjection={packetProjection} physicalProjection={physicalProjection} onSelectPacketLayer={inspectPacketLayer}/></motion.div></AnimatePresence><MeasuredEvidenceSidecar measuredState={measuredState} scene={measuredScene} hostname={scenario.hostname} destinationAddress={scenario.destinationAddress}/></div>
+      <div className={`journey-scene-shell ${packetObjectActive ? 'phase5-packet-active' : ''} ${physicalJourneyActive ? 'phase5-physical-active' : ''} ${measuredState && measuredScene ? 'measured-evidence-active' : ''}`}><div className="depth-rings" aria-hidden="true"><i/><i/><i/><i/></div><AnimatePresence mode="wait" initial={false}><motion.div key={mode === 'causal-world' ? mode : `${state.scale}:${mode}`} data-reviewed-suppressed={!(packetObjectActive || physicalJourneyActive || state.scale === 'internet')} className="journey-scene-transition" initial={reduceMotion ? {opacity:1}:{opacity:0,scale:enteringScale,filter:'blur(12px)'}} animate={{opacity:1,scale:1,filter:'blur(0px)'}} exit={reduceMotion ? {opacity:0}:{opacity:0,scale:state.zoom==='out'?.72:1.24,filter:'blur(10px)'}} transition={reduceMotion ? {duration:0} : {duration:.46,ease:[.16,1,.3,1]}}>{(packetObjectActive || physicalJourneyActive || state.scale === 'internet')&&<SemanticScene state={state} hostname={scenario.hostname} address={scenario.destinationAddress} packetProjection={packetProjection} physicalProjection={physicalProjection} onSelectPacketLayer={inspectPacketLayer}/>}</motion.div></AnimatePresence><MeasuredEvidenceSidecar measuredState={measuredState} scene={measuredScene} hostname={scenario.hostname} destinationAddress={scenario.destinationAddress}/></div>
       {causalWorldActive
         ? <article className="journey-callout journey-callout-overlay journey-callout-anchor" aria-hidden="true"><h2>{state.activeEvent.title}</h2></article>
         : <AnimatePresence mode="wait" initial={false}><motion.article key={state.activeEvent.id} className={`journey-callout journey-callout-overlay ${calloutClass}`} initial={reduceMotion?{opacity:1}:{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={reduceMotion ? {duration:0} : {duration:.24}}><div><span>{formatTime(state.activeEvent.atMs)}</span><b className={provenanceClass(state.activeEvent.provenance)}>{state.activeEvent.provenance}</b></div><h2>{state.activeEvent.title}</h2><p>{state.activeEvent.summary}</p><small>{state.activeEvent.detail}</small>{detail&&<button type="button" onClick={()=>{setPlaying(false);onOpenDetail(detail,timeMs)}}>OPEN {detail.toUpperCase()} DETAIL ↗</button>}</motion.article></AnimatePresence>}

@@ -85,12 +85,6 @@ function zoomCamera(camera,viewport,zoom){
  const world={x:(viewport.w/2-camera.x)/camera.z,y:(viewport.h/2-camera.y)/camera.z};
  return {x:viewport.w/2-world.x*zoom,y:viewport.h/2-world.y*zoom,z:zoom};
 }
-// Framing is a geometric fit, independent of the preferred inspection zoom.
-// The same bounds can describe a complete world or one selected path.
-function frameCamera(bounds,viewport,padding=16,maxZoom=1){
- const gap=Math.max(0,Math.min(padding,viewport.w/4,viewport.h/4)),w=Math.max(1,bounds.right-bounds.left),h=Math.max(1,bounds.bottom-bounds.top),z=Math.min(maxZoom,Math.max(1,viewport.w-gap*2)/w,Math.max(1,viewport.h-gap*2)/h);
- return {x:viewport.w/2-(bounds.left+bounds.right)*z/2,y:viewport.h/2-(bounds.top+bounds.bottom)*z/2,z};
-}
 // Native controls may be recreated when their semantic source changes. Retain
 // their focus and disclosure by identity, without constructing selectors from
 // arbitrary imported labels. A persistent focused control is never refocused.

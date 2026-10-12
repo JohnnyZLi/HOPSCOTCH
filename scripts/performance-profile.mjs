@@ -291,9 +291,9 @@ profiles.push(
 );
 
 if (compatibility) profiles.push(
-{ id: 'protocol-tcp-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/tcp', query: '', readySelector: '.tcp-visual-workspace', protocolWorkspace: true, expected: ['TCP recovery', 'CLIENT SEQUENCE SPACE', 'CONGESTION WINDOW', 'PROVENANCE'] },
-{ id: 'protocol-dns-mobile', width: 390, height: 844, reducedMotion: false, path: '/labs/dns', query: '', readySelector: '.dns-visual-workspace', protocolWorkspace: true, expected: ['www.example.test', 'NAMESPACE', 'STUB'] },
-{ id: 'protocol-tls-reduced-motion', width: 1280, height: 900, reducedMotion: true, path: '/labs/tls', query: '', readySelector: '.tls-visual-workspace', protocolWorkspace: true, expected: ['TLS 1.3 handshake', 'SYMBOLIC KEY SCHEDULE', 'WIRE VISIBILITY', 'PROVENANCE'] },
+{ id: 'protocol-tcp-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/tcp', query: '', readySelector: '.tcp-visual-workspace .review-runtime .rv-actor', protocolWorkspace: true, expected: ['TCP recovery', 'Highest ACK at sender', 'Next expected byte', 'PROVENANCE'] },
+{ id: 'protocol-dns-mobile', width: 390, height: 844, reducedMotion: false, path: '/labs/dns', query: '', readySelector: '.dns-visual-workspace .review-runtime .rv-actor', protocolWorkspace: true, expected: ['www.example.test', 'Resolved address', 'Resolver / cache', 'PROVENANCE'] },
+{ id: 'protocol-tls-reduced-motion', width: 1280, height: 900, reducedMotion: true, path: '/labs/tls', query: '', readySelector: '.tls-visual-workspace .review-runtime .rv-actor', protocolWorkspace: true, expected: ['TLS 1.3 handshake', 'Certificate', 'Application channel', 'PROVENANCE'] },
 { id: 'protocol-http-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/http2-vs-http3', query: '', readySelector: '.http-visual-workspace', protocolWorkspace: true, expected: ['HTTP loss comparison', 'HTTP/2', 'HTTP/3', 'SAME LOSS', 'PROVENANCE'] },
 { id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'DERIVED FDB', 'ARP CACHE', 'STP', 'FORWARDING'] },
 { id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'ARP CACHE', 'STP', 'FORWARDING'] },
@@ -1401,13 +1401,18 @@ async function loadProfile(cdp, origin, profile) {
       },
       protocol: (()=>{
         const stage=document.querySelector('.protocol-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
-        const scene=document.querySelector('.protocol-cinematic-stage')?.getBoundingClientRect();
+        const renderer=document.querySelector('.protocol-visual-workspace .review-runtime'),scene=(renderer?.closest('.reviewed-primary')??document.querySelector('.protocol-cinematic-stage'))?.getBoundingClientRect();
+        const intersects=(a,b)=>a&&b&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;
         return {
           active:Boolean(stage&&scene),
           stageWidth:stage?.width??0,
           stageHeight:stage?.height??0,
           sceneWidth:scene?.width??0,
           sceneHeight:scene?.height??0,
+          reviewed:Boolean(renderer),
+          contained:Boolean(scene&&stage&&scene.left>=stage.left-1&&scene.right<=stage.right+1&&scene.top>=stage.top-1&&scene.bottom<=stage.bottom+1),
+          controlsClear:!intersects(scene,document.querySelector('.protocol-visual-workspace .visual-workspace__toolbar')?.getBoundingClientRect())&&!intersects(scene,document.querySelector('.protocol-visual-workspace .visual-workspace__hud')?.getBoundingClientRect()),
+          sourceReady:!renderer||Boolean(renderer.causalStudy?.snapshot().frames.length),
           drawerTabs:document.querySelectorAll('.protocol-visual-workspace .visual-drawer-tabs button').length,
           timeRail:Boolean(document.querySelector('.protocol-visual-workspace .visual-time-rail')),
           permanentInspectors:document.querySelectorAll('.tcp-inspector,.dns-inspector,.tls-inspector,.http-inspector').length,
@@ -1447,7 +1452,9 @@ async function loadProfile(cdp, origin, profile) {
 
   if (profile.protocolWorkspace) {
     if (!structural.protocol.active) throw new Error(`${profile.id} did not render a protocol scene inside the shared visual workspace.`);
-    if (structural.protocol.sceneWidth < structural.protocol.stageWidth * 0.98 || structural.protocol.sceneHeight < structural.protocol.stageHeight * 0.98) throw new Error(`${profile.id} scene does not occupy the visual stage: ${JSON.stringify(structural.protocol)}.`);
+    if(structural.protocol.reviewed){
+      if(!structural.protocol.sourceReady||!structural.protocol.contained||!structural.protocol.controlsClear||structural.protocol.sceneWidth<structural.protocol.stageWidth*.90||structural.protocol.sceneHeight<120)throw new Error(`${profile.id} reviewed scene is missing, clipped, or overlaps its controls: ${JSON.stringify(structural.protocol)}.`);
+    }else if (structural.protocol.sceneWidth < structural.protocol.stageWidth * 0.98 || structural.protocol.sceneHeight < structural.protocol.stageHeight * 0.98) throw new Error(`${profile.id} scene does not occupy the visual stage: ${JSON.stringify(structural.protocol)}.`);
     if (structural.protocol.drawerTabs < 3) throw new Error(`${profile.id} exposed only ${structural.protocol.drawerTabs} on-demand workspace tools.`);
     if (!structural.protocol.timeRail) throw new Error(`${profile.id} did not render the shared Time Rail.`);
     if (structural.protocol.permanentInspectors !== 0) throw new Error(`${profile.id} retained ${structural.protocol.permanentInspectors} permanent legacy inspector(s).`);

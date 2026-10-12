@@ -1,0 +1,26 @@
+.reviewed-primary{position:absolute;inset:var(--reviewed-top,116px) 24px 12px;min-width:0;min-height:0;overflow:auto;container-type:inline-size}
+.review-runtime{height:100%;min-height:0;width:100%;container-type:inline-size;container-name:review;font-family:var(--font-sans,Inter,system-ui,sans-serif);color:var(--ink)}
+.review-runtime[data-integrated=true] .rv-shell{border:0;background:transparent;box-shadow:none;min-height:0}
+.review-runtime[data-integrated=true] .rv-header,.review-runtime[data-integrated=true] .rv-eyebrow,.review-runtime[data-integrated=true] .rv-title,.review-runtime[data-integrated=true] .rv-subtitle,.review-runtime[data-integrated=true] .rv-foot,.review-runtime[data-integrated=true] .rv-local-controls{display:none}
+.review-runtime[data-integrated=true] .rv-main{padding:0}
+.review-runtime[data-integrated=true] .rv-main::before{display:none}
+.review-runtime[data-integrated=true] .rv-composition{display:flex;flex-direction:column;gap:0}
+.review-runtime[data-integrated=true] .rv-console{order:0;background:transparent;padding:0;margin:0 0 12px;border:0;box-shadow:none}
+.review-runtime[data-integrated=true] .rv-motion-primary{order:1}
+.review-runtime[data-integrated=true] .rv-controls,.review-runtime[data-integrated=true] .rv-scrub,.review-runtime[data-integrated=true] .rv-source,.review-runtime[data-integrated=true] .rv-playback-settings,.review-runtime[data-integrated=true] .rv-explanation,.review-runtime[data-integrated=true] .rv-scene-details{display:none}
+.review-runtime[data-integrated=true] .rv-caption{padding:0;font-size:18px;line-height:1.45}
+.review-runtime[data-integrated=true] .rv-caption strong{font-size:inherit;font-weight:600}
+.review-runtime[data-integrated=true] .rv-endpoints{padding:4px 0;gap:12px}
+.review-runtime[data-integrated=true] .rv-endpoint{padding:8px 12px}
+.review-runtime[data-integrated=true] .rv-retained-dock{padding:6px 10px;gap:10px}
+.protocol-cinematic-stage[data-retained-reference=true]{display:none}
+.journey-reviewed-scene{position:absolute;inset:0;z-index:5}
+.journey-reviewed-scene[data-hidden=true]{visibility:hidden;pointer-events:none}
+.journey-scene-transition[data-reviewed-suppressed=true]{visibility:hidden;pointer-events:none}
+.reviewed-provider{min-width:0;margin:16px 0}
+.reviewed-provider h3{font-size:17px;font-weight:500}
+.reviewed-provider>p{font-size:13px;line-height:1.6;color:var(--muted)}
+.reviewed-provider .review-runtime{height:660px;overflow:auto}
+.review-runtime.reviewed-snapshot[data-integrated=true] .rv-controls{display:flex}
+.review-runtime.reviewed-snapshot[data-integrated=true] .rv-scrub,.review-runtime.reviewed-snapshot[data-integrated=true] .rv-source,.review-runtime.reviewed-snapshot[data-integrated=true] .rv-playback-settings,.review-runtime.reviewed-snapshot[data-integrated=true] .rv-explanation{display:block}
+@media(max-width:600px){.reviewed-primary{left:12px;right:12px;bottom:10px}.review-runtime[data-integrated=true] .rv-caption{font-size:16px}}

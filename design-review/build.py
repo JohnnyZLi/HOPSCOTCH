@@ -23,7 +23,7 @@ inputs += ['design-review/source/complete-review/' + name for name in [
     'motion.html', 'motion.js', 'workbench.html', 'workbench.js',
     'evidence.html', 'evidence.js', 'connected.html', 'connected.js',
     'shared-painter.js', 'shared-ui.js', 'shared-network.js',
-    'shared-reservation.js', 'shared-bytes.js', 'shared-presentation.js', 'source-adapters.js',
+    'shared-reservation.js', 'shared-bytes.js', 'shared-presentation.js', 'source-adapters.js', 'integration-scope.js', 'shared-geometry.js',
     'domain.bundle.js', 'evidence-domain.bundle.js', 'entry-domain.bundle.js',
     'd3-array.min.js', 'd3-geo.min.js', 'world-110m.topojson']]
 
@@ -31,6 +31,7 @@ def hashes(paths):
     return {path: hashlib.sha256((repo / path).read_bytes()).hexdigest() for path in sorted(paths)}
 
 outputs = [str(path.relative_to(repo)) for path in (repo / 'public/review').glob('*.html')]
+outputs += ['src/redesign/lifecycle-runtime.js', 'src/redesign/lifecycle-runtime.css']
 manifest = {'schema': 1, 'inputs': hashes(inputs), 'outputs': hashes(outputs)}
 (project / 'build-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 print('Recorded source/output integrity for', len(outputs), 'public review pages')
