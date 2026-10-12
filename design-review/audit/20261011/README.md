@@ -96,3 +96,20 @@ while preserving frame #1 and all 54 captured bytes. In Connected, opening TCP
 from Journey's SYN-ACK at 5320 ms and returning restores that exact event/time and
 the Details pane. The companion still presents an independent model reference;
 this does not establish full workspace integration.
+
+## Builder production recheck — PR #201
+
+Production commit: `d8f1c08be1bfa07a3bb0b771876718a5d1cc20c7`. All required PR
+checks and the Cloudflare production build passed. The 390-pixel dark view now
+contains all six devices. CLIENT spans x = 64.1…96.1 and APP x = 285.3…310.9,
+inside the map's x = 16…359 bounds. The forwarding-path action fits its five
+selected devices horizontally. Zoom in/out changes CLIENT's displayed width
+41.67 → 36.23 px, so zoom out no longer jumps up to 0.85.
+
+Two follow-ups were observed: the full-world fit includes unused padding and
+produces a smaller overview than necessary; the forwarding button sits below
+the map and can leave the framed scene above the visible page. The prepared
+follow-up fits actual node corners/route points and explicitly brings the map
+into view after either user framing action. Automatic entry framing does not
+move the page. Overview labels still require zoom or device selection for
+detailed inspection at narrow widths; this is not full usability acceptance.

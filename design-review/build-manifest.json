@@ -25,14 +25,14 @@
     "design-review/source/complete-review/shared-ui.js": "41e745d3aed821c6442aec70aae9464c39079b446e827416f7d11407cc327765",
     "design-review/source/complete-review/source-data.json": "3d727d60ec4605973a5fc2ff73958c2f720d0c1060b9a219cb573d9d98fe019e",
     "design-review/source/complete-review/workbench.html": "21c4740a7f6ce3214297665fc3c4f6f7cbd4fc01a06d8c3fd753c6bb9359860d",
-    "design-review/source/complete-review/workbench.js": "134a7c18838e85d25bc5e6f2014fbbbb885d106ce892585d018bae86adc5780a",
+    "design-review/source/complete-review/workbench.js": "82e62be3f602c2d05abcd633398c290e6e1bfaaa5259fd1e792a8387b71e8507",
     "design-review/source/complete-review/world-110m.topojson": "e5d20e03dc01a0aaf2e2434377fc26b421e8bf852957bcc8afadb44d320e92bb",
     "design-review/source/workspace-reference-models.json": "542927d1b170bf0a3eace9a60855ac44ec111e09c0d47db591eff5bfafaf85b3",
     "design-review/viewport.html": "4d10dff4d13c07ba4558ec9f2b5389a9156aa0ee7eaf8f8ab27295af3c029051",
     "design-review/wrap-pages.py": "01c7ca56d2aa575f2dffe57f55bb57e93186922c37e68561fb93ff93800d770d"
   },
   "outputs": {
-    "public/review/builder.html": "7a0ba656a75a40fae390404d512a1a5f0e3e3bf78cfb60ff9d36eb53b2da93bd",
+    "public/review/builder.html": "6124df99e6d622ae974b3a8df34a22c0a9ab0c3230d0e1f435d536494e918f85",
     "public/review/connected.html": "7cd053d3830a2118e15b09693221539850f1cdf767c098da928721c4ccdc1b1f",
     "public/review/evidence.html": "371e9332e7a3b9a6b17e6f1e2e425ec040f192a856d4062b7cf315e2dca27425",
     "public/review/index.html": "6a9c09e26f33d40273c1bb299f71be1b8fc7b7c9cf1c5438cd99887de1a44f41",
