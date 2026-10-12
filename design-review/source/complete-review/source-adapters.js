@@ -65,12 +65,17 @@ function journeyFrames(actual, {hostname = actual[0]?.event.target || 'Not avail
    objectTitle = 'Application intent';fields=[{id:'hostname',label:'Requested hostname',value:hostname},{id:'resolution',label:'Next dependency',value:'Name resolution'}];
   } else {
    objectTitle = e.kind === 'journey.complete' ? 'Application outcome' : e.kind === 'journey.failed' ? 'Request failed' : 'Retained request state';
-   fields=stateValues(e.kind==='journey.complete'?null:previous,state,[['responseReady','Response',ready],['journeyComplete','Journey complete',String],['journeyFailed','Journey failed',String],['failureReason','Failure reason']]);
+   fields=stateValues(e.kind==='journey.complete'||e.kind==='journey.failed'?null:previous,state,[['responseReady','Response',ready],['journeyComplete','Journey complete',String],['journeyFailed','Journey failed',String],['failureReason','Failure reason',words]]);
+   if(e.kind==='journey.failed')fields.push({id:'terminal-route',label:'Forwarding',value:state.route==='unreachable'?'No route':words(state.route)});
    if(e.kind==='transfer.complete')fields=stateValues(previous,state,[['transport','Byte delivery',words],['http','Application transfer',words]]);
    if(e.kind==='camera.pullback')fields=stateValues(null,state,journeyStateSchema);
   }
   for(const [key,label] of [['transportMetrics','Transport measurements'],['congestionMetrics','Congestion'],['routeMetrics','Routing'],['serverMetrics','Retry state'],['policyMetrics','Policy']]) {
-   const metrics=state[key];if(!metrics||JSON.stringify(metrics)===JSON.stringify(previous?.[key]))continue;
+   const metrics=state[key];if(!metrics)continue;
+   // A selected routing decision or terminal outcome must expose the retained
+   // truth even when its metrics were first installed by an earlier event.
+   const retained=e.kind==='journey.failed'||(['route','internet'].includes(family)&&['routeMetrics','policyMetrics'].includes(key));
+   if(!retained&&JSON.stringify(metrics)===JSON.stringify(previous?.[key]))continue;
    for(const [name,value]of Object.entries(metrics)) fields.push({id:key+'-'+name,label:label+' · '+words(name.replace(/([a-z])([A-Z])/g,'$1 $2')),value:display(value)});
   }
   fields=fields.map(f=>({...f,value:display(f.value)}));

@@ -136,6 +136,7 @@ async function measureViewport(cdp, origin, width, height) {
     return {
       viewport:{innerWidth,innerHeight,devicePixelRatio},
       shell:box('.kinetic-overview'),
+      header:box('.design-header'),
       copy:box('.kinetic-copy'),
       heading:box('.kinetic-copy h1'),
       headingFontPx:h1?parseFloat(getComputedStyle(h1).fontSize):null,
@@ -192,7 +193,7 @@ async function main() {
 
     for (const [label, metrics] of Object.entries(report.viewports)) {
       assert.ok(metrics.scrollWidth <= metrics.viewport.innerWidth + 1, `${label} horizontally overflows.`);
-      assert.ok(metrics.shell && metrics.shell.width >= metrics.viewport.innerWidth - 1 && metrics.shell.height >= metrics.viewport.innerHeight - 1, `${label} does not use the full viewport.`);
+      assert.ok(metrics.shell && metrics.shell.width >= metrics.viewport.innerWidth - 1 && metrics.shell.height + (metrics.header?.height ?? 0) >= metrics.viewport.innerHeight - 1, `${label} overview and shared header do not use the full viewport.`);
       assert.ok(metrics.heading && metrics.heading.left >= 0 && metrics.heading.right <= metrics.viewport.innerWidth + 1, `${label} heading escapes the viewport.`);
       assert.ok(metrics.primary && metrics.primary.left >= 0 && metrics.primary.right <= metrics.viewport.innerWidth + 1, `${label} primary action escapes the viewport.`);
       assert.ok(metrics.intentBrowser && metrics.intentBrowser.left >= 8 && metrics.intentBrowser.right <= metrics.viewport.innerWidth - 8, `${label} request-intent browser escapes the viewport.`);

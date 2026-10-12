@@ -661,7 +661,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
     setMessage(`${labelFor(graph, nodeId)} moved visually. Route truth remains ${route.reachable ? `cost ${route.totalCost}` : 'unreachable'}.`);
   };
 
-  const frameBuilder = (mode:'network'|'forwarding') => {
+  const frameBuilder = (mode:'network'|'forwarding',reveal=false) => {
     const canvas=canvasRef.current,world=canvas?.querySelector<HTMLElement>('.builder-canvas-viewport');if(!canvas||!world)return;
     const trace=mode==='forwarding'?traceBuilderForwarding(sceneRenderState.graph,sceneRenderState.addressing,sceneRenderState.routing,sceneRenderState.sourceId,sceneRenderState.destinationId):null;
     const ids=trace?new Set([trace.sourceNodeId,...trace.hops.flatMap(hop=>[hop.nodeId,hop.nextNodeId]),trace.destinationNodeId]):null;
@@ -672,7 +672,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
     const bounds={left:Math.min(...boxes.map(r=>(r.left-origin.left)/z)),right:Math.max(...boxes.map(r=>(r.right-origin.left)/z)),top:Math.min(...boxes.map(r=>(r.top-origin.top)/z)),bottom:Math.max(...boxes.map(r=>(r.bottom-origin.top)/z))};
     const fitted=frameCamera(bounds,{w,h},24,1);fittedView.current=mode;
     setAuthoringView(current=>({...current,camera:{x:(w/2-fitted.x)/(w*fitted.z)*100,y:(h/2-fitted.y)/(h*fitted.z)*100,scale:fitted.z}}));
-    canvas.closest('.builder-stage')?.scrollIntoView({block:'center',behavior:'auto'});
+    if(reveal)canvas.closest('.builder-stage')?.scrollIntoView({block:'center',behavior:'auto'});
   };
   frameCurrent.current=frameBuilder;
   useEffect(()=>{
@@ -687,7 +687,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
         <button type="button" className="builder-command-toggle" aria-expanded={builderMenuOpen} aria-controls="builder-command-menu" onClick={() => setBuilderMenuOpen((current) => !current)}><span>Network tools</span><i aria-hidden="true" /></button>
         <div id="builder-command-menu" className={`builder-command-menu ${builderMenuOpen ? 'open' : ''}`} aria-hidden={!builderMenuOpen}>
           <div className="builder-world-tools" role="toolbar" aria-label="Builder tools">
-            {!stressLabel&&<><button type="button" onClick={()=>{frameBuilder('network');setBuilderMenuOpen(false);}}>Frame network</button><button type="button" onClick={()=>{frameBuilder('forwarding');setBuilderMenuOpen(false);}}>Show forwarding path</button></>}
+            {!stressLabel&&<><button type="button" onClick={()=>{frameBuilder('network',true);setBuilderMenuOpen(false);}}>Frame network</button><button type="button" onClick={()=>{frameBuilder('forwarding',true);setBuilderMenuOpen(false);}}>Show forwarding path</button></>}
             <button type="button" className={`builder-tool-inspect ${builderDrawer === 'inspect' ? 'active' : ''}`} aria-pressed={builderDrawer === 'inspect'} onClick={() => setBuilderDrawer((current) => current === 'inspect' ? null : 'inspect')}>Inspect</button>
             <button type="button" className={`builder-tool-topology ${builderDrawer === 'config' ? 'active' : ''}`} aria-pressed={builderDrawer === 'config'} onClick={() => setBuilderDrawer((current) => current === 'config' ? null : 'config')}>Topology</button>
             <button type="button" className={`builder-tool-systems ${builderDrawer === 'tools' ? 'active' : ''}`} aria-pressed={builderDrawer === 'tools'} onClick={() => setBuilderDrawer((current) => current === 'tools' ? null : 'tools')}>Systems</button>

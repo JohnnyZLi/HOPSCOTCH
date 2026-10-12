@@ -163,8 +163,8 @@ function reserveState(){
 }
 function reflow(){
  layoutJob=0;if(disposed)return;q('.rv-envelopes').hidden=!['packetOps','provider'].includes(sceneId);const width=stage.clientWidth||q('.rv-main').clientWidth;if(width<160)return;
- for(const actor of new Set(actors.filter(Boolean).map(a=>a.actor)))if(actor.parentElement!==q('.rv-actors'))q('.rv-actors').append(actor);
  const probe=q('.rv-field-value')||q('.rv-title'),style=getComputedStyle(probe),viewport=root.dataset.integrated==='true'?root.clientHeight:typeof innerHeight==='number'?innerHeight:900,key=[sceneId,variant,dnsMode,width,viewport,style.fontSize,style.fontFamily,root.dataset.theme,devicePixelRatio||1].join('|');if(key===layoutKey)return;
+ for(const actor of new Set(actors.filter(Boolean).map(a=>a.actor)))if(actor.parentElement!==q('.rv-actors'))q('.rv-actors').append(actor);
  if(bounded())reserveCaption();const old=currentPosition(),cardWidth=Math.min(540,width-8),endpoints=q('.rv-endpoints');
  // Reserve the actual peer labels before locating the path. Names can wrap at
  // enlarged type or compact widths; no event-specific header height is needed.

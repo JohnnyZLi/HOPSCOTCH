@@ -100,7 +100,8 @@ export default function App() {
 
   const pushBrowserRoute = (destination: ExploreDestination | null) => {
     if (!browserHistoryRoutingAvailable) return;
-    const nextUrl = destination === null ? '/' : pathForDestination(destination);
+    const embeddedSuffix=new URLSearchParams(window.location.search).get('workspace')==='embedded'?'?workspace=embedded':'';
+    const nextUrl = (destination === null ? '/' : pathForDestination(destination))+embeddedSuffix;
     const currentUrl = `${window.location.pathname}${window.location.search}`;
     if (currentUrl !== nextUrl) window.history.pushState({}, '', nextUrl);
   };

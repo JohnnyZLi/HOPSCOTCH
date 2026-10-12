@@ -16,7 +16,7 @@
 <body>
   <header>
     <a href="/review/">Review index</a>
-    <label>Study <select id="study"><option value="lifecycle">Packet lifecycle</option><option value="builder">Network Builder</option><option value="evidence">Evidence workspaces</option><option value="connected">Connected workspaces</option></select></label>
+    <label>Study <select id="study"><optgroup label="Reviewed compositions"><option value="lifecycle">Packet lifecycle</option><option value="builder">Network Builder</option><option value="evidence">Evidence workspaces</option><option value="connected">Connected workspaces</option></optgroup><optgroup label="Live application"><option value="/">Home</option><option value="/journey">URL Journey</option><option value="/labs/tcp">TCP lab</option><option value="/labs/dns">DNS lab</option><option value="/labs/tls">TLS lab</option><option value="/labs/http2-vs-http3">HTTP comparison</option><option value="/labs/failure">Failure story</option><option value="/labs/builder">Live Network Builder</option><option value="/labs/packet">Packet Microscope</option><option value="/internet/as-routing">AS routing</option><option value="/internet/physical">Physical Internet</option><option value="/internet/observed">Observed evidence</option><option value="/measured">Measured network</option><option value="/capture">Capture replay</option></optgroup></select></label>
     <label>Width <select id="width"><option>320</option><option selected>390</option><option>1024</option><option>1440</option></select></label>
     <label>Height <select id="height"><option>640</option><option selected>844</option><option>1000</option></select></label>
     <p>CSS viewport sizes in this browser. Physical devices, touch behavior, and Safari require separate checks.</p>
@@ -24,7 +24,7 @@
   <main><iframe id="preview" title="Design review viewport" src="/review/lifecycle.html"></iframe></main>
   <script>
     const frame=document.getElementById('preview');
-    document.getElementById('study').addEventListener('change',event=>{frame.src='/review/'+event.target.value+'.html';});
+    document.getElementById('study').addEventListener('change',event=>{const value=event.target.value;frame.src=value.startsWith('/')?value:'/review/'+value+'.html';});
     for(const axis of ['width','height'])document.getElementById(axis).addEventListener('change',event=>{frame.style[axis]=event.target.value+'px';});
   </script>
 </body>

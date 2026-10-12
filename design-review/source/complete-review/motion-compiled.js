@@ -917,12 +917,17 @@ function journeyFrames(actual, {hostname = actual[0]?.event.target || 'Not avail
    objectTitle = 'Application intent';fields=[{id:'hostname',label:'Requested hostname',value:hostname},{id:'resolution',label:'Next dependency',value:'Name resolution'}];
   } else {
    objectTitle = e.kind === 'journey.complete' ? 'Application outcome' : e.kind === 'journey.failed' ? 'Request failed' : 'Retained request state';
-   fields=stateValues(e.kind==='journey.complete'?null:previous,state,[['responseReady','Response',ready],['journeyComplete','Journey complete',String],['journeyFailed','Journey failed',String],['failureReason','Failure reason']]);
+   fields=stateValues(e.kind==='journey.complete'||e.kind==='journey.failed'?null:previous,state,[['responseReady','Response',ready],['journeyComplete','Journey complete',String],['journeyFailed','Journey failed',String],['failureReason','Failure reason',words]]);
+   if(e.kind==='journey.failed')fields.push({id:'terminal-route',label:'Forwarding',value:state.route==='unreachable'?'No route':words(state.route)});
    if(e.kind==='transfer.complete')fields=stateValues(previous,state,[['transport','Byte delivery',words],['http','Application transfer',words]]);
    if(e.kind==='camera.pullback')fields=stateValues(null,state,journeyStateSchema);
   }
   for(const [key,label] of [['transportMetrics','Transport measurements'],['congestionMetrics','Congestion'],['routeMetrics','Routing'],['serverMetrics','Retry state'],['policyMetrics','Policy']]) {
-   const metrics=state[key];if(!metrics||JSON.stringify(metrics)===JSON.stringify(previous?.[key]))continue;
+   const metrics=state[key];if(!metrics)continue;
+   // A selected routing decision or terminal outcome must expose the retained
+   // truth even when its metrics were first installed by an earlier event.
+   const retained=e.kind==='journey.failed'||(['route','internet'].includes(family)&&['routeMetrics','policyMetrics'].includes(key));
+   if(!retained&&JSON.stringify(metrics)===JSON.stringify(previous?.[key]))continue;
    for(const [name,value]of Object.entries(metrics)) fields.push({id:key+'-'+name,label:label+' · '+words(name.replace(/([a-z])([A-Z])/g,'$1 $2')),value:display(value)});
   }
   fields=fields.map(f=>({...f,value:display(f.value)}));
@@ -1280,8 +1285,8 @@ function reserveState(){
 }
 function reflow(){
  layoutJob=0;if(disposed)return;q('.rv-envelopes').hidden=!['packetOps','provider'].includes(sceneId);const width=stage.clientWidth||q('.rv-main').clientWidth;if(width<160)return;
- for(const actor of new Set(actors.filter(Boolean).map(a=>a.actor)))if(actor.parentElement!==q('.rv-actors'))q('.rv-actors').append(actor);
  const probe=q('.rv-field-value')||q('.rv-title'),style=getComputedStyle(probe),viewport=root.dataset.integrated==='true'?root.clientHeight:typeof innerHeight==='number'?innerHeight:900,key=[sceneId,variant,dnsMode,width,viewport,style.fontSize,style.fontFamily,root.dataset.theme,devicePixelRatio||1].join('|');if(key===layoutKey)return;
+ for(const actor of new Set(actors.filter(Boolean).map(a=>a.actor)))if(actor.parentElement!==q('.rv-actors'))q('.rv-actors').append(actor);
  if(bounded())reserveCaption();const old=currentPosition(),cardWidth=Math.min(540,width-8),endpoints=q('.rv-endpoints');
  // Reserve the actual peer labels before locating the path. Names can wrap at
  // enlarged type or compact widths; no event-specific header height is needed.

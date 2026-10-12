@@ -557,6 +557,7 @@
 #hop-connected-review .cx-live-host{min-width:0;min-height:0}
 #hop-connected-review .cx-integrated-workspace{display:block;width:100%;height:clamp(640px,85svh,1000px);border:1px solid var(--rv-divider);border-radius:18px;background:var(--hs-bg)}
 #hop-connected-review .cx-live-host:has(iframe:not([hidden]))~.cx-source-content{margin-top:0}
+@container review (max-width:480px){#hop-connected-review .cx-live-host{margin-inline:-16px}#hop-connected-review .cx-integrated-workspace{border:0;border-radius:0}}
 #hop-connected-review .cx-byte-field{display:block;border-top:1px solid var(--rv-divider);padding:12px 0;position:relative;isolation:isolate;min-width:0}
 #hop-connected-review .cx-byte-field::before{content:"";position:absolute;inset:3px 0;border-radius:14px;z-index:-1;pointer-events:none;background:color-mix(in srgb,var(--hs-accent) 12%,transparent);opacity:0;transition:opacity 220ms ease}
 #hop-connected-review .cx-byte-field[data-selected=true]::before{opacity:1}
@@ -1501,12 +1502,17 @@ function journeyFrames(actual, {hostname = actual[0]?.event.target || 'Not avail
    objectTitle = 'Application intent';fields=[{id:'hostname',label:'Requested hostname',value:hostname},{id:'resolution',label:'Next dependency',value:'Name resolution'}];
   } else {
    objectTitle = e.kind === 'journey.complete' ? 'Application outcome' : e.kind === 'journey.failed' ? 'Request failed' : 'Retained request state';
-   fields=stateValues(e.kind==='journey.complete'?null:previous,state,[['responseReady','Response',ready],['journeyComplete','Journey complete',String],['journeyFailed','Journey failed',String],['failureReason','Failure reason']]);
+   fields=stateValues(e.kind==='journey.complete'||e.kind==='journey.failed'?null:previous,state,[['responseReady','Response',ready],['journeyComplete','Journey complete',String],['journeyFailed','Journey failed',String],['failureReason','Failure reason',words]]);
+   if(e.kind==='journey.failed')fields.push({id:'terminal-route',label:'Forwarding',value:state.route==='unreachable'?'No route':words(state.route)});
    if(e.kind==='transfer.complete')fields=stateValues(previous,state,[['transport','Byte delivery',words],['http','Application transfer',words]]);
    if(e.kind==='camera.pullback')fields=stateValues(null,state,journeyStateSchema);
   }
   for(const [key,label] of [['transportMetrics','Transport measurements'],['congestionMetrics','Congestion'],['routeMetrics','Routing'],['serverMetrics','Retry state'],['policyMetrics','Policy']]) {
-   const metrics=state[key];if(!metrics||JSON.stringify(metrics)===JSON.stringify(previous?.[key]))continue;
+   const metrics=state[key];if(!metrics)continue;
+   // A selected routing decision or terminal outcome must expose the retained
+   // truth even when its metrics were first installed by an earlier event.
+   const retained=e.kind==='journey.failed'||(['route','internet'].includes(family)&&['routeMetrics','policyMetrics'].includes(key));
+   if(!retained&&JSON.stringify(metrics)===JSON.stringify(previous?.[key]))continue;
    for(const [name,value]of Object.entries(metrics)) fields.push({id:key+'-'+name,label:label+' · '+words(name.replace(/([a-z])([A-Z])/g,'$1 $2')),value:display(value)});
   }
   fields=fields.map(f=>({...f,value:display(f.value)}));

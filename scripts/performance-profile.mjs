@@ -255,7 +255,7 @@ const profiles = [
     height: 1000,
     reducedMotion: false,
     query: query({ journey: '2', host: 'example.test', transport: 'quic-h3', dns: 'cache-miss', mods: maxModifierSet, t: '999999' }),
-    expected: ['DNS FAIL + ROUTE + LEAK + SERVER + LOSS + LATENCY + CONGESTION + PARTITION', 'NO ROUTE', 'NETWORK UNREACHABLE', 'ACTIVE PATH NONE', 'ROUTE CANDIDATES 0'],
+    expected: ['DNS FAIL + ROUTE + LEAK + SERVER + LOSS + LATENCY + CONGESTION + PARTITION', 'NO ROUTE', 'NETWORK UNREACHABLE', 'Routing · Active Path\nnone', 'Routing · Candidate Route Count\n0'],
   },
   {
     id: 'route-leak-desktop',

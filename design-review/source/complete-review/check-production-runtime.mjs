@@ -9,6 +9,8 @@ for(const width of [320,390,1024,1440])for(const scene of ['tcp','dns','tls','jo
  const env=await environment('motion',width,{artifactPath:'../../public/review/lifecycle.html',integratedData:source});
  const mount=env.context.integratedMount,api=mount.api,frames=api.snapshot().frames;
  assert(frames.length>0);assert(mount.stats().observers>0);
+ const firstPlan=api.snapshot().plan;
+ assert(firstPlan.starts.every((start,i)=>Number.isFinite((firstPlan.starts[i+1]??firstPlan.total)-start)), 'Every source event needs a finite measured attention budget.');
  for(const [index,frame]of frames.entries()){
   if(frame.at!==null){api.presentSource(frame.at,scene==='journey'?data.journey.duration:scene==='tcp'?4500:4500,true);assert.equal(api.snapshot().at.index,index);assert.equal(env.q('.rv-model-time').textContent,'Source event · '+frame.id+' · '+frame.at+' ms');}
   else{const plan=api.snapshot().plan;api.seek(plan.starts[index]);}
