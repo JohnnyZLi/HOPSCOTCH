@@ -201,7 +201,7 @@ class CdpClient {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`${method} did not respond within its diagnostic deadline.`));
-      }, method === 'Browser.close' ? 3000 : 120000);
+      }, method === 'Browser.close' ? 3000 : method === 'Runtime.evaluate' ? 300000 : 120000);
       this.pending.set(id, { resolve: resolvePromise, reject, method, timer });
     });
     this.socket.send(JSON.stringify({ id, method, params }));

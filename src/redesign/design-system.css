@@ -80,6 +80,7 @@ html[data-design=reviewed] .capture-replay .capture-flow-list>button .capture-fl
 html[data-design=reviewed] .capture-analysis-drawer :is(.capture-track-h-summary>div,.capture-theater-stages article){background:transparent!important;box-shadow:none}
 @media(max-width:680px){
  html[data-design=reviewed] .capture-replay{width:100%}
+ html[data-design=reviewed] .capture-replay :is(.capture-flow-browser,.capture-evidence-inspector,.capture-analysis-drawer,.capture-session-drawer){inset:0;width:100%}
  html[data-design=reviewed] .capture-replay .capture-heading-actions{flex-wrap:wrap;overflow:visible;max-width:100%;width:100%;gap:6px}
  html[data-design=reviewed] .capture-replay .capture-heading-actions .capture-session{position:static;background:var(--design-control);box-shadow:none}
  html[data-design=reviewed] .builder-visual-workspace .builder-canvas::after{display:none}
