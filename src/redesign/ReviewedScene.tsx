@@ -47,7 +47,7 @@ export function ReviewedScene({data, timeMs, durationMs, playing, onBudgets, act
   const owner=element.closest<HTMLElement>('.visual-workspace__stage'),primary=element.closest<HTMLElement>('.reviewed-primary');let geometryKey='';
   const measure=()=>{if(!owner||!primary)return;const box=owner.getBoundingClientRect(),occupied=[...owner.querySelectorAll<HTMLElement>('.visual-workspace__toolbar,.visual-workspace__hud')].map(node=>node.getBoundingClientRect()).filter(rect=>rect.width&&rect.height),top=Math.max(12,...occupied.map(rect=>rect.bottom-box.top))+12,key=top+'|'+box.height;if(key===geometryKey)return;geometryKey=key;primary.style.setProperty('--reviewed-top',top+'px');api.current?.reflow();};
   const composition=new ResizeObserver(measure);if(owner){composition.observe(owner);for(const node of owner.querySelectorAll('.visual-workspace__toolbar,.visual-workspace__hud'))composition.observe(node);}measure();
-  return () => {cancelled = true;composition.disconnect();appearance.disconnect();element.removeEventListener('review-plan-ready', prepared);api.current = null;dispose?.();prior.current = null;};
+  return () => {cancelled = true;composition.disconnect();appearance.disconnect();element.removeEventListener('review-plan-ready', prepared);api.current = null;dispose?.();dispose=null;prior.current = null;};
  }, [data,active]);
  useEffect(() => {
   const previous = prior.current;

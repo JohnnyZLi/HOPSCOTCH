@@ -27,6 +27,6 @@ for(const width of [320,390,1024,1440])for(const scene of ['tcp','dns','tls','jo
  assert.equal(JSON.stringify(source),before);
  const bounds={left:-120,right:800,top:-40,bottom:450},viewport={w:width,h:640},camera=frameCamera(bounds,viewport);
  for(const [x,y]of [[bounds.left,bounds.top],[bounds.right,bounds.bottom]]){assert(camera.x+x*camera.z>=0);assert(camera.x+x*camera.z<=viewport.w);assert(camera.y+y*camera.z>=0);assert(camera.y+y*camera.z<=viewport.h);}
- mount.dispose();assert.deepEqual(JSON.parse(JSON.stringify(mount.stats())),{disposed:true,frames:0,observers:0,listeners:0});assert.equal(env.root.children.length,0);await env.flush();
+ mount.dispose();assert.deepEqual(JSON.parse(JSON.stringify(mount.stats())),{disposed:true,frames:0,observers:0,listeners:0});assert.equal(env.root.children.length,0);assert.equal(env.root.causalStudy,undefined,'Disposed hosts must not retain the renderer plan/cache through API properties.');assert.equal(env.root.reviewData,undefined);await env.flush();
  console.log('PASS integrated runtime, canonical selection and disposal',scene,width);
 }

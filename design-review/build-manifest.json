@@ -3,7 +3,7 @@
   "inputs": {
     "design-review/build.py": "13901ff663153d66d81e8b314c74cf1361806836ea48fb54584315d6d717e563",
     "design-review/source/base-study.html": "cedcfd274898b271c138241df65bc8dda14a4cd46fd1dd61e8c3a11c76958667",
-    "design-review/source/complete-review/assemble.py": "90c328bbc810a6f60377a963bf1eb1cb6154038e612e296e77a67388a14c564e",
+    "design-review/source/complete-review/assemble.py": "29af1a61ca13942a14dd0b4a2133e83792cc1c7521276a419b34ed67487e5a31",
     "design-review/source/complete-review/connected.css": "a71f51327a1b76ab9927dd03f07b644c2fa5573d28240e0b34bf00bde0e60152",
     "design-review/source/complete-review/connected.html": "35d26ea3d933a262efaa84309df744198e496f89cac3a5fb1ffa36f3afdfc322",
     "design-review/source/complete-review/connected.js": "d09ac594384d03aa2c38a18c33140cb28e305aee0f6e3a7c004d3e7f1a4d5be4",
@@ -42,6 +42,6 @@
     "public/review/lifecycle.html": "18cdf257bdd6b7ddb85cf41e745ecad7330c01255d046821b1ded910ea1e4680",
     "public/review/viewport.html": "75d00ce5b75458e1f8a150c6e7897b5662ea93bf5d763ccba95eca1652980455",
     "src/redesign/lifecycle-runtime.css": "52941c68ccbfbdf7fe8e256fd5eb55002cde17c4cfada6ba9075ce5a2b562c23",
-    "src/redesign/lifecycle-runtime.js": "f2d053cff8ac78be7400d3867629ef42b294e8eec9155aca20453e3a92472cb6"
+    "src/redesign/lifecycle-runtime.js": "84271297721e0db8575f1dd399dabfe905ae12cb2bdd79d2fb3474a66fdd390d"
   }
 }
