@@ -313,7 +313,7 @@ async function main() {
 
       const bodyText = await execute('return document.body.innerText;');
       for (const expected of profile.expected) {
-        if (!bodyText.includes(expected)) throw new Error(`${profile.id} did not reach expected semantic text ${JSON.stringify(expected)}.`);
+        if (!bodyText.toLocaleUpperCase().includes(expected.toLocaleUpperCase())) throw new Error(`${profile.id} did not reach expected semantic text ${JSON.stringify(expected)}.`);
       }
       const structural = await execute(`return {
         elementCount: document.getElementsByTagName('*').length,

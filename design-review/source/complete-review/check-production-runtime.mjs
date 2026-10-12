@@ -4,7 +4,7 @@ import {environment} from './check-complete.mjs';
 import {frameCamera} from './shared-geometry.js';
 const data=JSON.parse(fs.readFileSync('complete-review/source-data.json','utf8'));
 {
- const env=await environment('motion',390,{integratedData:{bootstrapScene:'dns',referenceModels:[],dns:data.dns},layoutReady:false});
+ const env=await environment('motion',390,{artifactPath:'../../public/review/lifecycle.html',integratedData:{bootstrapScene:'dns',referenceModels:[],dns:data.dns},layoutReady:false});
  const api=env.context.integratedMount.api;
  assert.equal(api.snapshot().plan,null,'A mount without measured layout must wait, not guess or throw.');
  env.reveal();await env.flush();assert(api.snapshot().plan,'A revealed mount prepares its measured plan.');

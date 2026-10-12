@@ -2,7 +2,7 @@
 // graphics surfaces. These wrappers are local to the mount; globals stay intact.
 export function createRuntimeScope(element) {
  let disposed = false;
- const cleanups = [], frames = new Set(), observers = new Set(), surfaces = new Set();
+ const cleanups = [], frames = new Set(), observers = new Set(), surfaces = new Map();
  function listen(target, type, listener, options) {
   target.addEventListener(type, listener, options);
   cleanups.push(() => target.removeEventListener(type, listener, options));
@@ -11,7 +11,14 @@ export function createRuntimeScope(element) {
   if (key === 'addEventListener') return (type, listener, options) => listen(object, type, listener, options);
   if (key === 'fonts' && object === globalThis.document) return bind(object.fonts);
   if (key === 'createElement' && object === globalThis.document) return (...args) => {
-   const node = object.createElement(...args);if(String(args[0]).toLowerCase()==='canvas')surfaces.add(node);return node;
+   const node = object.createElement(...args);
+   if(String(args[0]).toLowerCase()==='canvas'){
+    const getContext=node.getContext.bind(node);
+    node.getContext=(kind,...options)=>{const context=getContext(kind,...options);if(context&&['webgl2','webgl'].includes(kind))surfaces.set(node,context);return context;};
+   }
+   // Scratch 2D measurement/raster canvases are deliberately not retained.
+   // Only graphics contexts needing explicit disposal belong to this mount.
+   return node;
   };
   const value = Reflect.get(object, key, object);
   return typeof value === 'function' ? value.bind(object) : value;
@@ -36,11 +43,7 @@ export function createRuntimeScope(element) {
    for (const id of frames) globalThis.cancelAnimationFrame(id);frames.clear();
    for (const observer of observers) observer.disconnect();observers.clear();
    for (const cleanup of cleanups.splice(0)) cleanup();
-   for (const canvas of surfaces) {
-    for (const kind of ['webgl2', 'webgl']) {
-     const gl = canvas.getContext(kind);if (gl?.getExtension) {gl.getExtension('WEBGL_lose_context')?.loseContext?.();break;}
-    }
-   }
+   for (const gl of surfaces.values()) gl.getExtension?.('WEBGL_lose_context')?.loseContext?.();
    surfaces.clear();
   },
   stats: () => ({disposed, frames: frames.size, observers: observers.size, listeners: cleanups.length}),

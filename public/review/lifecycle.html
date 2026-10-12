@@ -1861,7 +1861,10 @@ function reflow(){
  if(expected)expected.textContent=oldExpected;
  plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH};
  if(old){const match=phases.find(p=>frames[p.index].id===old.id&&p.kind===old.kind)||phases.find(p=>frames[p.index].id===old.id&&old.kind==='retainFocus'&&p.kind==='retain');clock=match?mix(match.start,match.end,match.kind===old.kind?old.p:0):0;}else clock=0;
- q('.rv-event-picker').replaceChildren(...frames.map((f,i)=>{const option=node('option','',f.title);option.value=String(i);return option;}));
+ // Canonical app controls already own source-event selection. Retain this
+ // renderer's full picker only for its independent snapshot/review playback.
+ const ownPicker=root.dataset.integrated!=='true'||root.classList.contains('reviewed-snapshot');
+ q('.rv-event-picker').replaceChildren(...(ownPicker?frames:[]).map((f,i)=>{const option=node('option','',f.title);option.value=String(i);return option;}));
  layoutKey=key;lensKey='';reserveCaption();render();root.recordMaterial?.invalidate();if(root.dataset.integrated==='true')root.dispatchEvent(new CustomEvent('review-plan-ready',{detail:{budgets:frames.map((f,i)=>({id:f.id,atMs:f.at,duration:(plan.starts[i+1]??plan.total)-plan.starts[i]}))}}));if(alignAfterResize){alignAfterResize=false;if(playing&&bounded())composition.scrollIntoView?.({block:'start',behavior:'auto'});}
 }
 function locate(t){const phase=plan.phases.find(p=>t<p.end)||plan.phases.at(-1);return {...phase,p:clamp((t-phase.start)/(phase.end-phase.start)),elapsed:clamp(t-phase.start,0,phase.end-phase.start)};}

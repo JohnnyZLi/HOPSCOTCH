@@ -147,7 +147,7 @@ async function measureDns(cdp, origin, width, height, event='dns-recursive', tim
   await waitForExpression(cdp,`!document.querySelector('.visual-entrance')`,5000);
   await sleep(150);
   const geometry=await reviewedSceneGeometry(cdp,`${width}x${height} ${event}`,event);
-  assert.equal(geometry.kind,'dns.query','Journey DNS requests must be wire questions, not generic local-state cards.');
+  assert.equal(geometry.kind,event==='dns-recursive'?'dns.query':'dns.referral','Journey DNS questions and referrals must retain their actual wire-message kinds.');
   assert.equal(geometry.local,false);
   assert.ok(geometry.fields.some(f=>f.id==='journey-name'&&f.value==='example.test'));
   await screenshot(cdp,`journey-${event}-${width}x${height}.png`);
