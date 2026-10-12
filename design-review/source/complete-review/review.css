@@ -195,6 +195,10 @@
 #__ROOT__ .rv-payload-chunk span{display:block;overflow-wrap:anywhere;line-height:1.5;font-size:12px}
 #__ROOT__ .rv-payload-range{color:var(--hs-material-muted);margin-bottom:4px;font-variant-numeric:tabular-nums}
 #__ROOT__ .rv-payload-pattern{color:var(--hs-material-ink);font-family:inherit}
+#__ROOT__ .rv-layer-deck{display:flex;flex-direction:column;gap:2px;margin:0 0 16px}
+#__ROOT__ .rv-layer-piece{display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px;padding:9px 12px;border-radius:10px;color:var(--hs-material-ink);background:color-mix(in srgb,var(--hs-panel) 46%,transparent);border:1px solid color-mix(in srgb,var(--hs-line) 70%,transparent);font-size:13px;line-height:1.45}
+#__ROOT__ .rv-layer-piece strong{font-weight:600}
+#__ROOT__ .rv-layer-piece span{margin-left:auto;font-size:12px;overflow-wrap:anywhere}
 
 #__ROOT__ .rv-header-identity{display:flex;align-items:center;gap:16px;min-width:0;margin-right:auto}
 #__ROOT__ .rv-header-context{margin:0;font-size:12px;line-height:1.5;color:var(--hs-muted);overflow-wrap:anywhere}
@@ -224,24 +228,24 @@
 #__ROOT__ .rv-playback-settings,#__ROOT__ .rv-explanation{margin-top:6px}
 #__ROOT__ .rv-playback-settings label{margin:10px 0;justify-content:space-between}
 #__ROOT__ .rv-playback-settings select{max-width:calc(100% - 50px)}
-#__ROOT__:not([data-scene=tcp]):not([data-scene=tls]) .rv-scene-details>summary{display:none}
-#__ROOT__:not([data-scene=tcp]):not([data-scene=tls]) .rv-scene-details:not([open])>.rv-state-secondary{display:block}
-#__ROOT__:not([data-scene=tcp]):not([data-scene=tls]) .rv-explanation>summary,#__ROOT__:not([data-scene=tcp]):not([data-scene=tls]) .rv-playback-settings>summary{display:none}
-#__ROOT__:not([data-scene=tcp]):not([data-scene=tls]) .rv-explanation:not([open])>p,#__ROOT__:not([data-scene=tcp]):not([data-scene=tls]) .rv-playback-settings:not([open])>label{display:flex}
-#__ROOT__:is([data-scene=tcp],[data-scene=tls]) .rv-composition{display:flex;flex-direction:column;container-type:inline-size;container-name:composition}
-#__ROOT__:is([data-scene=tcp],[data-scene=tls]) .rv-console{margin:12px 0 0;padding:14px}
-#__ROOT__:is([data-scene=tcp],[data-scene=tls]) .rv-caption{padding-bottom:10px}
-#__ROOT__:is([data-scene=tcp],[data-scene=tls]) .rv-source{margin-top:0}
-#__ROOT__:is([data-scene=tcp],[data-scene=tls]) .rv-scrub{min-height:24px;margin:4px 0}
+#__ROOT__:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-scene-details>summary{display:none}
+#__ROOT__:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-scene-details:not([open])>.rv-state-secondary{display:block}
+#__ROOT__:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-explanation>summary,#__ROOT__:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-playback-settings>summary{display:none}
+#__ROOT__:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-explanation:not([open])>p,#__ROOT__:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-playback-settings:not([open])>label{display:flex}
+#__ROOT__:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-composition{display:flex;flex-direction:column;container-type:inline-size;container-name:composition}
+#__ROOT__:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-console{margin:12px 0 0;padding:14px}
+#__ROOT__:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-caption{padding-bottom:10px}
+#__ROOT__:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-source{margin-top:0}
+#__ROOT__:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-scrub{min-height:24px;margin:4px 0}
 @container review (min-width:900px){
- #__ROOT__:is([data-scene=tcp],[data-scene=tls]) .rv-composition{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start}
- #__ROOT__:is([data-scene=tcp],[data-scene=tls]) .rv-console{margin:0}
+ #__ROOT__:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-composition{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start}
+ #__ROOT__:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-console{margin:0}
 }
 
-#__ROOT__:is([data-scene=tcp],[data-scene=tls]) .rv-motion-primary{order:1}
-#__ROOT__:is([data-scene=tcp],[data-scene=tls]) .rv-console{order:0}
+#__ROOT__:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-motion-primary{order:1}
+#__ROOT__:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-console{order:0}
 
 @container review (min-width:900px){
- #__ROOT__:is([data-scene=tcp],[data-scene=tls]) .rv-motion-primary{order:0}
- #__ROOT__:is([data-scene=tcp],[data-scene=tls]) .rv-console{order:1}
+ #__ROOT__:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-motion-primary{order:0}
+ #__ROOT__:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-console{order:1}
 }

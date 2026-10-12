@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "inputs": {
-    "design-review/build.py": "d900878e917d312de64b449153d9c8467ac12ff4e7934bed75e58d65b69b0c6a",
+    "design-review/build.py": "63e5efd34e820358925e61f22b8c454c247206db8be7f8449f0451fa06a935d7",
     "design-review/source/base-study.html": "cedcfd274898b271c138241df65bc8dda14a4cd46fd1dd61e8c3a11c76958667",
-    "design-review/source/complete-review/assemble.py": "59af9cded1b718bbb6c12588fcf8e3441b59cb16ed14de16ce490f43ad089243",
+    "design-review/source/complete-review/assemble.py": "4955796c049afb4afff86e402cb31d4a2320209a30d899ac2bf1771a9d871e1e",
     "design-review/source/complete-review/connected.css": "bff0cffeb23c29b9cca2dd88a5fbd431b3c1f127907bc2c250b387c4eae770c1",
     "design-review/source/complete-review/connected.html": "35d26ea3d933a262efaa84309df744198e496f89cac3a5fb1ffa36f3afdfc322",
     "design-review/source/complete-review/connected.js": "d01b5cf6672ef7adfb9e03ad47d5fcff5174bcd2141ba22d4226892c01eebb68",
@@ -15,14 +15,15 @@
     "design-review/source/complete-review/evidence.html": "23cf27ef60ca30e5bd64f6ec891e570d4d541a45c284776785f4d52e79dbf4ae",
     "design-review/source/complete-review/evidence.js": "315a91926678ab26a4d1fd7e65753000fb46c269321a5805d2013f7b12a0d7da",
     "design-review/source/complete-review/motion.html": "6cdcd521ef78d3843ff8f49d3d3b812b7be0d69ec4f3b96090263e30a2f6c7f0",
-    "design-review/source/complete-review/motion.js": "c4db11db3635998e1eb39498722586e50f7c84b242e5fa646e1114e81c4602d5",
-    "design-review/source/complete-review/review.css": "f3d041cd51b99946c714b15b0e6a86da3cf2cceec4b18bd00efac2eb9aeed3b2",
+    "design-review/source/complete-review/motion.js": "8cbb759c240e4c3b2a16ed819477a07e7c817a5051205de44f0c43455d8196f4",
+    "design-review/source/complete-review/review.css": "d5511264776752aca34ce7c8bbcd533d85009eae4bdb03d9ea64b5c4f9b4b97f",
     "design-review/source/complete-review/shared-bytes.js": "4b62b6fd20b330260c1da7452934fe4321e2f53a4a0c1844639effcca667c35b",
     "design-review/source/complete-review/shared-network.js": "4bf50c695f924db1e79457af5dca03d152960cdab84bdb0dc787115c5a4686b8",
     "design-review/source/complete-review/shared-painter.js": "0c13346427de27f902585adc68d2103ecb78f4aad4e140e3489c0b8225be30b7",
     "design-review/source/complete-review/shared-presentation.js": "5cc11e66a8376de96bc3dfb1c7ecb349eb1816f2d1ad51464e73bf6260af2d72",
     "design-review/source/complete-review/shared-reservation.js": "7f29061c65b12107e9ba4180d4f44bedd1c15ce62ac378d9cab88311cb32181c",
     "design-review/source/complete-review/shared-ui.js": "41e745d3aed821c6442aec70aae9464c39079b446e827416f7d11407cc327765",
+    "design-review/source/complete-review/source-adapters.js": "6ff3cf1785a84983b31fa8210d9e05c2165cb2954135e434d5182ca95375c929",
     "design-review/source/complete-review/source-data.json": "3d727d60ec4605973a5fc2ff73958c2f720d0c1060b9a219cb573d9d98fe019e",
     "design-review/source/complete-review/workbench.html": "21c4740a7f6ce3214297665fc3c4f6f7cbd4fc01a06d8c3fd753c6bb9359860d",
     "design-review/source/complete-review/workbench.js": "82e62be3f602c2d05abcd633398c290e6e1bfaaa5259fd1e792a8387b71e8507",
@@ -32,11 +33,11 @@
     "design-review/wrap-pages.py": "01c7ca56d2aa575f2dffe57f55bb57e93186922c37e68561fb93ff93800d770d"
   },
   "outputs": {
-    "public/review/builder.html": "6124df99e6d622ae974b3a8df34a22c0a9ab0c3230d0e1f435d536494e918f85",
-    "public/review/connected.html": "7cd053d3830a2118e15b09693221539850f1cdf767c098da928721c4ccdc1b1f",
-    "public/review/evidence.html": "371e9332e7a3b9a6b17e6f1e2e425ec040f192a856d4062b7cf315e2dca27425",
+    "public/review/builder.html": "4c29af6a96037bdc2663e9256e331bfbc3a62ba662e74256c62a3a60a6ce8263",
+    "public/review/connected.html": "e45ffaf1023b497a4a6a283ba30417671de408fe5549ad532fd4870c6e666c1b",
+    "public/review/evidence.html": "2bf1f6f9d06b50782b37f66727fb8292c1438622e7b6aa6ba272b69fb6b7d27c",
     "public/review/index.html": "6a9c09e26f33d40273c1bb299f71be1b8fc7b7c9cf1c5438cd99887de1a44f41",
-    "public/review/lifecycle.html": "54569a45cfde814c031d4b05e4bdf9fe9e742cea4ee8c4aa88c9ef53dd6dc94c",
+    "public/review/lifecycle.html": "c3fe1ad477437b59c40b18036f0d337de6f75c0dc9746e4a8d1af5fc66a1912b",
     "public/review/viewport.html": "4d10dff4d13c07ba4558ec9f2b5389a9156aa0ee7eaf8f8ab27295af3c029051"
   }
 }
