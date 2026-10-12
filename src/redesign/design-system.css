@@ -62,13 +62,14 @@ html[data-design=reviewed] :is(.journey-visual-tools,.protocol-visual-tools){dis
 html[data-design=reviewed] .journey-visual-tools .visual-drawer-tabs{max-width:none;flex-wrap:wrap;overflow:visible}
 html[data-design=reviewed] :is(.journey-visual-tools,.protocol-visual-tools)>.visual-tool-button{position:static;flex:0 0 auto}
 html[data-design=reviewed] .builder-link .hit{stroke:transparent!important}
+html[data-design=reviewed] .builder-visual-workspace .builder-stage-meta{top:var(--builder-hud-top,80px)}
 html[data-design=reviewed] .physical-visual-workspace .interactive-world-hud.physical-stage-meta>div:first-child{display:grid}
 html[data-design=reviewed] .physical-visual-workspace .interactive-world-hud.physical-stage-meta>div:nth-child(3){display:grid}
 html[data-design=reviewed] :is(.physical-drawer-panel,.packet-drawer-panel,.as-drawer-panel)>section{background:var(--design-panel);color:var(--design-ink);border-color:var(--design-line)}
 html[data-design=reviewed] .capture-replay .capture-protocol-stack button{background:transparent!important;box-shadow:none}
-html[data-design=reviewed] .capture-replay :is(.capture-flow-browser,.capture-session-drawer,.capture-analysis-drawer){background:var(--design-panel);color:var(--design-ink);border-color:var(--design-line)}
-html[data-design=reviewed] .capture-replay .capture-flow-list>button{opacity:1}
-html[data-design=reviewed] .capture-replay .capture-flow-list>button .capture-flow-protocol{color:var(--design-accent)}
+html[data-design=reviewed] .capture-replay :is(.capture-flow-browser,.capture-session-drawer,.capture-analysis-drawer){background:var(--design-panel)!important;color:var(--design-ink);border-color:var(--design-line)}
+html[data-design=reviewed] .capture-replay .capture-flow-list>button{opacity:1!important}
+html[data-design=reviewed] .capture-replay .capture-flow-list>button .capture-flow-protocol{color:var(--design-accent)!important}
 @media(max-width:680px){
  html[data-design=reviewed] :is(.journey-visual-tools,.protocol-visual-tools){width:100%}
  html[data-design=reviewed] .http-workspace-stage{overflow:auto}

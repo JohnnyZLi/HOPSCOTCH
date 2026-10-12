@@ -360,7 +360,8 @@ async function waitForExpression(cdp, expression, timeoutMs = 5000) {
   }
   const failure=await cdp.evaluate(`document.querySelector('.review-runtime')?.dataset.renderError??null`);
   const errors=cdp.events.filter(e=>e.method==='Runtime.exceptionThrown'||e.method==='Runtime.consoleAPICalled'&&e.params?.type==='error').map(e=>e.params);
-  throw new Error(`Timed out waiting for browser expression: ${expression}${failure?'\nRenderer error: '+failure:''}${errors.length?'\nBrowser errors: '+JSON.stringify(errors):''}`);
+  const page=await cdp.evaluate(`JSON.stringify({url:location.href,state:document.readyState,text:document.body.innerText.slice(0,800)})`);
+  throw new Error(`Timed out waiting for browser expression: ${expression}${failure?'\nRenderer error: '+failure:''}${errors.length?'\nBrowser errors: '+JSON.stringify(errors):''}\nPage: ${page}`);
 }
 
 async function setFileInput(cdp, selector, filePath) {

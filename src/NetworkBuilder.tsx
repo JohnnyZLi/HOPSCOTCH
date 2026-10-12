@@ -676,6 +676,11 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   };
   frameCurrent.current=frameBuilder;
   useEffect(()=>{
+    const workspace=canvasRef.current?.closest('.builder-workspace'),toolbar=workspace?.querySelector('.builder-world-toolbar'),stage=workspace?.querySelector<HTMLElement>('.builder-stage');if(!toolbar||!stage)return;
+    let prior='';const measure=()=>{const tools=toolbar.getBoundingClientRect(),box=stage.getBoundingClientRect();if(!tools.height||!box.height)return;const top=Math.max(12,tools.bottom-box.top+12)+'px';if(top===prior)return;prior=top;stage.style.setProperty('--builder-hud-top',top);};
+    const observer=new ResizeObserver(measure);observer.observe(toolbar);observer.observe(stage);measure();return()=>observer.disconnect();
+  },[stressLabel]);
+  useEffect(()=>{
     if(stressLabel)return;const canvas=canvasRef.current;if(!canvas)return;let job=0,key='';
     const resize=new ResizeObserver(()=>{const box=canvas.getBoundingClientRect(),next=box.width+'|'+box.height;if(next===key||!box.width||!box.height)return;key=next;if(job)cancelAnimationFrame(job);job=requestAnimationFrame(()=>{job=0;frameCurrent.current(fittedView.current??'network');});});resize.observe(canvas);
     return()=>{resize.disconnect();if(job)cancelAnimationFrame(job);};

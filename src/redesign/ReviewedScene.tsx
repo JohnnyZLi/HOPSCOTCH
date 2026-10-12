@@ -15,8 +15,8 @@ export function useReviewedAttention(events: readonly VisualTimelineEvent[]) {
   events: events.map(event => ({...event, presentationMs: budgets[event.id]}))};
 }
 
-export function ReviewedScene({data, timeMs, durationMs, playing, onBudgets}: {
- data: Record<string, unknown>;timeMs: number;durationMs: number;playing: boolean;onBudgets: (values: Budget[]) => void;
+export function ReviewedScene({data, timeMs, durationMs, playing, onBudgets, active=true}: {
+ data: Record<string, unknown>;timeMs: number;durationMs: number;playing: boolean;onBudgets: (values: Budget[]) => void;active?:boolean;
 }) {
  const host = useRef<HTMLDivElement>(null), api = useRef<LifecycleAPI | null>(null);
  const current = useRef({timeMs, durationMs, playing});current.current = {timeMs, durationMs, playing};
@@ -24,7 +24,7 @@ export function ReviewedScene({data, timeMs, durationMs, playing, onBudgets}: {
  const callback = useRef(onBudgets);callback.current = onBudgets;
  const [error, setError] = useState(false);
  useEffect(() => {
-  const element = host.current;if (!element) return;
+  const element = host.current;if (!element||!active) return;
   let cancelled = false, initialized=false, dispose: (() => void) | null = null;
   const prepared = (event: Event) => {
    if(api.current&&!initialized){const selected=current.current;api.current.presentSource(selected.timeMs,selected.durationMs,!selected.playing);prior.current={timeMs:selected.timeMs,playing:selected.playing};initialized=true;}
@@ -48,7 +48,7 @@ export function ReviewedScene({data, timeMs, durationMs, playing, onBudgets}: {
   const measure=()=>{if(!owner||!primary)return;const box=owner.getBoundingClientRect(),occupied=[...owner.querySelectorAll<HTMLElement>('.visual-workspace__toolbar,.visual-workspace__hud')].map(node=>node.getBoundingClientRect()).filter(rect=>rect.width&&rect.height),top=Math.max(12,...occupied.map(rect=>rect.bottom-box.top))+12,key=top+'|'+box.height;if(key===geometryKey)return;geometryKey=key;primary.style.setProperty('--reviewed-top',top+'px');api.current?.reflow();};
   const composition=new ResizeObserver(measure);if(owner){composition.observe(owner);for(const node of owner.querySelectorAll('.visual-workspace__toolbar,.visual-workspace__hud'))composition.observe(node);}measure();
   return () => {cancelled = true;composition.disconnect();appearance.disconnect();element.removeEventListener('review-plan-ready', prepared);api.current = null;dispose?.();prior.current = null;};
- }, [data]);
+ }, [data,active]);
  useEffect(() => {
   const previous = prior.current;
   // A pause freezes the already rendered phase. A paused seek exposes the
