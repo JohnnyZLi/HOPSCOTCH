@@ -193,7 +193,7 @@ async function main() {
 
     for (const [label, metrics] of Object.entries(report.viewports)) {
       assert.ok(metrics.scrollWidth <= metrics.viewport.innerWidth + 1, `${label} horizontally overflows.`);
-      assert.ok(metrics.shell && metrics.shell.width >= metrics.viewport.innerWidth - 1 && metrics.shell.height + (metrics.header?.height ?? 0) >= metrics.viewport.innerHeight - 1, `${label} overview and shared header do not use the full viewport.`);
+      assert.ok(metrics.shell && metrics.shell.width >= metrics.viewport.innerWidth - 1 && metrics.shell.top >= (metrics.header?.bottom ?? 0) - 1 && Math.abs(metrics.shell.bottom - metrics.viewport.innerHeight) <= 1, `${label} overview does not fill the viewport below its shared header: ${JSON.stringify({shell:metrics.shell,header:metrics.header})}.`);
       assert.ok(metrics.heading && metrics.heading.left >= 0 && metrics.heading.right <= metrics.viewport.innerWidth + 1, `${label} heading escapes the viewport.`);
       assert.ok(metrics.primary && metrics.primary.left >= 0 && metrics.primary.right <= metrics.viewport.innerWidth + 1, `${label} primary action escapes the viewport.`);
       assert.ok(metrics.intentBrowser && metrics.intentBrowser.left >= 8 && metrics.intentBrowser.right <= metrics.viewport.innerWidth - 8, `${label} request-intent browser escapes the viewport.`);

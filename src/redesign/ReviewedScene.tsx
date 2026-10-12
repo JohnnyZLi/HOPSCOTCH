@@ -36,7 +36,7 @@ export function ReviewedScene({data, timeMs, durationMs, playing, onBudgets}: {
    const selected = current.current;
    mounted.api.presentSource(selected.timeMs, selected.durationMs, !selected.playing);
    prior.current = {timeMs: selected.timeMs, playing: selected.playing};
-  }).catch(() => {if (!cancelled) setError(true);});
+  }).catch((failure:unknown) => {if (!cancelled) {element.dataset.renderError=failure instanceof Error?failure.stack||failure.message:String(failure);console.error('Source-backed presentation failed to mount',failure);setError(true);}});
   const appearance = new MutationObserver(() => {
    element.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
    const select = element.querySelector<HTMLSelectElement>('.rv-theme');if (select) select.value = element.dataset.theme;

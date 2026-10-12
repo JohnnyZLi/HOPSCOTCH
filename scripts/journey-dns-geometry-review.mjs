@@ -130,7 +130,8 @@ async function waitForExpression(cdp, expression, timeoutMs = 15000) {
     if (await cdp.evaluate(expression)) return;
     await sleep(30);
   }
-  throw new Error(`Timed out waiting for ${expression}`);
+  const failure=await cdp.evaluate(`document.querySelector('.review-runtime')?.dataset.renderError??null`);
+  throw new Error(`Timed out waiting for ${expression}${failure?'\nRenderer error: '+failure:''}`);
 }
 
 async function screenshot(cdp, filename) {

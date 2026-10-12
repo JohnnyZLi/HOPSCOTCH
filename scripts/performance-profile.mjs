@@ -358,7 +358,8 @@ async function waitForExpression(cdp, expression, timeoutMs = 5000) {
     if (await cdp.evaluate(expression)) return;
     await sleep(25);
   }
-  throw new Error(`Timed out waiting for browser expression: ${expression}`);
+  const failure=await cdp.evaluate(`document.querySelector('.review-runtime')?.dataset.renderError??null`);
+  throw new Error(`Timed out waiting for browser expression: ${expression}${failure?'\nRenderer error: '+failure:''}`);
 }
 
 async function setFileInput(cdp, selector, filePath) {
