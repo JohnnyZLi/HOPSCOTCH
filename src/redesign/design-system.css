@@ -35,6 +35,7 @@ html[data-design=reviewed] :is(.tcp-visual-workspace,.dns-visual-workspace,.tls-
 html[data-design=reviewed] :is(.tcp-visual-workspace,.dns-visual-workspace,.tls-visual-workspace,.journey-visual-workspace) .visual-workspace__hud{position:relative;top:auto;left:auto;margin:0 12px;gap:8px}
 html[data-design=reviewed] :is(.tcp-visual-workspace,.dns-visual-workspace,.tls-visual-workspace) .visual-workspace__hud>div:not(:last-child){display:none}
 html[data-design=reviewed] .journey-visual-workspace .visual-workspace__hud>div:is(:nth-child(2),:nth-child(3)){display:none}
+html[data-design=reviewed] .journey-visual-workspace:has(:is(.policy-leak-active,.policy-restored-active)) .visual-workspace__hud>div:nth-child(3){display:grid}
 html[data-design=reviewed] .journey-cinematic-stage:has(.journey-scene-transition[data-reviewed-suppressed=true]) .journey-depth{display:none}
 html[data-design=reviewed] .kinetic-overview{background:var(--design-bg);min-height:calc(100svh - 76px);height:calc(100svh - 76px);color:var(--design-ink)}
 html[data-design=reviewed] .kinetic-overview::after{box-shadow:none;border:0}
@@ -61,8 +62,9 @@ html[data-design=reviewed] :is(.journey-visual-tools,.protocol-visual-tools){dis
 html[data-design=reviewed] .journey-visual-tools .visual-drawer-tabs{max-width:none;flex-wrap:wrap;overflow:visible}
 html[data-design=reviewed] :is(.journey-visual-tools,.protocol-visual-tools)>.visual-tool-button{position:static;flex:0 0 auto}
 html[data-design=reviewed] .builder-link .hit{stroke:transparent!important}
+html[data-design=reviewed] .physical-visual-workspace .interactive-world-hud.physical-stage-meta>div:first-child{display:grid}
 html[data-design=reviewed] :is(.physical-drawer-panel,.packet-drawer-panel,.as-drawer-panel)>section{background:var(--design-panel);color:var(--design-ink);border-color:var(--design-line)}
-html[data-design=reviewed] .capture-protocol-stack button{background:transparent;box-shadow:none}
+html[data-design=reviewed] .capture-replay .capture-protocol-stack button{background:transparent!important;box-shadow:none}
 @media(max-width:680px){
  html[data-design=reviewed] :is(.journey-visual-tools,.protocol-visual-tools){width:100%}
  html[data-design=reviewed] .http-workspace-stage{overflow:auto}

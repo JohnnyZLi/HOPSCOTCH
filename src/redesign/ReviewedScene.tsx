@@ -25,8 +25,9 @@ export function ReviewedScene({data, timeMs, durationMs, playing, onBudgets}: {
  const [error, setError] = useState(false);
  useEffect(() => {
   const element = host.current;if (!element) return;
-  let cancelled = false, dispose: (() => void) | null = null;
+  let cancelled = false, initialized=false, dispose: (() => void) | null = null;
   const prepared = (event: Event) => {
+   if(api.current&&!initialized){const selected=current.current;api.current.presentSource(selected.timeMs,selected.durationMs,!selected.playing);prior.current={timeMs:selected.timeMs,playing:selected.playing};initialized=true;}
    callback.current((event as CustomEvent<{budgets: Budget[]}>).detail.budgets);
   };
   element.addEventListener('review-plan-ready', prepared);
@@ -34,8 +35,7 @@ export function ReviewedScene({data, timeMs, durationMs, playing, onBudgets}: {
    if (cancelled) return;
    const mounted = mountLifecycle(element, data);api.current = mounted.api;dispose = mounted.dispose;
    const selected = current.current;
-   mounted.api.presentSource(selected.timeMs, selected.durationMs, !selected.playing);
-   prior.current = {timeMs: selected.timeMs, playing: selected.playing};
+   if(mounted.api.snapshot().at){mounted.api.presentSource(selected.timeMs, selected.durationMs, !selected.playing);prior.current = {timeMs: selected.timeMs, playing: selected.playing};initialized=true;}
   }).catch((failure:unknown) => {if (!cancelled) {element.dataset.renderError=failure instanceof Error?failure.stack||failure.message:String(failure);console.error('Source-backed presentation failed to mount',failure);setError(true);}});
   const appearance = new MutationObserver(() => {
    element.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';

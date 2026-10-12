@@ -2031,6 +2031,9 @@ function select(id){
   const ranges=[...new Map(frames.filter(f=>f.event.length).map(f=>[f.event.seq,f.event])).values()].sort((a,b)=>a.seq-b.seq);q('.rv-buffer-slots').replaceChildren(...ranges.map(e=>{const n=node('div','rv-buffer-slot');n.dataset.seq=String(e.seq);n.dataset.length=String(e.length);n.append(node('strong','',e.seq+'–'+(e.seq+e.length-1)),node('span','','Not received'));return n;}));
  }
  buildDock();root.disclosures.set(details,!bounded(),false);details.dataset.bounded=String(bounded());settings.hidden=!bounded();explanation.hidden=!bounded();root.disclosures.set(settings,false,false);root.disclosures.set(explanation,false,false);for(const label of settingLabels)(bounded()?(settings.querySelector('.rv-disclosure-inner')||settings):q('.rv-controls')).append(label);(bounded()?(explanation.querySelector('.rv-disclosure-inner')||explanation):q('.rv-caption')).append(q('.rv-caption-detail'));fullFields.hidden=!bounded();createActors();buildLocalControls();renderBytes();reflow();
+ // A lazy stylesheet or a newly mounted hidden workspace can have no measured
+ // width yet. Resize/font observation will prepare its first real plan.
+ if(!plan)return;
  const saved=memories.get(id);if(saved?.position){const phase=plan.phases.find(p=>frames[p.index].id===saved.position.id&&p.kind===saved.position.kind)||plan.phases.find(p=>frames[p.index].id===saved.position.id&&saved.position.kind==='retainFocus'&&p.kind==='retain');if(phase)clock=mix(phase.start,phase.end,phase.kind===saved.position.kind?saved.position.p:0);}else{const ready=plan.phases.find(p=>p.index===0&&p.kind==='open')||plan.phases.find(p=>p.index===0&&p.kind==='construct');if(ready)clock=ready.end-1;}render();
 }
 function appearance(){const value=q('.rv-theme').value;root.dataset.theme=value==='system'?(dark.matches?'dark':'light'):value;root.surfacePainter.invalidate();layoutKey='';networkKey='';queueLayout();}

@@ -3,6 +3,14 @@ import fs from 'node:fs';
 import {environment} from './check-complete.mjs';
 import {frameCamera} from './shared-geometry.js';
 const data=JSON.parse(fs.readFileSync('complete-review/source-data.json','utf8'));
+{
+ const env=await environment('motion',390,{integratedData:{bootstrapScene:'dns',referenceModels:[],dns:data.dns},layoutReady:false});
+ const api=env.context.integratedMount.api;
+ assert.equal(api.snapshot().plan,null,'A mount without measured layout must wait, not guess or throw.');
+ env.reveal();await env.flush();assert(api.snapshot().plan,'A revealed mount prepares its measured plan.');
+ api.presentSource(650,4500,true);assert.equal(api.snapshot().frames[api.snapshot().at.index].at,650);
+ env.context.integratedMount.dispose();console.log('PASS lazy source mount waits for measurable layout');
+}
 for(const width of [320,390,1024,1440])for(const scene of ['tcp','dns','tls','journey','provider']){
  const source={bootstrapScene:scene,referenceModels:[],[scene]:data[scene]};
  const before=JSON.stringify(source);
