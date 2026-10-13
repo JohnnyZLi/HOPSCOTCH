@@ -27,9 +27,9 @@ assert.ok(systemCss.includes("@import './MechanismSecondPass.css';"), 'shared me
 assert.ok(systemCss.trimEnd().endsWith("@import './NetworkBuilderMechanismPass.css';"), 'Builder mechanism refinement must load after the shared mechanism layer');
 
 for (const [name, source, tokens] of [
-  ['DNS', dns, ['dns-namespace-field', 'dns-query-core', "className={activeEvent.from === from"]],
-  ['TCP', tcp, ['tcp-stream-ribbon', 'tcp-ack-gate', 'tcp-window-field', 'tcp-sequence-axis']],
-  ['TLS', tls, ['tls-protection-shell', 'tls-record-core', 'tls-key-flow', 'tls-transcript-spine']],
+  ['DNS', dns, ['<ReviewedScene', 'dnsStateAt(mode,event.atMs)', 'bootstrapDnsMode:mode']],
+  ['TCP', tcp, ['<ReviewedScene', 'tcpStateAt(event.atMs)', 'useReviewedAttention']],
+  ['TLS', tls, ['<ReviewedScene', 'tlsStateAt(event.atMs)', 'useReviewedAttention']],
   ['HTTP', http, ['http-mechanism-orbits', 'http-shared-order-gate', 'http-independent-stream-field', 'http-flow-window']],
   ['Packet', packet, ['SimulatedPacketMechanism', 'simulated-packet-mechanism-stage', 'simulated-byte-workbench']],
   ['Capture', capture, ['capture-ingest-stream', 'capture-ingest-path']],

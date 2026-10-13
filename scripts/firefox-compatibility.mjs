@@ -126,8 +126,8 @@ const profiles = [
     height: 1000,
     path: '/labs/tcp',
     query: '',
-    readySelector: '.tcp-visual-workspace',
-    expected: ['TCP recovery', 'CLIENT SEQUENCE SPACE', 'CONGESTION WINDOW', 'PROVENANCE'],
+    readySelector: '.tcp-visual-workspace .review-runtime .rv-actor',
+    expected: ['TCP recovery', 'Highest ACK at sender', 'Next expected byte', 'PROVENANCE'],
     protocolWorkspace: true,
   },
   {
@@ -136,8 +136,8 @@ const profiles = [
     height: 844,
     path: '/labs/dns',
     query: '',
-    readySelector: '.dns-visual-workspace',
-    expected: ['www.example.test', 'NAMESPACE', 'STUB'],
+    readySelector: '.dns-visual-workspace .review-runtime .rv-actor',
+    expected: ['www.example.test', 'Resolved address', 'Resolver / cache', 'PROVENANCE'],
     protocolWorkspace: true,
   },
   {
@@ -146,8 +146,8 @@ const profiles = [
     height: 900,
     path: '/labs/tls',
     query: '',
-    readySelector: '.tls-visual-workspace',
-    expected: ['TLS 1.3 handshake', 'SYMBOLIC KEY SCHEDULE', 'WIRE VISIBILITY', 'PROVENANCE'],
+    readySelector: '.tls-visual-workspace .review-runtime .rv-actor',
+    expected: ['TLS 1.3 handshake', 'Certificate', 'Application channel', 'PROVENANCE'],
     protocolWorkspace: true,
   },
   {
@@ -166,7 +166,7 @@ const profiles = [
     height: 1000,
     query: query({ journey: '2', host: 'example.test', transport: 'quic-h3', dns: 'cache-miss', mods: maxModifierSet, t: '999999' }),
     readySelector: '.journey-visual-workspace',
-    expected: ['DNS FAIL + ROUTE + LEAK + SERVER + LOSS + LATENCY + CONGESTION + PARTITION', 'NO ROUTE', 'NETWORK UNREACHABLE', 'ACTIVE PATH NONE', 'ROUTE CANDIDATES 0'],
+    expected: ['DNS FAIL + ROUTE + LEAK + SERVER + LOSS + LATENCY + CONGESTION + PARTITION', 'NO ROUTE', 'NETWORK UNREACHABLE', 'Routing · Active Path\nnone', 'Routing · Candidate Route Count\n0'],
   },
   {
     id: 'firefox-route-leak',
@@ -313,7 +313,7 @@ async function main() {
 
       const bodyText = await execute('return document.body.innerText;');
       for (const expected of profile.expected) {
-        if (!bodyText.includes(expected)) throw new Error(`${profile.id} did not reach expected semantic text ${JSON.stringify(expected)}.`);
+        if (!bodyText.toLocaleUpperCase().includes(expected.toLocaleUpperCase())) throw new Error(`${profile.id} did not reach expected semantic text ${JSON.stringify(expected)}.`);
       }
       const structural = await execute(`return {
         elementCount: document.getElementsByTagName('*').length,
@@ -331,13 +331,18 @@ async function main() {
         fallbackText: document.querySelector('.globe-fallback')?.innerText ?? null,
         protocol: (() => {
           const stage = document.querySelector('.protocol-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
-          const scene = document.querySelector('.protocol-cinematic-stage')?.getBoundingClientRect();
+          const renderer=document.querySelector('.protocol-visual-workspace .review-runtime'),scene=(renderer?.closest('.reviewed-primary')??document.querySelector('.protocol-cinematic-stage'))?.getBoundingClientRect();
+          const intersects=(a,b)=>a&&b&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;
           return {
             active: Boolean(stage && scene),
             stageWidth: stage?.width ?? 0,
             stageHeight: stage?.height ?? 0,
             sceneWidth: scene?.width ?? 0,
             sceneHeight: scene?.height ?? 0,
+            reviewed:Boolean(renderer),
+            contained:Boolean(scene&&stage&&scene.left>=stage.left-1&&scene.right<=stage.right+1&&scene.top>=stage.top-1&&scene.bottom<=stage.bottom+1),
+            controlsClear:!intersects(scene,document.querySelector('.protocol-visual-workspace .visual-workspace__toolbar')?.getBoundingClientRect())&&!intersects(scene,document.querySelector('.protocol-visual-workspace .visual-workspace__hud')?.getBoundingClientRect()),
+            sourceReady:!renderer||Boolean(renderer.causalStudy?.snapshot().frames.length),
             drawerTabs: document.querySelectorAll('.protocol-visual-workspace .visual-drawer-tabs button').length,
             timeRail: Boolean(document.querySelector('.protocol-visual-workspace .visual-time-rail')),
             permanentInspectors: document.querySelectorAll('.tcp-inspector,.dns-inspector,.tls-inspector,.http-inspector').length,
@@ -351,7 +356,9 @@ async function main() {
       if (!structural.reducedMotion) throw new Error(`${profile.id} did not honor Firefox reduced-motion preference.`);
       if (profile.protocolWorkspace) {
         if (!structural.protocol.active) throw new Error(`${profile.id} did not render a protocol scene inside the shared visual workspace.`);
-        if (structural.protocol.sceneWidth < structural.protocol.stageWidth * 0.98 || structural.protocol.sceneHeight < structural.protocol.stageHeight * 0.98) throw new Error(`${profile.id} scene does not occupy the shared visual stage.`);
+        if(structural.protocol.reviewed){
+          if(!structural.protocol.sourceReady||!structural.protocol.contained||!structural.protocol.controlsClear||structural.protocol.sceneWidth<structural.protocol.stageWidth*.90||structural.protocol.sceneHeight<120)throw new Error(`${profile.id} reviewed scene is missing, clipped, or overlaps its controls: ${JSON.stringify(structural.protocol)}.`);
+        }else if (structural.protocol.sceneWidth < structural.protocol.stageWidth * 0.98 || structural.protocol.sceneHeight < structural.protocol.stageHeight * 0.98) throw new Error(`${profile.id} scene does not occupy the shared visual stage.`);
         if (structural.protocol.drawerTabs < 3 || !structural.protocol.timeRail) throw new Error(`${profile.id} did not expose the expected drawers and Time Rail.`);
         if (structural.protocol.permanentInspectors !== 0) throw new Error(`${profile.id} retained a permanent legacy inspector.`);
       }

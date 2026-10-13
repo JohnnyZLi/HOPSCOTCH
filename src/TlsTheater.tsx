@@ -11,6 +11,7 @@ import {
   type VisualTimelineEvent,
   type VisualTimelineMilestone,
 } from './VisualWorkspace';
+import {ReviewedScene, useReviewedAttention} from './redesign/ReviewedScene';
 import {
   TLS_HOST,
   clampTlsTime,
@@ -62,11 +63,13 @@ export function TlsTheater({
   const activeEvent = useMemo(() => tlsLatestEventAtOrBefore(timeMs), [timeMs]);
   const activeIndex = tlsEvents.indexOf(activeEvent);
   const timelineEvents: VisualTimelineEvent[] = tlsEvents.map((event) => ({ id: event.id, atMs: event.atMs, label: event.title, tone: eventTone(event.protection) }));
+  const presentation = useReviewedAttention(timelineEvents);
+  const presentationData = useMemo(() => ({bootstrapScene:'tls',referenceModels:[],tls:{frames:tlsEvents.map(event => ({event,state:tlsStateAt(event.atMs)}))}}), []);
   const { playbackSpeed, setPlaybackSpeed } = useVisualPresentationPlayback({
-    playing,
+    playing: playing && presentation.ready,
     timeMs,
     durationMs: tlsDurationMs,
-    events: timelineEvents,
+    events: presentation.events,
     onTimeChange: setTimeMs,
     onComplete: () => setPlaying(false),
   });
@@ -158,26 +161,6 @@ export function TlsTheater({
     hud={<><div><span>PHASE</span><strong>{state.phaseLabel}</strong></div><div><span>WIRE</span><strong>{protectionLabel}</strong></div><div><span>ALPN</span><strong>{state.negotiatedAlpn ?? 'OFFERING h2'}</strong></div><div><span>PROVENANCE</span><strong>SIMULATED</strong></div></>}
     timeline={<VisualTimeRail timeMs={timeMs} durationMs={tlsDurationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="TLS handshake" context={`${state.transcript.length} transcript messages · ${state.activeKeys.length} key stages`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
   >
-    <div ref={rootRef} className={`protocol-cinematic-stage tls-cinematic-stage protection-${wireProtection}`}>
-      <div className="protocol-scene-kicker"><span>TLS 1.3 / RECORD LAYER</span><strong>{activeEvent.direction === 'local' ? 'LOCAL DERIVATION' : activeEvent.direction.replaceAll('-', ' ').toUpperCase()}</strong></div>
-      <div className="tls-stage tls-workspace-stage">
-        <div className={`tls-wire-stage${wireEncrypted ? ' is-encrypted' : ''}`}>
-          <div className="tls-cipher-field" aria-hidden="true"><span>6F A1 09 7C</span><span>AE 32 F8 D0</span><span>19 C4 77 2B</span><span>D3 80 5E 14</span></div>
-          <div className={`tls-protection-shell protection-${wireProtection}`} aria-hidden="true">
-            <motion.i animate={reduceMotion ? undefined : { rotate: wireEncrypted ? 360 : 0, scale: wireEncrypted ? 1 : .72 }} transition={{ rotate: { duration: 18, repeat: Infinity, ease: 'linear' }, scale: { duration: .6, ease: [.16, 1, .3, 1] } }}/>
-            <motion.i animate={reduceMotion ? undefined : { rotate: wireEncrypted ? -360 : 0, scale: state.applicationReady ? 1 : .78 }} transition={{ rotate: { duration: 24, repeat: Infinity, ease: 'linear' }, scale: { duration: .6, ease: [.16, 1, .3, 1] } }}/>
-            <b/><span>{protectionLabel}</span>
-          </div>
-          <div className="tls-endpoint endpoint-client"><i aria-hidden="true"/><span>CLIENT</span><strong>{TLS_HOST}</strong><small>{state.applicationReady ? 'APPLICATION KEYS ACTIVE' : 'HANDSHAKE IN PROGRESS'}</small></div>
-          <div className="tls-wire"><i/><b/><i/></div>
-          <div className="tls-encryption-boundary"><span>WIRE VISIBILITY</span><strong>{boundaryTitle}</strong><small>{boundaryNote}</small></div>
-          <div className="tls-endpoint endpoint-server"><i aria-hidden="true"/><span>SERVER</span><strong>203.0.113.42:443</strong><small>{state.certificateState === 'valid' ? 'IDENTITY VALIDATED' : 'SIMULATED CERTIFICATE'}</small></div>
-          <div className={`tls-message-token protection-${activeEvent.protection}${activeEvent.direction === 'local' ? ' is-local' : ''}`}><i className="tls-record-core" aria-hidden="true"/><span>{activeEvent.protection.toUpperCase()}</span><strong>{activeEvent.message}</strong>{wireEncrypted && activeEvent.direction !== 'local' && <b aria-hidden="true">◆</b>}</div><div className="tls-local-pulse" aria-hidden="true"/>
-          <AnimatePresence mode="wait" initial={false}><motion.article key={activeEvent.id} className={`protocol-scene-annotation tls-scene-annotation protection-${activeEvent.protection}`} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 9 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: reduceMotion ? 0 : 0.24 }}><i aria-hidden="true"/><div><span>{formatTime(activeEvent.atMs)} · {activeEvent.protection}</span><strong>{activeEvent.title}</strong><p>{activeEvent.summary}</p></div></motion.article></AnimatePresence>
-        </div>
-        <div className="tls-key-schedule"><div className="tls-subhead"><div><span>SYMBOLIC KEY SCHEDULE</span><strong>STAGE NAMES, NOT SECRET BYTES</strong></div><small>HKDF structure</small></div><div className="tls-key-flow" aria-hidden="true"><i/><i/><i/></div><div className="tls-key-chain">{keyStages.map((stage, index) => <motion.div layout key={stage.id} className={`tls-key-stage${state.activeKeys.includes(stage.id) ? ' active' : ''}`}><span>{String(index + 1).padStart(2, '0')}</span><strong>{stage.label}</strong><small>{stage.note}</small></motion.div>)}</div></div>
-        <div className="tls-transcript-panel"><div className="tls-subhead"><div><span>TRANSCRIPT</span><strong>{state.transcript.length} MESSAGES HASHED</strong></div><small>ordered context</small></div><div className="tls-transcript-spine" aria-hidden="true"/><div className="tls-transcript-list">{tlsEvents.filter((event) => event.transcriptLabel).map((event) => { const included = state.transcript.includes(event.transcriptLabel!); const current = event.id === activeEvent.id; return <span key={event.id} className={`tls-transcript-item${included ? ' included' : ''}${current ? ' current' : ''}`}><i/>{event.transcriptLabel}</span>; })}</div></div>
-      </div>
-    </div>
+    <ReviewedScene data={presentationData} timeMs={timeMs} durationMs={tlsDurationMs} playing={playing} onBudgets={presentation.onBudgets}/>
   </VisualWorkspaceShell>;
 }

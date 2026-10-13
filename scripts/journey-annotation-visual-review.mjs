@@ -215,18 +215,23 @@ async function inspectState(cdp) {
       return true;
     }).map((element)=>{const range=document.createRange();range.selectNodeContents(element);return {selector,text:element.textContent.trim(),rect:textBox(element),lineCount:range.getClientRects().length,fontSize:parseFloat(getComputedStyle(element).fontSize)}}));
     const pseudoContentMetrics=(element)=>{if(!element)return null;const style=getComputedStyle(element,'::before');const content=style.content.replace(/^["']|["']$/g,'');const canvas=document.createElement('canvas');const context=canvas.getContext('2d');if(!context)return null;context.font=style.font;const spacing=Number.parseFloat(style.letterSpacing)||0;const textWidth=context.measureText(content).width+Math.max(0,content.length-1)*spacing;const laneWidth=element.getBoundingClientRect().width;return {content,textWidth,laneWidth,fits:textWidth<=laneWidth+1}};
-    const callout=document.querySelector('.journey-callout-overlay');
-    const scene=document.querySelector('.journey-scene-transition');
+    const reviewedRoot=document.querySelector('.journey-reviewed-scene[data-hidden="false"] .review-runtime');
+    const painted=(element)=>{if(!element?.getClientRects().length)return false;for(let node=element;node instanceof Element;node=node.parentElement){const style=getComputedStyle(node);if(style.display==='none'||style.visibility==='hidden'||Number(style.opacity)<.01)return false;}return true;};
+    // Native packet worlds explain their fields in-place. Their old, aria-hidden
+    // callout anchor is not a painted caption and must not become a zero-size box.
+    const inlineCaption=document.querySelector('.causal-annotation:not([hidden])');
+    const callout=reviewedRoot?.querySelector('.rv-caption')??[document.querySelector('.journey-callout-overlay'),inlineCaption].find(painted);
+    const scene=reviewedRoot?.querySelector('.rv-stage')??document.querySelector('.journey-scene-transition');
     const stage=document.querySelector('.visual-workspace__stage');
     const hud=document.querySelector('.visual-workspace__hud');
     const toolbar=document.querySelector('.visual-workspace__toolbar');
     const rail=document.querySelector('.visual-time-rail');
     const depth=document.querySelector('.journey-depth-overlay');
-    const causalObject=document.querySelector('[data-causal-object="request-01"]');
+    const causalObject=reviewedRoot?null:document.querySelector('[data-causal-object="request-01"]');
     const packetObject=document.querySelector('[data-phase5-packet-object="true"]');
     const physicalObject=document.querySelector('[data-phase5b-physical="true"]');
     const boxes={callout:pick(callout),scene:pick(scene),stage:pick(stage),hud:pick(hud),toolbar:pick(toolbar),rail:pick(rail),depth:pick(depth)};
-    const captionElement=document.querySelector('.causal-annotation:not([hidden])');
+    const captionElement=reviewedRoot?null:document.querySelector('.causal-annotation:not([hidden])');
     const tlsSelection=document.querySelector('.causal-tls-world:not([hidden]) .causal-tls-server');
     const tlsSelectionRect=tlsSelection&&Number(getComputedStyle(tlsSelection).opacity)>.5?pick(tlsSelection):null;
     const caption=captionElement?{
@@ -310,9 +315,10 @@ async function inspectState(cdp) {
       destinationToken:pick(physicalObject.querySelector('.phase5c-ip-token')),
     }:null;
     return {
-      title:callout?.querySelector('h2')?.textContent?.trim()||'',
+      title:callout?.querySelector('h2,strong')?.textContent?.trim()||'',
+      reviewed:Boolean(reviewedRoot),
       boxes,
-      calloutSceneOverlap:intersects(boxes.callout,boxes.scene),
+      calloutSceneOverlap:callout===inlineCaption?false:intersects(boxes.callout,boxes.scene),
       calloutHudOverlap:intersects(boxes.callout,boxes.hud),
       calloutToolbarOverlap:intersects(boxes.callout,boxes.toolbar),
       calloutRailOverlap:intersects(boxes.callout,boxes.rail),
@@ -448,10 +454,10 @@ function startTransitionMonitor() {
     return opacity > .01;
   };
   const sample = () => {
-    const world = document.querySelector('[data-journey-causal-world]');
-    if (world) {
-      const phase = world.dataset.causalPhase;
-      const event = world.dataset.causalEvent;
+    const world = document.querySelector('[data-journey-causal-world]'),reviewed=document.querySelector('.journey-reviewed-scene[data-hidden="false"] .review-runtime'),snapshot=reviewed?.causalStudy?.snapshot(),source=snapshot?.frames[snapshot.at.index];
+    if (world||source) {
+      const phase = source?.event.phase??world.dataset.causalPhase;
+      const event = source?.id??world.dataset.causalEvent;
       report.frames++;
       report.events[event] = (report.events[event] || 0) + 1;
       if (!report.eventOrder.includes(event)) report.eventOrder.push(event);
@@ -461,7 +467,8 @@ function startTransitionMonitor() {
         }
         window.journeyPreviousPlaybackEvent = event;
       }
-      const removedEnvelope = world.querySelector('.phase5b-physical.l2-none .shell-lan');
+      if(source){for(const actor of reviewed.querySelectorAll('.rv-actor'))if(painted(actor)&&actor.dataset.identity!==source.id&&actor.dataset.identity!==source.assembly?.identity)report.leaks.push({frame:report.frames,event,phase,selector:'.rv-actor',reason:'An unrelated source carrier remained painted'});}
+      const removedEnvelope = world?.querySelector('.phase5b-physical.l2-none .shell-lan');
       if (removedEnvelope && painted(removedEnvelope) && report.leaks.length < 30) {
         const color = getComputedStyle(removedEnvelope).backgroundColor;
         const components = color.match(/[\d.]+/g)?.map(Number) || [];
@@ -473,9 +480,9 @@ function startTransitionMonitor() {
         ['.causal-tcp-world', ['tcp']], ['.causal-tls-world', ['tls']],
         ['.causal-http-flight', ['http']], ['.causal-response-flight', ['response']],
       ];
-      if (world.querySelector('[data-phase5-packet-object], [data-phase5b-physical]')) owners.push(['.causal-camera', []]);
+      if (world?.querySelector('[data-phase5-packet-object], [data-phase5b-physical]')) owners.push(['.causal-camera', []]);
       for (const [selector, phases] of owners) {
-        if (!phases.includes(phase) && painted(world.querySelector(selector)) && report.leaks.length < 30) {
+        if (!phases.includes(phase) && painted(world?.querySelector(selector)) && report.leaks.length < 30) {
           report.leaks.push({ frame: report.frames, event, phase, selector });
         }
       }
@@ -501,11 +508,12 @@ async function auditTransitions(cdp, viewport, events) {
     })()`);
     await sleep(40);
     await cdp.evaluate(`(() => {
-      window.journeyPreviousPlaybackEvent = document.querySelector('[data-journey-causal-world]').dataset.causalEvent;
+      const renderer=document.querySelector('.review-runtime')?.causalStudy?.snapshot();window.journeyPreviousPlaybackEvent=document.querySelector('[data-journey-causal-world]')?.dataset.causalEvent??renderer?.frames[renderer.at.index]?.id;
       window.journeyMonitorPlayback = true;
       document.querySelector('.visual-time-rail__transport button[aria-label="Play scenario"]').click();
     })()`);
-    await waitForExpression(cdp, `document.querySelector('[data-causal-phase="response"]') !== null`, 45000);
+    const sourceBudget=await cdp.evaluate(`(()=>{const s=document.querySelector('.review-runtime')?.causalStudy?.snapshot();if(!s)return 45000;const from=s.at.index,to=s.frames.findIndex((f,i)=>i>from&&f.event.kind==='response.ready');return Math.ceil(((s.plan.starts[to]??s.plan.total)-s.plan.starts[from])/2)+10000;})()`);
+    await waitForExpression(cdp, `(()=>{if(document.querySelector('[data-causal-phase="response"]'))return true;const s=document.querySelector('.journey-reviewed-scene[data-hidden="false"] .review-runtime')?.causalStudy?.snapshot();return s?.frames[s.at.index]?.event.kind==='response.ready';})()`, sourceBudget);
     await cdp.evaluate(`document.querySelector('.visual-time-rail__transport button[aria-label="Pause scenario"]')?.click()`);
     playbackEvents = await cdp.evaluate(`Object.keys(window.journeyTransitionReport.events)`);
     assert.ok(playbackEvents.length >= 10, `${viewport.id}: playback skipped the packet handoffs: ${playbackEvents}`);
@@ -537,16 +545,22 @@ async function auditViewport(cdp, origin, viewport) {
     const state = await inspectState(cdp);
     await screenshot(cdp, join(outputDir, `${viewport.id}-${String(index + 1).padStart(2, '0')}-${slug(state.title || labels[index])}.png`));
     try {
-    assert.ok(state.boxes.callout && state.boxes.scene && state.boxes.stage, `${viewport.id}/${labels[index]}: missing callout/scene/stage.`);
+    assert.ok(state.boxes.scene && state.boxes.stage && (!state.reviewed || state.boxes.callout), `${viewport.id}/${labels[index]}: missing visible caption/scene/stage.`);
     assert.equal(state.calloutSceneOverlap, false, `${viewport.id}/${labels[index]}: callout overlaps protected scene.`);
     assert.equal(state.calloutHudOverlap, false, `${viewport.id}/${labels[index]}: callout overlaps HUD.`);
     assert.equal(state.calloutToolbarOverlap, false, `${viewport.id}/${labels[index]}: callout overlaps toolbar.`);
     assert.equal(state.calloutRailOverlap, false, `${viewport.id}/${labels[index]}: callout overlaps Time Machine.`);
-    assert.ok((state.railSurface?.plate?.backgroundAlpha ?? 0) >= .99, `${viewport.id}/${labels[index]}: Time Machine has no opaque isolation plate: ${JSON.stringify(state.railSurface)}.`);
-    assert.equal(state.railSurface?.plate?.zIndex, 16, `${viewport.id}/${labels[index]}: Time Machine isolation plate left the rail stacking layer: ${JSON.stringify(state.railSurface)}.`);
-    assert.ok(Math.abs((state.railSurface?.plate?.width ?? 0) - state.boxes.rail.width) <= 1 && Math.abs((state.railSurface?.plate?.height ?? 0) - state.boxes.rail.height) <= 1, `${viewport.id}/${labels[index]}: Time Machine isolation plate does not cover the rail: ${JSON.stringify({rail:state.boxes.rail,surface:state.railSurface})}.`);
-    assert.ok(state.boxes.callout.left >= state.boxes.stage.left - 1 && state.boxes.callout.right <= state.boxes.stage.right + 1, `${viewport.id}/${labels[index]}: callout escapes stage horizontally.`);
-    assert.ok(state.boxes.callout.top >= state.boxes.stage.top - 1 && state.boxes.callout.bottom <= state.boxes.stage.bottom + 1, `${viewport.id}/${labels[index]}: callout escapes stage vertically.`);
+    if (state.railSurface?.plate?.content !== 'none') {
+      assert.ok((state.railSurface?.plate?.backgroundAlpha ?? 0) >= .99, `${viewport.id}/${labels[index]}: Time Machine has no opaque isolation plate: ${JSON.stringify(state.railSurface)}.`);
+      assert.equal(state.railSurface?.plate?.zIndex, 16, `${viewport.id}/${labels[index]}: Time Machine isolation plate left the rail stacking layer: ${JSON.stringify(state.railSurface)}.`);
+      assert.ok(Math.abs((state.railSurface?.plate?.width ?? 0) - state.boxes.rail.width) <= 1 && Math.abs((state.railSurface?.plate?.height ?? 0) - state.boxes.rail.height) <= 1, `${viewport.id}/${labels[index]}: Time Machine isolation plate does not cover the rail: ${JSON.stringify({rail:state.boxes.rail,surface:state.railSurface})}.`);
+    } else {
+      assert.ok(state.railSurface.opacity >= .99 && state.railSurface.backgroundAlpha >= .99, `${viewport.id}/${labels[index]}: playback controls lost their opaque surface: ${JSON.stringify(state.railSurface)}.`);
+    }
+    if (state.boxes.callout) {
+      assert.ok(state.boxes.callout.left >= state.boxes.stage.left - 1 && state.boxes.callout.right <= state.boxes.stage.right + 1, `${viewport.id}/${labels[index]}: callout escapes stage horizontally.`);
+      assert.ok(state.boxes.callout.top >= state.boxes.stage.top - 1 && state.boxes.callout.bottom <= state.boxes.stage.bottom + 1, `${viewport.id}/${labels[index]}: callout escapes stage vertically.`);
+    }
     assert.ok(state.scrollWidth <= state.innerWidth + 1, `${viewport.id}/${labels[index]}: horizontal overflow ${state.scrollWidth} > ${state.innerWidth}.`);
     assert.ok(state.markers.every((marker) => marker.width >= 14 && marker.height >= 18), `${viewport.id}/${labels[index]}: timeline hit target regressed: ${JSON.stringify(state.markers)}`);
     if (viewport.id === 'mobile') {

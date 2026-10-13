@@ -162,10 +162,10 @@ jobs:
       - run: npm run build
       - name: Verify Journey DNS connector geometry
         run: node scripts/journey-dns-geometry-review.mjs
-      - name: Audit every Journey annotation state
-        run: node scripts/journey-annotation-visual-review.mjs
       - name: Prove Phase 5 choreography moves between deterministic states
         run: node scripts/phase5-choreography-review.mjs
+      - name: Audit every Journey annotation state
+        run: node scripts/journey-annotation-visual-review.mjs
       - name: Upload Journey annotation audit
         if: always()
         uses: actions/upload-artifact@v4

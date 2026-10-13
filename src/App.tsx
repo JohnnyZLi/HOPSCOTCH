@@ -4,9 +4,10 @@ import { CornerNavigator } from './CornerNavigator';
 import { ExploreLauncher } from './ExploreLauncher';
 import { workspaceDefinition, type ExploreDestination } from './workspace-catalog';
 import { JourneyScenarioMenu } from './JourneyScenarioMenu';
+import {DesignHeader} from './redesign/DesignHeader';
 import { KineticOverview } from './KineticOverview';
 import type { InternetEvidenceSnapshot } from './internet/evidence';
-import { bootstrapJourneyFromSearch, seedJourneyBrowserScenario } from './journey/browser.ts';
+import { bootstrapJourneyFromSearch, seedJourneyBrowserScenario, suspendJourneyClock } from './journey/browser.ts';
 import { scenarioForPreset } from './journey/presets.ts';
 import type { JourneyDetailLab } from './journey/model';
 import { encodeJourneyQuery, type PortableJourneyScenario } from './journey/scenario.ts';
@@ -99,7 +100,8 @@ export default function App() {
 
   const pushBrowserRoute = (destination: ExploreDestination | null) => {
     if (!browserHistoryRoutingAvailable) return;
-    const nextUrl = destination === null ? '/' : pathForDestination(destination);
+    const embeddedSuffix=new URLSearchParams(window.location.search).get('workspace')==='embedded'?'?workspace=embedded':'';
+    const nextUrl = (destination === null ? '/' : pathForDestination(destination))+embeddedSuffix;
     const currentUrl = `${window.location.pathname}${window.location.search}`;
     if (currentUrl !== nextUrl) window.history.pushState({}, '', nextUrl);
   };
@@ -238,6 +240,7 @@ export default function App() {
     openers[destination]();
   };
   const openJourneyDetail = (lab: JourneyDetailLab, atMs: number) => {
+    suspendJourneyClock();
     const detailDestination = lab as ExploreDestination;
     setPlaying(false);
     setJourneyTimeMs(atMs);
@@ -294,9 +297,11 @@ export default function App() {
   };
   const seek = (nextTime: number) => { setPlaying(false); setTimeMs(nextTime); };
   const activeWorkspace = activeLab ? workspaceDefinition(activeLab) : null;
+  const embedded = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('workspace') === 'embedded';
 
   return (
-    <main className="app-shell" data-layer={layer} data-lab={activeLab ? 'active' : 'idle'}>
+    <main className="app-shell" data-layer={layer} data-lab={activeLab ? 'active' : 'idle'} data-embedded={embedded}>
+      <DesignHeader name={activeWorkspace?.name ?? 'See the Internet happen'} onHome={exitLabs} embedded={embedded} onReturn={journeyReturnPending||captureReturnPending?exitActiveLab:undefined} returnLabel={journeyReturnPending?'Return to Journey':'Return to capture'} anchor={journeyReturnPending?Math.round(journeyTimeMs)+' ms · paused':capturedMicroscopeFrame?.record.id}/>
       {activeLab && <><div className="grid-field" aria-hidden="true" /><div className="scene-vignette" aria-hidden="true" /></>}
 
       <CornerNavigator open={exploreOpen} current={activeWorkspace?.name ?? 'Request journey'} onOpen={() => setExploreOpen(true)} />
@@ -312,13 +317,16 @@ export default function App() {
       />
 
       <Suspense fallback={<section className="lab-loading" aria-live="polite">LOADING WORKSPACE…</section>}>
+        {(activeLab === 'journey' || journeyReturnPending) && <div className="journey-return-host" hidden={activeLab !== 'journey'} inert={activeLab !== 'journey'}>
+          <JourneyTheater key={`lab06-${journeyRenderKey}`} active={activeLab === 'journey'} hostname={journeyHostname} timeMs={journeyTimeMs} startPlaying={journeyStartPlaying} evidence={journeyEvidence} measuredState={measuredSession} onHostnameChange={setJourneyHostname} onTimeChange={setJourneyTimeMs} onEvidenceChange={setJourneyEvidence} onOpenDetail={openJourneyDetail} onExit={exitLabs} />
+        </div>}
         <AnimatePresence mode="wait" initial={false}>
           {!activeLab ? (
             <motion.div key="overview" className="kinetic-overview-shell" initial={reduceMotion ? { opacity: 1 } : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.018, filter: 'blur(10px)' }} transition={{ duration: .45 }}>
               <KineticOverview onRunJourney={openJourney} onOpenExplore={() => setExploreOpen(true)} />
             </motion.div>
           ) : activeLab === 'journey' ? (
-            <JourneyTheater key={`lab06-${journeyRenderKey}`} hostname={journeyHostname} timeMs={journeyTimeMs} startPlaying={journeyStartPlaying} evidence={journeyEvidence} measuredState={measuredSession} onHostnameChange={setJourneyHostname} onTimeChange={setJourneyTimeMs} onEvidenceChange={setJourneyEvidence} onOpenDetail={openJourneyDetail} onExit={exitLabs} />
+            null
           ) : activeLab === 'packet' ? (
             <Suspense fallback={<section className="lab-loading" aria-live="polite">LOADING PACKET MICROSCOPE…</section>}>
               <PacketMicroscope

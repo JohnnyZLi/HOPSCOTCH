@@ -65,12 +65,17 @@ function journeyFrames(actual, {hostname = actual[0]?.event.target || 'Not avail
    objectTitle = 'Application intent';fields=[{id:'hostname',label:'Requested hostname',value:hostname},{id:'resolution',label:'Next dependency',value:'Name resolution'}];
   } else {
    objectTitle = e.kind === 'journey.complete' ? 'Application outcome' : e.kind === 'journey.failed' ? 'Request failed' : 'Retained request state';
-   fields=stateValues(e.kind==='journey.complete'?null:previous,state,[['responseReady','Response',ready],['journeyComplete','Journey complete',String],['journeyFailed','Journey failed',String],['failureReason','Failure reason']]);
+   fields=stateValues(e.kind==='journey.complete'||e.kind==='journey.failed'?null:previous,state,[['responseReady','Response',ready],['journeyComplete','Journey complete',String],['journeyFailed','Journey failed',String],['failureReason','Failure reason',words]]);
+   if(e.kind==='journey.failed')fields.push({id:'terminal-route',label:'Forwarding',value:state.route==='unreachable'?'No route':words(state.route)});
    if(e.kind==='transfer.complete')fields=stateValues(previous,state,[['transport','Byte delivery',words],['http','Application transfer',words]]);
    if(e.kind==='camera.pullback')fields=stateValues(null,state,journeyStateSchema);
   }
   for(const [key,label] of [['transportMetrics','Transport measurements'],['congestionMetrics','Congestion'],['routeMetrics','Routing'],['serverMetrics','Retry state'],['policyMetrics','Policy']]) {
-   const metrics=state[key];if(!metrics||JSON.stringify(metrics)===JSON.stringify(previous?.[key]))continue;
+   const metrics=state[key];if(!metrics)continue;
+   // A selected routing decision or terminal outcome must expose the retained
+   // truth even when its metrics were first installed by an earlier event.
+   const retained=e.kind==='journey.failed'||(['route','internet'].includes(family)&&['routeMetrics','policyMetrics'].includes(key));
+   if(!retained&&JSON.stringify(metrics)===JSON.stringify(previous?.[key]))continue;
    for(const [name,value]of Object.entries(metrics)) fields.push({id:key+'-'+name,label:label+' · '+words(name.replace(/([a-z])([A-Z])/g,'$1 $2')),value:display(value)});
   }
   fields=fields.map(f=>({...f,value:display(f.value)}));
@@ -102,22 +107,22 @@ function dnsFrames(actual) {
  });
 }
 function providerFrames(p) {
- const innerFields=Object.entries(p.packet.inner).map(([key,value])=>({id:'inner-'+key,label:'Inner '+words(key),value:key==='bytes'?value+' B':display(value)}));
+ const innerFields=Object.entries(p.packet?.inner||{}).map(([key,value])=>({id:'inner-'+key,label:'Inner '+words(key),value:key==='bytes'?value+' B':display(value)}));
  const source=[
-  {id:'inner',title:'The inner packet keeps its identity',summary:'These inner addresses and length persist while separate outer pieces change.',operation:'inner',envelope:null,state:p.packet},
-  {id:'encapsulated',title:'A GRE envelope attaches',summary:'The '+p.gre.encapsulationOverheadBytes+' B outer envelope seats around the same '+p.packet.inner.bytes+' B inner packet.',operation:'attach',envelope:p.packet.outer,state:p.packet},
-  ...p.lsp.operations.map((op,index)=>({id:'mpls-'+index,title:op.routerId.toUpperCase()+' · '+op.operation+' label',
+  ...(p.packet?[{id:'inner',title:'The inner packet keeps its identity',summary:'These inner addresses and length persist while separate outer pieces change.',operation:'inner',envelope:null,state:p.packet},
+   {id:'encapsulated',title:p.packet.state==='ENCAPSULATED'?'An outer '+p.packet.outer.protocol+' envelope attaches':'The underlay blocks encapsulation',summary:p.packet.reason,operation:p.packet.state==='ENCAPSULATED'?'attach':'boundary',envelope:p.packet.state==='ENCAPSULATED'?p.packet.outer:null,state:p.packet}]:[]),
+  ...(p.lsp?.operations||[]).map((op,index)=>({id:'mpls-'+index,title:op.routerId.toUpperCase()+' · '+op.operation+' label',
    summary:'Independent MPLS projection: label '+(op.inLabel??'none')+' → '+(op.outLabel??'none')+' for '+op.fecPrefix+'. Its payload remains the same; payload bytes are not supplied.',
    operation:op.operation.toLowerCase(),labelOperation:op,envelope:null,state:p.lsp})),
-  {id:'mtu',title:'Too large for the overlay',summary:p.tooLarge.reason,operation:'boundary',envelope:p.packet.outer,state:p.tooLarge,
-   outcome:[{label:'Requested inner length',value:p.tooLarge.inner.bytes+' B'},{label:'Effective overlay MTU',value:p.tooLarge.effectiveOverlayMtuBytes+' B'},{label:'Outcome',value:p.tooLarge.state}]},
-  {id:'failed-underlay',title:'The overlay depends on its underlay',summary:p.failedGre.reason,operation:'boundary',envelope:p.packet.outer,state:p.failedGre,
-   outcome:[{label:'Underlay reachable',value:display(p.failedGre.underlayReachable)},{label:'Overlay reachable',value:display(p.failedGre.overlayReachable)},{label:'Tunnel state',value:p.failedGre.state}]}
+  ...(p.tooLarge?[{id:'mtu',title:'Too large for the overlay',summary:p.tooLarge.reason,operation:'boundary',envelope:p.packet?.outer||null,state:p.tooLarge,
+   outcome:[{label:'Requested inner length',value:p.tooLarge.inner.bytes+' B'},{label:'Effective overlay MTU',value:p.tooLarge.effectiveOverlayMtuBytes+' B'},{label:'Outcome',value:p.tooLarge.state}]}]:[]),
+  ...(p.failedGre?[{id:'failed-underlay',title:'The overlay depends on its underlay',summary:p.failedGre.reason,operation:'boundary',envelope:p.packet?.outer||null,state:p.failedGre,
+   outcome:[{label:'Underlay reachable',value:display(p.failedGre.underlayReachable)},{label:'Overlay reachable',value:display(p.failedGre.overlayReachable)},{label:'Tunnel state',value:p.failedGre.state}]}]:[])
  ];
  return source.map(f=>({...f,at:null,identity:f.labelOperation?'mpls-payload':'provider-inner',kind:'provider-operation',local:true,physical:true,from:'Ingress',to:'Egress',protocol:'ipv4',
-  objectTitle:f.labelOperation?'MPLS payload · symbolic':'Inner IPv4 packet',fields:f.labelOperation?[{id:'fec',label:'Forwarding class',value:f.labelOperation.fecPrefix},{id:'payload',label:'Payload bytes',value:'Not supplied by the LSP projection'}]:innerFields,readIds:f.operation==='inner'?innerFields.map(f=>f.id):[],records:[
+  objectTitle:f.labelOperation?'MPLS payload · symbolic':'Inner IPv4 packet',fields:f.labelOperation?[{id:'fec',label:'Forwarding class',value:f.labelOperation.fecPrefix},{id:'payload',label:'Payload bytes',value:'Not supplied by the LSP projection'}]:innerFields,readIds:f.labelOperation?['fec']:innerFields.map(f=>f.id),records:[
    {label:'Projection',value:'Independent GRE and MPLS contract projections · no source clock or raw bytes'},
-   {label:'Underlay',value:p.gre.underlayLinkIds.join(' → ')},
+   {label:'Underlay',value:(p.gre?.underlayLinkIds||p.lsp?.linkIds||[]).join(' → ')},
    ...(f.labelOperation?Object.entries(f.labelOperation).map(([label,value])=>({label:words(label),value:display(value)})):[]),...(f.outcome||[])]}));
 }
 export { journeyFrames, dnsFrames, providerFrames };

@@ -1,5 +1,6 @@
 import { motion, useReducedMotion } from 'motion/react';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import {frameCamera} from '../design-review/source/complete-review/shared-geometry.js';
 import {
   cloneBuilderAddressing,
   createDefaultBuilderAddressing,
@@ -107,6 +108,8 @@ function BuilderCanvasViewport({ enabled, style, children }: { enabled: boolean;
 export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, onOpenBgpProjection, initialGraph = defaultBuilderGraph, initialLayout = defaultBuilderLayout, initialAddressing, initialRouting, initialEthernet, initialLinkProfiles, initialAcl, initialNat, initialDhcp, initialIpv6, initialServices, initialSourceId = 'client', initialDestinationId = 'app', initialScenarioName = 'My topology', stressLabel }: { onExit: () => void; onOpenFailureStory: () => void; onOpenProbePacket?: (seed: BuilderProbePacketSeed) => void; onOpenBgpProjection?: (payload: { projection: BuilderBgpAsProjection; scenario: BuilderScenarioV8 }) => void; initialGraph?: BuilderGraph; initialLayout?: BuilderLayout; initialAddressing?: BuilderAddressing; initialRouting?: BuilderRoutingConfig; initialEthernet?: BuilderEthernetConfig; initialLinkProfiles?: BuilderLinkProfiles; initialAcl?: BuilderAclConfig; initialNat?: BuilderNatConfig; initialDhcp?: BuilderDhcpConfig; initialIpv6?: BuilderIpv6Config; initialServices?: BuilderHostedService[]; initialSourceId?: string; initialDestinationId?: string; initialScenarioName?: string; stressLabel?: string }) {
   const reduceMotion = useReducedMotion();
   const canvasRef = useRef<HTMLDivElement>(null);
+  const fittedView = useRef<'network'|'forwarding'|null>(null);
+  const frameCurrent = useRef<(mode:'network'|'forwarding')=>void>(()=>{});
   const routeSignalRef = useRef<HTMLDivElement>(null);
   const [graph, setGraph] = useState<BuilderGraph>(() => cloneBuilderGraph(initialGraph));
   const [addressing, setAddressing] = useState<BuilderAddressing>(() => cloneBuilderAddressing(initialAddressing ?? createDefaultBuilderAddressing(initialGraph)));
@@ -658,6 +661,30 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
     setMessage(`${labelFor(graph, nodeId)} moved visually. Route truth remains ${route.reachable ? `cost ${route.totalCost}` : 'unreachable'}.`);
   };
 
+  const frameBuilder = (mode:'network'|'forwarding',reveal=false) => {
+    const canvas=canvasRef.current,world=canvas?.querySelector<HTMLElement>('.builder-canvas-viewport');if(!canvas||!world)return;
+    const trace=mode==='forwarding'?traceBuilderForwarding(sceneRenderState.graph,sceneRenderState.addressing,sceneRenderState.routing,sceneRenderState.sourceId,sceneRenderState.destinationId):null;
+    const ids=trace?new Set([trace.sourceNodeId,...trace.hops.flatMap(hop=>[hop.nodeId,hop.nextNodeId]),trace.destinationNodeId]):null;
+    const matrix=new DOMMatrixReadOnly(getComputedStyle(world).transform),origin=world.getBoundingClientRect(),z=Math.max(.0001,Math.hypot(matrix.a,matrix.b)),w=origin.width/z,h=origin.height/z;
+    if(w<=0||h<=0)return;
+    const boxes=[...world.querySelectorAll<HTMLElement>('.builder-node-anchor')].filter(node=>!ids||ids.has(node.dataset.nodeId!)).map(node=>node.getBoundingClientRect());
+    if(!boxes.length)return;
+    const bounds={left:Math.min(...boxes.map(r=>(r.left-origin.left)/z)),right:Math.max(...boxes.map(r=>(r.right-origin.left)/z)),top:Math.min(...boxes.map(r=>(r.top-origin.top)/z)),bottom:Math.max(...boxes.map(r=>(r.bottom-origin.top)/z))};
+    const fitted=frameCamera(bounds,{w,h},24,1);fittedView.current=mode;
+    setAuthoringView(current=>({...current,camera:{x:(w/2-fitted.x)/(w*fitted.z)*100,y:(h/2-fitted.y)/(h*fitted.z)*100,scale:fitted.z}}));
+    if(reveal)canvas.closest('.builder-stage')?.scrollIntoView({block:'center',behavior:'auto'});
+  };
+  frameCurrent.current=frameBuilder;
+  useEffect(()=>{
+    const workspace=canvasRef.current?.closest('.builder-workspace'),toolbar=workspace?.querySelector('.builder-world-toolbar'),stage=workspace?.querySelector<HTMLElement>('.builder-stage');if(!toolbar||!stage)return;
+    let prior='';const measure=()=>{const tools=toolbar.getBoundingClientRect(),box=stage.getBoundingClientRect();if(!tools.height||!box.height)return;const top=Math.max(12,tools.bottom-box.top+12)+'px';if(top===prior)return;prior=top;stage.style.setProperty('--builder-hud-top',top);};
+    const observer=new ResizeObserver(measure);observer.observe(toolbar);observer.observe(stage);measure();return()=>observer.disconnect();
+  },[stressLabel]);
+  useEffect(()=>{
+    if(stressLabel)return;const canvas=canvasRef.current;if(!canvas)return;let job=0,key='';
+    const resize=new ResizeObserver(()=>{const box=canvas.getBoundingClientRect(),next=box.width+'|'+box.height;if(next===key||!box.width||!box.height)return;key=next;if(job)cancelAnimationFrame(job);job=requestAnimationFrame(()=>{job=0;frameCurrent.current(fittedView.current??'network');});});resize.observe(canvas);
+    return()=>{resize.disconnect();if(job)cancelAnimationFrame(job);};
+  },[stressLabel]);
   const renderWorkspace = ({ graph, addressing, routing, ipv6, ipv6ControlState, ipv6LifecycleState, ipv6RoutingDepth, ethernet, ethernetFlow, arpCache, arpResolutions, acl, nat, natSessions, dhcp, dhcpLeases, dhcpSequence, probeHistory, sourceId, destinationId, layout, linkProfiles, selectedNodeId, selectedLinkId, ethernetSourceId, ethernetDestinationId, selectedEthernetLinkId }: typeof sceneRenderState) => (
     <motion.section className={`builder-workspace builder-visual-workspace interactive-world-workspace ${isHistorical ? 'builder-history-mode' : ''}`} data-builder-history-sequence={historicalTimelineSnapshot?.sequence ?? 'live'} data-builder-drawer={builderDrawer ?? 'closed'} data-scene-panel={scenePanel ?? 'graph'} data-stress-label={stressLabel} data-node-count={graph.nodes.length} data-link-count={graph.links.length} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: .985 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
       <div className="builder-world-toolbar">
@@ -665,6 +692,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
         <button type="button" className="builder-command-toggle" aria-expanded={builderMenuOpen} aria-controls="builder-command-menu" onClick={() => setBuilderMenuOpen((current) => !current)}><span>Network tools</span><i aria-hidden="true" /></button>
         <div id="builder-command-menu" className={`builder-command-menu ${builderMenuOpen ? 'open' : ''}`} aria-hidden={!builderMenuOpen}>
           <div className="builder-world-tools" role="toolbar" aria-label="Builder tools">
+            {!stressLabel&&<><button type="button" onClick={()=>{frameBuilder('network',true);setBuilderMenuOpen(false);}}>Frame network</button><button type="button" onClick={()=>{frameBuilder('forwarding',true);setBuilderMenuOpen(false);}}>Show forwarding path</button></>}
             <button type="button" className={`builder-tool-inspect ${builderDrawer === 'inspect' ? 'active' : ''}`} aria-pressed={builderDrawer === 'inspect'} onClick={() => setBuilderDrawer((current) => current === 'inspect' ? null : 'inspect')}>Inspect</button>
             <button type="button" className={`builder-tool-topology ${builderDrawer === 'config' ? 'active' : ''}`} aria-pressed={builderDrawer === 'config'} onClick={() => setBuilderDrawer((current) => current === 'config' ? null : 'config')}>Topology</button>
             <button type="button" className={`builder-tool-systems ${builderDrawer === 'tools' ? 'active' : ''}`} aria-pressed={builderDrawer === 'tools'} onClick={() => setBuilderDrawer((current) => current === 'tools' ? null : 'tools')}>Systems</button>

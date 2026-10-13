@@ -143,8 +143,7 @@ export function HttpComparisonTheater({ onExit, onOpenTls }: { onExit: () => voi
     <div ref={rootRef} className={`protocol-cinematic-stage http-cinematic-stage focus-${activeEvent.focus}`}>
       <div className="protocol-scene-kicker"><span>APPLICATION / TRANSPORT COUPLING</span><strong>{activeEvent.focus.toUpperCase()} FOCUS</strong></div>
       <div className="http-stage http-workspace-stage">
-        <div className={`http-divergence-axis${sharedLossActive ? ' is-live' : ''}`} aria-hidden="true"><span>SAME LOSS</span><i/><b/><b/><b/></div>
-        <div className="http-lanes"><Lane lane="h2" state={state.h2} focused={activeEvent.focus === 'both' || activeEvent.focus === 'h2'}/><Lane lane="h3" state={state.h3} focused={activeEvent.focus === 'both' || activeEvent.focus === 'h3'}/></div>
+        <div className="http-lanes"><Lane lane="h2" state={state.h2} focused={activeEvent.focus === 'both' || activeEvent.focus === 'h2'}/><div className={`http-divergence-axis${sharedLossActive ? ' is-live' : ''}`} aria-hidden="true"><span>SAME LOSS</span><i/><b/><b/><b/></div><Lane lane="h3" state={state.h3} focused={activeEvent.focus === 'both' || activeEvent.focus === 'h3'}/></div>
         <AnimatePresence mode="wait" initial={false}><motion.article key={activeEvent.id} className={`protocol-scene-annotation http-scene-annotation focus-${activeEvent.focus}`} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 9 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: reduceMotion ? 0 : 0.24 }}><i aria-hidden="true"/><div><span>{formatTime(activeEvent.atMs)} · {activeEvent.focus} focus</span><strong>{activeEvent.title}</strong><p>{activeEvent.summary}</p><div className="http-event-compare"><div><b>H2</b>{activeEvent.h2Label}</div><div><b>H3</b>{activeEvent.h3Label}</div></div></div></motion.article></AnimatePresence>
       </div>
     </div>

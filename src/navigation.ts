@@ -63,5 +63,6 @@ export function resolveAppRoute(pathname: string, search = ''): AppRouteResoluti
 }
 
 export function canonicalUrlForRoute(route: AppRouteResolution, search = ''): string {
-  return `${route.canonicalPath}${route.preserveSearch ? search : ''}`;
+  const embedded = new URLSearchParams(search).get('workspace') === 'embedded';
+  return `${route.canonicalPath}${route.preserveSearch || embedded ? search : ''}`;
 }

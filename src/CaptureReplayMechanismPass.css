@@ -89,7 +89,7 @@ html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evi
 
 html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage {
   grid-template-columns: minmax(270px, 0.8fr) minmax(390px, 1.2fr) !important;
-  grid-template-rows: auto auto auto auto auto auto minmax(0, 1fr) !important;
+  grid-template-rows: repeat(7, max-content) !important;
   background:
     linear-gradient(90deg, rgba(41, 40, 39, 0.028) 1px, transparent 1px),
     linear-gradient(rgba(41, 40, 39, 0.028) 1px, transparent 1px),
@@ -108,19 +108,19 @@ html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evi
   .capture-replay .capture-event-rail button { flex-basis: min(180px, 50vw); }
   html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage {
     grid-template-columns: 1fr !important;
-    grid-template-rows: repeat(10, auto) !important;
+    grid-template-rows: repeat(10, max-content) !important;
   }
   html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > * { grid-column: 1 !important; }
   html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > .captured-frame-mechanism { grid-row: 1 !important; }
   html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > .capture-specimen-mode-banner { grid-row: 2 !important; }
   html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > .capture-frame-heading { grid-row: 3 !important; }
   html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > .capture-frame-nav { grid-row: 4 !important; }
-  html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > .capture-frame-facts { grid-row: 5 !important; }
-  html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > .capture-byte-inspector { grid-row: 6 !important; }
+  html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > .capture-frame-facts { grid-column: 1 !important; grid-row: 5 !important; }
+  html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > .capture-byte-inspector { grid-column: 1 !important; grid-row: 6 !important; }
   html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > .capture-protocol-stack { grid-row: 7 !important; }
   html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > .capture-field-list { grid-row: 8 !important; }
   html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > .capture-lineage { grid-row: 9 !important; }
-  html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > .capture-open-microscope { grid-row: 10 !important; }
+  html body .capture-replay.capture-replay[data-capture-mode="frame"] .capture-evidence-inspector.is-frame-stage > .capture-open-microscope { grid-column: 1 !important; grid-row: 10 !important; }
 }
 
 @media (max-width: 540px) {

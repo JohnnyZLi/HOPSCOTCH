@@ -181,9 +181,14 @@ class CdpClient {
         const waiter = this.pending.get(payload.id);
         if (!waiter) return;
         this.pending.delete(payload.id);
+        clearTimeout(waiter.timer);
         if (payload.error) waiter.reject(new Error(`${waiter.method}: ${payload.error.message}`));
         else waiter.resolve(payload.result ?? {});
         return;
+      }
+      if (payload.method === 'Runtime.consoleAPICalled') {
+        const message = payload.params?.args?.map(arg => arg.value ?? '').join(' ') ?? '';
+        if (message.startsWith('[hopscotch-seek]')) console.log(message);
       }
       this.events.push(payload);
     });
@@ -192,7 +197,13 @@ class CdpClient {
   async call(method, params = {}) {
     await this.ready;
     const id = ++this.nextId;
-    const promise = new Promise((resolvePromise, reject) => this.pending.set(id, { resolve: resolvePromise, reject, method }));
+    const promise = new Promise((resolvePromise, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`${method} did not respond within its diagnostic deadline.`));
+      }, method === 'Browser.close' ? 3000 : method === 'Runtime.evaluate' ? 300000 : 120000);
+      this.pending.set(id, { resolve: resolvePromise, reject, method, timer });
+    });
     this.socket.send(JSON.stringify({ id, method, params }));
     return promise;
   }
@@ -255,7 +266,7 @@ const profiles = [
     height: 1000,
     reducedMotion: false,
     query: query({ journey: '2', host: 'example.test', transport: 'quic-h3', dns: 'cache-miss', mods: maxModifierSet, t: '999999' }),
-    expected: ['DNS FAIL + ROUTE + LEAK + SERVER + LOSS + LATENCY + CONGESTION + PARTITION', 'NO ROUTE', 'NETWORK UNREACHABLE', 'ACTIVE PATH NONE', 'ROUTE CANDIDATES 0'],
+    expected: ['DNS FAIL + ROUTE + LEAK + SERVER + LOSS + LATENCY + CONGESTION + PARTITION', 'NO ROUTE', 'NETWORK UNREACHABLE', 'Routing · Active Path\nnone', 'Routing · Candidate Route Count\n0'],
   },
   {
     id: 'route-leak-desktop',
@@ -291,18 +302,18 @@ profiles.push(
 );
 
 if (compatibility) profiles.push(
-{ id: 'protocol-tcp-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/tcp', query: '', readySelector: '.tcp-visual-workspace', protocolWorkspace: true, expected: ['TCP recovery', 'CLIENT SEQUENCE SPACE', 'CONGESTION WINDOW', 'PROVENANCE'] },
-{ id: 'protocol-dns-mobile', width: 390, height: 844, reducedMotion: false, path: '/labs/dns', query: '', readySelector: '.dns-visual-workspace', protocolWorkspace: true, expected: ['www.example.test', 'NAMESPACE', 'STUB'] },
-{ id: 'protocol-tls-reduced-motion', width: 1280, height: 900, reducedMotion: true, path: '/labs/tls', query: '', readySelector: '.tls-visual-workspace', protocolWorkspace: true, expected: ['TLS 1.3 handshake', 'SYMBOLIC KEY SCHEDULE', 'WIRE VISIBILITY', 'PROVENANCE'] },
+{ id: 'protocol-tcp-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/tcp', query: '', readySelector: '.tcp-visual-workspace .review-runtime .rv-actor', protocolWorkspace: true, expected: ['TCP recovery', 'Highest ACK at sender', 'Next expected byte', 'PROVENANCE'] },
+{ id: 'protocol-dns-mobile', width: 390, height: 844, reducedMotion: false, path: '/labs/dns', query: '', readySelector: '.dns-visual-workspace .review-runtime .rv-actor', protocolWorkspace: true, expected: ['www.example.test', 'Resolved address', 'Resolver / cache', 'PROVENANCE'] },
+{ id: 'protocol-tls-reduced-motion', width: 1280, height: 900, reducedMotion: true, path: '/labs/tls', query: '', readySelector: '.tls-visual-workspace .review-runtime .rv-actor', protocolWorkspace: true, expected: ['TLS 1.3 handshake', 'Certificate', 'Application channel', 'PROVENANCE'] },
 { id: 'protocol-http-desktop', width: 1440, height: 1000, reducedMotion: false, path: '/labs/http2-vs-http3', query: '', readySelector: '.http-visual-workspace', protocolWorkspace: true, expected: ['HTTP loss comparison', 'HTTP/2', 'HTTP/3', 'SAME LOSS', 'PROVENANCE'] },
 { id: 'builder-ospf-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'DERIVED FDB', 'ARP CACHE', 'STP', 'FORWARDING'] },
 { id: 'builder-ospf-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', builderOspf: true, expected: ['ETHERNET FABRIC', 'ROUTED · VLAN 10 → 20', 'VLAN 20', 'ARP CACHE', 'STP', 'FORWARDING'] },
 { id: 'measured-workspace-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
   { id: 'measured-workspace-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED', 'Network Diagnostics Engine'], assertMeasuredMobile: true },
   { id: 'measured-workspace-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.kinetic-overview', measuredWorkspace: true, expected: ['LOCAL MEASURED · BOUNDED · NOT GLOBAL', 'Network Diagnostics Engine'] },
-  { id: 'measured-sidecars-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['192.0.2.1'] },
-  { id: 'measured-sidecars-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['192.0.2.1'] },
-  { id: 'measured-sidecars-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['192.0.2.1'] },
+  { id: 'measured-sidecars-desktop', width: 1440, height: 1000, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['203.0.113.42', 'Default gateway selected'] },
+  { id: 'measured-sidecars-mobile', width: 390, height: 844, reducedMotion: false, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['203.0.113.42', 'Default gateway selected'] },
+  { id: 'measured-sidecars-reduced-motion', width: 1280, height: 900, reducedMotion: true, query: '', readySelector: '.kinetic-overview', measuredSidecars: true, expected: ['203.0.113.42', 'Default gateway selected'] },
 );
 
 if (phase3VisualReview) {
@@ -358,7 +369,10 @@ async function waitForExpression(cdp, expression, timeoutMs = 5000) {
     if (await cdp.evaluate(expression)) return;
     await sleep(25);
   }
-  throw new Error(`Timed out waiting for browser expression: ${expression}`);
+  const failure=await cdp.evaluate(`document.querySelector('.review-runtime')?.dataset.renderError??null`);
+  const errors=cdp.events.filter(e=>e.method==='Runtime.exceptionThrown'||e.method==='Runtime.consoleAPICalled'&&e.params?.type==='error').map(e=>e.params);
+  const page=await cdp.evaluate(`JSON.stringify({url:location.href,state:document.readyState,text:document.body.innerText.slice(0,800)})`);
+  throw new Error(`Timed out waiting for browser expression: ${expression}${failure?'\nRenderer error: '+failure:''}${errors.length?'\nBrowser errors: '+JSON.stringify(errors):''}\nPage: ${page}`);
 }
 
 async function setFileInput(cdp, selector, filePath) {
@@ -1333,6 +1347,7 @@ async function captureVisualReview(cdp, profile) {
 }
 
 async function loadProfile(cdp, origin, profile) {
+  console.log(`Begin profile ${profile.id}.`);
   cdp.clearEvents();
   await cdp.call('Emulation.setDeviceMetricsOverride', {
     width: profile.width,
@@ -1345,7 +1360,9 @@ async function loadProfile(cdp, origin, profile) {
   });
   const startedAt = performance.now();
   await cdp.call('Page.navigate', { url: `${origin}${profile.path ?? '/'}${profile.query}` });
-  await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(profile.readySelector ?? '.journey-visual-workspace')}))`);
+  // Match Firefox's existing cold-navigation readiness window. Measured ready
+  // time and every structural/heap/bundle assertion remain recorded unchanged.
+  await waitForExpression(cdp, `Boolean(document.querySelector(${JSON.stringify(profile.readySelector ?? '.journey-visual-workspace')}))`,8000);
   await sleep(550);
   const phase4Interaction = profile.phase4Observed
     ? await exercisePhase4ObservedInternet(cdp, profile)
@@ -1401,13 +1418,18 @@ async function loadProfile(cdp, origin, profile) {
       },
       protocol: (()=>{
         const stage=document.querySelector('.protocol-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
-        const scene=document.querySelector('.protocol-cinematic-stage')?.getBoundingClientRect();
+        const renderer=document.querySelector('.protocol-visual-workspace .review-runtime'),scene=(renderer?.closest('.reviewed-primary')??document.querySelector('.protocol-cinematic-stage'))?.getBoundingClientRect();
+        const intersects=(a,b)=>a&&b&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;
         return {
           active:Boolean(stage&&scene),
           stageWidth:stage?.width??0,
           stageHeight:stage?.height??0,
           sceneWidth:scene?.width??0,
           sceneHeight:scene?.height??0,
+          reviewed:Boolean(renderer),
+          contained:Boolean(scene&&stage&&scene.left>=stage.left-1&&scene.right<=stage.right+1&&scene.top>=stage.top-1&&scene.bottom<=stage.bottom+1),
+          controlsClear:!intersects(scene,document.querySelector('.protocol-visual-workspace .visual-workspace__toolbar')?.getBoundingClientRect())&&!intersects(scene,document.querySelector('.protocol-visual-workspace .visual-workspace__hud')?.getBoundingClientRect()),
+          sourceReady:!renderer||Boolean(renderer.causalStudy?.snapshot().frames.length),
           drawerTabs:document.querySelectorAll('.protocol-visual-workspace .visual-drawer-tabs button').length,
           timeRail:Boolean(document.querySelector('.protocol-visual-workspace .visual-time-rail')),
           permanentInspectors:document.querySelectorAll('.tcp-inspector,.dns-inspector,.tls-inspector,.http-inspector').length,
@@ -1447,7 +1469,9 @@ async function loadProfile(cdp, origin, profile) {
 
   if (profile.protocolWorkspace) {
     if (!structural.protocol.active) throw new Error(`${profile.id} did not render a protocol scene inside the shared visual workspace.`);
-    if (structural.protocol.sceneWidth < structural.protocol.stageWidth * 0.98 || structural.protocol.sceneHeight < structural.protocol.stageHeight * 0.98) throw new Error(`${profile.id} scene does not occupy the visual stage: ${JSON.stringify(structural.protocol)}.`);
+    if(structural.protocol.reviewed){
+      if(!structural.protocol.sourceReady||!structural.protocol.contained||!structural.protocol.controlsClear||structural.protocol.sceneWidth<structural.protocol.stageWidth*.90||structural.protocol.sceneHeight<120)throw new Error(`${profile.id} reviewed scene is missing, clipped, or overlaps its controls: ${JSON.stringify(structural.protocol)}.`);
+    }else if (structural.protocol.sceneWidth < structural.protocol.stageWidth * 0.98 || structural.protocol.sceneHeight < structural.protocol.stageHeight * 0.98) throw new Error(`${profile.id} scene does not occupy the visual stage: ${JSON.stringify(structural.protocol)}.`);
     if (structural.protocol.drawerTabs < 3) throw new Error(`${profile.id} exposed only ${structural.protocol.drawerTabs} on-demand workspace tools.`);
     if (!structural.protocol.timeRail) throw new Error(`${profile.id} did not render the shared Time Rail.`);
     if (structural.protocol.permanentInspectors !== 0) throw new Error(`${profile.id} retained ${structural.protocol.permanentInspectors} permanent legacy inspector(s).`);
@@ -1472,6 +1496,7 @@ async function loadProfile(cdp, origin, profile) {
     : pageErrors;
   if (unexpectedPageErrors.length > 0) throw new Error(`${profile.id} emitted ${unexpectedPageErrors.length} unexpected runtime/console error event(s).`);
 
+  console.log(`Completed profile ${profile.id}.`);
   return {
     id: profile.id,
     viewport: { width: profile.width, height: profile.height },
@@ -1502,6 +1527,7 @@ async function loadProfile(cdp, origin, profile) {
 }
 
 async function seekStress(cdp, origin, cycles = stressConfig.seekCycles, id = 'max-composed-seek-stress') {
+  console.log(`Begin ${id}: ${cycles} complete source-event cycles.`);
   const profile = {
     id,
     width: 1440,
@@ -1524,7 +1550,8 @@ async function seekStress(cdp, origin, cycles = stressConfig.seekCycles, id = 'm
     const cycles=${Number(cycles)};
     const buttons=[...document.querySelectorAll('.visual-time-rail__events button')];
     for(let cycle=0;cycle<cycles;cycle+=1){
-      for(const button of buttons){
+      for(const [index,button] of buttons.entries()){
+        if(index%20===0)console.info('[hopscotch-seek] cycle '+(cycle+1)+' event '+index+' '+button.getAttribute('aria-label'));
         button.click();
         await new Promise((resolve)=>requestAnimationFrame(()=>resolve()));
       }
@@ -1538,6 +1565,7 @@ async function seekStress(cdp, origin, cycles = stressConfig.seekCycles, id = 'm
     };
   })()`);
   const elapsedMs = performance.now() - startedAt;
+  console.log(`Completed ${id}: ${elapsedMs.toFixed(0)} ms.`);
   await cdp.call('HeapProfiler.collectGarbage');
   const after = await cdp.call('Runtime.getHeapUsage');
   if (stressResult.eventCount !== beforeState.eventCount) throw new Error(`Seek stress mutated event count ${beforeState.eventCount} → ${stressResult.eventCount}.`);

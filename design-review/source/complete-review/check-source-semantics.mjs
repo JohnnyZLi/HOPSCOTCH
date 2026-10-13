@@ -78,6 +78,11 @@ for (const width of [320, 390, 1024, 1440]) {
     assert.equal(label.hidden, operation.labelOperation.operation === 'POP');
     if (!label.hidden) assert.equal(label.dataset.label, String(operation.labelOperation.outLabel));
   }
+  // Empty-reader phases are real: label-only operations must still render in
+  // a bounded short viewport, rather than dereferencing a missing glyph pose.
+  const index=provider.frames.findIndex(frame=>frame.labelOperation),empty=provider.plan.prepared[index],phase=provider.plan.phases.find(phase=>phase.index===index);
+  empty.read={...empty.read,total:0,phases:[]};empty.focus.h=80;empty.fullHeight=Math.max(empty.fullHeight,200);
+  api.seek(phase.start);assert(Number.isFinite(api.snapshot().clock));assert.equal(env.q('.rv-lens').style.opacity,'0');
   assert.equal(JSON.stringify(env.root.reviewData), source, 'Presentation adapters preserve every source event, state, byte and timestamp');
   api.dispose();
   console.log('PASS source semantics', width);

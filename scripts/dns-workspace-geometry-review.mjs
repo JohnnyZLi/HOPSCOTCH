@@ -6,20 +6,13 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { serveProductionArtifact } from './production-artifact-server.mjs';
+import {reviewedSceneGeometry,seekReviewedSource} from './reviewed-scene-geometry.mjs';
 
 const root = process.cwd();
 const distDir = resolve(root, 'dist');
 const outputDir = resolve(root, 'artifacts/dns-workspace-geometry-review');
 const reportPath = join(outputDir, 'report.json');
 const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
-const actors = ['stub', 'recursive', 'root', 'tld', 'authoritative', 'cache'];
-const links = [
-  ['stub', 'recursive'],
-  ['recursive', 'root'],
-  ['recursive', 'tld'],
-  ['recursive', 'authoritative'],
-  ['recursive', 'cache'],
-];
 
 function executableFromPath(command) {
   const result = spawnSync(process.platform === 'win32' ? 'where' : 'which', [command], { encoding: 'utf8' });
@@ -157,7 +150,8 @@ async function waitForExpression(cdp, expression, timeoutMs = 15000) {
     if (await cdp.evaluate(expression)) return;
     await sleep(30);
   }
-  throw new Error(`Timed out waiting for ${expression}`);
+  const failure=await cdp.evaluate(`document.querySelector('.review-runtime')?.dataset.renderError??null`);
+  throw new Error(`Timed out waiting for ${expression}${failure?'\nRenderer error: '+failure:''}`);
 }
 
 async function screenshot(cdp, filename) {
@@ -176,63 +170,24 @@ async function chooseCacheMode(cdp, mode) {
 }
 
 async function measureDns(cdp, origin, width, height, mode) {
-  await cdp.call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width <= 680 });
-  await cdp.call('Page.navigate', { url: `${origin}/labs/dns` });
-  await waitForExpression(cdp, `Boolean(document.querySelector('.dns-visual-workspace .dns-workspace-map'))`);
-  await waitForExpression(cdp, `document.querySelectorAll('.dns-workspace-map [data-dns-anchor]').length===6`);
-  await waitForExpression(cdp, `document.querySelectorAll('.dns-link-layer line').length===5`);
+  await cdp.call('Emulation.setDeviceMetricsOverride', {width,height,deviceScaleFactor:1,mobile:width<=680});
+  await cdp.call('Page.navigate', {url: `${origin}/labs/dns`});
+  await waitForExpression(cdp, `Boolean(document.querySelector('.dns-visual-workspace .review-runtime')?.causalStudy?.snapshot().plan)`);
   await waitForExpression(cdp, `!document.querySelector('.visual-entrance')`, 5000);
-  await chooseCacheMode(cdp, mode);
-  await sleep(300);
-
-  const geometry = await cdp.evaluate(`(()=>{
-    const actorIds=${JSON.stringify(actors)};
-    const linkPairs=${JSON.stringify(links)};
-    const map=document.querySelector('.dns-workspace-map');
-    const layer=document.querySelector('.dns-link-layer');
-    if(!map||!layer)return null;
-    const mapRect=map.getBoundingClientRect();
-    const layerRect=layer.getBoundingClientRect();
-    const anchorData=Object.fromEntries(actorIds.map((actor)=>{
-      const anchor=map.querySelector('[data-dns-anchor="'+actor+'"]');
-      const card=map.querySelector('[data-dns-actor="'+actor+'"]');
-      if(!anchor||!card)return [actor,null];
-      const anchorRect=anchor.getBoundingClientRect();
-      const cardRect=card.getBoundingClientRect();
-      const anchorCenter={x:anchorRect.left+anchorRect.width/2-layerRect.left,y:anchorRect.top+anchorRect.height/2-layerRect.top};
-      const cardCenter={x:cardRect.left+cardRect.width/2-layerRect.left,y:cardRect.top+cardRect.height/2-layerRect.top};
-      return [actor,{anchorCenter,cardCenter,centerDelta:Math.hypot(anchorCenter.x-cardCenter.x,anchorCenter.y-cardCenter.y)}];
-    }));
-    const linkData=linkPairs.map(([from,to])=>{
-      const line=layer.querySelector('[data-dns-link="'+from+'-'+to+'"]');
-      if(!line||!anchorData[from]||!anchorData[to])return null;
-      const start={x:line.x1.baseVal.value,y:line.y1.baseVal.value};
-      const end={x:line.x2.baseVal.value,y:line.y2.baseVal.value};
-      const startDelta=Math.hypot(start.x-anchorData[from].anchorCenter.x,start.y-anchorData[from].anchorCenter.y);
-      const endDelta=Math.hypot(end.x-anchorData[to].anchorCenter.x,end.y-anchorData[to].anchorCenter.y);
-      return {from,to,start,end,startDelta,endDelta};
-    });
-    return {
-      viewport:{innerWidth,innerHeight,devicePixelRatio},
-      mode:document.querySelector('.visual-identity strong')?.textContent?.toLowerCase().includes('cache hit')?'hit':'miss',
-      map:{left:mapRect.left,top:mapRect.top,width:mapRect.width,height:mapRect.height},
-      layer:{left:layerRect.left,top:layerRect.top,width:layerRect.width,height:layerRect.height},
-      anchors:anchorData,
-      links:linkData,
-      maxActorCenterDelta:Math.max(...Object.values(anchorData).map((entry)=>entry?.centerDelta??Infinity)),
-      maxEndpointDelta:Math.max(...linkData.flatMap((entry)=>entry?[entry.startDelta,entry.endDelta]:[Infinity])),
-      scrollWidth:document.documentElement.scrollWidth,
-    };
-  })()`);
-
-  assert.ok(geometry, `${width}x${height} ${mode}: DNS workspace was not measurable.`);
-  assert.equal(geometry.mode, mode, `${width}x${height}: expected cache ${mode} mode.`);
-  assert.ok(geometry.maxActorCenterDelta <= 0.75, `${width}x${height} ${mode}: anchor drifts from actor center by ${geometry.maxActorCenterDelta.toFixed(2)}px.`);
-  assert.ok(geometry.maxEndpointDelta <= 0.75, `${width}x${height} ${mode}: connector endpoint misses anchor by ${geometry.maxEndpointDelta.toFixed(2)}px.`);
-  assert.ok(geometry.scrollWidth <= width + 1, `${width}x${height} ${mode}: DNS workspace horizontally overflows.`);
-
-  await screenshot(cdp, `dns-${mode}-${width}x${height}.png`);
-  return geometry;
+  await chooseCacheMode(cdp,mode);
+  await cdp.evaluate(`document.querySelector('.visual-drawer__close')?.click()`);
+  await waitForExpression(cdp, `!document.querySelector('.visual-drawer')`);
+  const source=await cdp.evaluate(`(()=>{const frames=document.querySelector('.review-runtime').causalStudy.snapshot().frames;const f=frames.find(f=>!f.local&&f.kind==='query');return {id:f.id,at:f.at}})()`);
+  await seekReviewedSource(cdp,source.at);
+  await waitForExpression(cdp, `document.querySelector('.review-runtime')?.causalStudy?.snapshot().frames[document.querySelector('.review-runtime').causalStudy.snapshot().at.index]?.id===${JSON.stringify(source.id)}`);
+  await sleep(100);
+  const geometry=await reviewedSceneGeometry(cdp,`${width}x${height} cache ${mode}`,source.id);
+  assert.equal(geometry.local,false,'A DNS question must remain a separate wire object.');
+  assert.ok(geometry.fields.some(f=>f.id==='qname'&&f.value==='www.example.test'));
+  const selectedMode=await cdp.evaluate(`document.querySelector('.visual-identity strong')?.textContent?.toLowerCase().includes('cache hit')?'hit':'miss'`);
+  assert.equal(selectedMode,mode);
+  await screenshot(cdp,`dns-${mode}-${width}x${height}.png`);
+  return {...geometry,mode};
 }
 
 async function main() {

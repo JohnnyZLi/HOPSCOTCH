@@ -210,7 +210,11 @@ async function playAndMeasure(cdp, speed) {
   await sleep(80);
   const start = Number(await cdp.evaluate(`document.querySelector('input[aria-label="Scenario time"]')?.value??0`));
   assert.equal(await cdp.evaluate(`(()=>{const play=document.querySelector('.visual-time-rail__controls button');if(!play)return false;play.click();return true})()`), true);
-  await sleep(1000);
+  // The new reader spends measured time on actual fields. Keep the existing
+  // >40 source-ms progress assertion, but sample long enough for that budget
+  // instead of assuming every source interval uses the old fixed dwell.
+  const sampleMs=await cdp.evaluate(`(()=>{const snapshot=document.querySelector('.review-runtime')?.causalStudy?.snapshot();if(!snapshot?.plan)return 1000;const sourceSpan=(snapshot.frames[1]?.at??0)-(snapshot.frames[0]?.at??0),budget=(snapshot.plan.starts[1]??snapshot.plan.total)-snapshot.plan.starts[0];return sourceSpan>0?Math.max(1000,Math.ceil(budget*65/sourceSpan)):1000})()`);
+  await sleep(sampleMs);
   const end = Number(await cdp.evaluate(`document.querySelector('input[aria-label="Scenario time"]')?.value??0`));
   assert.equal(await cdp.evaluate(`(()=>{const play=document.querySelector('.visual-time-rail__controls button');if(!play)return false;play.click();return true})()`), true);
   await sleep(120);
@@ -425,7 +429,7 @@ async function main() {
             const oneXDeltaMs = await playAndMeasure(cdp, 1);
             const twoXDeltaMs = await playAndMeasure(cdp, 2);
             assert.ok(oneXDeltaMs > 40, `${route.id} 1× did not advance.`);
-            assert.ok(oneXDeltaMs < 900, `${route.id} 1× advanced ${oneXDeltaMs} model ms in one real second; presentation pacing is too fast.`);
+            assert.ok(oneXDeltaMs < 900, `${route.id} 1× advanced ${oneXDeltaMs} model ms during its measured reading sample; presentation pacing is too fast.`);
             assert.ok(twoXDeltaMs > oneXDeltaMs * 1.55, `${route.id} 2× (${twoXDeltaMs}) did not materially outrun 1× (${oneXDeltaMs}).`);
             profile.oneXDeltaMs = oneXDeltaMs;
             profile.twoXDeltaMs = twoXDeltaMs;

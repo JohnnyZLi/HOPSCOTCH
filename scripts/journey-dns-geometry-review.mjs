@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { serveProductionArtifact } from './production-artifact-server.mjs';
+import {reviewedSceneGeometry} from './reviewed-scene-geometry.mjs';
 
 const root = process.cwd();
 const distDir = resolve(root, 'dist');
@@ -129,7 +130,8 @@ async function waitForExpression(cdp, expression, timeoutMs = 15000) {
     if (await cdp.evaluate(expression)) return;
     await sleep(30);
   }
-  throw new Error(`Timed out waiting for ${expression}`);
+  const failure=await cdp.evaluate(`document.querySelector('.review-runtime')?.dataset.renderError??null`);
+  throw new Error(`Timed out waiting for ${expression}${failure?'\nRenderer error: '+failure:''}`);
 }
 
 async function screenshot(cdp, filename) {
@@ -137,97 +139,19 @@ async function screenshot(cdp, filename) {
   writeFileSync(join(outputDir, filename), Buffer.from(result.data, 'base64'));
 }
 
-async function measureDns(cdp, origin, width, height, event = 'dns-recursive', time = 850) {
-  await cdp.call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width <= 680 });
-  const query = new URLSearchParams({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', impairment: 'clean', t: String(time) });
-  await cdp.call('Page.navigate', { url: `${origin}/journey?${query.toString()}` });
-  await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`);
-  await waitForExpression(cdp, `Boolean(document.querySelector('[data-journey-causal-world="true"]'))`, 20000);
-  await waitForExpression(cdp, `document.querySelectorAll('[data-dns-authority]').length === 4`);
-  await waitForExpression(cdp, `Boolean(document.querySelector('[data-dns-query="${event}"]'))`);
-  await waitForExpression(cdp, `!document.querySelector('.visual-entrance')`, 5000);
-  // Measure the query at the deterministic end of its travel. The separate
-  // choreography review proves the in-between motion; this review owns final
-  // connector alignment and must not sample a 930ms animation mid-flight.
-  await sleep(1050);
-
-  const geometry = await cdp.evaluate(`(()=>{
-    const stage=document.querySelector('.journey-causal-world');
-    const thread=document.querySelector('.causal-dns-thread');
-    const query=document.querySelector('[data-dns-query="${event}"]');
-    const cache=document.querySelector('.causal-cache');
-    const lid=document.querySelector('.causal-cache__lid');
-    const object=document.querySelector('[data-causal-object="request-01"]');
-    if(!stage||!thread||!query||!cache||!lid||!object)return null;
-    const rect=(element)=>{const value=element.getBoundingClientRect();return {left:value.left,top:value.top,right:value.right,bottom:value.bottom,width:value.width,height:value.height,centerX:value.left+value.width/2,centerY:value.top+value.height/2}};
-    const stageRect=rect(stage);
-    const queryRect=rect(query);
-    const authorities=[...document.querySelectorAll('[data-dns-authority]')].map((actor,index)=>{
-      const actorRect=rect(actor);
-      const anchor=actor.querySelector(':scope > i');
-      const anchorRect=anchor?rect(anchor):null;
-      return {
-        index,
-        id:actor.getAttribute('data-dns-authority'),
-        reached:actor.classList.contains('is-reached'),
-        rect:actorRect,
-        label:rect(actor.querySelector('span')),
-        anchor:anchorRect,
-        inside:actorRect.left>=stageRect.left-2&&actorRect.right<=stageRect.right+2&&actorRect.top>=stageRect.top-2&&actorRect.bottom<=stageRect.bottom+2,
-      };
-    });
-    const recursive=authorities.find((actor)=>actor.id==='recursive');
-    const queryToRecursive=recursive?.anchor?Math.hypot(queryRect.centerX-recursive.anchor.centerX,queryRect.centerY-recursive.anchor.centerY):Infinity;
-    const objectRect=rect(object);
-    const overlapX=Math.max(0,Math.min(queryRect.right,objectRect.right)-Math.max(queryRect.left,objectRect.left));
-    const overlapY=Math.max(0,Math.min(queryRect.bottom,objectRect.bottom)-Math.max(queryRect.top,objectRect.top));
-    const path=thread.querySelector('.dns-thread-base');
-    const matrix=thread.getScreenCTM();
-    const pathLength=path.getTotalLength();
-    const samples=Array.from({length:2001},(_,i)=>path.getPointAtLength(pathLength*i/2000).matrixTransform(matrix));
-    const anchorErrors=authorities.map(actor=>Math.min(...samples.map(p=>Math.hypot(p.x-actor.anchor.centerX,p.y-actor.anchor.centerY))));
-    const labelOverlaps=authorities.filter(actor=>Math.min(queryRect.right,actor.label.right)>Math.max(queryRect.left,actor.label.left)&&Math.min(queryRect.bottom,actor.label.bottom)>Math.max(queryRect.top,actor.label.top)).map(actor=>actor.id);
-    const ink=thread.querySelector('.dns-thread-progress');
-    const inkEnd=path.getPointAtLength(pathLength*(1-parseFloat(getComputedStyle(ink).strokeDashoffset))).matrixTransform(matrix);
-    const reached=authorities.filter(actor=>actor.reached).at(-1)?.anchor;
-    return {
-      viewport:{innerWidth,innerHeight,devicePixelRatio},
-      stage:stageRect,
-      thread:rect(thread),
-      pathLength:path?.getTotalLength()??0,
-      anchorErrors,
-      inkEndError:reached?Math.hypot(inkEnd.x-reached.centerX,inkEnd.y-reached.centerY):null,
-      labelOverlaps,
-      queryFontSize:Math.min(...[...query.children].map(el=>parseFloat(getComputedStyle(el).fontSize))),
-      authorities,
-      reachedCount:authorities.filter((actor)=>actor.reached).length,
-      query:queryRect,
-      queryToRecursive,
-      queryObjectOverlap:overlapX*overlapY,
-      cache:rect(cache),
-      cacheLidTransform:getComputedStyle(lid).transform,
-      scrollWidth:document.documentElement.scrollWidth,
-    };
-  })()`);
-
-  assert.ok(geometry, `${width}x${height}: causal DNS world was not measurable.`);
-  await screenshot(cdp, `journey-${event}-${width}x${height}.png`);
-  writeFileSync(join(outputDir, `${event}-${width}x${height}.json`), JSON.stringify(geometry, null, 2));
-  assert.equal(geometry.authorities.length, 4, `${width}x${height}: expected recursive, root, TLD, and authoritative anchors.`);
-  assert.ok(geometry.reachedCount >= 1, `${width}x${height}: recursive query must visibly reach its first upstream actor.`);
-  assert.ok(geometry.authorities.every((actor) => actor.inside), `${width}x${height}: a namespace actor escaped the stage.`);
-  assert.ok(geometry.authorities.every((actor) => actor.label.left >= geometry.stage.left && actor.label.right <= geometry.stage.right), `${width}x${height}: a DNS label is clipped: ${JSON.stringify(geometry.authorities)}`);
-  assert.ok(geometry.pathLength > width * .6, `${width}x${height}: namespace traversal thread is too short to communicate travel.`);
-  assert.ok(geometry.anchorErrors.every(error=>error<2), `${width}x${height}: connector misses a rendered anchor: ${geometry.anchorErrors}`);
-  assert.ok(geometry.inkEndError<2, `${width}x${height}: progress does not stop at the reached anchor: ${geometry.inkEndError}`);
-  assert.deepEqual(geometry.labelOverlaps, [], `${width}x${height}:${event}: query covers DNS labels.`);
-  assert.ok(geometry.queryFontSize>=12, `${width}x${height}: query text is too small.`);
-  assert.ok(geometry.query.left>=geometry.stage.left && geometry.query.right<=geometry.stage.right, `${width}x${height}: query is clipped by the viewport.`);
-  if(event==='dns-recursive') assert.ok(geometry.queryToRecursive <= (width <= 680 ? 105 : 165), `${width}x${height}: query is ${geometry.queryToRecursive.toFixed(1)}px from the recursive anchor.`);
-  assert.equal(geometry.queryObjectOverlap, 0, `${width}x${height}: traveling query overlaps the persistent request object.`);
-  assert.notEqual(geometry.cacheLidTransform, 'none', `${width}x${height}: cache lid did not physically open.`);
-  assert.ok(geometry.scrollWidth <= width + 1, `${width}x${height}: Journey horizontally overflows.`);
-
+async function measureDns(cdp, origin, width, height, event='dns-recursive', time=850) {
+  await cdp.call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<=680});
+  const query=new URLSearchParams({journey:'1',host:'example.test',transport:'tcp-h2',dns:'cache-miss',impairment:'clean',t:String(time)});
+  await cdp.call('Page.navigate',{url:`${origin}/journey?${query.toString()}`});
+  await waitForExpression(cdp,`Boolean(document.querySelector('.journey-visual-workspace .review-runtime')?.causalStudy?.snapshot().plan)`,20000);
+  await waitForExpression(cdp,`!document.querySelector('.visual-entrance')`,5000);
+  await sleep(150);
+  const geometry=await reviewedSceneGeometry(cdp,`${width}x${height} ${event}`,event);
+  assert.equal(geometry.kind,event==='dns-recursive'?'dns.query':'dns.referral','Journey DNS questions and referrals must retain their actual wire-message kinds.');
+  assert.equal(geometry.local,false);
+  assert.ok(geometry.fields.some(f=>f.id==='journey-name'&&f.value==='example.test'));
+  await screenshot(cdp,`journey-${event}-${width}x${height}.png`);
+  writeFileSync(join(outputDir,`${event}-${width}x${height}.json`),JSON.stringify(geometry,null,2));
   return geometry;
 }
 

@@ -11,6 +11,7 @@ import {
   type VisualTimelineEvent,
   type VisualTimelineMilestone,
 } from './VisualWorkspace';
+import {ReviewedScene, useReviewedAttention} from './redesign/ReviewedScene';
 import {
   DNS_ANSWER,
   DNS_QNAME,
@@ -82,11 +83,13 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
   const activeEvent = useMemo(() => dnsLatestEventAtOrBefore(mode, timeMs), [mode, timeMs]);
   const activeIndex = scenario.events.indexOf(activeEvent);
   const timelineEvents: VisualTimelineEvent[] = scenario.events.map((event) => ({ id: event.id, atMs: event.atMs, label: event.title, tone: eventTone(event) }));
+  const presentation = useReviewedAttention(timelineEvents);
+  const presentationData = useMemo(() => ({bootstrapScene:'dns',bootstrapDnsMode:mode,referenceModels:[],dns:{[mode]:{frames:scenario.events.map(event => ({event,state:dnsStateAt(mode,event.atMs)}))}}}), [mode,scenario]);
   const { playbackSpeed, setPlaybackSpeed } = useVisualPresentationPlayback({
-    playing,
+    playing: playing && presentation.ready,
     timeMs,
     durationMs: scenario.durationMs,
-    events: timelineEvents,
+    events: presentation.events,
     onTimeChange: setTimeMs,
     onComplete: () => setPlaying(false),
   });
@@ -238,41 +241,6 @@ export function DnsTheater({ onExit }: { onExit: () => void }) {
     hud={<><div><span>PHASE</span><strong>{state.phaseLabel}</strong></div><div><span>QNAME</span><strong>{DNS_QNAME}</strong></div><div><span>CACHE TTL</span><strong>{state.cacheTtlSeconds === null ? '—' : `${state.cacheTtlSeconds}s`}</strong></div><div><span>PROVENANCE</span><strong>SIMULATED</strong></div></>}
     timeline={<VisualTimeRail timeMs={timeMs} durationMs={scenario.durationMs} playing={playing} playbackSpeed={playbackSpeed} onPlaybackSpeedChange={setPlaybackSpeed} label="DNS trace" context={`Cache ${mode} · ${state.cacheState}`} events={timelineEvents} milestones={timelineMilestones} onToggle={togglePlayback} onReset={() => seek(0)} onSeek={seek}/>}
   >
-    <div ref={rootRef} className={`protocol-cinematic-stage dns-cinematic-stage mode-${mode}`}>
-      <div className="protocol-scene-kicker"><span>DNS / NAMESPACE</span><strong>{activeEvent.from.toUpperCase()} → {activeEvent.to.toUpperCase()}</strong></div>
-      <div className="dns-map dns-workspace-map">
-        <div className="dns-namespace-field" aria-hidden="true">
-          {namespace.map((label, index) => (
-            <motion.i
-              key={label}
-              className={`${index <= activeNamespaceIndex ? 'resolved' : ''}${index === activeNamespaceIndex ? ' current' : ''}`}
-              style={{ '--dns-orbit-index': index } as CSSProperties}
-              animate={reduceMotion ? undefined : { rotate: index % 2 === 0 ? 360 : -360 }}
-              transition={{ duration: 26 + index * 7, repeat: Infinity, ease: 'linear' }}
-            />
-          ))}
-          <b className="dns-namespace-core" />
-          <span>{state.activeDelegation}</span>
-        </div>
-        <svg className="dns-link-layer" aria-hidden="true" focusable="false">
-          {anchorPoints && dnsLinks.map(([from, to]) => <line key={`${from}-${to}`} className={activeEvent.from === from && activeEvent.to === to || activeEvent.from === to && activeEvent.to === from ? 'is-active' : undefined} data-dns-link={`${from}-${to}`} x1={anchorPoints[from].x} y1={anchorPoints[from].y} x2={anchorPoints[to].x} y2={anchorPoints[to].y}/>) }
-        </svg>
-        {dnsActors.map((actor) => {
-          const idleUpstream = upstreamDimmed && (actor === 'root' || actor === 'tld' || actor === 'authoritative');
-          return <div key={actor} className={`dns-actor-slot actor-${actor}`}>
-            <i className="dns-actor-anchor" data-dns-anchor={actor} aria-hidden="true"/>
-            <div data-dns-actor={actor} className={`dns-actor${idleUpstream ? ' is-idle-upstream' : ''}${activeEvent.from === actor || activeEvent.to === actor ? ' is-current' : ''}`}>
-              <span>{actorLabels[actor].label}</span>
-              <strong>{actorLabels[actor].sub}</strong>
-              {actor === 'cache' && <small>{state.cacheState === 'empty' ? 'EMPTY' : `${DNS_ANSWER} · ${state.cacheTtlSeconds ?? 0}s`}</small>}
-            </div>
-          </div>;
-        })}
-        <div className={`dns-message-token severity-${activeEvent.severity}`}><i className="dns-query-core" aria-hidden="true"/><span>{activeEvent.kind.replace('.', ' ')}</span><strong>{messageLabel(activeEvent)}</strong></div>
-        <div className="dns-namespace-ladder" aria-label="DNS namespace delegation"><span>NAMESPACE</span>{namespace.map((label, index) => <motion.div key={label} className={`${index <= activeNamespaceIndex ? 'resolved' : ''}${index === activeNamespaceIndex ? ' current' : ''}`} animate={reduceMotion ? undefined : { x: index === activeNamespaceIndex ? 5 : 0 }}><i/><strong>{label}</strong></motion.div>)}</div>
-        <div className="dns-path-readout"><span>{mode === 'miss' ? 'MISS PATH' : 'HIT PATH'}</span><strong>{mode === 'miss' ? 'STUB → RECURSIVE → AUTHORITY' : 'STUB → RECURSIVE CACHE'}</strong></div>
-        <AnimatePresence mode="wait" initial={false}><motion.article key={`${mode}-${activeEvent.id}`} className={`protocol-scene-annotation dns-scene-annotation severity-${activeEvent.severity}`} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 9 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: reduceMotion ? 0 : 0.24 }}><i aria-hidden="true"/><div><span>{formatTime(activeEvent.atMs)} · {activeEvent.kind.replace('.', ' ')}</span><strong>{activeEvent.title}</strong><p>{activeEvent.summary}</p></div></motion.article></AnimatePresence>
-      </div>
-    </div>
+    <ReviewedScene data={presentationData} timeMs={timeMs} durationMs={scenario.durationMs} playing={playing} onBudgets={presentation.onBudgets}/>
   </VisualWorkspaceShell>;
 }

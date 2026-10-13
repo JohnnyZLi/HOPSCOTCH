@@ -554,6 +554,10 @@
 #hop-connected-review .cx-glass .rv-facts{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
 #hop-connected-review .cx-glass .rv-fact[data-wide=true]{grid-column:1/-1}
 #hop-connected-review .cx-origin dd{font-size:14px}
+#hop-connected-review .cx-live-host{min-width:0;min-height:0}
+#hop-connected-review .cx-integrated-workspace{display:block;width:100%;height:clamp(640px,85svh,1000px);border:1px solid var(--rv-divider);border-radius:18px;background:var(--hs-bg)}
+#hop-connected-review .cx-live-host:has(iframe:not([hidden]))~.cx-source-content{margin-top:0}
+@container review (max-width:480px){#hop-connected-review .cx-live-host{margin-inline:-16px}#hop-connected-review .cx-integrated-workspace{border:0;border-radius:0}}
 #hop-connected-review .cx-byte-field{display:block;border-top:1px solid var(--rv-divider);padding:12px 0;position:relative;isolation:isolate;min-width:0}
 #hop-connected-review .cx-byte-field::before{content:"";position:absolute;inset:3px 0;border-radius:14px;z-index:-1;pointer-events:none;background:color-mix(in srgb,var(--hs-accent) 12%,transparent);opacity:0;transition:opacity 220ms ease}
 #hop-connected-review .cx-byte-field[data-selected=true]::before{opacity:1}
@@ -1044,7 +1048,12 @@ function build(graph,measure){graph=canonical(graph);const begin=Date.now(),opti
 async function buildAsync(graph,measure,onProgress=()=>{},authored=null){graph=canonical(graph);const options=[];let done=0;for(const scale of [1.1,1.4,1.8])for(const reverse of [false,true]){onProgress(++done,6);await new Promise(r=>setTimeout(r,0));try{const c=candidate(graph,measure,scale,reverse,typeof authored==="undefined"?null:authored);if(c)options.push(c);}catch{}}if(!options.length)throw Error('No readable layout found within this study’s search budget');options.sort((a,b)=>a.score-b.score);return options[0];}
 
 
-root.networkPlanner=Object.freeze({build,buildAsync,layout,solve,audit,canonical});})();(()=>{
+root.networkPlanner=Object.freeze({build,buildAsync,layout,solve,audit,canonical});})();// One geometric camera law serves the review and the production Builder.
+function frameCamera(bounds,viewport,padding=16,maxZoom=1){
+ const gap=Math.max(0,Math.min(padding,viewport.w/4,viewport.h/4)),w=Math.max(1,bounds.right-bounds.left),h=Math.max(1,bounds.bottom-bounds.top),z=Math.min(maxZoom,Math.max(1,viewport.w-gap*2)/w,Math.max(1,viewport.h-gap*2)/h);
+ return {x:viewport.w/2-(bounds.left+bounds.right)*z/2,y:viewport.h/2-(bounds.top+bounds.bottom)*z/2,z};
+}
+(()=>{
 'use strict';
 const root=document.getElementById('hop-connected-review'),reduced=matchMedia('(prefers-reduced-motion: reduce)'),records=new Map(),byInner=new WeakMap();
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),ease=t=>1-Math.pow(1-t,3);
@@ -1303,12 +1312,6 @@ function zoomCamera(camera,viewport,zoom){
  const world={x:(viewport.w/2-camera.x)/camera.z,y:(viewport.h/2-camera.y)/camera.z};
  return {x:viewport.w/2-world.x*zoom,y:viewport.h/2-world.y*zoom,z:zoom};
 }
-// Framing is a geometric fit, independent of the preferred inspection zoom.
-// The same bounds can describe a complete world or one selected path.
-function frameCamera(bounds,viewport,padding=16,maxZoom=1){
- const gap=Math.max(0,Math.min(padding,viewport.w/4,viewport.h/4)),w=Math.max(1,bounds.right-bounds.left),h=Math.max(1,bounds.bottom-bounds.top),z=Math.min(maxZoom,Math.max(1,viewport.w-gap*2)/w,Math.max(1,viewport.h-gap*2)/h);
- return {x:viewport.w/2-(bounds.left+bounds.right)*z/2,y:viewport.h/2-(bounds.top+bounds.bottom)*z/2,z};
-}
 // Native controls may be recreated when their semantic source changes. Retain
 // their focus and disclosure by identity, without constructing selectors from
 // arbitrary imported labels. A persistent focused control is never refocused.
@@ -1499,12 +1502,17 @@ function journeyFrames(actual, {hostname = actual[0]?.event.target || 'Not avail
    objectTitle = 'Application intent';fields=[{id:'hostname',label:'Requested hostname',value:hostname},{id:'resolution',label:'Next dependency',value:'Name resolution'}];
   } else {
    objectTitle = e.kind === 'journey.complete' ? 'Application outcome' : e.kind === 'journey.failed' ? 'Request failed' : 'Retained request state';
-   fields=stateValues(e.kind==='journey.complete'?null:previous,state,[['responseReady','Response',ready],['journeyComplete','Journey complete',String],['journeyFailed','Journey failed',String],['failureReason','Failure reason']]);
+   fields=stateValues(e.kind==='journey.complete'||e.kind==='journey.failed'?null:previous,state,[['responseReady','Response',ready],['journeyComplete','Journey complete',String],['journeyFailed','Journey failed',String],['failureReason','Failure reason',words]]);
+   if(e.kind==='journey.failed')fields.push({id:'terminal-route',label:'Forwarding',value:state.route==='unreachable'?'No route':words(state.route)});
    if(e.kind==='transfer.complete')fields=stateValues(previous,state,[['transport','Byte delivery',words],['http','Application transfer',words]]);
    if(e.kind==='camera.pullback')fields=stateValues(null,state,journeyStateSchema);
   }
   for(const [key,label] of [['transportMetrics','Transport measurements'],['congestionMetrics','Congestion'],['routeMetrics','Routing'],['serverMetrics','Retry state'],['policyMetrics','Policy']]) {
-   const metrics=state[key];if(!metrics||JSON.stringify(metrics)===JSON.stringify(previous?.[key]))continue;
+   const metrics=state[key];if(!metrics)continue;
+   // A selected routing decision or terminal outcome must expose the retained
+   // truth even when its metrics were first installed by an earlier event.
+   const retained=e.kind==='journey.failed'||(['route','internet'].includes(family)&&['routeMetrics','policyMetrics'].includes(key));
+   if(!retained&&JSON.stringify(metrics)===JSON.stringify(previous?.[key]))continue;
    for(const [name,value]of Object.entries(metrics)) fields.push({id:key+'-'+name,label:label+' · '+words(name.replace(/([a-z])([A-Z])/g,'$1 $2')),value:display(value)});
   }
   fields=fields.map(f=>({...f,value:display(f.value)}));
@@ -1536,22 +1544,22 @@ function dnsFrames(actual) {
  });
 }
 function providerFrames(p) {
- const innerFields=Object.entries(p.packet.inner).map(([key,value])=>({id:'inner-'+key,label:'Inner '+words(key),value:key==='bytes'?value+' B':display(value)}));
+ const innerFields=Object.entries(p.packet?.inner||{}).map(([key,value])=>({id:'inner-'+key,label:'Inner '+words(key),value:key==='bytes'?value+' B':display(value)}));
  const source=[
-  {id:'inner',title:'The inner packet keeps its identity',summary:'These inner addresses and length persist while separate outer pieces change.',operation:'inner',envelope:null,state:p.packet},
-  {id:'encapsulated',title:'A GRE envelope attaches',summary:'The '+p.gre.encapsulationOverheadBytes+' B outer envelope seats around the same '+p.packet.inner.bytes+' B inner packet.',operation:'attach',envelope:p.packet.outer,state:p.packet},
-  ...p.lsp.operations.map((op,index)=>({id:'mpls-'+index,title:op.routerId.toUpperCase()+' · '+op.operation+' label',
+  ...(p.packet?[{id:'inner',title:'The inner packet keeps its identity',summary:'These inner addresses and length persist while separate outer pieces change.',operation:'inner',envelope:null,state:p.packet},
+   {id:'encapsulated',title:p.packet.state==='ENCAPSULATED'?'An outer '+p.packet.outer.protocol+' envelope attaches':'The underlay blocks encapsulation',summary:p.packet.reason,operation:p.packet.state==='ENCAPSULATED'?'attach':'boundary',envelope:p.packet.state==='ENCAPSULATED'?p.packet.outer:null,state:p.packet}]:[]),
+  ...(p.lsp?.operations||[]).map((op,index)=>({id:'mpls-'+index,title:op.routerId.toUpperCase()+' · '+op.operation+' label',
    summary:'Independent MPLS projection: label '+(op.inLabel??'none')+' → '+(op.outLabel??'none')+' for '+op.fecPrefix+'. Its payload remains the same; payload bytes are not supplied.',
    operation:op.operation.toLowerCase(),labelOperation:op,envelope:null,state:p.lsp})),
-  {id:'mtu',title:'Too large for the overlay',summary:p.tooLarge.reason,operation:'boundary',envelope:p.packet.outer,state:p.tooLarge,
-   outcome:[{label:'Requested inner length',value:p.tooLarge.inner.bytes+' B'},{label:'Effective overlay MTU',value:p.tooLarge.effectiveOverlayMtuBytes+' B'},{label:'Outcome',value:p.tooLarge.state}]},
-  {id:'failed-underlay',title:'The overlay depends on its underlay',summary:p.failedGre.reason,operation:'boundary',envelope:p.packet.outer,state:p.failedGre,
-   outcome:[{label:'Underlay reachable',value:display(p.failedGre.underlayReachable)},{label:'Overlay reachable',value:display(p.failedGre.overlayReachable)},{label:'Tunnel state',value:p.failedGre.state}]}
+  ...(p.tooLarge?[{id:'mtu',title:'Too large for the overlay',summary:p.tooLarge.reason,operation:'boundary',envelope:p.packet?.outer||null,state:p.tooLarge,
+   outcome:[{label:'Requested inner length',value:p.tooLarge.inner.bytes+' B'},{label:'Effective overlay MTU',value:p.tooLarge.effectiveOverlayMtuBytes+' B'},{label:'Outcome',value:p.tooLarge.state}]}]:[]),
+  ...(p.failedGre?[{id:'failed-underlay',title:'The overlay depends on its underlay',summary:p.failedGre.reason,operation:'boundary',envelope:p.packet?.outer||null,state:p.failedGre,
+   outcome:[{label:'Underlay reachable',value:display(p.failedGre.underlayReachable)},{label:'Overlay reachable',value:display(p.failedGre.overlayReachable)},{label:'Tunnel state',value:p.failedGre.state}]}]:[])
  ];
  return source.map(f=>({...f,at:null,identity:f.labelOperation?'mpls-payload':'provider-inner',kind:'provider-operation',local:true,physical:true,from:'Ingress',to:'Egress',protocol:'ipv4',
-  objectTitle:f.labelOperation?'MPLS payload · symbolic':'Inner IPv4 packet',fields:f.labelOperation?[{id:'fec',label:'Forwarding class',value:f.labelOperation.fecPrefix},{id:'payload',label:'Payload bytes',value:'Not supplied by the LSP projection'}]:innerFields,readIds:f.operation==='inner'?innerFields.map(f=>f.id):[],records:[
+  objectTitle:f.labelOperation?'MPLS payload · symbolic':'Inner IPv4 packet',fields:f.labelOperation?[{id:'fec',label:'Forwarding class',value:f.labelOperation.fecPrefix},{id:'payload',label:'Payload bytes',value:'Not supplied by the LSP projection'}]:innerFields,readIds:f.labelOperation?['fec']:innerFields.map(f=>f.id),records:[
    {label:'Projection',value:'Independent GRE and MPLS contract projections · no source clock or raw bytes'},
-   {label:'Underlay',value:p.gre.underlayLinkIds.join(' → ')},
+   {label:'Underlay',value:(p.gre?.underlayLinkIds||p.lsp?.linkIds||[]).join(' → ')},
    ...(f.labelOperation?Object.entries(f.labelOperation).map(([label,value])=>({label:words(label),value:display(value)})):[]),...(f.outcome||[])]}));
 }
 root.sourcePresentation=Object.freeze({journeyFrames,dnsFrames,providerFrames});
@@ -4291,6 +4299,7 @@ document.getElementById('hop-connected-review').entryDomain=Object.freeze({WORKS
 'use strict';
 const root=document.getElementById('hop-connected-review'),q=s=>root.querySelector(s),d=root.reviewData,domain=root.entryDomain,clone=x=>structuredClone(x),dark=matchMedia('(prefers-color-scheme: dark)'),reduced=matchMedia('(prefers-reduced-motion: reduce)');
 const catalog=domain.WORKSPACE_CATALOG,models=new Map(d.referenceModels.map(m=>[m.id,m])),labMemory=new Map(),stack=[],animations=new Set();
+const liveFrames=new Map(),liveHost=document.createElement('section');liveHost.className='cx-live-host';q('.cx-primary').append(liveHost);let liveCapture=false;
 let view='overview',destination=null,catalogOrigin=null,portable=domain.createPortableJourneyScenario({hostname:'example.test',config:{transportProfile:'tcp-h2',dnsProfile:'cache-miss',impairmentProfile:'clean'},timeMs:0}),scenario=domain.buildJourneyScenario(portable.hostname,domain.scenarioConfigFromPortable(portable)),clock=0,playing=false,job=0,last=0,renderedEvent='',pendingPaint=0,epoch=0,disposed=false;
 let captureSelection={conversation:'all',frameId:d.captureMulti.frames[0].record.id,layer:0,fieldId:'',byte:-1,byteStart:0},captureOrigin=null;
 let journeyTimeline=null,journeyTimelineSource=null,wallClock=0;
@@ -4340,7 +4349,7 @@ function renderOverview(){const host=q('.cx-specimen');host.replaceChildren();co
  const featured=q('.cx-featured');featured.replaceChildren();for(const id of domain.FEATURED_WORKSPACE_IDS){const item=catalog[id],b=button(featured,'',()=>id==='journey'?launch():openWorkspace(id));b.className='cx-entry cursor-interaction';b.dataset.uiSurface='record';b.append(node('small','',item.featured.tone[0].toUpperCase()+item.featured.tone.slice(1)),node('strong','',item.exploreTitle),node('span','',item.description));}
 }
 function journeyRows(state){return [['DNS',state.dns],['Route',state.route],['Transport',state.transport],['TLS',state.tls],['HTTP',state.http],['Packet',state.packet]];}
-function renderJourney(){const state=domain.journeyStateAt(scenario,clock),event=state.activeEvent,card=glass(q('.cx-object'),event.title,event.summary,[['Protocol',event.protocol],['Actor',event.actor],['Target',event.target||'No target in this event']], 'journey:'+event.id,{identity:event.protocol});card.classList.add('cx-source-anchor');q('.cx-title').textContent=portable.name||'One request. Every layer.';q('.cx-subtitle').textContent=portable.hostname+' · '+portable.transportProfile+' · '+(scenario.modifierIds.length?scenario.modifierIds.join(' + '):'Clean path');
+function renderJourney(){const state=domain.journeyStateAt(scenario,clock),event=state.activeEvent,projection=root.sourcePresentation.journeyFrames([{event,state}],{hostname:portable.hostname,requestId:scenario.id})[0],card=glass(q('.cx-object'),projection.objectTitle,event.summary,projection.fields.map(f=>[f.label,f.value]), 'journey:'+event.id,{role:projection.local?'operation':'packet',identity:event.protocol});card.classList.add('cx-source-anchor');q('.cx-title').textContent=portable.name||'One request. Every layer.';q('.cx-subtitle').textContent=portable.hostname+' · '+portable.transportProfile+' · '+(scenario.modifierIds.length?scenario.modifierIds.join(' + '):'Clean path');
  const eventSelect=q('.cx-event');eventSelect.replaceChildren(...scenario.events.map(e=>{const o=node('option','',e.atMs+' ms · '+e.title);o.value=e.id;return o;}));eventSelect.value=event.id;q('.cx-preset').value=domain.SCENARIO_PRESET_CARDS.find(p=>domain.scenarioForPreset(p.id).name===portable.name)?.id||'clean';
  q('.cx-inspector-title').textContent='Request state';facts(q('.cx-inspector-content'),journeyRows(state));const limits=node('details');limits.dataset.disclosureKey='journey-source';limits.append(node('summary','','Source and meaning'),node('p','',event.detail));facts(limits,[['Event ID',event.id],['Event time',event.atMs+' ms'],['Selected time',clock+' ms'],['Provenance',event.provenance]]);q('.cx-source-content').append(limits);
  if(event.detailLab)button(q('.cx-detail-actions'),'Inspect '+catalog[event.detailLab].name,()=>openDetail(event.detailLab),true);
@@ -4351,12 +4360,14 @@ function renderClock(){q('.cx-time').textContent=Math.round(clock)+' ms';q('.cx-
 function renderOrigin(){const origin=stack.at(-1);if(!origin)return;const state=domain.journeyStateAt(scenario,origin.clock),event=state.activeEvent,box=node('section','cx-origin cx-source-anchor');box.dataset.sourceKey='journey:'+event.id;box.append(node('h3','',event.title),node('p','',event.summary));facts(box,[['Journey anchor',origin.clock+' ms'],['Event ID',origin.eventId],['Hostname',origin.portable.hostname]]);q('.cx-inspector-content').append(box,node('p','','This detailed lab has its own source model. Returning restores the paused request; no packet identity or timing equivalence is implied.'));
 }
 function renderReference(){const model=models.get(destination),index=Math.max(0,Math.min((model?.frames.length||1)-1,labMemory.get(destination)||0)),frame=model?.frames[index];if(!frame){q('.cx-source-content').append(node('p','','No source frame is available.'));return;}
- if(model.frames.length>1)selectControl(q('.cx-workspace-controls'),'Source state','cx-model-frame',model.frames.map((f,i)=>[i,f.title]),index,value=>{labMemory.set(destination,Number(value));render();});
- glass(q('.cx-object'),frame.objectTitle||frame.title,frame.summary,frame.fields.map(f=>[f.label,f.value]),destination+':'+index,{role:frame.materialRole||'operation',identity:frame.protocolIdentity||destination});
- q('.cx-inspector-title').textContent=destination==='builder'?'Selected device':'Source context';facts(q('.cx-inspector-content'),(frame.records||[]).map(record=>[record.label,record.value]));
- if(frame.at!==undefined&&frame.at!==null)facts(q('.cx-inspector-content'),[['Detail model time',frame.at+' ms']]);
- if(frame.rows?.length){const table=node('table','rv-table'),thead=node('thead'),tr=node('tr');for(const name of Object.keys(frame.rows[0])){const th=node('th','',name);th.setAttribute('scope','col');tr.append(th);}thead.append(tr);table.append(thead);const body=node('tbody');for(const row of frame.rows){const tr=node('tr');for(const [key,value]of Object.entries(row)){const td=node('td','',text(value));td.dataset.columnName=key;tr.append(td);}body.append(tr);}table.append(body);q('.cx-source-content').append(table);}
- renderOrigin();caption(frame.title,frame.summary);
+ showLiveWorkspace(destination);
+ q('.cx-inspector-title').textContent='Workspace context';q('.cx-inspector-content').append(node('p','','This is the actual application workspace, with its own source model and controls. Fixture metadata below is not its current live state.'));
+ const reference=node('details');reference.dataset.disclosureKey='workspace-fixture-reference';reference.append(node('summary','','Archived fixture reference · not live state'));facts(reference,(frame.records||[]).map(record=>[record.label,record.value]));q('.cx-inspector-content').append(reference);
+ renderOrigin();caption(catalog[destination].name,'Live workspace controls · returning restores the exact paused Journey anchor.');
+}
+function showLiveWorkspace(id){
+ let embedded=liveFrames.get(id);if(!embedded){embedded=node('iframe','cx-integrated-workspace');embedded.title=catalog[id].name+' · live application';embedded.setAttribute('src',catalog[id].path+'?workspace=embedded');embedded.setAttribute('data-workspace',id);embedded.addEventListener('load',()=>embedded.contentWindow?.postMessage({hopscotchAppearance:q('.rv-theme').value},location.origin));liveFrames.set(id,embedded);liveHost.append(embedded);}
+ liveHost.hidden=false;embedded.hidden=false;embedded.contentWindow?.postMessage({hopscotchAppearance:q('.rv-theme').value,hopscotchWorkspaceHidden:false},location.origin);
 }
 function frame(){return d.captureMulti.frames.find(f=>f.record.id===captureSelection.frameId);}
 function frameIndices(){return d.captureMulti.frames.filter(f=>captureSelection.conversation==='all'||d.captureMulti.conversations.find(c=>c.id===captureSelection.conversation)?.frameReferences.some(r=>r.frameId===f.record.id));}
@@ -4365,6 +4376,7 @@ function chooseConversation(id){if(id!=='all'&&!d.captureMulti.conversations.som
 function openMicroscope(){if(destination!=='capture'||!frame())return false;navigate(()=>{captureOrigin=clone(captureSelection);destination='packet';view='microscope';},{continuity:true});return true;}
 function selectByte(index){const f=frame(),bytes=d.captureMultiBytes[d.captureMulti.frames.indexOf(f)];if(!Number.isInteger(index)||index<0||index>=bytes.length)return false;captureSelection.byte=index;const layer=f.layers.findIndex(l=>l.fields?.some(field=>field.byteRanges.some(r=>index>=r.offset&&index<r.offset+r.length)));if(layer>=0)captureSelection.layer=layer;captureSelection.fieldId=f.layers[captureSelection.layer]?.fields.find(field=>field.byteRanges.some(r=>index>=r.offset&&index<r.offset+r.length))?.id||'';render();return true;}
 function renderCapture(){const f=frame(),r=f?.record;if(!r){caption('No frame selected.','No captured timestamp or bytes are invented.');return;}q('.cx-title').textContent=view==='microscope'?'One frame. Exact bytes.':'Captured frames stay captured.';q('.cx-subtitle').textContent='Repository capture fixture · captured time and byte ranges';
+ if(view!=='microscope'){button(q('.cx-workspace-controls'),liveCapture?'Return to the capture fixture':'Open full capture workspace',()=>{liveCapture=!liveCapture;render();},true);if(liveCapture){showLiveWorkspace('capture');q('.cx-inspector-title').textContent='Actual capture controls';q('.cx-inspector-content').append(node('p','','Import captures, select conversations and frames, and open their exact bytes in the real packet microscope. The fixture remains separate.'));caption('Capture Replay','Live capture workspace · local import and exact evidence controls.');return;}}
  if(view!=='microscope'){
   selectControl(q('.cx-workspace-controls'),'Conversation','cx-conversation',[['all','All conversations'],...d.captureMulti.conversations.map(c=>[c.id,c.protocol+' · '+c.endpointA.address+' ↔ '+c.endpointB.address])],captureSelection.conversation,chooseConversation);
   const lane=node('div','cx-frame-lane');for(const frame of frameIndices()){const b=button(lane,'#'+frame.record.number+' · '+frame.record.relativeTimeMs+' ms',()=>chooseFrame(frame.record.id));b.setAttribute('aria-pressed',String(frame.record.id===r.id));}q('.cx-source-content').append(lane);
@@ -4381,6 +4393,7 @@ function renderCapture(){const f=frame(),r=f?.record;if(!r){caption('No frame se
  caption('Frame #'+r.number+' · '+r.relativeTimeMs+' ms','Decoded fields retain frame-relative byte ranges. No unseen delivery or missing bytes are inferred.');
 }
 function render(){
+ liveHost.hidden=true;for(const embedded of liveFrames.values()){embedded.hidden=true;embedded.contentWindow?.postMessage({hopscotchWorkspaceHidden:true},location.origin);}
  const stateKey=[view,destination,stack.at(-1)?.eventId,captureSelection.frameId].join('|');
  q('.cx-overview').hidden=view!=='overview';q('.cx-catalog').hidden=view!=='catalog';q('.cx-workspace').hidden=['overview','catalog'].includes(view);
  q('.cx-location').textContent=view==='overview'?'Overview':view==='catalog'?'Explore':view==='microscope'?'Packet Microscope':catalog[destination]?.name||'';q('.cx-explore').textContent=view==='catalog'?'Close Explore':'Explore';
@@ -4393,7 +4406,7 @@ function render(){
    if(journey)renderJourney();else if(destination==='capture'||view==='microscope')renderCapture();else renderReference();
   });
  }
- q('.cx-source-note').textContent=['overview','catalog'].includes(view)?'':destination==='capture'||view==='microscope'?'Generated repository capture fixture · CAPTURED schema · not traffic from your device.':destination==='journey'?'SIMULATED · deterministic documentation-space request.':stack.length?'Related lab reference · independent model and clock.':'Source-backed entry reference · detailed interactions are supplied in the companion lifecycle, Builder, and evidence reviews.';
+ q('.cx-source-note').textContent=['overview','catalog'].includes(view)?'':destination==='capture'||view==='microscope'?'Capture fixture and full live capture controls are separate evidence surfaces.':destination==='journey'?'SIMULATED · deterministic documentation-space request.':'Actual application workspace · independent source model and clock · exact Journey return anchor retained.';
  root.dataset.reviewState=stateKey;root.layoutReservation.refresh();queuePaint();
 }
 function pause(){playing=false;if(job)cancelAnimationFrame(job);job=0;last=0;renderClock();}
@@ -4401,7 +4414,7 @@ function seek(time){pause();if(!Number.isFinite(Number(time)))return false;clock
 function next(){const event=scenario.events.find(e=>e.atMs>clock);seek(event?.atMs??scenario.durationMs);}
 function tick(now){job=0;if(!playing||disposed||!root.isConnected||document.hidden||destination!=='journey'||view!=='workspace'){pause();return;}const timeline=presentationTimeline();if(last)wallClock=Math.min(timeline.wallDuration,wallClock+now-last);clock=Math.min(scenario.durationMs,Math.floor(timeline.sourceAt(wallClock)));last=now;const event=domain.journeyStateAt(scenario,clock).activeEvent;if(event.id!==renderedEvent)render();else renderClock();if(wallClock>=timeline.wallDuration){clock=scenario.durationMs;pause();return;}job=requestAnimationFrame(tick);}
 function play(){if(reduced.matches){next();return;}if(playing){pause();return;}if(clock>=scenario.durationMs)clock=0;wallClock=presentationTimeline().wallAt(clock);playing=true;last=0;renderClock();if(!job)job=requestAnimationFrame(tick);}
-function appearance(){const value=q('.rv-theme').value;root.dataset.theme=value==='system'?(dark.matches?'dark':'light'):value;root.surfacePainter.invalidate();queuePaint();}
+function appearance(){const value=q('.rv-theme').value;root.dataset.theme=value==='system'?(dark.matches?'dark':'light'):value;for(const embedded of liveFrames.values())embedded.contentWindow?.postMessage({hopscotchAppearance:value},location.origin);root.surfacePainter.invalidate();queuePaint();}
 q('.cx-home').addEventListener('click',openHome);q('.cx-explore').addEventListener('click',openCatalog);q('.cx-return').addEventListener('click',returnContext);q('.cx-watch').addEventListener('click',()=>launch());q('.cx-search').addEventListener('input',renderCatalog);q('.cx-play').addEventListener('click',play);q('.cx-next').addEventListener('click',next);q('.cx-scrub').addEventListener('input',()=>seek(q('.cx-scrub').value));q('.cx-event').addEventListener('change',()=>seek(scenario.events.find(e=>e.id===q('.cx-event').value)?.atMs??clock));q('.cx-preset').addEventListener('change',()=>launch(q('.cx-preset').value));q('.cx-import-form').addEventListener('submit',e=>{e.preventDefault();importScenario(q('.cx-import').value);});q('.rv-theme').addEventListener('change',appearance);dark.addEventListener('change',()=>{if(q('.rv-theme').value==='system')appearance();});reduced.addEventListener('change',()=>{pause();cancelTransitions();render();});document.addEventListener('visibilitychange',()=>{if(document.hidden){pause();cancelTransitions();}});
 q('.cx-scenario').addEventListener('toggle',renderClock);
 q('.cx-preset').replaceChildren(...[['clean','Clean path'],...domain.SCENARIO_PRESET_CARDS.map(p=>[p.id,p.title])].map(([id,title])=>{const o=node('option','',title);o.value=id;return o;}));q('.cx-preset').value='clean';

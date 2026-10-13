@@ -5,13 +5,35 @@ isolated static pages, alongside the current React application. Their editable
 source, canonical fixture bundles, and historical audit material are in `source/`.
 They are design studies, with reference projections still awaiting integration.
 
+The October 12 integration compiles the reviewed lifecycle engine into the React
+application without shipping fixture data. TCP, DNS, TLS, and Journey feed it
+their real canonical selectors and keep the existing timelines, configuration,
+sharing, evidence, and inspectors. Packet-layer and physical-transit projections
+remain the native exact-byte/forwarding views. Provider visuals consume the
+current Builder tunnel/LSP projections. Connected hosts actual same-origin
+application workspaces; its fixture capture remains explicitly separate from
+the full capture-import workspace. A Journey detail visit keeps the original
+component mounted, paused, and inert, preserving the time, configuration,
+selected layer, and inspector on return.
+
+The renderer prepares cached actors while measuring but attaches only the active
+carrier (and an outgoing layer during a real focus handoff) to the live DOM.
+Each production mount owns and releases its listeners, observers, animation
+frames, and graphics surfaces. The existing performance budgets are unchanged.
+Chrome/Firefox geometry gates check the new measured content area and its clear
+control boundaries; they no longer expect the replaced decorative protocol
+scenes to occupy the whole stage. Native packet, physical, evidence, Builder,
+and source contracts remain enforced. Browser visual acceptance of this
+integration is recorded separately after deployment.
+
 ## Build and edit
 
 - Edit the HTML, CSS, and JS under `source/complete-review/`.
 - Run `npm run review:build` (Python 3, standard library only).
 - Run `npm run review:check` and commit the source, generated `public/review/`
   pages, and `build-manifest.json` together.
-- `npm run build` verifies the hashes before Vite copies the static pages. The
+- `npm run build` verifies the hashes, including generated production renderer
+  code/CSS, before Vite copies the static pages. The
   Cloudflare production build needs only its existing Node toolchain.
 - `/review/viewport.html` hosts each actual page at selectable CSS viewport
   widths/heights. It preserves the same iframe when resized. This is a browser
@@ -46,6 +68,10 @@ glyph placement, or compositor behavior.
   Workers Builds workflow. No additional deployment mechanism is introduced.
 - To roll back this isolated review publication, revert its merge commit through
   the same workflow. The main application and API logic are not changed here.
+
+The user authorized the complete default-app migration on October 11/12. This
+supersedes the original isolation-only rollout boundary for the new integration;
+historical import notes above still describe their own revision.
 
 ## Acceptance work
 
