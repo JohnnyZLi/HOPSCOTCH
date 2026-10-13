@@ -365,9 +365,10 @@ async function seekReviewed(cdp, title) {
 async function assertReviewedWirePlayback(cdp, title, id, report) {
   const selected = await seekReviewed(cdp, title);
   assert.equal(selected.local, false, title + ': a wire exchange was presented as a local decision.');
+  await screenshot(cdp,id+'-source-selection.png');
   await cdp.evaluate("(()=>{const rate=[...document.querySelectorAll('.visual-time-rail button')].find(b=>b.textContent.trim()==='2×');if(rate)rate.click();const play=document.querySelector('.visual-time-rail__controls button');if(play?.getAttribute('aria-label')==='Play scenario')play.click();})()");
   const deadline = performance.now()+Math.min(25000,selected.budget/2+2000);
-  const samples=[], phases=[], captured=new Set();
+  const samples=[], phases=[];
   let completed=false;
   while (performance.now()<deadline) {
     const sample = await reviewedSnapshot(cdp);
@@ -379,10 +380,6 @@ async function assertReviewedWirePlayback(cdp, title, id, report) {
         assert.equal(sample.lensTouchesSource,true,title + ': the painted reader misses the rendered source glyphs: '+JSON.stringify(sample));
       }
       samples.push(sample);
-      if (['construct','travel','open','read','release'].includes(sample.phase) && !captured.has(sample.phase)) {
-        await screenshot(cdp,id+'-'+sample.phase+'.png');
-        captured.add(sample.phase);
-      }
     }
     await sleep(35);
   }
