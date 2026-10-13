@@ -1,3 +1,4 @@
+import {checkCompletePresentation} from './complete-presentation-contract.mjs';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { EXPLORE_GROUPS, FEATURED_WORKSPACE_IDS, WORKSPACE_CATALOG, WORKSPACE_COUNT, WORKSPACE_IDS, WORKSPACE_PATHS, workspaceDefinition } from '../src/workspace-catalog.ts';
@@ -37,10 +38,6 @@ const exploreCss = readFileSync(new URL('../src/ExploreLauncher.css', import.met
 
 assert.ok(!app.includes('DESTINATION_LAYERS'));
 assert.ok(!app.includes('13 WORKSPACES'));
-assert.match(app, /document\.title = activeLab/);
-assert.match(app, /<CornerNavigator/);
-assert.match(app, /<ExploreLauncher/);
-assert.match(app, /<KineticOverview/);
 assert.match(corner, /aria-expanded=\{open\}/);
 assert.match(launcher, /WORKSPACE_COUNT/);
 assert.match(launcher, /event\.key !== 'Tab'/);
@@ -66,3 +63,5 @@ assert.match(protocolWorkspaceCss, /Phase 2 scene-first overrides for TLS and HT
 assert.match(exploreCss, /focus-visible/);
 
 console.log(`Integrated product contract OK: ${WORKSPACE_COUNT} routes, one corner navigator, one kinetic canonical overview, and presentation-only navigation boundaries.`);
+
+checkCompletePresentation();

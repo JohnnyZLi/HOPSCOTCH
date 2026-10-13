@@ -19,7 +19,7 @@ inputs = ['design-review/build.py', 'design-review/wrap-pages.py',
           'design-review/viewport.html', 'design-review/source/base-study.html',
           'design-review/source/workspace-reference-models.json']
 inputs += ['design-review/source/complete-review/' + name for name in [
-    'assemble.py', 'source-data.json', 'review.css', 'connected.css',
+    'assemble.py', 'production-runtime.py', 'production-evidence.js', 'production-builder.js', 'production-density.js', 'source-data.json', 'review.css', 'connected.css',
     'motion.html', 'motion.js', 'workbench.html', 'workbench.js',
     'evidence.html', 'evidence.js', 'connected.html', 'connected.js',
     'shared-painter.js', 'shared-ui.js', 'shared-network.js',
@@ -31,7 +31,8 @@ def hashes(paths):
     return {path: hashlib.sha256((repo / path).read_bytes()).hexdigest() for path in sorted(paths)}
 
 outputs = [str(path.relative_to(repo)) for path in (repo / 'public/review').glob('*.html')]
-outputs += ['src/redesign/lifecycle-runtime.js', 'src/redesign/lifecycle-runtime.css']
+outputs += [str(path.relative_to(repo)) for path in (repo / 'src/redesign').glob('*-runtime.*') if path.suffix in ('.js','.css')]
+outputs += [str(path.relative_to(repo)) for path in (repo / 'src/redesign').glob('*-domain.ts')]
 manifest = {'schema': 1, 'inputs': hashes(inputs), 'outputs': hashes(outputs)}
 (project / 'build-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 print('Recorded source/output integrity for', len(outputs), 'public review pages')

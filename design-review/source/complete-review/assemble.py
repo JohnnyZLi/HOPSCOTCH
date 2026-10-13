@@ -94,11 +94,12 @@ def integrated_runtime():
     """Compile the same renderer as a mountable module, without fixture data."""
     folder=Path('../../src/redesign')
     folder.mkdir(exist_ok=True)
-    markup=Path('complete-review/motion.html').read_text()
+    markup=header_markup('motion',Path('complete-review/motion.html').read_text())
     template=re.search(r'<section class="rv-shell">(.*?)</section>\s*<script>',markup,re.S)[0].rsplit('<script>',1)[0]
     template=template.replace('data-theme="light"','')
     material=Path('complete-review/shared-painter.js').read_text().replace('__VERTEX__','`'+vertex+'`').replace('__FRAGMENT__','`'+fragment+'`')
     runtime=Path('complete-review/motion.js').read_text()
+    runtime=production_lifecycle(runtime)
     adapters="(()=>{const root=document.getElementById('__ROOT__');\n"+Path('complete-review/source-adapters.js').read_text().replace('export { journeyFrames, dnsFrames, providerFrames };','root.sourcePresentation=Object.freeze({journeyFrames,dnsFrames,providerFrames});')+'\n})();'
     code='\n'.join([engine,helpers,Path('complete-review/shared-geometry.js').read_text().replace('export function','function'),*[Path('complete-review/'+name).read_text() for name in ['shared-ui.js','shared-reservation.js','shared-bytes.js','shared-presentation.js']],adapters,material,runtime,records])
     for identity in ['__ROOT__','hop-app-composition']:
@@ -110,7 +111,7 @@ export function mountLifecycle(element,data){
 const originalKeys=new Set(Reflect.ownKeys(element));
 const scope=createRuntimeScope(element),{document,window,matchMedia,requestAnimationFrame,cancelAnimationFrame,ResizeObserver,MutationObserver}=scope;
 element.innerHTML=__TEMPLATE__;
-element.reviewData=data; element.dataset.integrated='true';
+element.reviewData=data; element.dataset.integrated='false';
 """.replace('__TEMPLATE__',json.dumps(template))
     (folder/'lifecycle-runtime.js').write_text(prelude+code+"\nconst api=element.causalStudy,ownedKeys=Reflect.ownKeys(element).filter(key=>!originalKeys.has(key));let disposed=false;return {api,stats:scope.stats,dispose(){if(disposed)return;disposed=true;api.dispose();scope.dispose();for(const key of ownedKeys)Reflect.deleteProperty(element,key);element.replaceChildren();}};\n}\n")
     styles=shared_rules(css).replace('#hop-app-composition','.review-runtime')+'\n'+Path('complete-review/review.css').read_text().replace('#__ROOT__','.review-runtime')
@@ -128,5 +129,6 @@ if __name__=='__main__':
         if config[0]=='evidence':config[3]['world']=json.loads(Path('complete-review/world-110m.topojson').read_text())
     receipts=[assemble(*config) for config in configs]
     Path('complete-review/source-manifest.json').write_text(json.dumps(receipts,indent=2))
+    exec(Path("complete-review/production-runtime.py").read_text())
     integrated_runtime()
     print(json.dumps(receipts,indent=2))

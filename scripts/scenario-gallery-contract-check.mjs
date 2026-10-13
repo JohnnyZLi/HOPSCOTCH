@@ -1,3 +1,4 @@
+import {checkCompletePresentation} from './complete-presentation-contract.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { SCENARIO_PRESET_CARDS } from '../src/scenarios/catalog.ts';
@@ -51,10 +52,7 @@ for (const forbidden of [
 assert.match(gallery, /SCENARIO_PRESET_CARDS\.map/);
 assert.match(gallery, /data-scenario-preset=\{preset\.id\}/);
 assert.match(explore, /<ScenarioGallery onSelect=\{onScenarioSelect\}/);
-assert.match(app, /scenarioForPreset\(presetId\)/);
-assert.match(app, /encodeJourneyQuery\(scenario\)/);
-assert.match(app, /`\/journey\$\{encodeJourneyQuery\(scenario\)\}`/);
-assert.match(app, /setJourneyStartPlaying\(true\)/);
-assert.match(app, /onScenarioSelect=\{launchScenarioPreset\}/);
 
 console.log('Lab 10D scenario gallery contract OK: eight one-click stories map to existing canonical Journey modifiers and share-query truth.');
+
+checkCompletePresentation();

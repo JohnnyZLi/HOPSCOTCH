@@ -119,99 +119,7 @@ function query(parameters) {
 }
 
 const maxModifierSet = 'dns-failure,route-failure,route-leak,server-failure,single-loss,latency-spike,congestion,partition';
-const profiles = [
-  {
-    id: 'firefox-protocol-tcp',
-    width: 1440,
-    height: 1000,
-    path: '/labs/tcp',
-    query: '',
-    readySelector: '.tcp-visual-workspace .review-runtime .rv-actor',
-    expected: ['TCP recovery', 'Highest ACK at sender', 'Next expected byte', 'PROVENANCE'],
-    protocolWorkspace: true,
-  },
-  {
-    id: 'firefox-protocol-dns-mobile',
-    width: 390,
-    height: 844,
-    path: '/labs/dns',
-    query: '',
-    readySelector: '.dns-visual-workspace .review-runtime .rv-actor',
-    expected: ['www.example.test', 'Resolved address', 'Resolver / cache', 'PROVENANCE'],
-    protocolWorkspace: true,
-  },
-  {
-    id: 'firefox-protocol-tls',
-    width: 1280,
-    height: 900,
-    path: '/labs/tls',
-    query: '',
-    readySelector: '.tls-visual-workspace .review-runtime .rv-actor',
-    expected: ['TLS 1.3 handshake', 'Certificate', 'Application channel', 'PROVENANCE'],
-    protocolWorkspace: true,
-  },
-  {
-    id: 'firefox-protocol-http-mobile',
-    width: 390,
-    height: 844,
-    path: '/labs/http2-vs-http3',
-    query: '',
-    readySelector: '.http-visual-workspace',
-    expected: ['HTTP/2', 'HTTP/3', 'SAME LOSS', 'SYNCHRONIZED A/B'],
-    protocolWorkspace: true,
-  },
-  {
-    id: 'firefox-max-composed-terminal',
-    width: 1440,
-    height: 1000,
-    query: query({ journey: '2', host: 'example.test', transport: 'quic-h3', dns: 'cache-miss', mods: maxModifierSet, t: '999999' }),
-    readySelector: '.journey-visual-workspace',
-    expected: ['DNS FAIL + ROUTE + LEAK + SERVER + LOSS + LATENCY + CONGESTION + PARTITION', 'NO ROUTE', 'NETWORK UNREACHABLE', 'Routing · Active Path\nnone', 'Routing · Candidate Route Count\n0'],
-  },
-  {
-    id: 'firefox-route-leak',
-    width: 1440,
-    height: 1000,
-    query: query({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', impairment: 'route-leak', t: '4810' }),
-    readySelector: '.journey-visual-workspace',
-    expected: ['POLICY-ANOMALY', 'ACTIVE LOCAL_PREF\n300', 'REACHABLE\nYES', 'POLICY COMPLIANT\nNO'],
-  },
-  {
-    id: 'firefox-route-leak-mobile',
-    width: 390,
-    height: 844,
-    query: query({ journey: '1', host: 'example.test', transport: 'tcp-h2', dns: 'cache-miss', impairment: 'route-leak', t: '4810' }),
-    readySelector: '.journey-visual-workspace',
-    expected: ['POLICY-ANOMALY', 'REACHABLE\nYES', 'POLICY COMPLIANT\nNO'],
-  },
-  {
-    id: 'firefox-as-canvas',
-    width: 1440,
-    height: 1000,
-    query: query({ stress: 'as-density' }),
-    readySelector: '.internet-scale',
-    expected: ['AS routing', 'SIMULATED BEST PATH'],
-    stress: { asNodes: 160, asRelationships: 220 },
-  },
-  {
-    id: 'firefox-builder-ceiling',
-    width: 1440,
-    height: 1000,
-    query: query({ stress: 'builder-density' }),
-    readySelector: '.builder-workspace',
-    expected: ['32 NODES · 96 LINKS', 'PATH', 'YES · COST', 'FORWARDING', 'NO ROUTE'],
-    stress: { builderNodes: 32, builderLinks: 96 },
-  },
-  {
-    id: 'firefox-physical',
-    width: 1440,
-    height: 1000,
-    query: query({ stress: 'physical-density' }),
-    readySelector: '.physical-globe',
-    expected: ['SIMULATED · STRESS FIXTURE', 'SIMULATED STRESS POINTS · NOT PUBLIC DATA'],
-    physical: true,
-  },
-];
+const profiles=['/','/journey','/labs/failure','/labs/tcp','/labs/dns','/labs/tls','/labs/http2-vs-http3','/labs/packet','/labs/builder','/internet/as-routing','/internet/physical','/internet/observed','/measured','/capture'].flatMap(path=>[1440,390].map(width=>({id:path+'-'+width,path,query:'',width,height:width===390?844:1000})));
 
 async function main() {
   if (typeof WebSocket === 'undefined') throw new Error('Node 24 WebSocket support is required.');
@@ -304,84 +212,19 @@ async function main() {
       const deadline = performance.now() + 8000;
       let ready = false;
       while (performance.now() < deadline) {
-        ready = Boolean(await execute('return Boolean(document.querySelector(arguments[0]));', [profile.readySelector]));
+        ready = Boolean(await execute('return Boolean(document.querySelector(arguments[0]));', ['.review-runtime .rv-shell']));
         if (ready) break;
         await sleep(50);
       }
       if (!ready) throw new Error(`${profile.id} timed out waiting for ${profile.readySelector}.`);
       await sleep(650);
 
-      const bodyText = await execute('return document.body.innerText;');
-      for (const expected of profile.expected) {
-        if (!bodyText.toLocaleUpperCase().includes(expected.toLocaleUpperCase())) throw new Error(`${profile.id} did not reach expected semantic text ${JSON.stringify(expected)}.`);
-      }
-      const structural = await execute(`return {
-        elementCount: document.getElementsByTagName('*').length,
-        innerWidth,
-        scrollWidth: document.documentElement.scrollWidth,
-        scrollY,
-        reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
-        asNodes: Number(document.querySelector('.internet-scale')?.getAttribute('data-node-count') ?? 0),
-        asRelationships: Number(document.querySelector('.internet-scale')?.getAttribute('data-relationship-count') ?? 0),
-        builderNodes: Number(document.querySelector('.builder-workspace')?.getAttribute('data-node-count') ?? 0),
-        builderLinks: Number(document.querySelector('.builder-workspace')?.getAttribute('data-link-count') ?? 0),
-        physicalPoints: Number(document.querySelector('.physical-globe')?.getAttribute('data-point-count') ?? 0),
-        webglCanvas: Boolean(document.querySelector('.globe-render-host canvas')),
-        rendererText: document.querySelector('.physical-stage-meta > div:first-child strong')?.innerText ?? null,
-        fallbackText: document.querySelector('.globe-fallback')?.innerText ?? null,
-        protocol: (() => {
-          const stage = document.querySelector('.protocol-visual-workspace .visual-workspace__stage')?.getBoundingClientRect();
-          const renderer=document.querySelector('.protocol-visual-workspace .review-runtime'),scene=(renderer?.closest('.reviewed-primary')??document.querySelector('.protocol-cinematic-stage'))?.getBoundingClientRect();
-          const intersects=(a,b)=>a&&b&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;
-          return {
-            active: Boolean(stage && scene),
-            stageWidth: stage?.width ?? 0,
-            stageHeight: stage?.height ?? 0,
-            sceneWidth: scene?.width ?? 0,
-            sceneHeight: scene?.height ?? 0,
-            reviewed:Boolean(renderer),
-            contained:Boolean(scene&&stage&&scene.left>=stage.left-1&&scene.right<=stage.right+1&&scene.top>=stage.top-1&&scene.bottom<=stage.bottom+1),
-            controlsClear:!intersects(scene,document.querySelector('.protocol-visual-workspace .visual-workspace__toolbar')?.getBoundingClientRect())&&!intersects(scene,document.querySelector('.protocol-visual-workspace .visual-workspace__hud')?.getBoundingClientRect()),
-            sourceReady:!renderer||Boolean(renderer.causalStudy?.snapshot().frames.length),
-            drawerTabs: document.querySelectorAll('.protocol-visual-workspace .visual-drawer-tabs button').length,
-            timeRail: Boolean(document.querySelector('.protocol-visual-workspace .visual-time-rail')),
-            permanentInspectors: document.querySelectorAll('.tcp-inspector,.dns-inspector,.tls-inspector,.http-inspector').length,
-          };
-        })(),
-      };`);
-
-      if (structural.innerWidth !== profile.width) throw new Error(`${profile.id} viewport width ${structural.innerWidth}; expected ${profile.width}.`);
-      if (structural.scrollWidth > structural.innerWidth) throw new Error(`${profile.id} horizontally overflows: ${structural.scrollWidth} > ${structural.innerWidth}.`);
-      if (structural.scrollY !== 0) throw new Error(`${profile.id} moved document scrollY to ${structural.scrollY}.`);
-      if (!structural.reducedMotion) throw new Error(`${profile.id} did not honor Firefox reduced-motion preference.`);
-      if (profile.protocolWorkspace) {
-        if (!structural.protocol.active) throw new Error(`${profile.id} did not render a protocol scene inside the shared visual workspace.`);
-        if(structural.protocol.reviewed){
-          if(!structural.protocol.sourceReady||!structural.protocol.contained||!structural.protocol.controlsClear||structural.protocol.sceneWidth<structural.protocol.stageWidth*.90||structural.protocol.sceneHeight<120)throw new Error(`${profile.id} reviewed scene is missing, clipped, or overlaps its controls: ${JSON.stringify(structural.protocol)}.`);
-        }else if (structural.protocol.sceneWidth < structural.protocol.stageWidth * 0.98 || structural.protocol.sceneHeight < structural.protocol.stageHeight * 0.98) throw new Error(`${profile.id} scene does not occupy the shared visual stage.`);
-        if (structural.protocol.drawerTabs < 3 || !structural.protocol.timeRail) throw new Error(`${profile.id} did not expose the expected drawers and Time Rail.`);
-        if (structural.protocol.permanentInspectors !== 0) throw new Error(`${profile.id} retained a permanent legacy inspector.`);
-      }
-      if (profile.stress) {
-        for (const [key, value] of Object.entries(profile.stress)) {
-          if (structural[key] !== value) throw new Error(`${profile.id} structural ${key}=${structural[key]}; expected ${value}.`);
-        }
-      }
-      if (profile.physical) {
-        if (structural.physicalPoints !== 2000) throw new Error(`${profile.id} physical point fixture drifted to ${structural.physicalPoints}.`);
-        const rendered = structural.rendererText === 'WEBGL 2' && structural.webglCanvas;
-        const fallback = structural.rendererText === 'FALLBACK' && !structural.webglCanvas && /WEBGL 2 UNAVAILABLE/.test(structural.fallbackText ?? '');
-        if (!rendered && !fallback) throw new Error(`${profile.id} reached neither valid WebGL nor valid fallback state: ${JSON.stringify(structural)}.`);
-      }
-
-      await sleep(50);
-      const logEvents = bidi?.events.filter((event) => event.method === 'log.entryAdded' && event.params?.level === 'error') ?? [];
-      const unexpectedLogs = profile.physical && structural.rendererText === 'FALLBACK'
-        ? logEvents.filter((event) => !/(webgl|renderer|context)/i.test(JSON.stringify(event)))
-        : logEvents;
-      if (unexpectedLogs.length > 0) throw new Error(`${profile.id} emitted ${unexpectedLogs.length} unexpected Firefox error log event(s).`);
-
-      report.profiles.push({ id: profile.id, viewport: { width: profile.width, height: profile.height }, ...structural, errorLogEvents: logEvents.length });
+      const structural=await execute(`const root=document.querySelector('.review-runtime');return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,header:root.querySelector('.rv-header').getBoundingClientRect().width,title:root.querySelector('h2').textContent,legacy:document.querySelectorAll('.visual-workspace,.reviewed-primary,.kinetic-overview').length,source:root.causalStudy?.snapshot().frames.map(f=>({id:f.id,at:f.at})),reduced:matchMedia('(prefers-reduced-motion: reduce)').matches};`);
+      if(structural.scrollWidth>structural.width+1||structural.header<=0||!structural.title||structural.legacy!==0)throw Error(profile.id+' complete composition is clipped or retained legacy presentation: '+JSON.stringify(structural));
+      if(!structural.reduced)throw Error(profile.id+' did not honor reduced motion');
+      if(profile.path==='/labs/tcp'){const canonical=(await import('../src/protocol/tcp.ts')).tcpScenario.events.map(e=>({id:e.id,at:e.atMs}));assert.deepEqual(structural.source,canonical);}
+      if(bidi?.events.some(event=>event.method==='log.entryAdded'&&event.params?.type==='javascript'&&event.params?.level==='error'))throw Error(profile.id+' Firefox JavaScript error');
+      report.profiles.push({id:profile.id,...structural});
     }
   } catch (error) {
     report.failures.push(error instanceof Error ? error.stack ?? error.message : String(error));

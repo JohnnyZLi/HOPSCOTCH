@@ -1,0 +1,329 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "pe1",
+        "label": "PE1",
+        "kind": "router",
+        "builtin": false
+      },
+      {
+        "id": "p1",
+        "label": "P1",
+        "kind": "router",
+        "builtin": false
+      },
+      {
+        "id": "p2",
+        "label": "P2",
+        "kind": "router",
+        "builtin": false
+      },
+      {
+        "id": "pe2",
+        "label": "PE2",
+        "kind": "router",
+        "builtin": false
+      }
+    ],
+    "links": [
+      {
+        "id": "pe1-p1",
+        "a": "pe1",
+        "b": "p1",
+        "cost": 10,
+        "failed": false,
+        "builtin": false
+      },
+      {
+        "id": "p1-p2",
+        "a": "p1",
+        "b": "p2",
+        "cost": 10,
+        "failed": false,
+        "builtin": false
+      },
+      {
+        "id": "p2-pe2",
+        "a": "p2",
+        "b": "pe2",
+        "cost": 10,
+        "failed": false,
+        "builtin": false
+      }
+    ]
+  },
+  "layout": {
+    "pe1": {
+      "x": 10,
+      "y": 50
+    },
+    "p1": {
+      "x": 35,
+      "y": 50
+    },
+    "p2": {
+      "x": 65,
+      "y": 50
+    },
+    "pe2": {
+      "x": 90,
+      "y": 50
+    }
+  },
+  "addressing": {
+    "segments": {
+      "pe1-p1": {
+        "linkId": "pe1-p1",
+        "cidr": "10.0.0.8/30",
+        "interfaces": [
+          {
+            "nodeId": "pe1",
+            "name": "eth0",
+            "address": "10.0.0.9"
+          },
+          {
+            "nodeId": "p1",
+            "name": "eth1",
+            "address": "10.0.0.10"
+          }
+        ]
+      },
+      "p1-p2": {
+        "linkId": "p1-p2",
+        "cidr": "10.0.0.0/30",
+        "interfaces": [
+          {
+            "nodeId": "p1",
+            "name": "eth0",
+            "address": "10.0.0.1"
+          },
+          {
+            "nodeId": "p2",
+            "name": "eth0",
+            "address": "10.0.0.2"
+          }
+        ]
+      },
+      "p2-pe2": {
+        "linkId": "p2-pe2",
+        "cidr": "10.0.0.4/30",
+        "interfaces": [
+          {
+            "nodeId": "p2",
+            "name": "eth1",
+            "address": "10.0.0.5"
+          },
+          {
+            "nodeId": "pe2",
+            "name": "eth0",
+            "address": "10.0.0.6"
+          }
+        ]
+      }
+    },
+    "defaultGateways": {}
+  },
+  "routing": {
+    "staticRoutes": [],
+    "ospf": {
+      "enabledRouterIds": [
+        "p1",
+        "p2",
+        "pe1",
+        "pe2"
+      ],
+      "linkAreas": {},
+      "summaries": [],
+      "areaTypes": {},
+      "redistributions": []
+    },
+    "bgp": {
+      "routerAsns": {
+        "pe1": 64496,
+        "p1": 64497,
+        "p2": 64498,
+        "pe2": 64499
+      },
+      "enabledRouterIds": [
+        "p1",
+        "p2",
+        "pe1",
+        "pe2"
+      ],
+      "sessions": [
+        {
+          "id": "bgp-session:p1-p2",
+          "linkId": "p1-p2",
+          "aRouterId": "p1",
+          "bRouterId": "p2",
+          "enabled": true,
+          "relationship": "peer",
+          "customerRouterId": null,
+          "nextHopSelf": false,
+          "allowRelationshipLeak": false,
+          "routeReflectorClientRouterId": null,
+          "holdTimeMs": 90000
+        },
+        {
+          "id": "bgp-session:p2-pe2",
+          "linkId": "p2-pe2",
+          "aRouterId": "p2",
+          "bRouterId": "pe2",
+          "enabled": true,
+          "relationship": "peer",
+          "customerRouterId": null,
+          "nextHopSelf": false,
+          "allowRelationshipLeak": false,
+          "routeReflectorClientRouterId": null,
+          "holdTimeMs": 90000
+        },
+        {
+          "id": "bgp-session:pe1-p1",
+          "linkId": "pe1-p1",
+          "aRouterId": "pe1",
+          "bRouterId": "p1",
+          "enabled": true,
+          "relationship": "peer",
+          "customerRouterId": null,
+          "nextHopSelf": false,
+          "allowRelationshipLeak": false,
+          "routeReflectorClientRouterId": null,
+          "holdTimeMs": 90000
+        }
+      ],
+      "origins": [],
+      "policies": []
+    },
+    "policy": {
+      "redistributions": [],
+      "pbrRules": [],
+      "ecmpProfiles": [],
+      "summaries": [],
+      "ospfTimers": [],
+      "isis": {
+        "routers": [],
+        "links": []
+      }
+    },
+    "provider": {
+      "tunnels": [
+        {
+          "id": "gre-pe",
+          "kind": "gre",
+          "sourceRouterId": "pe1",
+          "destinationRouterId": "pe2",
+          "overlayPrefix": "172.31.255.0/30",
+          "localTunnelAddress": "172.31.255.1",
+          "remoteTunnelAddress": "172.31.255.2",
+          "enabled": true,
+          "securityState": "none",
+          "description": "GRE overlay"
+        },
+        {
+          "id": "ipsec-core",
+          "kind": "ipsec",
+          "sourceRouterId": "p1",
+          "destinationRouterId": "p2",
+          "overlayPrefix": "172.31.254.0/30",
+          "localTunnelAddress": "172.31.254.1",
+          "remoteTunnelAddress": "172.31.254.2",
+          "enabled": true,
+          "securityState": "ready",
+          "description": "IPsec-style semantic"
+        }
+      ],
+      "mpls": {
+        "enabledRouterIds": [
+          "p1",
+          "p2",
+          "pe1",
+          "pe2"
+        ],
+        "lsps": [
+          {
+            "id": "lsp-pe1-pe2",
+            "ingressRouterId": "pe1",
+            "egressRouterId": "pe2",
+            "fecPrefix": "10.20.0.0/16",
+            "enabled": true,
+            "description": "Provider LSP"
+          }
+        ]
+      },
+      "vxlan": {
+        "vteps": [
+          {
+            "routerId": "pe1",
+            "sourceAddress": "10.0.0.9",
+            "enabled": true
+          },
+          {
+            "routerId": "pe2",
+            "sourceAddress": "10.0.0.6",
+            "enabled": true
+          }
+        ],
+        "vnis": [
+          {
+            "id": "vni-10100",
+            "vni": 10100,
+            "memberVtepRouterIds": [
+              "pe1",
+              "pe2"
+            ],
+            "routeTarget": "64496:10100",
+            "description": "Tenant 10"
+          }
+        ],
+        "bindings": [
+          {
+            "id": "host-a",
+            "vni": 10100,
+            "vtepRouterId": "pe1",
+            "mac": "02:00:00:00:10:01",
+            "ip": "10.10.0.10",
+            "attachment": "SITE A",
+            "description": "Host A"
+          },
+          {
+            "id": "host-b",
+            "vni": 10100,
+            "vtepRouterId": "pe2",
+            "mac": "02:00:00:00:10:02",
+            "ip": "10.10.0.20",
+            "attachment": "SITE B",
+            "description": "Host B"
+          }
+        ],
+        "evpnEnabled": true
+      }
+    }
+  },
+  "profiles": {
+    "pe1-p1": {
+      "latencyMs": 5,
+      "jitterMs": 0,
+      "bandwidthMbps": 1000,
+      "lossPercent": 0,
+      "mtuBytes": 1500,
+      "queuePackets": 256
+    },
+    "p1-p2": {
+      "latencyMs": 5,
+      "jitterMs": 0,
+      "bandwidthMbps": 1000,
+      "lossPercent": 0,
+      "mtuBytes": 1500,
+      "queuePackets": 256
+    },
+    "p2-pe2": {
+      "latencyMs": 5,
+      "jitterMs": 0,
+      "bandwidthMbps": 1000,
+      "lossPercent": 0,
+      "mtuBytes": 1500,
+      "queuePackets": 256
+    }
+  }
+}
