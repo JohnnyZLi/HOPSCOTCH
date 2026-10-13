@@ -31,6 +31,7 @@ html[data-design=reviewed] body .journey-visual-workspace .visual-time-rail{back
 html[data-design=reviewed] :is(.visual-drawer,.visual-drawer__header,.protocol-inspect-event,.protocol-model-drawer>section,.protocol-inspect-drawer>section,.journey-inspect-drawer>section,.builder-context-drawer,.builder-device-workbench,.measured-card,.capture-panel,.capture-toolbar,.capture-sidebar,.explore-dialog,.explore-panel){background:var(--design-panel);color:var(--design-ink);border-color:var(--design-line);box-shadow:0 8px 24px var(--design-shadow)}
 html[data-design=reviewed] :is(.visual-drawer h2,.visual-drawer h3,.visual-drawer strong,.protocol-fact-grid strong,.protocol-meter-pair strong,.journey-inspect-event h3,.builder-context-drawer strong,.measured-card strong,.capture-panel strong){color:var(--design-ink)}
 html[data-design=reviewed] :is(.visual-drawer p,.visual-drawer small,.protocol-fact-grid small,.protocol-meter-pair small,.builder-context-drawer small){color:var(--design-muted)}
+html[data-design=reviewed] body .visual-workspace .visual-drawer{background:var(--design-panel)!important;border-color:var(--design-line)!important;color:var(--design-ink);box-shadow:0 8px 24px var(--design-shadow)!important}
 html[data-design=reviewed] .visual-drawer-tabs button{font-size:13px;padding:8px 12px;letter-spacing:normal}
 html[data-design=reviewed] :is(.tcp-visual-workspace,.dns-visual-workspace,.tls-visual-workspace,.journey-visual-workspace) .visual-workspace__toolbar{position:relative;top:auto;left:auto;right:auto;padding:12px;flex-wrap:wrap;gap:10px}
 html[data-design=reviewed] :is(.tcp-visual-workspace,.dns-visual-workspace,.tls-visual-workspace,.journey-visual-workspace) .visual-workspace__hud{position:relative;top:auto;left:auto;margin:0 12px;gap:8px}
@@ -79,6 +80,7 @@ html[data-design=reviewed] .capture-replay .capture-flow-list>button{opacity:1!i
 html[data-design=reviewed] .capture-replay .capture-flow-list>button .capture-flow-protocol{color:var(--design-accent)!important}
 html[data-design=reviewed] .capture-analysis-drawer :is(.capture-track-h-summary>div,.capture-theater-stages article){background:transparent!important;box-shadow:none}
 @media(max-width:680px){
+ html[data-design=reviewed] .visual-workspace .visual-drawer{position:fixed;inset:var(--design-header-offset,76px) 0 0;width:100%;border-radius:20px 20px 0 0;backdrop-filter:none}
  html[data-design=reviewed] .capture-replay{width:100%}
  html[data-design=reviewed] .capture-replay :is(.capture-flow-browser,.capture-evidence-inspector,.capture-analysis-drawer,.capture-session-drawer){inset:0;width:100%}
  html[data-design=reviewed] .capture-replay .capture-heading-actions{flex-wrap:wrap;overflow:visible;max-width:100%;width:100%;gap:6px}
@@ -93,7 +95,7 @@ html[data-design=reviewed] .capture-analysis-drawer :is(.capture-track-h-summary
  html[data-design=reviewed] .http-divergence-axis span{transform:translate(-50%,-50%);padding:4px 8px;font-size:12px;background:var(--design-panel)}
 }
 html[data-design=reviewed] [hidden]{display:none!important}
-html[data-design=reviewed] .app-shell[data-embedded=true]{padding-top:12px}
+html[data-design=reviewed] .app-shell[data-embedded=true]{--design-header-offset:0px;padding-top:12px}
 html[data-design=reviewed] .app-shell[data-embedded=true]>.design-header{display:none}
 html[data-design=reviewed] .app-shell[data-embedded=true]>.corner-navigator{top:16px;z-index:30}
 @media(max-width:600px){.design-header{padding:10px 98px 10px 16px;gap:8px}.design-header__identity{gap:6px;flex-wrap:wrap}.design-header__identity span{display:none}.design-header label{font-size:0}.design-header select{font-size:14px;max-width:96px}html[data-design=reviewed] .app-shell{padding-top:76px}html[data-design=reviewed] .corner-navigator{right:14px}html[data-design=reviewed] .visual-workspace{width:calc(100% - 16px)}html[data-design=reviewed] :is(input:not([type=range]),textarea){font-size:16px}}
