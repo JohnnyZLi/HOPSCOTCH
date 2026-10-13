@@ -324,7 +324,7 @@ function readReviewedDOM() {
   const lens = root.querySelector('.rv-lens');
   const lensBox = rect(lens);
   return {
-    id:frame.id, title:frame.title, phase:snapshot.at.kind, local:frame.local, protocol:frame.protocol,
+    id:frame.id, title:frame.title, objectTitle:actor?.querySelector('.rv-actor-title')?.textContent, phase:snapshot.at.kind, local:frame.local, protocol:frame.protocol,
     sourceUnchanged:frame.event?.id===frame.id && frame.event?.atMs===frame.at,
     sourceAt:frame.at, canonicalTime:Number(document.querySelector('input[aria-label="Scenario time"]')?.value),
     budget:(snapshot.plan.starts[snapshot.at.index+1]??snapshot.plan.total)-snapshot.plan.starts[snapshot.at.index],
@@ -454,7 +454,8 @@ async function assertQuicCausalWorld(cdp, origin, report) {
   await assertReviewedWirePlayback(cdp,'QUIC Initial leaves the client','00q1-quic-initial',report);
   const protection=await seekReviewed(cdp,'1-RTT keys ready');
   const request=await seekReviewed(cdp,'GET / on example.test');
-  assert.match(request.fields.map(field=>field.value).join(' '),/HTTP\/3|h3/,'The QUIC request lost HTTP/3 application meaning.');
+  assert.match(request.objectTitle??'',/HTTP\/3|h3/,'The QUIC request lost its rendered HTTP/3 identity.');
+  assert.match(request.fields.map(field=>field.value).join(' '),/GET/,'The QUIC request lost its application method.');
   await seekEvent(cdp,'Application data isolated');
   await waitForHero(cdp,'assembly',350);
   const applicationLayer=await cdp.evaluate("(()=>{const el=document.querySelector('[data-phase5-layer=\"application\"]');return el?{text:el.textContent,visible:el.getAttribute('data-visible')}:null;})()");

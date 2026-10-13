@@ -2,6 +2,17 @@ import assert from 'node:assert/strict';
 
 // Browser-contract evidence for the shared renderer, not visual acceptance.
 export async function reviewedSceneGeometry(cdp, label, expectedEvent) {
+  const deadline=Date.now()+5000;
+  while(Date.now()<deadline){
+    const ready=await cdp.evaluate(`(()=>{
+      const root=document.querySelector('.review-runtime'),snapshot=root?.causalStudy?.snapshot();
+      const actor=root?.querySelector('.rv-actor[aria-hidden="false"]');
+      return Boolean(snapshot?.plan&&snapshot.at&&actor?.getBoundingClientRect().width>0&&
+        (!${JSON.stringify(expectedEvent??null)}||snapshot.frames[snapshot.at.index].id===${JSON.stringify(expectedEvent??null)}));
+    })()`);
+    if(ready)break;
+    await new Promise(resolve=>setTimeout(resolve,30));
+  }
   const geometry = await cdp.evaluate(`(()=>{
     const root=document.querySelector('.review-runtime'),snapshot=root?.causalStudy?.snapshot();
     if(!root||!snapshot?.plan)return null;
