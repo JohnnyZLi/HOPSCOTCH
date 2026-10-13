@@ -27,6 +27,7 @@ import './JourneyShapeStateCorrections.css';
 import './JourneyShapeTuning.css';
 import './JourneyDnsLidMotion.css';
 import './redesign/design-system.css';
+import {applyAppearance, readAppearance} from './redesign/appearance';
 
 type StressProfile = 'as-density' | 'builder-density' | 'physical-density';
 
@@ -38,8 +39,7 @@ function stressProfileFromSearch(search: string): StressProfile | null {
 }
 
 const stressProfile = typeof window === 'undefined' ? null : stressProfileFromSearch(window.location.search);
-document.documentElement.dataset.design = 'reviewed';
-document.documentElement.dataset.theme = 'light';
+applyAppearance(readAppearance());
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

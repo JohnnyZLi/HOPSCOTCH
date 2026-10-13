@@ -676,9 +676,10 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
   };
   frameCurrent.current=frameBuilder;
   useEffect(()=>{
-    const workspace=canvasRef.current?.closest('.builder-workspace'),toolbar=workspace?.querySelector('.builder-world-toolbar'),stage=workspace?.querySelector<HTMLElement>('.builder-stage');if(!toolbar||!stage)return;
-    let prior='';const measure=()=>{const tools=toolbar.getBoundingClientRect(),box=stage.getBoundingClientRect();if(!tools.height||!box.height)return;const top=Math.max(12,tools.bottom-box.top+12)+'px';if(top===prior)return;prior=top;stage.style.setProperty('--builder-hud-top',top);};
-    const observer=new ResizeObserver(measure);observer.observe(toolbar);observer.observe(stage);measure();return()=>observer.disconnect();
+    const workspace=canvasRef.current?.closest('.builder-workspace'),toolbar=workspace?.querySelector('.builder-world-toolbar'),stage=workspace?.querySelector<HTMLElement>('.builder-stage'),hud=stage?.querySelector('.builder-stage-meta'),switcher=stage?.querySelector('.builder-scene-switcher');if(!toolbar||!stage||!hud||!switcher)return;
+    const set=(name:string,value:number)=>{const next=value+'px';if(stage.style.getPropertyValue(name)!==next)stage.style.setProperty(name,next);};
+    const measure=()=>{const tools=toolbar.getBoundingClientRect(),box=stage.getBoundingClientRect();if(!tools.height||!box.height)return;set('--builder-hud-top',Math.max(12,tools.bottom-box.top+12));set('--builder-switcher-top',hud.getBoundingClientRect().bottom-box.top+8);set('--builder-canvas-top',switcher.getBoundingClientRect().bottom-box.top+16);};
+    const observer=new ResizeObserver(measure);for(const node of [toolbar,stage,hud,switcher])observer.observe(node);measure();return()=>observer.disconnect();
   },[stressLabel]);
   useEffect(()=>{
     if(stressLabel)return;const canvas=canvasRef.current;if(!canvas)return;let job=0,key='';
@@ -690,7 +691,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
       <div className="builder-world-toolbar">
         <div className="interactive-world-toolbar__identity"><span>Network builder</span><strong>Topology · forwarding · causality</strong></div>
         <button type="button" className="builder-command-toggle" aria-expanded={builderMenuOpen} aria-controls="builder-command-menu" onClick={() => setBuilderMenuOpen((current) => !current)}><span>Network tools</span><i aria-hidden="true" /></button>
-        <div id="builder-command-menu" className={`builder-command-menu ${builderMenuOpen ? 'open' : ''}`} aria-hidden={!builderMenuOpen}>
+        <div id="builder-command-menu" className={`builder-command-menu ${builderMenuOpen ? 'open' : ''}`} hidden={!builderMenuOpen} aria-hidden={!builderMenuOpen} onClick={event=>{if(event.target instanceof Element&&event.target.closest('button:not(:disabled)'))setBuilderMenuOpen(false);}}>
           <div className="builder-world-tools" role="toolbar" aria-label="Builder tools">
             {!stressLabel&&<><button type="button" onClick={()=>{frameBuilder('network',true);setBuilderMenuOpen(false);}}>Frame network</button><button type="button" onClick={()=>{frameBuilder('forwarding',true);setBuilderMenuOpen(false);}}>Show forwarding path</button></>}
             <button type="button" className={`builder-tool-inspect ${builderDrawer === 'inspect' ? 'active' : ''}`} aria-pressed={builderDrawer === 'inspect'} onClick={() => setBuilderDrawer((current) => current === 'inspect' ? null : 'inspect')}>Inspect</button>
