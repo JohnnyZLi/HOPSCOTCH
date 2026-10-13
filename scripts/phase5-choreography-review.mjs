@@ -282,254 +282,190 @@ async function animationEvidence(cdp, spec, report) {
 
 async function navigateJourney(cdp, origin, dns = 'cache-miss', transport = 'tcp-h2') {
   const query = new URLSearchParams({ journey: '1', host: 'example.test', transport, dns, impairment: 'clean', t: '0' });
-  await cdp.call('Page.navigate', { url: `${origin}/journey?${query.toString()}` });
-  await waitForExpression(cdp, `Boolean(document.querySelector('.journey-visual-workspace'))`);
-  await waitForExpression(cdp, `document.querySelectorAll('.visual-time-rail__events button').length > 15`);
-  await waitForExpression(cdp, `Boolean(document.querySelector('[data-journey-causal-world="true"]'))`);
+  await cdp.call('Page.navigate', { url: origin + '/journey?' + query.toString() });
+  await waitForExpression(cdp, "Boolean(document.querySelector('.journey-visual-workspace'))");
+  await waitForExpression(cdp, "document.querySelectorAll('.visual-time-rail__events button').length > 15");
+  await waitForExpression(cdp, "Boolean(document.querySelector('.journey-reviewed-scene .review-runtime')?.causalStudy?.snapshot().plan)");
 }
 
 function assertChromeRange(frame, context) {
-  assert.equal(frame.toolbar, 1, `${context}: toolbar text must not be faded by its container.`);
-  assert.equal(frame.hud, 1, `${context}: metadata must retain full text contrast.`);
-  assert.ok(frame.callout !== null && frame.callout <= .08, `${context}: narration card still substitutes for animation: ${JSON.stringify(frame)}`);
-  assert.equal(frame.timeline, 1, `${context}: playback controls must retain full contrast.`);
+  assert.equal(frame.toolbar, 1, context + ': toolbar text must not be faded by its container.');
+  assert.equal(frame.hud, 1, context + ': metadata must retain full text contrast.');
+  assert.ok(frame.callout !== null && frame.callout <= .08, context + ': narration card still substitutes for animation: ' + JSON.stringify(frame));
+  assert.equal(frame.timeline, 1, context + ': playback controls must retain full contrast.');
+}
+
+function readReviewedDOM() {
+  const root = document.querySelector('.journey-reviewed-scene .review-runtime');
+  const snapshot = root?.causalStudy?.snapshot();
+  if (!snapshot?.at || !snapshot.plan) return null;
+  const frame = snapshot.frames[snapshot.at.index];
+  const actor = root.querySelector('.rv-actor[aria-hidden="false"]');
+  const rect = node => {
+    if (!node) return null;
+    const r = node.getBoundingClientRect();
+    return {left:r.left, top:r.top, right:r.right, bottom:r.bottom, width:r.width, height:r.height, centerX:r.left+r.width/2, centerY:r.top+r.height/2};
+  };
+  const opacity = node => {
+    let result = 1;
+    for (; node instanceof Element; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      result *= style.display === 'none' || style.visibility === 'hidden' ? 0 : Number(style.opacity);
+    }
+    return result;
+  };
+  const values = [...(actor?.querySelectorAll('.rv-field-value') ?? [])];
+  const glyphs = values.flatMap(value => {
+    const range = document.createRange();
+    range.selectNodeContents(value);
+    return [...range.getClientRects()].map(r => ({left:r.left, top:r.top, right:r.right, bottom:r.bottom}));
+  });
+  const lens = root.querySelector('.rv-lens');
+  const lensBox = rect(lens);
+  return {
+    id:frame.id, title:frame.title, phase:snapshot.at.kind, local:frame.local, protocol:frame.protocol,
+    sourceUnchanged:frame.event?.id===frame.id && frame.event?.atMs===frame.at,
+    sourceAt:frame.at, canonicalTime:Number(document.querySelector('input[aria-label="Scenario time"]')?.value),
+    budget:(snapshot.plan.starts[snapshot.at.index+1]??snapshot.plan.total)-snapshot.plan.starts[snapshot.at.index],
+    actor:rect(actor), actorOpacity:opacity(actor), actorCount:root.querySelectorAll('.rv-actors > .rv-actor').length,
+    faceOpacity:actor ? Number(getComputedStyle(actor.querySelector('.rv-actor-face')).opacity) : 0,
+    fields:[...(actor?.querySelectorAll('.rv-field')??[])].filter(n=>!n.hidden).map(n=>({id:n.dataset.field,label:n.querySelector('.rv-field-label').textContent,value:n.querySelector('.rv-field-value').textContent})),
+    sourceFields:frame.fields.map(f=>({id:f.id,label:f.label,value:String(f.value)})),
+    fonts:values.map(value=>parseFloat(getComputedStyle(value).fontSize)),
+    lens:lensBox, lensOpacity:opacity(lens),
+    lensTouchesSource:Boolean(lensBox && glyphs.some(g=>g.left<lensBox.right && g.right>lensBox.left && g.top<lensBox.bottom && g.bottom>lensBox.top)),
+    hiddenNative:document.querySelector('.journey-scene-transition')?.dataset.reviewedSuppressed==='true',
+    persistent:root.dataset.persistenceProbe==='reviewed-journey',
+  };
+}
+
+async function reviewedSnapshot(cdp) {
+  return cdp.evaluate('(' + readReviewedDOM.toString() + ')()');
+}
+
+function assertReviewedSource(sample, context) {
+  assert.ok(sample?.actor, context + ': the source object is missing.');
+  assert.equal(sample.sourceUnchanged, true, context + ': event identity or canonical timestamp changed.');
+  assert.deepEqual(sample.fields, sample.sourceFields, context + ': rendered fields disagree with the canonical projection.');
+  assert.ok(sample.fonts.length && sample.fonts.every(size=>size>=12), context + ': source values are not readable.');
+  assert.ok(sample.actorCount<=2, context + ': stale event carriers remain attached.');
+}
+
+async function seekReviewed(cdp, title) {
+  await seekEvent(cdp, title);
+  await waitForExpression(cdp, "(function(){const s=document.querySelector('.journey-reviewed-scene .review-runtime')?.causalStudy?.snapshot();return Boolean(s?.at && s.frames[s.at.index].title===" + JSON.stringify(title) + ");})()");
+  const sample = await reviewedSnapshot(cdp);
+  assertReviewedSource(sample, title);
+  assert.ok(sample.actorOpacity>=.75, title + ': the selected source object is not painted.');
+  assert.equal(sample.hiddenNative, true, title + ': a replaced scene still paints under the source object.');
+  return sample;
+}
+
+async function assertReviewedWirePlayback(cdp, title, id, report) {
+  const selected = await seekReviewed(cdp, title);
+  assert.equal(selected.local, false, title + ': a wire exchange was presented as a local decision.');
+  await cdp.evaluate("(()=>{const rate=[...document.querySelectorAll('.visual-time-rail button')].find(b=>b.textContent.trim()==='2×');if(rate)rate.click();const play=document.querySelector('.visual-time-rail__controls button');if(play?.getAttribute('aria-label')==='Play scenario')play.click();})()");
+  const deadline = performance.now()+Math.min(25000,selected.budget/2+2000);
+  const samples=[], phases=[], captured=new Set();
+  let completed=false;
+  while (performance.now()<deadline) {
+    const sample = await reviewedSnapshot(cdp);
+    if (sample && sample.id!==selected.id) {completed=true;break;}
+    if (sample) {
+      assertReviewedSource(sample,title);
+      if (phases.at(-1)!==sample.phase) phases.push(sample.phase);
+      if (sample.phase==='read' && sample.lensOpacity>.8 && sample.faceOpacity>.95) {
+        assert.equal(sample.lensTouchesSource,true,title + ': the painted reader misses the rendered source glyphs: '+JSON.stringify(sample));
+      }
+      samples.push(sample);
+      if (['construct','travel','open','read','release'].includes(sample.phase) && !captured.has(sample.phase)) {
+        await screenshot(cdp,id+'-'+sample.phase+'.png');
+        captured.add(sample.phase);
+      }
+    }
+    await sleep(35);
+  }
+  await cdp.evaluate("(()=>{const play=document.querySelector('.visual-time-rail__controls button');if(play?.getAttribute('aria-label')==='Pause scenario')play.click();})()");
+  assert.equal(completed,true,title + ': playback did not complete its measured source interval: '+JSON.stringify(phases));
+  assert.equal(phases.filter(phase=>phase==='open').length,1,title + ': the wire object did not have exactly one receive-side opening.');
+  for (const phase of ['construct','travel','open','read','release']) assert.ok(phases.includes(phase),title + ': missing live '+phase+' phase: '+JSON.stringify(phases));
+  assert.ok(phases.indexOf('construct')<phases.indexOf('travel') && phases.indexOf('travel')<phases.indexOf('open') && phases.indexOf('open')<phases.indexOf('read'),title + ': wire lifecycle order changed.');
+  const travel=samples.filter(sample=>sample.phase==='travel');
+  assert.ok(travel.length>=2,title + ': flight has no intermediate geometry samples.');
+  assert.ok(Math.max(...travel.map(sample=>centerDistance(travel[0].actor,sample.actor)))>=30,title + ': the compact packet does not visibly travel.');
+  for (const dimension of ['width','height']) {
+    const sizes=travel.map(sample=>sample.actor[dimension]);
+    assert.ok(Math.max(...sizes)-Math.min(...sizes)<=1,title + ': compact wire size changes during travel.');
+  }
+  report.animations.push({id,event:title,phases,samples});
 }
 
 async function assertVisualHandoff(cdp, report) {
-  await seekEvent(cdp, 'GET / on example.test');
-  await sleep(1100);
-  const beforeObject = await metric(cdp, '.causal-object');
-  const beforeCore = await metric(cdp, '.causal-object__payload');
-  assert.ok(beforeObject && beforeCore, 'HTTP request mechanism is missing before packet handoff.');
-
-  await seekEvent(cdp, 'Application data isolated');
-  await sleep(100);
-  const earlyObject = await metric(cdp, '.causal-object');
-  const earlyCore = await metric(cdp, '.causal-mechanism-core');
-  const earlyPacket = await metric(cdp, '.phase5c-application');
-  const earlyCamera = await metric(cdp, '.causal-camera');
-  await screenshot(cdp, '00h-handoff-early.png');
-
+  const before=await seekReviewed(cdp,'GET / on example.test');
+  assert.match(before.fields.map(field=>field.value).join(' '),/GET/,'The source request lost its HTTP method.');
+  await seekEvent(cdp,'Application data isolated');
+  await waitForHero(cdp,'assembly',120);
+  const early=await metric(cdp,'.phase5c-application');
+  await screenshot(cdp,'00h-handoff-early.png');
   await sleep(430);
-  const midObject = await metric(cdp, '.causal-object');
-  const midCore = await metric(cdp, '.causal-mechanism-core');
-  const midPacket = await metric(cdp, '.phase5c-application');
-  const midCamera = await metric(cdp, '.causal-camera');
-  await screenshot(cdp, '00h-handoff-mid.png');
-
+  const mid=await metric(cdp,'.phase5c-application');
+  await screenshot(cdp,'00h-handoff-mid.png');
   await sleep(760);
-  const settledObject = await metric(cdp, '.causal-object');
-  const settledPacket = await metric(cdp, '.phase5c-application');
-  const settledCamera = await metric(cdp, '.causal-camera');
-  await screenshot(cdp, '00h-handoff-settled.png');
-
-  for (const [label, camera, packet] of [
-    ['early', earlyCamera, earlyPacket], ['mid', midCamera, midPacket], ['settled', settledCamera, settledPacket],
-  ]) {
-    assert.ok(camera && packet, `Handoff ${label}: request geometry is missing.`);
-    assert.equal(camera.paintedOpacity, 0, `Handoff ${label}: the old request scaffold still paints beneath the packet.`);
-    assert.ok(packet.paintedOpacity >= .75, `Handoff ${label}: packet disappeared during the handoff: ${JSON.stringify(packet)}`);
-    assert.ok(packet.filter === 'none' || packet.filter === 'blur(0px)', `Handoff ${label}: packet blurred during the handoff.`);
+  const settled=await metric(cdp,'.phase5c-application');
+  await screenshot(cdp,'00h-handoff-settled.png');
+  for (const [label,packet] of [['early',early],['mid',mid],['settled',settled]]) {
+    assert.ok(packet?.paintedOpacity>=.75,'Handoff '+label+': the native packet disappears.');
+    assert.ok(packet.filter==='none'||packet.filter==='blur(0px)','Handoff '+label+': packet is blurred.');
   }
-  assert.ok(beforeCore.paintedOpacity >= .75, 'HTTP payload must be visible before the handoff.');
-  assert.ok(centerDistance(beforeCore, midPacket) <= 280, `Packet hero appears disconnected from the preceding request: ${centerDistance(beforeCore, midPacket).toFixed(1)}px.`);
-  assert.ok(earlyObject && midObject && settledObject, 'The persistent request identity was removed from the causal world.');
-  assert.ok([earlyObject, midObject, settledObject, earlyCore, midCore].every((item) => item && item.paintedOpacity === 0), 'Duplicate request frames painted during packet assembly.');
-
-  await seekEvent(cdp, 'TCP segment assembles');
-  await sleep(1050);
-  const transportScaffold = await metric(cdp, '.causal-mechanism-core');
-  assert.equal(transportScaffold?.paintedOpacity, 0, 'The old scaffold reappeared during transport assembly.');
-
-  report.handoff = { beforeObject, beforeCore, earlyObject, earlyCore, earlyPacket, midObject, midCore, midPacket, settledObject, settledPacket, transportScaffold };
+  const ownership=await cdp.evaluate("(()=>{const host=document.querySelector('.journey-reviewed-scene');return {hidden:host?.getAttribute('aria-hidden'),inert:host?.inert,carriers:host?.querySelectorAll('.rv-actor').length};})()");
+  assert.deepEqual(ownership,{hidden:'true',inert:true,carriers:0},'Handoff leaves duplicate active review carriers.');
+  assert.ok(centerDistance(before.actor,mid)<=280,'Packet handoff is disconnected from the preceding source request.');
+  report.handoff={before,early,mid,settled,ownership};
 }
 
 async function assertOpeningCausalWorld(cdp, origin, report) {
-  const firstFrame = await cdp.evaluate(`(()=>{
-    const world=document.querySelector('[data-journey-causal-world="true"]');
-    const object=document.querySelector('[data-causal-object="request-01"]');
-    const opacity=(selector)=>{const el=document.querySelector(selector);return el?Number(getComputedStyle(el).opacity):null};
-    if(world)world.dataset.persistenceProbe='opening-world';
-    const style=object?getComputedStyle(object):null;
-    return {
-      event:world?.getAttribute('data-causal-event')??null,
-      entrance:Boolean(document.querySelector('.visual-entrance')),
-      objectAnimation:style?.animationName??null,
-      objectDuration:style?.animationDuration??null,
-      toolbar:opacity('.visual-workspace__toolbar'),
-      hud:opacity('.visual-workspace__hud'),
-      callout:opacity('.journey-callout-overlay'),
-      timeline:opacity('.visual-time-rail'),
-    };
-  })()`);
-  assert.equal(firstFrame.event, 'intent', `Journey did not begin with the intent object: ${JSON.stringify(firstFrame)}`);
-  assert.equal(firstFrame.entrance, false, 'A full-stage title interstitial still obscures time-zero choreography.');
-  assert.equal(firstFrame.objectAnimation, 'causal-object-enter', `The first causal object has no time-zero entrance animation: ${JSON.stringify(firstFrame)}`);
-  assertChromeRange(firstFrame, 'Opening');
-  const firstMechanism = await metric(cdp, '.causal-mechanism-node.node-name');
-  assert.ok(firstMechanism && Number(firstMechanism.opacity) >= .9 && firstMechanism.width >= 70, `Opening is not object-first: ${JSON.stringify(firstMechanism)}`);
-  await screenshot(cdp, '00-opening-intent.png');
-
-  await transitionEvidence(cdp, {
-    id: '00a-cache-opens',
-    from: 'Navigate to example.test',
-    to: 'DNS cache miss',
-    selector: '.causal-cache__lid',
-    settleBefore: 80,
-    earlyMs: 80,
-    midMs: 520,
-    endMs: 1180,
-  }, report);
-  await animationEvidence(cdp, {
-    id: '00b-query-travels',
-    event: 'Stub asks recursive resolver',
-    selector: '.causal-dns-query',
-    earlyMs: 70,
-    midMs: 460,
-    endMs: 1040,
-  }, report);
-  await animationEvidence(cdp, {
-    id: '00c-answer-returns',
-    event: 'example.test → 203.0.113.42',
-    selector: '.causal-dns-answer',
-    earlyMs: 70,
-    midMs: 560,
-    endMs: 1240,
-  }, report);
-  await seekEvent(cdp, 'example.test → 203.0.113.42');
-  await sleep(1200);
-  const addressNode = await metric(cdp, '.causal-mechanism-node.node-address');
-  assert.ok(addressNode && Number(addressNode.opacity) >= .8, `DNS answer did not visibly dock into the persistent mechanism: ${JSON.stringify(addressNode)}`);
-  await screenshot(cdp, '00c2-address-docked.png');
-
-  await transitionEvidence(cdp, {
-    id: '00d-route-locks',
-    from: 'Destination enters the routing table',
-    to: 'Default gateway selected',
-    selector: '.route-selected',
-    settleBefore: 160,
-    earlyMs: 70,
-    midMs: 560,
-    endMs: 1240,
-  }, report);
-  await seekEvent(cdp, 'Default gateway selected');
-  await sleep(850);
-  const routeNode = await metric(cdp, '.causal-mechanism-node.node-route');
-  const routeTarget = await metric(cdp, '.causal-route-target');
-  assert.ok(routeNode && Number(routeNode.opacity) >= .8 && routeTarget, `Routing did not add a mechanical next-hop stage: ${JSON.stringify({ routeNode, routeTarget })}`);
-  await screenshot(cdp, '00d2-route-mechanism.png');
-
-  await animationEvidence(cdp, {
-    id: '00e-syn-travels',
-    event: 'SYN leaves the client',
-    selector: '.causal-tcp-flight',
-    earlyMs: 70,
-    midMs: 460,
-    endMs: 1040,
-  }, report);
-  await seekEvent(cdp, 'TCP connection established');
-  await sleep(700);
-  const sessionNode = await metric(cdp, '.causal-mechanism-node.node-session');
-  assert.ok(sessionNode && Number(sessionNode.opacity) >= .8, `Established connection did not become part of the persistent mechanism: ${JSON.stringify(sessionNode)}`);
-
-  await transitionEvidence(cdp, {
-    id: '00f-clienthello-unfolds',
-    from: 'TCP connection established',
-    to: 'ClientHello',
-    selector: '.causal-client-hello',
-    settleBefore: 120,
-    earlyMs: 70,
-    midMs: 520,
-    endMs: 1120,
-  }, report);
-  await transitionEvidence(cdp, {
-    id: '00g-payload-becomes-opaque',
-    from: 'Certificate identity validated',
-    to: 'Application traffic keys ready',
-    selector: '.payload-cipher',
-    settleBefore: 120,
-    earlyMs: 70,
-    midMs: 500,
-    endMs: 1080,
-  }, report);
-  const protectionNode = await metric(cdp, '.causal-mechanism-node.node-protection');
-  assert.ok(protectionNode && Number(protectionNode.opacity) >= .8, `TLS protection did not physically enclose the persistent mechanism: ${JSON.stringify(protectionNode)}`);
-
-  await assertVisualHandoff(cdp, report);
-  const handoffState = await cdp.evaluate(`(()=>{
-    const world=document.querySelector('[data-journey-causal-world="true"]');
-    return {
-      persistent:world?.dataset.persistenceProbe==='opening-world',
-      event:world?.getAttribute('data-causal-event')??null,
-      packetHero:Boolean(world?.querySelector('[data-phase5c-hero="assembly"]')),
-    };
-  })()`);
-  assert.equal(handoffState.persistent, true, `Causal world remounted before packet choreography: ${JSON.stringify(handoffState)}`);
-
-  await navigateJourney(cdp, origin, 'cache-hit');
-  await seekEvent(cdp, 'DNS cache hit');
-  await sleep(120);
-  const cacheHit = await cdp.evaluate(`(()=>{
-    const answer=document.querySelector('.causal-dns-answer');
-    return {
-      cache:document.querySelector('.causal-cache')?.getAttribute('data-causal-cache')??null,
-      query:Boolean(document.querySelector('.causal-dns-query')),
-      skip:Boolean(document.querySelector('.causal-dns-skip')),
-      answerAnimation:answer?getComputedStyle(answer).animationName:null,
-      upstreamEvents:[...document.querySelectorAll('.visual-time-rail__events button')].filter((button)=>/recursive resolver|Root referral|TLD referral/.test(button.getAttribute('aria-label')||'')).length,
-    };
-  })()`);
-  assert.deepEqual(cacheHit, { cache: 'hit', query: false, skip: true, answerAnimation: 'dns-answer-hit', upstreamEvents: 0 }, `Cache-hit choreography did not visibly skip upstream resolution: ${JSON.stringify(cacheHit)}`);
-  await screenshot(cdp, '00i-cache-hit-skip.png');
-  report.opening = { firstFrame, cacheHit, firstMechanism, addressNode, routeNode, routeTarget, sessionNode, protectionNode };
-
-  await navigateJourney(cdp, origin, 'cache-miss');
+  const opening=await seekReviewed(cdp,'Navigate to example.test');
+  assert.match(opening.fields.map(field=>field.value).join(' '),/example\.test/,'Intent lost its canonical hostname.');
+  await cdp.evaluate("document.querySelector('.journey-reviewed-scene .review-runtime').dataset.persistenceProbe='reviewed-journey'");
+  const stages=[];
+  for (const title of ['DNS cache miss','example.test → 203.0.113.42','Default gateway selected','TCP connection established','ClientHello','Application traffic keys ready']) {
+    const sample=await seekReviewed(cdp,title);
+    assert.equal(sample.persistent,true,title+': the shared renderer remounted during source selection.');
+    stages.push(sample);
+  }
+  await assertReviewedWirePlayback(cdp,'Stub asks recursive resolver','00b-query-travels',report);
+  await assertReviewedWirePlayback(cdp,'SYN leaves the client','00e-syn-travels',report);
+  await assertVisualHandoff(cdp,report);
+  await navigateJourney(cdp,origin,'cache-hit');
+  const cacheHit=await seekReviewed(cdp,'DNS cache hit');
+  assert.equal(cacheHit.local,true,'A cache hit fabricates a wire exchange.');
+  const upstreamEvents=await cdp.evaluate("[...document.querySelectorAll('.visual-time-rail__events button')].filter(b=>/recursive resolver|Root referral|TLD referral/.test(b.getAttribute('aria-label')||'')).length");
+  assert.equal(upstreamEvents,0,'A cache hit fabricates upstream DNS traversal.');
+  await screenshot(cdp,'00i-cache-hit-skip.png');
+  report.opening={opening,stages,cacheHit,upstreamEvents};
+  await navigateJourney(cdp,origin,'cache-miss');
 }
 
 async function assertQuicCausalWorld(cdp, origin, report) {
-  await navigateJourney(cdp, origin, 'cache-miss', 'quic-h3');
-  await seekEvent(cdp, 'QUIC Initial leaves the client');
-  await sleep(160);
-  const initial = await metric(cdp, '.causal-tcp-flight');
-  const quicWorld = await cdp.evaluate(`Boolean(document.querySelector('.causal-tcp-world.is-quic'))`);
-  assert.equal(quicWorld, true, 'QUIC opening did not use the causal transport mechanism.');
-  assert.ok(initial && initial.animationName !== 'none', `QUIC Initial is not visibly traveling: ${JSON.stringify(initial)}`);
-  await screenshot(cdp, '00q1-quic-initial.png');
-
-  await seekEvent(cdp, 'Server Initial + Handshake arrive');
-  await sleep(520);
-  await screenshot(cdp, '00q2-quic-server-initial.png');
-
-  await seekEvent(cdp, '1-RTT keys ready');
-  await sleep(720);
-  const cipher = await metric(cdp, '.payload-cipher');
-  const protection = await metric(cdp, '.causal-mechanism-node.node-protection');
-  assert.ok(cipher && Number(cipher.opacity) >= .7, `QUIC 1-RTT keys did not make the payload visibly protected: ${JSON.stringify(cipher)}`);
-  assert.ok(protection && Number(protection.opacity) >= .7, `QUIC protection did not become part of the mechanism: ${JSON.stringify(protection)}`);
-  await screenshot(cdp, '00q3-quic-1rtt.png');
-
-  await seekEvent(cdp, 'GET / on example.test');
-  await sleep(750);
-  await screenshot(cdp, '00q4-http3-request.png');
-
-  await seekEvent(cdp, 'Application data isolated');
-  await waitForHero(cdp, 'assembly', 350);
-  const applicationLayer = await cdp.evaluate(`(()=>{
-    const el=document.querySelector('[data-phase5-layer="application"]');
-    return el?{text:el.textContent,visible:el.getAttribute('data-visible')}:null;
-  })()`);
-  assert.ok(applicationLayer && /HTTP\/3|GET/.test(applicationLayer.text ?? ''), `QUIC handoff did not preserve HTTP/3 application meaning: ${JSON.stringify(applicationLayer)}`);
-  await screenshot(cdp, '00q5-quic-packet-handoff.png');
-
-  await navigateJourney(cdp, origin, 'cache-hit', 'quic-h3');
-  await seekEvent(cdp, 'DNS cache hit');
-  await sleep(250);
-  const quicCacheHit = await cdp.evaluate(`({query:Boolean(document.querySelector('.causal-dns-query')),skip:Boolean(document.querySelector('.causal-dns-skip'))})`);
-  assert.deepEqual(quicCacheHit, { query: false, skip: true }, `QUIC cache-hit path did not visibly skip upstream DNS: ${JSON.stringify(quicCacheHit)}`);
-  await screenshot(cdp, '00q6-quic-cache-hit.png');
-
-  report.quic = { initial, cipher, protection, applicationLayer, quicCacheHit };
-  await navigateJourney(cdp, origin, 'cache-miss', 'tcp-h2');
+  await navigateJourney(cdp,origin,'cache-miss','quic-h3');
+  const initial=await seekReviewed(cdp,'QUIC Initial leaves the client');
+  assert.match(initial.protocol,/QUIC/i,'QUIC Initial lost its transport identity.');
+  await assertReviewedWirePlayback(cdp,'QUIC Initial leaves the client','00q1-quic-initial',report);
+  const protection=await seekReviewed(cdp,'1-RTT keys ready');
+  const request=await seekReviewed(cdp,'GET / on example.test');
+  assert.match(request.fields.map(field=>field.value).join(' '),/HTTP\/3|h3/,'The QUIC request lost HTTP/3 application meaning.');
+  await seekEvent(cdp,'Application data isolated');
+  await waitForHero(cdp,'assembly',350);
+  const applicationLayer=await cdp.evaluate("(()=>{const el=document.querySelector('[data-phase5-layer=\"application\"]');return el?{text:el.textContent,visible:el.getAttribute('data-visible')}:null;})()");
+  assert.ok(applicationLayer&&/HTTP\/3|GET/.test(applicationLayer.text??''),'Native QUIC packet handoff lost HTTP/3 application meaning.');
+  await screenshot(cdp,'00q5-quic-packet-handoff.png');
+  await navigateJourney(cdp,origin,'cache-hit','quic-h3');
+  const cacheHit=await seekReviewed(cdp,'DNS cache hit');
+  assert.equal(cacheHit.local,true,'QUIC cache-hit path fabricates a DNS exchange.');
+  const upstreamEvents=await cdp.evaluate("[...document.querySelectorAll('.visual-time-rail__events button')].filter(b=>/recursive resolver|Root referral|TLD referral/.test(b.getAttribute('aria-label')||'')).length");
+  assert.equal(upstreamEvents,0,'QUIC cache-hit path fabricates upstream traversal.');
+  report.quic={initial,protection,request,applicationLayer,cacheHit,upstreamEvents};
+  await navigateJourney(cdp,origin,'cache-miss','tcp-h2');
 }
 
 async function assertCinematicChrome(cdp, report) {
