@@ -274,8 +274,9 @@ function readerOffset(at){
 function renderLens(at,shape){
  const lens=q('.rv-lens'),g=plan.prepared[at.index];
  for(const a of actors)if(a)for(const f of a.fieldMap.values())f.style.setProperty('--hs-emphasis','0');
- if(at.kind!=='read'||!g.read.total){lens.style.opacity='0';return;}
+ if(at.kind!=='read'||!g.read.total){lens.style.opacity='0';lens.dataset.readerPhase='idle';delete lens.dataset.readerField;return;}
  const s=samplePlan(g.read,at.elapsed),a=actors[at.index],key=frames[at.index].id+'|'+layoutKey;
+ lens.dataset.readerPhase=s.kind;lens.dataset.readerField=s.id;lens.dataset.readerLine=String(s.line);
  if(lensKey!==key){
   const clone=a.face.cloneNode(true);clone.style.position='relative';clone.style.opacity='1';clone.style.transform='none';clone.style.left='0';clone.style.top='0';root.presentation.material(clone,{role:a.actor.dataset.materialRole,identity:a.actor.dataset.protocol,moving:true});clone.prepend(lensCanvas);lensCanvas.style.position='absolute';lensCanvas.style.zIndex='-1';if(a.actor.dataset.materialRole==='packet')root.surfacePainter.paint(lensCanvas,g.focus.w,g.focus.h,24,1);q('.rv-lens-copy').replaceChildren(clone);lensKey=key;
  }

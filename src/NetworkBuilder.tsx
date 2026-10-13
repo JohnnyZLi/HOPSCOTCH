@@ -667,7 +667,7 @@ export function NetworkBuilder({ onExit, onOpenFailureStory, onOpenProbePacket, 
     const ids=trace?new Set([trace.sourceNodeId,...trace.hops.flatMap(hop=>[hop.nodeId,hop.nextNodeId]),trace.destinationNodeId]):null;
     const matrix=new DOMMatrixReadOnly(getComputedStyle(world).transform),origin=world.getBoundingClientRect(),z=Math.max(.0001,Math.hypot(matrix.a,matrix.b)),w=origin.width/z,h=origin.height/z;
     if(w<=0||h<=0)return;
-    const boxes=[...world.querySelectorAll<HTMLElement>('.builder-node-anchor')].filter(node=>!ids||ids.has(node.dataset.nodeId!)).map(node=>node.getBoundingClientRect());
+    const boxes=[...world.querySelectorAll<HTMLElement>('.builder-node-anchor')].filter(node=>!ids||ids.has(node.dataset.nodeId!)).flatMap(node=>[node,...node.querySelectorAll('.builder-node-kind')].map(part=>part.getBoundingClientRect()));
     if(!boxes.length)return;
     const bounds={left:Math.min(...boxes.map(r=>(r.left-origin.left)/z)),right:Math.max(...boxes.map(r=>(r.right-origin.left)/z)),top:Math.min(...boxes.map(r=>(r.top-origin.top)/z)),bottom:Math.max(...boxes.map(r=>(r.bottom-origin.top)/z))};
     const fitted=frameCamera(bounds,{w,h},24,1);fittedView.current=mode;

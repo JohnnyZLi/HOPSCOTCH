@@ -1,4 +1,4 @@
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { CornerNavigator } from './CornerNavigator';
 import { ExploreLauncher } from './ExploreLauncher';
@@ -320,7 +320,7 @@ export default function App() {
         {(activeLab === 'journey' || journeyReturnPending) && <div className="journey-return-host" hidden={activeLab !== 'journey'} inert={activeLab !== 'journey'}>
           <JourneyTheater key={`lab06-${journeyRenderKey}`} active={activeLab === 'journey'} hostname={journeyHostname} timeMs={journeyTimeMs} startPlaying={journeyStartPlaying} evidence={journeyEvidence} measuredState={measuredSession} onHostnameChange={setJourneyHostname} onTimeChange={setJourneyTimeMs} onEvidenceChange={setJourneyEvidence} onOpenDetail={openJourneyDetail} onExit={exitLabs} />
         </div>}
-        <AnimatePresence mode="wait" initial={false}>
+        <>
           {!activeLab ? (
             <motion.div key="overview" className="kinetic-overview-shell" initial={reduceMotion ? { opacity: 1 } : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.018, filter: 'blur(10px)' }} transition={{ duration: .45 }}>
               <KineticOverview onRunJourney={openJourney} onOpenExplore={() => setExploreOpen(true)} />
@@ -382,7 +382,7 @@ export default function App() {
               onExit={exitActiveLab}
             />
           )}
-        </AnimatePresence>
+        </>
       </Suspense>
     </main>
   );

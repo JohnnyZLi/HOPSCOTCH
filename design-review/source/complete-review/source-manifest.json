@@ -1,8 +1,8 @@
 [
   {
     "path": "../dist/fragment-hopscotch-causal-lifecycle.html",
-    "bytes": 562448,
-    "sha256": "ce791b6bc1501b56448e6d267131ccac096622a51543c268954a59e183dd4a21"
+    "bytes": 562615,
+    "sha256": "b8d18e8f53238866e209e4d39158d63cab79060b6f3820539598838ecee88725"
   },
   {
     "path": "../dist/fragment-hopscotch-builder-workbench.html",

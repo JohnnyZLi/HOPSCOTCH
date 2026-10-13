@@ -316,12 +316,13 @@ function readReviewedDOM() {
     return result;
   };
   const values = [...(actor?.querySelectorAll('.rv-field-value') ?? [])];
-  const glyphs = values.flatMap(value => {
+  const lens = root.querySelector('.rv-lens');
+  const readerValue = actor?.querySelector('[data-field="'+CSS.escape(lens?.dataset.readerField ?? '')+'"] .rv-field-value');
+  const glyphs = (readerValue ? [readerValue] : values).flatMap(value => {
     const range = document.createRange();
     range.selectNodeContents(value);
     return [...range.getClientRects()].map(r => ({left:r.left, top:r.top, right:r.right, bottom:r.bottom}));
   });
-  const lens = root.querySelector('.rv-lens');
   const lensBox = rect(lens);
   return {
     id:frame.id, title:frame.title, objectTitle:actor?.querySelector('.rv-actor-title')?.textContent, phase:snapshot.at.kind, local:frame.local, protocol:frame.protocol,
@@ -333,7 +334,7 @@ function readReviewedDOM() {
     fields:[...(actor?.querySelectorAll('.rv-field')??[])].filter(n=>!n.hidden).map(n=>({id:n.dataset.field,label:n.querySelector('.rv-field-label').textContent,value:n.querySelector('.rv-field-value').textContent})),
     sourceFields:frame.fields.map(f=>({id:f.id,label:f.label,value:String(f.value)})),
     fonts:values.map(value=>parseFloat(getComputedStyle(value).fontSize)),
-    lens:lensBox, lensOpacity:opacity(lens),
+    lens:lensBox, lensOpacity:opacity(lens), lensPhase:lens?.dataset.readerPhase, lensField:lens?.dataset.readerField,
     lensTouchesSource:Boolean(lensBox && glyphs.some(g=>g.left<lensBox.right && g.right>lensBox.left && g.top<lensBox.bottom && g.bottom>lensBox.top)),
     hiddenNative:document.querySelector('.journey-scene-transition')?.dataset.reviewedSuppressed==='true',
     persistent:root.dataset.persistenceProbe==='reviewed-journey',
@@ -376,7 +377,7 @@ async function assertReviewedWirePlayback(cdp, title, id, report) {
     if (sample) {
       assertReviewedSource(sample,title);
       if (phases.at(-1)!==sample.phase) phases.push(sample.phase);
-      if (sample.phase==='read' && sample.lensOpacity>.8 && sample.faceOpacity>.95) {
+      if (sample.phase==='read' && sample.lensPhase!=='travel' && sample.lensOpacity>.8 && sample.faceOpacity>.95) {
         assert.equal(sample.lensTouchesSource,true,title + ': the painted reader misses the rendered source glyphs: '+JSON.stringify(sample));
       }
       samples.push(sample);
@@ -395,6 +396,7 @@ async function assertReviewedWirePlayback(cdp, title, id, report) {
     const sizes=travel.map(sample=>sample.actor[dimension]);
     assert.ok(Math.max(...sizes)-Math.min(...sizes)<=1,title + ': compact wire size changes during travel.');
   }
+  assert.ok(samples.some(sample=>sample.phase==='read' && sample.lensPhase==='read' && sample.lensOpacity>.8 && sample.faceOpacity>.95),title + ': no visible glyph scan was sampled.');
   report.animations.push({id,event:title,phases,samples});
 }
 

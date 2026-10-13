@@ -504,10 +504,9 @@ export function VisualTimeRail({
           </div>
           <select
             className="visual-time-rail__speed"
+            aria-label="Playback speed"
             value={playbackSpeed}
             onChange={(event) => onPlaybackSpeedChange(Number(event.currentTarget.value) as VisualPlaybackSpeed)}
-            aria-hidden="true"
-            tabIndex={-1}
           >
             {VISUAL_PLAYBACK_SPEEDS.map((speed) => <option key={speed} value={speed}>{speed}×</option>)}
           </select>
