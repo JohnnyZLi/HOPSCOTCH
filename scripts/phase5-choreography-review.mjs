@@ -300,7 +300,8 @@ function readReviewedDOM() {
   const snapshot = root?.causalStudy?.snapshot();
   if (!snapshot?.at || !snapshot.plan) return null;
   const frame = snapshot.frames[snapshot.at.index];
-  const actor = root.querySelector('.rv-actor[aria-hidden="false"]');
+  const actor = [...root.querySelectorAll('.rv-actors > .rv-actor')].find(node=>node.dataset.identity===frame.id)
+    ?? root.querySelector('.rv-actor[aria-hidden="false"]');
   const rect = node => {
     if (!node) return null;
     const r = node.getBoundingClientRect();
