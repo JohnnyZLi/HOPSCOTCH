@@ -385,5 +385,5 @@
   .capture-flow-browser,
   .capture-evidence-inspector,
   .capture-analysis-drawer,
-  .capture-session-drawer { transition: none; }
+  .capture-session-drawer { transition: none !important; }
 }
