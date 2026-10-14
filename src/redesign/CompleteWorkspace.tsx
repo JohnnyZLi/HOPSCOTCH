@@ -37,10 +37,10 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
         if (!cancelled) mounted = mountHome(element,navigate);
       } else if (destination === 'builder') {
         const [{mountBuilder},{createBuilderData}] = await Promise.all([import('./builder-runtime.js'),import('./builder-data')]);
-        if (!cancelled) mounted = mountBuilder(element,await createBuilderData(search));
+        const data=await createBuilderData(search);if (!cancelled) mounted = mountBuilder(element,data);
       } else if (['measured','capture','observed','physical','internet'].includes(destination)) {
         const [{mountEvidence},{createEvidenceData}] = await Promise.all([import('./evidence-runtime.js'),import('./evidence-data')]);
-        if (!cancelled) mounted = mountEvidence(element,await createEvidenceData(destination,search));
+        const data=await createEvidenceData(destination,search);if (!cancelled) mounted = mountEvidence(element,data);
       } else {
         const [{mountLifecycle},{createLifecycleData}] = await Promise.all([import('./lifecycle-runtime.js'),import('./lifecycle-data')]);
         if (!cancelled) {

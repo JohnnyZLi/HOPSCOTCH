@@ -1,6 +1,7 @@
 function restoreBuilder(saved){
  if(!saved)return;input=structuredClone(saved.input);layout=structuredClone(saved.layout);selected=saved.selected;page=saved.page;tab=saved.tab;pane=saved.pane;historical=saved.historical;snapshots=saved.snapshots;authoring=saved.authoring;sites=saved.sites;templates=saved.templates;cam=saved.camera;selection=new Set(saved.selection||[selected.id]);graphKey='';q('.wb-viewport').dataset.pane=pane;selectPage(page);
 }
+function disposeBuilder(){++graphEpoch;cancelTransitions();for(const animation of animations)animation.cancel();animations.clear();}
 function reconcileConfiguration(next){
  next.addressing=domain.reconcileBuilderAddressing(next.graph,next.addressing);next.routing=domain.reconcileBuilderRoutingConfig(next.graph,next.addressing,next.routing);next.ipv6=domain.reconcileBuilderIpv6Config(next.graph,next.addressing,next.ipv6);next.linkProfiles=domain.reconcileBuilderLinkProfiles(next.graph,next.linkProfiles);next.services=domain.reconcileBuilderHostedServices(next.graph,next.services||[]);
  const checked=domain.deserializeBuilderScenario(domain.serializeBuilderScenario(domain.createBuilderScenario('My network',next.graph,next.sourceId,next.destinationId,layout,next.addressing,next.routing,undefined,next.ethernet,next.linkProfiles,next.acl,next.nat,next.dhcp,next.ipv6,next.services)));

@@ -31,7 +31,7 @@ def complete_runtimes():
             domain_source=extensions+domain_source.replace('Object.freeze({','Object.freeze({nextGeneratedNodeId,nextGeneratedLinkId,deterministicNewNodePoint,undirectedLinkExists,reconcileBuilderLinkProfiles,reconcileBuilderHostedServices,')
             (folder/(name+'-domain.ts')).write_text(domain_source)
             runtime=runtime.replace('d.builder.services','(input.services||d.builder.services)').replace('Source fixture','Initial network').replace('Design review network','My network').replace('design sandbox','current session')
-            runtime=runtime.replace('root.builderStudy=Object.freeze({selectPage,',Path('complete-review/production-builder.js').read_text()+"\nroot.builderStudy=Object.freeze({restore:restoreBuilder,save:()=>({...root.builderStudy.snapshot(),selection:[...selection]}),selectPage,")
+            runtime=runtime.replace('root.builderStudy=Object.freeze({selectPage,',Path('complete-review/production-builder.js').read_text()+"\nroot.builderStudy=Object.freeze({dispose:disposeBuilder,restore:restoreBuilder,save:()=>({...root.builderStudy.snapshot(),selection:[...selection]}),selectPage,")
         if kind=='evidence':
             runtime=production_evidence(runtime)
             domain_source=domain_source.replace('export default ', "import {connectLoopbackBridge,fetchLoopbackBridgeReport} from '../measurement/loopbackBridge';\nimport {parseCaptureSessionAsync} from '../capture/parse-async';\nexport default " ).replace('Object.freeze({','Object.freeze({connectLoopbackBridge,fetchLoopbackBridgeReport,parseCaptureSessionAsync,')
