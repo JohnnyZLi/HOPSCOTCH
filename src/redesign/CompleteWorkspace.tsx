@@ -24,10 +24,12 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
     const changed = (event: Event) => {
       const target = event.target;
       if (target instanceof HTMLSelectElement && target.matches('.rv-theme')) applyAppearance(target.value);
-      if (target instanceof HTMLSelectElement && target.matches('.rv-scene-picker') && ['tcp','dns','tls','http','packet','failure','journey'].includes(target.value)) navigate(target.value as ExploreDestination);
-      if (target instanceof HTMLSelectElement && target.matches('.ev-workspace')) navigate(target.value as ExploreDestination);
+      if (target instanceof HTMLSelectElement && ((target.matches('.rv-scene-picker') && ['tcp','dns','tls','http','packet','failure','journey'].includes(target.value)) || target.matches('.ev-workspace'))) {
+        event.stopPropagation();
+        navigate(target.value as ExploreDestination);
+      }
     };
-    element.addEventListener('change',changed);
+    element.addEventListener('change',changed,true);
     const measuredChanged=(event:Event)=>replaceMeasuredSession((event as CustomEvent<MeasuredSnapshotState|null>).detail);
     element.addEventListener('app-measured-change',measuredChanged);
     const unwatch = watchAppearance(restoreAppearance);
@@ -62,7 +64,9 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
       }
       const foot = element.querySelector('.rv-foot span:last-child');
       if (foot) foot.textContent = '';
-      const sourceNote=element.querySelector('.rv-foot span:first-child');if(sourceNote&&mounted?.api.save&&destination&&['tcp','dns','tls','http','failure','packet','journey'].includes(destination))sourceNote.textContent='SIMULATED · exact source events and bytes';
+      const sourceNote=element.querySelector('.rv-foot span:first-child');
+      if(sourceNote)sourceNote.textContent=destination==='builder'?'SIMULATED · configuration, forwarding, and history':destination==='internet'?'SIMULATED · AS relationships and routing policy':destination==='capture'?'CAPTURED · original frames and exact bytes':destination==='measured'?'LOCAL MEASURED · original report and capture times':destination==='observed'?'OBSERVED · each source retains its provenance':destination==='physical'?'PUBLIC DATA · facilities do not establish a forwarding path':destination?'SIMULATED · exact source events and bytes':'Follow a request through the Internet.';
+      const builderNote=element.querySelector('.wb-revision + span');if(builderNote)builderNote.textContent='Simulated network · changes stay in this session';
     };
     void open().catch(failure => {if(!cancelled){console.error(failure);setError(failure instanceof Error ? failure.message : String(failure));}});
     return () => {
@@ -71,7 +75,7 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
       if (mounted?.api.save) memories.set(key,mounted.api.save());
       else if (mounted?.api.snapshot) memories.set(key,mounted.api.snapshot());
       if(restorePlan)element.removeEventListener('review-plan-ready',restorePlan);
-      disposeControls?.();mounted?.dispose();unwatch();element.removeEventListener('change',changed);element.removeEventListener('app-measured-change',measuredChanged);
+      disposeControls?.();mounted?.dispose();unwatch();element.removeEventListener('change',changed,true);element.removeEventListener('app-measured-change',measuredChanged);
     };
   },[destination,search]);
   return <div className="workspace-container">

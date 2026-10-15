@@ -226,5 +226,5 @@ q('.ev-review-states').hidden=true;
 root.layoutReservation.watch(q('.ev-layout'),{panes:[q('.ev-primary'),q('.ev-inspector')],toggles:[q('.ev-mobile-panes')],changed:()=>{pane=q('.ev-layout').dataset.pane;root.byteWindows.refresh();queuePaint();}});
 })();
 
-const api=element.evidenceStudy,ownedKeys=Reflect.ownKeys(element).filter(key=>!originalKeys.has(key));let disposed=false;return {api,dispose(){if(disposed)return;disposed=true;api?.pause?.();api?.dispose?.();element.reviewUI.settle();element.byteWindows.dispose();element.layoutReservation.dispose();scope.dispose();for(const key of ownedKeys)Reflect.deleteProperty(element,key);element.replaceChildren();}};
+const api=element.evidenceStudy,ownedKeys=Reflect.ownKeys(element).filter(key=>!originalKeys.has(key));let disposed=false;return {api,dispose(){if(disposed)return;disposed=true;api?.pause?.();api?.dispose?.();element.networkPlanner?.dispose?.();element.reviewUI.settle();element.byteWindows.dispose();element.layoutReservation.dispose();scope.dispose();for(const key of ownedKeys)Reflect.deleteProperty(element,key);element.replaceChildren();}};
 }

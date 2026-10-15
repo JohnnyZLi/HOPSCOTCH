@@ -9,6 +9,7 @@
 .workspace-loading{padding:36px 26px;min-height:440px;border-radius:22px;background:rgba(255,255,255,.5)}
 .workspace-error{padding:24px;line-height:1.6}.workspace-error button{min-height:44px;padding:8px 16px;border-radius:13px}
 .review-runtime{min-width:0}.review-runtime .rv-foot span:last-child:empty{display:none}
+.review-runtime .wb-pages{flex-wrap:wrap!important;overflow:visible!important}
 .app-return{border:0;background:transparent;color:inherit;min-height:44px;padding:8px 12px;margin-bottom:12px;border-radius:13px}
 .journey-configuration{margin-bottom:18px}.journey-configuration form{margin-top:16px}.journey-modifiers{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:16px;border:1px solid var(--hs-line);border-radius:15px;padding:10px 14px}.journey-modifiers label{display:flex;align-items:center;gap:8px;min-height:44px}.journey-context-actions{margin-top:12px}.journey-context-actions input{width:100%;min-width:0}
 @media(max-width:600px){.hopscotch-app{padding:10px 12px 24px}.app-navigation{gap:0;margin-bottom:10px}.app-navigation a{padding:8px 10px}}

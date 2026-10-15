@@ -1,5 +1,6 @@
 // Generated from the approved composition. Shared material, geometry, and UI.
 import {createRuntimeScope} from '../../design-review/source/complete-review/integration-scope.js';
+import {createNetworkPlanner} from './network-planner';
 export function mountFoundation(element){
 const originalKeys=new Set(Reflect.ownKeys(element));
 const scope=createRuntimeScope(element),{document,window,matchMedia,requestAnimationFrame,cancelAnimationFrame,ResizeObserver,MutationObserver}=scope;
@@ -465,10 +466,10 @@ function audit(world,routes){let shared=0,collisions=0,crossings=0,shallow=0,con
 function canonical(graph){return {...graph,nodes:graph.nodes.slice().sort((a,b)=>a.id.localeCompare(b.id)),links:graph.links.slice().sort((a,b)=>a.id.localeCompare(b.id))};}
 function candidate(graph,measure,scale,reverse,authored=null){const world=layout(graph,scale,measure,authored),routes=solve(graph,world,reverse),report=audit(world,routes);if(report.shared||report.collisions||report.duplicatePorts||report.contacts)return null;const length=routes.reduce((sum,r)=>sum+r.points.slice(1).reduce((s,p,i)=>s+Math.hypot(p[0]-r.points[i][0],p[1]-r.points[i][1]),0),0);return {...world,links:routes.map(({raw,cost,...r})=>r),report,score:report.bends*7+report.crossings*10+length/30+world.width*world.height/50000};}
 function build(graph,measure){graph=canonical(graph);const begin=Date.now(),options=[];for(const scale of [1.1,1.4,1.8])for(const reverse of [false,true]){try{const c=candidate(graph,measure,scale,reverse,typeof authored==="undefined"?null:authored);if(c)options.push(c);}catch{}}if(!options.length)throw Error('Layout did not clear validation');options.sort((a,b)=>a.score-b.score);return {...options[0],ms:Date.now()-begin};}
-async function buildAsync(graph,measure,onProgress=()=>{},authored=null){graph=canonical(graph);const options=[];let done=0;for(const scale of [1.1,1.4,1.8])for(const reverse of [false,true]){onProgress(++done,6);await new Promise(r=>setTimeout(r,0));try{const c=candidate(graph,measure,scale,reverse,typeof authored==="undefined"?null:authored);if(c)options.push(c);}catch{}}if(!options.length)throw Error('No readable layout found within this study’s search budget');options.sort((a,b)=>a.score-b.score);return options[0];}
+async function buildAsync(graph,measure,onProgress=()=>{},authored=null){graph=canonical(graph);const options=[];let done=0;const spread=Math.max(1,graph.links.length/Math.max(1,graph.nodes.length));for(const scale of [1.1,1.4,1.8].map(value=>value*spread))for(const reverse of [false,true]){onProgress(++done,6);await new Promise(r=>setTimeout(r,0));try{const c=candidate(graph,measure,scale,reverse,typeof authored==="undefined"?null:authored);if(c)return c;}catch{}}if(!options.length)throw Error('No readable layout found within this study’s search budget');options.sort((a,b)=>a.score-b.score);return options[0];}
 
 
-root.networkPlanner=Object.freeze({build,buildAsync,layout,solve,audit,canonical});})();
+const backgroundPlanner=createNetworkPlanner();root.networkPlanner=Object.freeze({build,buildAsync:backgroundPlanner.buildAsync,dispose:backgroundPlanner.dispose,layout,solve,audit,canonical});})();
 // One geometric camera law serves the review and the production Builder.
 function frameCamera(bounds,viewport,padding=16,maxZoom=1){
  const gap=Math.max(0,Math.min(padding,viewport.w/4,viewport.h/4)),w=Math.max(1,bounds.right-bounds.left),h=Math.max(1,bounds.bottom-bounds.top),z=Math.min(maxZoom,Math.max(1,viewport.w-gap*2)/w,Math.max(1,viewport.h-gap*2)/h);

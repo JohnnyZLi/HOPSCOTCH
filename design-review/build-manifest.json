@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "inputs": {
-    "design-review/build.py": "5e1ca28ba8c8734ba46fe74a2fceb946cd270e39596fddae0570181da042b99c",
+    "design-review/build.py": "3cfc74e7ad74dbe27292d95f1a0aadb2900c0e320def3ff979bfefe4073ae842",
     "design-review/source/base-study.html": "cedcfd274898b271c138241df65bc8dda14a4cd46fd1dd61e8c3a11c76958667",
     "design-review/source/complete-review/assemble.py": "7c927c52a6eb8df053e7221fc7c3781b2a7678b2140854d72be52ecff127c2b7",
     "design-review/source/complete-review/connected.css": "a71f51327a1b76ab9927dd03f07b644c2fa5573d28240e0b34bf00bde0e60152",
@@ -17,10 +17,10 @@
     "design-review/source/complete-review/integration-scope.js": "510c2c7d5504a2f97c08b4d6f5a131e88ed7101c10025f96c9fcfc8a73d13029",
     "design-review/source/complete-review/motion.html": "6cdcd521ef78d3843ff8f49d3d3b812b7be0d69ec4f3b96090263e30a2f6c7f0",
     "design-review/source/complete-review/motion.js": "295b803585d0409c76ab40bbb40ab51f4dd912762b36a365755c3b945d8dd8c1",
-    "design-review/source/complete-review/production-builder.js": "ab81552b95eb1cc3aebcd8cd3506ec0ca35993caaa1f01af854498c4902f6bde",
+    "design-review/source/complete-review/production-builder.js": "d066e7a4b415002c8675fb5b43a139f8bec1923c937b592710735ac8976cab70",
     "design-review/source/complete-review/production-density.js": "87b3793b1a173426ad85e5495b99bc9668de84082d206286be5bb6f329a85d2f",
     "design-review/source/complete-review/production-evidence.js": "a79b1427bfe3f3f4c58c0d2a8ea2ae0993791b9feb6055be8c7a30d9bb46ffa8",
-    "design-review/source/complete-review/production-runtime.py": "bcb464fbe83e7f6276308816103788e63323e5e88e4f627e5e266673cecc8e0b",
+    "design-review/source/complete-review/production-runtime.py": "5688acfe3850de00d266d8bb8081e0a58d457cfc1b32ad1aecd307c1dac7f633",
     "design-review/source/complete-review/review.css": "d5511264776752aca34ce7c8bbcd533d85009eae4bdb03d9ea64b5c4f9b4b97f",
     "design-review/source/complete-review/shared-bytes.js": "4b62b6fd20b330260c1da7452934fe4321e2f53a4a0c1844639effcca667c35b",
     "design-review/source/complete-review/shared-geometry.js": "fa2a700433125ea33e042cd62f12fec05e77616e993e1db0596ac71e1eff294f",
@@ -47,15 +47,16 @@
     "public/review/viewport.html": "75d00ce5b75458e1f8a150c6e7897b5662ea93bf5d763ccba95eca1652980455",
     "src/redesign/builder-domain.ts": "de72948ce57c9dcc2461e6f693f1bba922a123def55df13d675c5db62143689b",
     "src/redesign/builder-runtime.css": "f2663b8cd4e06e403ffcc5f63e1b9d0e950a63d645f4fac37ca30071e9b054df",
-    "src/redesign/builder-runtime.js": "5fa6016d9c991edcdf46acc4d548e71c4b5779aca2efa30ba780777c0f599516",
+    "src/redesign/builder-runtime.js": "fe931f28eb9e2113b97e4f660387a638a28bff6b1c4fd0fcf64b2f30d71206ae",
     "src/redesign/connected-domain.ts": "90ce06c1ce39322faba1956d0c37951b269df4c4740b62e43fa29864e27be644",
     "src/redesign/connected-runtime.css": "5fd87bf151d37333ddb112f84ddbc0432513af1d05be3aa22ee5401ecf8c4600",
-    "src/redesign/connected-runtime.js": "09cacd901cce50d5e4de2930e5d44ad50f8e8b12c6ee560166250d7bbfbed02e",
+    "src/redesign/connected-runtime.js": "91c23de4e14ddb9c2ba4b3d35651eb16d2ff58e5f59ca57745b553bf59636386",
     "src/redesign/evidence-domain.ts": "9f4b509cee37fafece632c265536561b1655ef8164a88394a9f19406f899b868",
     "src/redesign/evidence-runtime.css": "a8084a9381172164243cd5703defa00ea197bf26f7d5baa22a45caf34ca0b7c1",
-    "src/redesign/evidence-runtime.js": "660d41d28673034bab23d05517f16d7f9306b8072e93125a231a5126fe4ed21e",
-    "src/redesign/foundation-runtime.js": "eccba831f165e3710b694784c4084bb735efa2d5e1db1cb29a272b40eefe5c7c",
+    "src/redesign/evidence-runtime.js": "7fb224a0f35f9e59f0010943e36a65e35fbf7bed54216a34e2d677ac035bab69",
+    "src/redesign/foundation-runtime.js": "315a00d4365621f6d2d0d9d36decbb8cadac7846db4d0fea2e767594b2597722",
     "src/redesign/lifecycle-runtime.css": "52941c68ccbfbdf7fe8e256fd5eb55002cde17c4cfada6ba9075ce5a2b562c23",
-    "src/redesign/lifecycle-runtime.js": "e2a510811b94b1af6e61e35b8164dd498b139cc48348f404b43cb830cf6ff384"
+    "src/redesign/lifecycle-runtime.js": "8d7246f5bec81480620e821143d543670aacc4131ee94fd2a69790804fafb1b2",
+    "src/redesign/network-planner-worker.js": "84360af905dff3cc49a822bfdfadf7aa7d5cc757947b8379e102e938f4bbe54e"
   }
 }

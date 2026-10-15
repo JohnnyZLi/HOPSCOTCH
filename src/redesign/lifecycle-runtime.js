@@ -1268,8 +1268,9 @@ function readerOffset(at){
 function renderLens(at,shape){
  const lens=q('.rv-lens'),g=plan.prepared[at.index];
  for(const a of actors)if(a)for(const f of a.fieldMap.values())f.style.setProperty('--hs-emphasis','0');
- if(at.kind!=='read'||!g.read.total){lens.style.opacity='0';return;}
+ if(at.kind!=='read'||!g.read.total){lens.style.opacity='0';lens.dataset.readerPhase='idle';delete lens.dataset.readerField;return;}
  const s=samplePlan(g.read,at.elapsed),a=actors[at.index],key=frames[at.index].id+'|'+layoutKey;
+ lens.dataset.readerPhase=s.kind;lens.dataset.readerField=s.id;lens.dataset.readerLine=String(s.line);
  if(lensKey!==key){
   const clone=a.face.cloneNode(true);clone.style.position='relative';clone.style.opacity='1';clone.style.transform='none';clone.style.left='0';clone.style.top='0';root.presentation.material(clone,{role:a.actor.dataset.materialRole,identity:a.actor.dataset.protocol,moving:true});clone.prepend(lensCanvas);lensCanvas.style.position='absolute';lensCanvas.style.zIndex='-1';if(a.actor.dataset.materialRole==='packet')root.surfacePainter.paint(lensCanvas,g.focus.w,g.focus.h,24,1);q('.rv-lens-copy').replaceChildren(clone);lensKey=key;
  }
@@ -1405,8 +1406,8 @@ q('.rv-play').addEventListener('click',()=>playing?pause():play());q('.rv-replay
 details.addEventListener('toggle',()=>{if(details.open)pause();});scope.listen(element,'review-disclosure-layout',e=>{if([settings,explanation].includes(e.detail.element)){if(root.disclosures.wanted(e.detail.element))pause();layoutKey='';queueLayout();}});const viewportResize=()=>{alignAfterResize=playing&&bounded();layoutKey='';queueLayout();};window.addEventListener('resize',viewportResize);
 let observedMainWidth=q('.rv-main').clientWidth;const resize=new ResizeObserver(()=>{const width=q('.rv-main').clientWidth;if(bounded()&&Math.abs(width-observedMainWidth)<.5)return;observedMainWidth=width;layoutKey='';queueLayout();});resize.observe(q('.rv-main'));document.fonts?.ready.then(()=>{layoutKey='';queueLayout();});document.fonts?.addEventListener('loadingdone',()=>{layoutKey='';queueLayout();});document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});scope.listen(element,'review-material-change',()=>{root.surfacePainter.invalidate();layoutKey='';queueLayout();});
 root.byteWindows.watch(q('.rv-byte-details'),()=>{if(sceneId==='packet')root.byteWindows.layout(q('.rv-bytes'),q('.rv-byte-details'));});
-function save(){return {position:currentPosition(),variant,dnsMode,byte,speed:q('.rv-speed').value};}
-function restore(value){if(!value)return;if(!plan){scope.listen(element,'review-plan-ready',()=>restore(value),{once:true});return;}pause();variant=value.variant??variant;dnsMode=value.dnsMode??dnsMode;byte=value.byte??byte;memories.set(sceneId,{...value});q('.rv-speed').value=value.speed||'1';select(sceneId);pause();}
+function save(){return {sceneId,position:currentPosition(),variant,dnsMode,byte,speed:q('.rv-speed').value};}
+function restore(value){if(!value)return;if(!plan){scope.listen(element,'review-plan-ready',()=>restore(value),{once:true});return;}pause();variant=value.variant??variant;dnsMode=value.dnsMode??dnsMode;byte=value.byte??byte;const target=value.sceneId||sceneId;memories.set(target,{...value});q('.rv-speed').value=value.speed||'1';select(target);pause();}
 root.causalStudy=Object.freeze({save,restore,select,seek,next,play,pause,reflow,appearance,presentSource,snapshot:()=>({sceneId,clock,playing,plan,frames,at:plan?locate(clock):null,committed:plan?stateIndex():-1,plannerUsesCachedGeometry:true,material:root.surfacePainter.stats()}),sample:t=>plan?{at:locate(t),pose:['failure','http'].includes(sceneId)?null:pose(locate(t))}:null,dispose:()=>{root.reviewUI.settle();root.byteWindows.dispose();root.layoutReservation.dispose();pause();disposed=true;if(layoutJob)cancelAnimationFrame(layoutJob);resize.disconnect();window.removeEventListener?.('resize',viewportResize);}});
 select(data.bootstrapScene||'tcp');if(data.bootstrapSourceTime!==undefined){const boot=()=>{if(!plan)return;presentSource(data.bootstrapSourceTime,data.journey.frames.at(-1).event.atMs,true);root.removeEventListener('review-plan-ready',boot);};scope.listen(element,'review-plan-ready',boot);boot();}
 })();

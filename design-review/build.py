@@ -33,6 +33,7 @@ def hashes(paths):
 outputs = [str(path.relative_to(repo)) for path in (repo / 'public/review').glob('*.html')]
 outputs += [str(path.relative_to(repo)) for path in (repo / 'src/redesign').glob('*-runtime.*') if path.suffix in ('.js','.css')]
 outputs += [str(path.relative_to(repo)) for path in (repo / 'src/redesign').glob('*-domain.ts')]
+outputs += ['src/redesign/network-planner-worker.js']
 manifest = {'schema': 1, 'inputs': hashes(inputs), 'outputs': hashes(outputs)}
 (project / 'build-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 print('Recorded source/output integrity for', len(outputs), 'public review pages')
