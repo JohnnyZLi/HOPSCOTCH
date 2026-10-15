@@ -20,7 +20,7 @@
     "design-review/source/complete-review/production-builder.js": "d066e7a4b415002c8675fb5b43a139f8bec1923c937b592710735ac8976cab70",
     "design-review/source/complete-review/production-density.js": "daadd91de942d8fc2c16ab3893e270d6cdaeea03eff3acd7b2376da80344f688",
     "design-review/source/complete-review/production-evidence.js": "4cd555c5e096407d03c1f43b80df2ccbc22b58d6cff61626301aba2ca7fa54cf",
-    "design-review/source/complete-review/production-runtime.py": "6fd143c2c064159e2266b1edfbe948d747b89dcc1879cd2cec4675568b2af89d",
+    "design-review/source/complete-review/production-runtime.py": "bbaca13b03f08db297bd741fa13808f1aa645a71c4765595ba11b7741fd91571",
     "design-review/source/complete-review/review.css": "d5511264776752aca34ce7c8bbcd533d85009eae4bdb03d9ea64b5c4f9b4b97f",
     "design-review/source/complete-review/shared-bytes.js": "4b62b6fd20b330260c1da7452934fe4321e2f53a4a0c1844639effcca667c35b",
     "design-review/source/complete-review/shared-geometry.js": "fa2a700433125ea33e042cd62f12fec05e77616e993e1db0596ac71e1eff294f",
@@ -54,7 +54,7 @@
     "src/redesign/evidence-domain.ts": "9f4b509cee37fafece632c265536561b1655ef8164a88394a9f19406f899b868",
     "src/redesign/evidence-runtime.css": "a8084a9381172164243cd5703defa00ea197bf26f7d5baa22a45caf34ca0b7c1",
     "src/redesign/evidence-runtime.js": "f9f20483e2a71b551e2d15142df59a1fe86f280da038ca3c1d9345da0208a135",
-    "src/redesign/foundation-runtime.js": "315a00d4365621f6d2d0d9d36decbb8cadac7846db4d0fea2e767594b2597722",
+    "src/redesign/foundation-runtime.js": "73fe2d073c280f7aec70bb55fee5c9f1523ef0d6f457fabe80e6788c09c255c9",
     "src/redesign/lifecycle-runtime.css": "52941c68ccbfbdf7fe8e256fd5eb55002cde17c4cfada6ba9075ce5a2b562c23",
     "src/redesign/lifecycle-runtime.js": "a5a51f026bd83e897c0c1fd51c0cfd23c2954fede63571d21624e29cae8ae718",
     "src/redesign/network-planner-worker.js": "84360af905dff3cc49a822bfdfadf7aa7d5cc757947b8379e102e938f4bbe54e"

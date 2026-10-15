@@ -7,6 +7,25 @@ def complete_runtimes():
     folder=Path('../../src/redesign')
     common='\n'.join([engine,helpers,graph_helper,*[Path('complete-review/'+name).read_text() for name in ['shared-geometry.js','shared-ui.js','shared-network.js','shared-reservation.js','shared-bytes.js','shared-presentation.js']],Path('complete-review/shared-painter.js').read_text().replace('__VERTEX__','`'+vertex+'`').replace('__FRAGMENT__','`'+fragment+'`'),records])
     common=common.replace('export function','function')
+    # Knockout marks are decoration. Group their geometry while each real
+    # connection retains its own identity for selection and forwarding emphasis.
+    old_crossings="""for(const hit of crossings(links)){
+  const l=links.find(l=>l.id===hit.id);gaps.append(createSvg('path',{d:path(hit.points),fill:'none',stroke:'var(--hs-bg)','stroke-width':5,'stroke-linecap':'butt'}),createSvg('path',{d:path(hit.points),fill:'none','data-edge':hit.id,stroke:l.failed?'var(--rv-red)':'var(--hs-route-line)','stroke-width':1.2,'stroke-linecap':'butt'}));
+ }"""
+    new_crossings="""const hits=crossings(links),groups=new Map();
+ if(hits.length)gaps.append(createSvg('path',{d:hits.map(hit=>path(hit.points)).join(' '),fill:'none',stroke:'var(--hs-bg)','stroke-width':5,'stroke-linecap':'butt'}));
+ for(const hit of hits){const group=groups.get(hit.id)||[];group.push(hit.points);groups.set(hit.id,group);}
+ for(const [id,points]of groups){const link=links.find(link=>link.id===id);gaps.append(createSvg('path',{d:points.map(path).join(' '),fill:'none','data-edge':id,stroke:link.failed?'var(--rv-red)':'var(--hs-route-line)','stroke-width':1.2,'stroke-linecap':'butt'}));}
+ """
+    assert old_crossings in common
+    common=common.replace(old_crossings,new_crossings)
+    old_overview="""root.networkScene.draw(element,plan.links);for(const line of element.querySelectorAll('[data-edge]'))line.setAttribute('stroke-width',weight);
+  for(const n of plan.nodes)element.append(svg('rect',{x:n.x-n.w/2,y:n.y-n.h/2,width:n.w,height:n.h,rx:12,fill:'var(--hs-muted)',opacity:.65}));"""
+    new_overview="""for(const failed of [false,true]){const links=plan.links.filter(link=>Boolean(link.failed)===failed);if(links.length)element.append(svg('path',{d:links.map(link=>root.networkScene.path(link.points)).join(' '),fill:'none',stroke:failed?'var(--rv-red)':'var(--hs-route-line)','stroke-width':weight,'stroke-linejoin':'round','stroke-linecap':'round'}));}
+  const shapes=plan.nodes.map(n=>{const x=n.x-n.w/2,y=n.y-n.h/2,w=n.w,h=n.h,r=Math.min(12,w/2,h/2);return `M${x+r} ${y}H${x+w-r}Q${x+w} ${y} ${x+w} ${y+r}V${y+h-r}Q${x+w} ${y+h} ${x+w-r} ${y+h}H${x+r}Q${x} ${y+h} ${x} ${y+h-r}V${y+r}Q${x} ${y} ${x+r} ${y}Z`;});
+  element.append(svg('path',{d:shapes.join(' '),fill:'var(--hs-muted)',opacity:.65}));"""
+    assert old_overview in common
+    common=common.replace(old_overview,new_overview)
     # Dense graphs need connection spacing derived from their actual degree.
     # Keep the planner's contact/collision audit; take its first valid candidate
     # rather than exhaustively solving progressively larger worlds on the UI thread.

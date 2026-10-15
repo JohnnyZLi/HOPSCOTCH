@@ -611,9 +611,11 @@ function draw(edges,links){
  // Underlying connections, local knockout marks, then continuous overpasses.
  for(const l of links)lines.append(createSvg('path',{d:path(l.points),'data-edge':l.id,fill:'none',stroke:l.failed?'var(--rv-red)':'var(--hs-route-line)','stroke-width':1.2,'stroke-linejoin':'round','stroke-linecap':'round'}));
  edges.append(lines);
- for(const hit of crossings(links)){
-  const l=links.find(l=>l.id===hit.id);gaps.append(createSvg('path',{d:path(hit.points),fill:'none',stroke:'var(--hs-bg)','stroke-width':5,'stroke-linecap':'butt'}),createSvg('path',{d:path(hit.points),fill:'none','data-edge':hit.id,stroke:l.failed?'var(--rv-red)':'var(--hs-route-line)','stroke-width':1.2,'stroke-linecap':'butt'}));
- }
+ const hits=crossings(links),groups=new Map();
+ if(hits.length)gaps.append(createSvg('path',{d:hits.map(hit=>path(hit.points)).join(' '),fill:'none',stroke:'var(--hs-bg)','stroke-width':5,'stroke-linecap':'butt'}));
+ for(const hit of hits){const group=groups.get(hit.id)||[];group.push(hit.points);groups.set(hit.id,group);}
+ for(const [id,points]of groups){const link=links.find(link=>link.id===id);gaps.append(createSvg('path',{d:points.map(path).join(' '),fill:'none','data-edge':id,stroke:link.failed?'var(--rv-red)':'var(--hs-route-line)','stroke-width':1.2,'stroke-linecap':'butt'}));}
+ 
  edges.append(gaps);return lines;
 }
 function measureLimit(viewportWidth){return Math.max(120,Math.min(280,viewportWidth*.65));}
@@ -712,8 +714,9 @@ function overview(element,plan,camera,viewport){
  if(element._geometry!==plan){
   element._geometry=plan;element.setAttribute('viewBox',`0 0 ${plan.width} ${plan.height}`);element.replaceChildren();
   const weight=plan.width/400;
-  root.networkScene.draw(element,plan.links);for(const line of element.querySelectorAll('[data-edge]'))line.setAttribute('stroke-width',weight);
-  for(const n of plan.nodes)element.append(svg('rect',{x:n.x-n.w/2,y:n.y-n.h/2,width:n.w,height:n.h,rx:12,fill:'var(--hs-muted)',opacity:.65}));
+  for(const failed of [false,true]){const links=plan.links.filter(link=>Boolean(link.failed)===failed);if(links.length)element.append(svg('path',{d:links.map(link=>root.networkScene.path(link.points)).join(' '),fill:'none',stroke:failed?'var(--rv-red)':'var(--hs-route-line)','stroke-width':weight,'stroke-linejoin':'round','stroke-linecap':'round'}));}
+  const shapes=plan.nodes.map(n=>{const x=n.x-n.w/2,y=n.y-n.h/2,w=n.w,h=n.h,r=Math.min(12,w/2,h/2);return `M${x+r} ${y}H${x+w-r}Q${x+w} ${y} ${x+w} ${y+r}V${y+h-r}Q${x+w} ${y+h} ${x+w-r} ${y+h}H${x+r}Q${x} ${y+h} ${x} ${y+h-r}V${y+r}Q${x} ${y} ${x+r} ${y}Z`;});
+  element.append(svg('path',{d:shapes.join(' '),fill:'var(--hs-muted)',opacity:.65}));
   element._camera=svg('rect',{fill:'none',stroke:'var(--hs-accent)','stroke-width':2*weight,rx:14});element.append(element._camera);
  }
  const x=Math.max(0,-camera.x/camera.z),y=Math.max(0,-camera.y/camera.z),right=Math.min(plan.width,(viewport.w-camera.x)/camera.z),bottom=Math.min(plan.height,(viewport.h-camera.y)/camera.z);
