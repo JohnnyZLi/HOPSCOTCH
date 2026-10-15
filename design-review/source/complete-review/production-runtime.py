@@ -65,6 +65,9 @@ def complete_runtimes():
         (folder/(name+'-runtime.js')).write_text(code)
 
 def production_evidence(runtime):
+    runtime=runtime.replace('function select(id){remember();','function select(id,restored=null){remember();if(restored)memories.set(id,restored);')
+    runtime=runtime.replace('function remember(){memories.set(workspace,{mode','function remember(){memories.set(workspace,{asFailed:[...asFailed],relationshipId,mode')
+    runtime=runtime.replace('asPath=held.asPath;cam=held.cam;','asPath=held.asPath;cam=held.cam;relationshipId=held.relationshipId??relationshipId;if(held.asFailed){asFailed.clear();for(const id of held.asFailed)asFailed.add(id);}')
     runtime=runtime.replace('facility:fs.slice()', 'facility:fs.slice()').replace('[0]};})();','[0]||{id:null}};})();',1)
     runtime=runtime.replace('measured=domain.projectMeasuredSnapshot(d.measured.snapshot)','measured=d.measured?domain.projectMeasuredSnapshot(d.measured.snapshot):null',1).replace('selectedFact=measured.snapshot.facts[0].id',"selectedFact=measured?.snapshot.facts[0]?.id||''")
     runtime=runtime.replace('parsed=domain.parseCaptureSession(buffer)','parsed=await domain.parseCaptureSessionAsync(buffer)')
@@ -99,10 +102,12 @@ def production_evidence(runtime):
     return runtime
 
 def production_lifecycle(runtime):
+    runtime=runtime.replace('function select(id){','function select(id,restored=null){')
+    runtime=runtime.replace("pause();sceneId=id;const remembered=memories.get(id);", "pause();if(restored)memories.set(id,restored);sceneId=id;const remembered=memories.get(id);")
     runtime=runtime.replace("lens.style.opacity='0';return;", "lens.style.opacity='0';lens.dataset.readerPhase='idle';delete lens.dataset.readerField;return;")
     runtime=runtime.replace("const s=samplePlan(g.read,at.elapsed),a=actors[at.index],key=frames[at.index].id+'|'+layoutKey;", "const s=samplePlan(g.read,at.elapsed),a=actors[at.index],key=frames[at.index].id+'|'+layoutKey;\n lens.dataset.readerPhase=s.kind;lens.dataset.readerField=s.id;lens.dataset.readerLine=String(s.line);")
     runtime=runtime.replace("function render(){\n if(!plan)return;const at=locate(clock),f=frames[at.index];", "function render(){\n if(!plan)return;const at=locate(clock),f=frames[at.index];root.dispatchEvent(new CustomEvent('app-source-change',{detail:{eventId:f.id,sourceMs:f.at??0}}));")
-    runtime=runtime.replace('root.causalStudy=Object.freeze({select,seek,', "function save(){return {sceneId,position:currentPosition(),variant,dnsMode,byte,speed:q('.rv-speed').value};}\nfunction restore(value){if(!value)return;if(!plan){scope.listen(element,'review-plan-ready',()=>restore(value),{once:true});return;}pause();variant=value.variant??variant;dnsMode=value.dnsMode??dnsMode;byte=value.byte??byte;const target=value.sceneId||sceneId;memories.set(target,{...value});q('.rv-speed').value=value.speed||'1';select(target);pause();}\nroot.causalStudy=Object.freeze({save,restore,select,seek,")
+    runtime=runtime.replace('root.causalStudy=Object.freeze({select,seek,', "function save(){return {sceneId,position:currentPosition(),variant,dnsMode,byte,speed:q('.rv-speed').value};}\nfunction restore(value){if(!value)return;if(!plan){scope.listen(element,'review-plan-ready',()=>restore(value),{once:true});return;}pause();variant=value.variant??variant;dnsMode=value.dnsMode??dnsMode;byte=value.byte??byte;const target=value.sceneId||sceneId;q('.rv-speed').value=value.speed||'1';select(target,value);pause();}\nroot.causalStudy=Object.freeze({save,restore,select,seek,")
     runtime=runtime.replace("select(data.bootstrapScene||'tcp');", "select(data.bootstrapScene||'tcp');if(data.bootstrapSourceTime!==undefined){const boot=()=>{if(!plan)return;presentSource(data.bootstrapSourceTime,data.journey.frames.at(-1).event.atMs,true);root.removeEventListener('review-plan-ready',boot);};root.addEventListener('review-plan-ready',boot);boot();}")
     return runtime
 

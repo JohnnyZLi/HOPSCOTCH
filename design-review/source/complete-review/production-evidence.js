@@ -32,7 +32,7 @@ function saveEvidence(){return {...root.evidenceStudy.snapshot(),observed:d.obse
 function restoreEvidence(saved){
  if(!saved)return;
  measured=saved.measured;capture=saved.capture;captureBytes=saved.captureBytes;d.observed=saved.observed;d.physical=saved.physical;importedMeasured=saved.importedMeasured;importedCapture=saved.importedCapture;captureKind=saved.captureKind;
- memories.set(saved.workspace,{...saved,cam:saved.camera});select(saved.workspace);
+ select(saved.workspace,{...saved,cam:saved.camera});
 }
 function disposeEvidence(){++fileEpoch;++acquisitionJob;++graphEpoch;acquisitionController?.abort();for(const animation of animations)animation.cancel();animations.clear();}
 setupBridge();
