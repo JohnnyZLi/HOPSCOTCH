@@ -48,6 +48,7 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
         if (!cancelled) {
           const data=createLifecycleData(destination,search);
           mounted = mountLifecycle(element,data);
+          restoreAppearance();
           if(destination==='journey'){
             const [{attachJourneyControls},{attachMeasuredContext}]=await Promise.all([import('./journey-controls'),import('./measured-context')]);
             if(!cancelled){const disposeJourney=attachJourneyControls(element,search,navigate,inspect),disposeMeasured=attachMeasuredContext(element,data.journey.context.hostname,data.journey.context.destinationAddress);disposeControls=()=>{disposeJourney();disposeMeasured();};}
