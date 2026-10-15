@@ -61,6 +61,11 @@ def complete_runtimes():
             domain_source=extensions+domain_source.replace('Object.freeze({','Object.freeze({nextGeneratedNodeId,nextGeneratedLinkId,deterministicNewNodePoint,undirectedLinkExists,reconcileBuilderLinkProfiles,reconcileBuilderHostedServices,')
             (folder/(name+'-domain.ts')).write_text(domain_source)
             runtime=runtime.replace('d.builder.services','(input.services||d.builder.services)').replace('Source fixture','Initial network').replace('Design review network','My network').replace('design sandbox','current session')
+            # A closed device group keeps its source records, not a hidden table.
+            old_group="""for(const [i,group]of groups.entries()){const details=node('details');details.dataset.disclosureKey='cli-'+parsed.target+'-'+group.id;details.open=group.id===selected.id||!owners.includes(selected.id)&&i===0;details.append(node('summary','',group.id.toUpperCase()+' · '+group.rows.length+' records'),rowTable(group.rows));host.append(details);}"""
+            new_group="""for(const [i,group]of groups.entries())host.append(cliDeviceGroup(group,'cli-'+parsed.target+'-'+group.id,group.id===selected.id||!owners.includes(selected.id)&&i===0));"""
+            assert old_group in runtime
+            runtime=runtime.replace(old_group,new_group)
             runtime=runtime.replace('root.builderStudy=Object.freeze({selectPage,',Path('complete-review/production-builder.js').read_text()+"\nroot.builderStudy=Object.freeze({dispose:disposeBuilder,restore:restoreBuilder,save:()=>({...root.builderStudy.snapshot(),selection:[...selection],sectionId,cliTranscript:q('.wb-output').textContent}),selectPage,")
         if kind=='evidence':
             runtime=production_evidence(runtime)

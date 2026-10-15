@@ -151,7 +151,16 @@ async function builderSemantics(){
  const initial=await cdp.evaluate("document.querySelector('.review-runtime').builderStudy.runPing()");
  assert.deepEqual(initial,expected,'Builder must show the actual canonical forwarding result, including an unconfigured boundary');
  const result=await cdp.evaluate("(()=>{const api=document.querySelector('.review-runtime').builderStudy;api.apply(next=>({...next,routing:{...next.routing,ospf:{...next.routing.ospf,enabledRouterIds:next.graph.nodes.filter(n=>n.kind==='router').map(n=>n.id)}}}),'OSPF enabled');const probe=api.runPing(),output=api.runCommand('show route'),saved=api.save();api.restore(saved);const restored=api.save();return {success:probe.success,output,retained:JSON.stringify(saved.input)===JSON.stringify(restored.input),events:restored.input.events.length,cli:restored.cliResult};})()");
- assert.equal(start.graph.nodes.length,6);assert.equal(result.success,true,'Configured OSPF must deliver the probe');assert.equal(result.retained,true);assert.ok(result.events>0);assert.ok(result.output?.length);assert.ok(result.cli.count>0);await settled();await screenshot('builder-live');await geometry('builder-live');
+ assert.equal(start.graph.nodes.length,6);assert.equal(result.success,true,'Configured OSPF must deliver the probe');assert.equal(result.retained,true);assert.ok(result.events>0);assert.ok(result.output?.length);assert.ok(result.cli.count>0);
+ const transcript=await cdp.evaluate("document.querySelector('.wb-output').textContent");await cdp.evaluate("document.querySelector('.wb-pages [data-page=cli]').click()");
+ for(const group of result.cli.groups){
+  const selector='.wb-command-result details[data-disclosure-key="cli-route-'+group.id+'"]';
+  await cdp.evaluate(`(()=>{const detail=document.querySelector(${JSON.stringify(selector)});if(!document.querySelector('.review-runtime').disclosures.wanted(detail))detail.querySelector('summary').click();})()`);
+  await wait(`document.querySelector(${JSON.stringify(selector)}).querySelectorAll('tbody tr:not(.rv-row-note)').length===${group.rows.length}`);
+  await cdp.evaluate(`document.querySelector(${JSON.stringify(selector)}).querySelector('summary').click()`);
+  await wait(`!document.querySelector(${JSON.stringify(selector)}).querySelector('table')`);
+ }
+ assert.equal(await cdp.evaluate("document.querySelector('.wb-output').textContent"),transcript,'Inspecting CLI groups must retain the complete transcript');await settled();await screenshot('builder-live');await geometry('builder-live');
 }
 async function navigationContinuity(){
  await open(WORKSPACE_CATALOG.tcp.path);
