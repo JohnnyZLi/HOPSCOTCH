@@ -149,14 +149,8 @@ for (const dwell of ['neutral: 820', 'evidence: 880', 'success: 900', 'warning: 
   assert.ok(workspace.includes(dwell), `Missing semantic presentation dwell contract: ${dwell}`);
 }
 
-for (const importPath of [
-  "./JourneyMotionShape.css",
-  "./JourneyMotionTimingFixes.css",
-  "./JourneyShapeRefinement.css",
-  "./JourneyShapeStateCorrections.css",
-  "./JourneyShapeTuning.css",
-  "./JourneyDnsLidMotion.css",
-]) assert.ok(entry.includes(importPath), `Journey motion/shape layer is not loaded: ${importPath}`);
+assert.ok(entry.includes('./redesign/lifecycle-runtime.css'));
+assert.ok(!entry.includes('./JourneyMotionShape.css'));
 
 assert.match(component, /className="causal-camera" hidden=\{packetActive \|\| transitActive\}/, 'Packet scale must not paint the earlier request scaffold.');
 assert.match(css, /\.journey-causal-world \[hidden\]\s*\{\s*display: none !important;/, 'Inactive worlds must not fade stale geometry over the current phase.');

@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "inputs": {
-    "design-review/build.py": "13901ff663153d66d81e8b314c74cf1361806836ea48fb54584315d6d717e563",
+    "design-review/build.py": "3cfc74e7ad74dbe27292d95f1a0aadb2900c0e320def3ff979bfefe4073ae842",
     "design-review/source/base-study.html": "cedcfd274898b271c138241df65bc8dda14a4cd46fd1dd61e8c3a11c76958667",
-    "design-review/source/complete-review/assemble.py": "29af1a61ca13942a14dd0b4a2133e83792cc1c7521276a419b34ed67487e5a31",
+    "design-review/source/complete-review/assemble.py": "7c927c52a6eb8df053e7221fc7c3781b2a7678b2140854d72be52ecff127c2b7",
     "design-review/source/complete-review/connected.css": "a71f51327a1b76ab9927dd03f07b644c2fa5573d28240e0b34bf00bde0e60152",
     "design-review/source/complete-review/connected.html": "35d26ea3d933a262efaa84309df744198e496f89cac3a5fb1ffa36f3afdfc322",
     "design-review/source/complete-review/connected.js": "d09ac594384d03aa2c38a18c33140cb28e305aee0f6e3a7c004d3e7f1a4d5be4",
@@ -14,9 +14,13 @@
     "design-review/source/complete-review/evidence-domain.bundle.js": "6bdda42d427e5743b42f564d71b6bf6029c613258276dcc82aa07ddf1d70dbf4",
     "design-review/source/complete-review/evidence.html": "23cf27ef60ca30e5bd64f6ec891e570d4d541a45c284776785f4d52e79dbf4ae",
     "design-review/source/complete-review/evidence.js": "315a91926678ab26a4d1fd7e65753000fb46c269321a5805d2013f7b12a0d7da",
-    "design-review/source/complete-review/integration-scope.js": "88b800826c7517785dc583ecbfe3b2d9f58566f8bfb659e9d53ab65a1679e010",
+    "design-review/source/complete-review/integration-scope.js": "510c2c7d5504a2f97c08b4d6f5a131e88ed7101c10025f96c9fcfc8a73d13029",
     "design-review/source/complete-review/motion.html": "6cdcd521ef78d3843ff8f49d3d3b812b7be0d69ec4f3b96090263e30a2f6c7f0",
     "design-review/source/complete-review/motion.js": "295b803585d0409c76ab40bbb40ab51f4dd912762b36a365755c3b945d8dd8c1",
+    "design-review/source/complete-review/production-builder.js": "418231275dc98a1af5d501608d35384671b05849195c2106f8da810c3f1857d0",
+    "design-review/source/complete-review/production-density.js": "daadd91de942d8fc2c16ab3893e270d6cdaeea03eff3acd7b2376da80344f688",
+    "design-review/source/complete-review/production-evidence.js": "4cd555c5e096407d03c1f43b80df2ccbc22b58d6cff61626301aba2ca7fa54cf",
+    "design-review/source/complete-review/production-runtime.py": "ee6d53632e199a16b84fe52983624538c24c8b4e26814c43f876513d8826ec76",
     "design-review/source/complete-review/review.css": "d5511264776752aca34ce7c8bbcd533d85009eae4bdb03d9ea64b5c4f9b4b97f",
     "design-review/source/complete-review/shared-bytes.js": "4b62b6fd20b330260c1da7452934fe4321e2f53a4a0c1844639effcca667c35b",
     "design-review/source/complete-review/shared-geometry.js": "fa2a700433125ea33e042cd62f12fec05e77616e993e1db0596ac71e1eff294f",
@@ -41,7 +45,18 @@
     "public/review/index.html": "6a9c09e26f33d40273c1bb299f71be1b8fc7b7c9cf1c5438cd99887de1a44f41",
     "public/review/lifecycle.html": "f867f9ec88fec775e98de1069232b2d8f102d4ef6fe63d74f60fa881d7e305a3",
     "public/review/viewport.html": "75d00ce5b75458e1f8a150c6e7897b5662ea93bf5d763ccba95eca1652980455",
+    "src/redesign/builder-domain.ts": "de72948ce57c9dcc2461e6f693f1bba922a123def55df13d675c5db62143689b",
+    "src/redesign/builder-runtime.css": "f2663b8cd4e06e403ffcc5f63e1b9d0e950a63d645f4fac37ca30071e9b054df",
+    "src/redesign/builder-runtime.js": "449435a81720ffe68c3ddc062bf9e338850e3e40121c29658b0c948bcb03179d",
+    "src/redesign/connected-domain.ts": "90ce06c1ce39322faba1956d0c37951b269df4c4740b62e43fa29864e27be644",
+    "src/redesign/connected-runtime.css": "5fd87bf151d37333ddb112f84ddbc0432513af1d05be3aa22ee5401ecf8c4600",
+    "src/redesign/connected-runtime.js": "91c23de4e14ddb9c2ba4b3d35651eb16d2ff58e5f59ca57745b553bf59636386",
+    "src/redesign/evidence-domain.ts": "9f4b509cee37fafece632c265536561b1655ef8164a88394a9f19406f899b868",
+    "src/redesign/evidence-runtime.css": "a8084a9381172164243cd5703defa00ea197bf26f7d5baa22a45caf34ca0b7c1",
+    "src/redesign/evidence-runtime.js": "f9f20483e2a71b551e2d15142df59a1fe86f280da038ca3c1d9345da0208a135",
+    "src/redesign/foundation-runtime.js": "73fe2d073c280f7aec70bb55fee5c9f1523ef0d6f457fabe80e6788c09c255c9",
     "src/redesign/lifecycle-runtime.css": "52941c68ccbfbdf7fe8e256fd5eb55002cde17c4cfada6ba9075ce5a2b562c23",
-    "src/redesign/lifecycle-runtime.js": "b5f6294206e7cd9d00fa3a6c3eada97e0ed1f45a5b3d4cf34079849a7328cbcc"
+    "src/redesign/lifecycle-runtime.js": "a5a51f026bd83e897c0c1fd51c0cfd23c2954fede63571d21624e29cae8ae718",
+    "src/redesign/network-planner-worker.js": "84360af905dff3cc49a822bfdfadf7aa7d5cc757947b8379e102e938f4bbe54e"
   }
 }

@@ -1,3 +1,4 @@
+import {checkCompletePresentation} from './complete-presentation-contract.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { WORKSPACE_COUNT, WORKSPACE_IDS, WORKSPACE_PATHS } from '../src/workspace-catalog.ts';
@@ -52,12 +53,7 @@ assert.equal(canonicalUrlForRoute(unknown, '?x=1'), '/');
 assert.match(wrangler, /"not_found_handling"\s*:\s*"single-page-application"/);
 assert.match(wrangler, /"run_worker_first"\s*:\s*\["\/api\/\*"\]/);
 
-assert.match(app, /window\.location\.protocol === 'http:' \|\| window\.location\.protocol === 'https:'/);
-assert.match(app, /resolveAppRoute\('\/', typeof window === 'undefined' \? '' : window\.location\.search\)/);
-assert.match(app, /window\.history\.pushState/);
-assert.match(app, /window\.history\.replaceState/);
-assert.match(app, /addEventListener\('popstate'/);
-assert.match(app, /resolveAppRoute\(window\.location\.pathname, window\.location\.search\)/);
-assert.match(app, /pathForDestination\(/);
 
 console.log(`Navigation contract OK: ${WORKSPACE_COUNT} catalog-backed canonical deep links, legacy Journey migration, SPA fallback, and browser history wiring.`);
+
+checkCompletePresentation();

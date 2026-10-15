@@ -1,4 +1,8 @@
 export interface LifecycleAPI {
+ select(scene:string):void;
+ seek(clock:number):void;
+ save():unknown;
+ restore(value:unknown):void;
  presentSource(timeMs: number, durationMs: number, settle?: boolean): void;
  reflow(): void;
  appearance(): void;

@@ -10,6 +10,9 @@ export function createRuntimeScope(element) {
  const bind = target => new Proxy(target, {get(object, key) {
   if (key === 'addEventListener') return (type, listener, options) => listen(object, type, listener, options);
   if (key === 'fonts' && object === globalThis.document) return bind(object.fonts);
+  if (key === 'ready' && object === globalThis.document.fonts) return {
+   then(fulfilled,rejected){return object.ready.then(value=>disposed?undefined:fulfilled?.(value),error=>disposed?undefined:rejected?.(error));}
+  };
   if (key === 'createElement' && object === globalThis.document) return (...args) => {
    const node = object.createElement(...args);
    if(String(args[0]).toLowerCase()==='canvas'){

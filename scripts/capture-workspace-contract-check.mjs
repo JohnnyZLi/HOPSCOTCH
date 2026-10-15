@@ -1,3 +1,4 @@
+import {checkCompletePresentation} from './complete-presentation-contract.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { WORKSPACE_PATHS, workspaceDefinition } from '../src/workspace-catalog.ts';
@@ -110,9 +111,7 @@ assert.equal(WORKSPACE_PATHS.capture, '/capture');
 assert.match(launcher, /EXPLORE_GROUPS/, 'Explore must consume the catalog group containing Capture Replay');
 assert.match(launcher, /workspaceDefinition\(id\)/, 'Explore must resolve Capture Replay metadata from the canonical catalog');
 assert.match(navigation, /WORKSPACE_PATHS/, 'navigation must consume catalog-owned capture path rather than duplicate it');
-assert.match(app, /lazy\(\(\) => import\('\.\/CaptureReplayWorkspace\.tsx'\)/);
-assert.match(app, /captureReturnPending/);
-assert.match(app, /capturedFrame=\{capturedMicroscopeFrame \?\? undefined\}/);
-assert.match(app, /workspaceDefinition/, 'App must consume catalog-owned Capture Replay status/lab metadata');
 
 console.log('Track H workspace contract passed: explicit local import, worker-backed primary parsing, bounded analysis surfaces, preserved replay/microscopy, catalog-owned current product identity, local-only comparison and sidecars, and provenance-separated counterfactual inspection.');
+
+checkCompletePresentation();
