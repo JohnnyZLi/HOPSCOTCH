@@ -19,6 +19,7 @@ export async function serveProductionArtifact(distDirectory) {
   const indexPath = resolve(distDir, 'index.html');
   if (!existsSync(indexPath)) throw new Error('dist/index.html is missing. Run `npm run build` first.');
 
+  let isolateNavigations = true;
   const server = createServer((request, response) => {
     try {
       const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://127.0.0.1').pathname);
@@ -28,7 +29,7 @@ export async function serveProductionArtifact(distDirectory) {
       const safeCandidate = withinDist ? candidate : indexPath;
       const filePath = existsSync(safeCandidate) && statSync(safeCandidate).isFile() ? safeCandidate : indexPath;
       const headers = { 'content-type': mimeType(filePath), 'cache-control': 'no-store' };
-      if (filePath === indexPath) {
+      if (filePath === indexPath && isolateNavigations) {
         // Production-artifact profiles are independent test cases. Real HTTP navigation gives the app
         // a persistent origin and makes prior documents eligible for Chrome's back/forward cache, so
         // clear browser-owned profile state before the next app boot while preserving real chunk loading.
@@ -48,5 +49,5 @@ export async function serveProductionArtifact(distDirectory) {
   });
   const address = server.address();
   assert.ok(address && typeof address === 'object');
-  return { server, origin: `http://127.0.0.1:${address.port}` };
+  return { server, origin: `http://127.0.0.1:${address.port}`, setNavigationIsolation(value) { isolateNavigations = Boolean(value); } };
 }
