@@ -1,15 +1,27 @@
 :root{font:400 14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172332;background:#f3f5f7;color-scheme:light;-webkit-font-smoothing:antialiased}
 :root[data-theme=dark]{background:#171a20;color:#eef1f6;color-scheme:dark}
 *{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button,a,input,select,summary{touch-action:manipulation}button,select,summary{cursor:pointer}a{color:inherit}button:disabled{cursor:default}
-.hopscotch-app{max-width:1320px;margin:0 auto;padding:18px 28px 32px;min-width:0}
-.app-navigation{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.hopscotch-app{--app-gutter:clamp(16px,2vw,32px);display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;width:100%;min-width:0}
+.app-navigation{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0;padding:12px var(--app-gutter)}
 .app-navigation a{display:flex;align-items:center;min-height:44px;border-radius:13px;text-decoration:none;padding:9px 13px;color:#526273}
 .app-navigation a[aria-current=page]{background:#e3effc;color:#075cbd}
 [data-theme=dark] .app-navigation a{color:#a7afbc}[data-theme=dark] .app-navigation a[aria-current=page]{background:#2c405e;color:#a8caff}
 .workspace-loading{padding:36px 26px;min-height:440px;border-radius:22px;background:rgba(255,255,255,.5)}
 .workspace-error{padding:24px;line-height:1.6}.workspace-error button{min-height:44px;padding:8px 16px;border-radius:13px}
-.review-runtime{min-width:0}.review-runtime .rv-foot span:last-child:empty{display:none}
+.workspace-container,.review-runtime{display:flex;flex:1;flex-direction:column;min-width:0}
+.hopscotch-app .review-runtime>.rv-shell{display:flex;flex:1;flex-direction:column;border:0;border-radius:0;box-shadow:none}
+.hopscotch-app .review-runtime .rv-main{flex:1;padding-inline:var(--app-gutter)}
+.hopscotch-app .review-runtime :is(.rv-header,.rv-foot){padding-inline:var(--app-gutter)}
+.review-runtime .rv-foot span:last-child:empty{display:none}
+
+/* One font-relative indicator for native single-selects, including new controls. */
+.review-runtime{--rv-select-inset:.9em;--rv-select-icon-size:1em;--rv-select-indicator:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 10'%3E%3Cpath d='m2 2 6 6 6-6' fill='none' stroke='%23526273' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+.review-runtime[data-theme=dark]{--rv-select-indicator:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 10'%3E%3Cpath d='m2 2 6 6 6-6' fill='none' stroke='%23a7afbc' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+.review-runtime select:not([multiple]):is(:not([size]),[size="0"],[size="1"]){appearance:none;-webkit-appearance:none;padding-inline-end:calc(var(--rv-select-inset)*2 + var(--rv-select-icon-size));background-image:var(--rv-select-indicator);background-repeat:no-repeat;background-size:var(--rv-select-icon-size) calc(var(--rv-select-icon-size)*.625);background-position:right var(--rv-select-inset) center}
+.review-runtime select:dir(rtl):not([multiple]):is(:not([size]),[size="0"],[size="1"]){background-position:left var(--rv-select-inset) center}
+.review-runtime select:disabled{opacity:.45;cursor:default}
+@media(forced-colors:active){.review-runtime select:not([multiple]):is(:not([size]),[size="0"],[size="1"]){appearance:auto;-webkit-appearance:auto;background-image:none;padding-inline-end:var(--rv-select-inset)}}
 .review-runtime .wb-pages{flex-wrap:wrap!important;overflow:visible!important}
 .app-return{border:0;background:transparent;color:inherit;min-height:44px;padding:8px 12px;margin-bottom:12px;border-radius:13px}
 .journey-configuration{margin-bottom:18px}.journey-configuration form{margin-top:16px}.journey-modifiers{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:16px;border:1px solid var(--hs-line);border-radius:15px;padding:10px 14px}.journey-modifiers label{display:flex;align-items:center;gap:8px;min-height:44px}.journey-context-actions{margin-top:12px}.journey-context-actions input{width:100%;min-width:0}
-@media(max-width:600px){.hopscotch-app{padding:10px 12px 24px}.app-navigation{gap:0;margin-bottom:10px}.app-navigation a{padding:8px 10px}}
+@media(max-width:600px){.app-navigation{gap:0;padding-block:8px}.app-navigation a{padding:8px 10px}}
