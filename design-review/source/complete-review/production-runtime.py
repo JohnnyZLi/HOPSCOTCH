@@ -5,7 +5,8 @@ receive canonical models and user imports; no reference snapshots are bundled.
 """
 def complete_runtimes():
     folder=Path('../../src/redesign')
-    common='\n'.join([engine,helpers,graph_helper,*[Path('complete-review/'+name).read_text() for name in ['shared-geometry.js','shared-ui.js','shared-network.js','shared-reservation.js','shared-bytes.js','shared-presentation.js']],Path('complete-review/shared-painter.js').read_text().replace('__VERTEX__','`'+vertex+'`').replace('__FRAGMENT__','`'+fragment+'`'),records])
+    write_material_runtime(folder)
+    common='\n'.join([workspace_engine,helpers,graph_helper,*[Path('complete-review/'+name).read_text() for name in ['shared-geometry.js','shared-ui.js','shared-network.js','shared-reservation.js','shared-bytes.js','shared-presentation.js']],Path('complete-review/shared-painter.js').read_text().replace('__VERTEX__','`'+vertex+'`').replace('__FRAGMENT__','`'+fragment+'`'),records])
     common=common.replace('export function','function')
     # Knockout marks are decoration. Group their geometry while each real
     # connection retains its own identity for selection and forwarding emphasis.
@@ -40,7 +41,7 @@ def complete_runtimes():
     for identity in ['__ROOT__','hop-app-composition']:
         common=common.replace("document.getElementById('"+identity+"')",'element')
     common=common.replace('root.addEventListener(','scope.listen(element,')
-    (folder/'foundation-runtime.js').write_text("// Generated from the approved composition. Shared material, geometry, and UI.\nimport {createRuntimeScope} from '../../design-review/source/complete-review/integration-scope.js';\nimport {createNetworkPlanner} from './network-planner';\nexport function mountFoundation(element){\nconst originalKeys=new Set(Reflect.ownKeys(element));\nconst scope=createRuntimeScope(element),{document,window,matchMedia,requestAnimationFrame,cancelAnimationFrame,ResizeObserver,MutationObserver}=scope;\n"+common+"\nreturn {scope,originalKeys};\n}\n")
+    (folder/'foundation-runtime.js').write_text("// Generated from the approved composition. Shared material, geometry, and UI.\nimport {createRuntimeScope} from '../../design-review/source/complete-review/integration-scope.js';\nimport {createNetworkPlanner} from './network-planner';\nimport {mountMaterialFoundation} from './material-runtime.js';\nexport function mountFoundation(element){\nconst originalKeys=new Set(Reflect.ownKeys(element));\nconst scope=createRuntimeScope(element),{document,window,matchMedia,requestAnimationFrame,cancelAnimationFrame,ResizeObserver,MutationObserver}=scope;\n"+common+"\nreturn {scope,originalKeys};\n}\n")
     for kind,name,domain_key,api_key in [('workbench','builder','reviewDomain','builderStudy'),('evidence','evidence','evidenceDomain','evidenceStudy'),('connected','connected','entryDomain','connectedStudy')]:
         source=header_markup(kind,Path('complete-review/'+kind+'.html').read_text())
         template=re.search(r'<section class="rv-shell">.*?</section>\s*<script>',source,re.S)[0].rsplit('<script>',1)[0]
