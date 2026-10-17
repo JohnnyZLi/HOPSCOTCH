@@ -3,7 +3,7 @@
   "inputs": {
     "design-review/build.py": "3cfc74e7ad74dbe27292d95f1a0aadb2900c0e320def3ff979bfefe4073ae842",
     "design-review/source/base-study.html": "cedcfd274898b271c138241df65bc8dda14a4cd46fd1dd61e8c3a11c76958667",
-    "design-review/source/complete-review/assemble.py": "7c927c52a6eb8df053e7221fc7c3781b2a7678b2140854d72be52ecff127c2b7",
+    "design-review/source/complete-review/assemble.py": "5abfbff95350513a27a8ec1d35799bd521ce377c11208d482fd202a8ac26c36d",
     "design-review/source/complete-review/connected.css": "a71f51327a1b76ab9927dd03f07b644c2fa5573d28240e0b34bf00bde0e60152",
     "design-review/source/complete-review/connected.html": "35d26ea3d933a262efaa84309df744198e496f89cac3a5fb1ffa36f3afdfc322",
     "design-review/source/complete-review/connected.js": "d09ac594384d03aa2c38a18c33140cb28e305aee0f6e3a7c004d3e7f1a4d5be4",
@@ -20,7 +20,7 @@
     "design-review/source/complete-review/production-builder.js": "418231275dc98a1af5d501608d35384671b05849195c2106f8da810c3f1857d0",
     "design-review/source/complete-review/production-density.js": "daadd91de942d8fc2c16ab3893e270d6cdaeea03eff3acd7b2376da80344f688",
     "design-review/source/complete-review/production-evidence.js": "4cd555c5e096407d03c1f43b80df2ccbc22b58d6cff61626301aba2ca7fa54cf",
-    "design-review/source/complete-review/production-runtime.py": "a70cf03c828e0f69d59eec7802471f1c95a89eb5040d730648170ceb8fe45cd2",
+    "design-review/source/complete-review/production-runtime.py": "6168f675e3e77cfff3ae3fd7d0c9c5c0067fd5ab8d3e085eff0104c9c775fac7",
     "design-review/source/complete-review/review.css": "d5511264776752aca34ce7c8bbcd533d85009eae4bdb03d9ea64b5c4f9b4b97f",
     "design-review/source/complete-review/shared-bytes.js": "4b62b6fd20b330260c1da7452934fe4321e2f53a4a0c1844639effcca667c35b",
     "design-review/source/complete-review/shared-geometry.js": "fa2a700433125ea33e042cd62f12fec05e77616e993e1db0596ac71e1eff294f",
@@ -54,9 +54,11 @@
     "src/redesign/evidence-domain.ts": "9f4b509cee37fafece632c265536561b1655ef8164a88394a9f19406f899b868",
     "src/redesign/evidence-runtime.css": "a8084a9381172164243cd5703defa00ea197bf26f7d5baa22a45caf34ca0b7c1",
     "src/redesign/evidence-runtime.js": "f9f20483e2a71b551e2d15142df59a1fe86f280da038ca3c1d9345da0208a135",
-    "src/redesign/foundation-runtime.js": "73fe2d073c280f7aec70bb55fee5c9f1523ef0d6f457fabe80e6788c09c255c9",
+    "src/redesign/foundation-runtime.js": "e986c1dcfb030392bd86080f25b1615fac0764abc069ea60522049154ce2b192",
+    "src/redesign/home-runtime.js": "5dee7372f6bc68d7a556443373b8821c300aabca202ff8da3ff1687d602d8ffa",
     "src/redesign/lifecycle-runtime.css": "52941c68ccbfbdf7fe8e256fd5eb55002cde17c4cfada6ba9075ce5a2b562c23",
-    "src/redesign/lifecycle-runtime.js": "9771e4c7c115df7e89ad55504830e42a2b6cf226b7f3f7d0bc803220bad1281b",
+    "src/redesign/lifecycle-runtime.js": "a53d5b1d3579e713bca3ad02fea2be5291d56eb7ae5b90f1de9aed7c8e590a95",
+    "src/redesign/material-runtime.js": "c564bbc58b3865986896fc750a9f278a247046ff3c6e122bae8f5703ddf9802b",
     "src/redesign/network-planner-worker.js": "84360af905dff3cc49a822bfdfadf7aa7d5cc757947b8379e102e938f4bbe54e"
   }
 }
