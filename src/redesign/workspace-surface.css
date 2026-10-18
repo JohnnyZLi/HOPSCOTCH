@@ -50,11 +50,12 @@
 .review-runtime.workspace-surface .journey-share{min-width:0;width:100%}
 .review-runtime.workspace-surface .journey-share input{width:100%;margin-top:8px}
 .review-runtime.workspace-surface .rv-console .journey-configuration{margin:6px 0 0;padding:0}
-.review-runtime.workspace-surface .rv-console .journey-configuration>summary{display:list-item;padding:8px 0;border:0;border-radius:0;background:transparent;font-size:13px;min-height:36px}
+.review-runtime.workspace-surface .rv-console .journey-configuration>summary{display:flex;padding:8px 0;border:0;border-radius:0;background:transparent;font-size:13px;min-height:36px}
 .review-runtime.workspace-surface .rv-console .journey-configuration[open]{width:100%;padding:0;background:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
 .review-runtime.workspace-surface .rv-console .journey-configuration form{grid-template-columns:minmax(0,1fr)}
 .review-runtime.workspace-surface .rv-console .journey-configuration form>label:first-child{grid-column:auto}
 .review-runtime.workspace-surface .rv-console .rv-source{display:flex}
+.review-runtime.workspace-surface .rv-scene-details>summary{width:max-content;max-width:100%;padding:10px 15px;border:1px solid var(--hs-line);border-radius:22px;background:var(--ws-reading);color:var(--hs-ink);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
 @container(max-width:600px){
  .review-runtime.workspace-surface .lh-header.rv-header{padding-block:10px;min-height:68px}
  .review-runtime.workspace-surface .ws-intro{flex-direction:column;gap:12px}

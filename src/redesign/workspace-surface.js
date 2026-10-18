@@ -30,7 +30,10 @@ export function mountWorkspaceSurface(element,navigate,destination){
   if(sceneLabel)intro.append(sceneLabel);
   const configuration=main.querySelector('.journey-configuration');
   const settings=main.querySelector('.rv-playback-settings');
-  if(configuration&&settings)settings.after(configuration);
+  const tools=settings?.querySelector('.rv-disclosure-inner')||settings;
+  if(configuration&&tools)tools.append(configuration);
+  const actions=main.querySelector('.journey-context-actions');
+  if(actions&&tools)tools.append(actions);
  }
  const surface=mountSurface(element,scope,navigate,{workspace:destination,registerMaterial:false});
  const selects=mountSelectMenus(element,scope,surface.menus);
