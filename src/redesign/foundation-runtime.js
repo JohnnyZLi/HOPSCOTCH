@@ -389,7 +389,9 @@ function status(titleNode,detailNode,title,detail){
  host.style.height=after+'px';host.style.overflow='clip';host.append(old);entry.copy=old;
  // Text changes hands rather than crossfading two sentences in the same place.
  const exitMs=90,enterMs=150,duration=exitMs+enterMs;
- const outgoing=old.animate([{opacity:1},{opacity:0}],{duration:exitMs,easing:'ease-out',fill:'forwards'}),incoming=[titleNode,detailNode].map(n=>n.animate([{opacity:0,transform:'translateY(2px)'},{opacity:1,transform:'translateY(0)'}],{delay:exitMs,duration:enterMs,easing:'ease-out',fill:'both'}));entry.animations=[outgoing,...incoming];
+ // A detail may live in a closed explanation. Animating that hidden node can
+ // leave Chromium's finished promise unresolved and retain the outgoing copy.
+ const outgoing=old.animate([{opacity:1},{opacity:0}],{duration:exitMs,easing:'ease-out',fill:'forwards'}),incoming=[titleNode,detailNode].filter(n=>n.getClientRects().length).map(n=>n.animate([{opacity:0,transform:'translateY(2px)'},{opacity:1,transform:'translateY(0)'}],{delay:exitMs,duration:enterMs,easing:'ease-out',fill:'both'}));entry.animations=[outgoing,...incoming];
  const sizing=host.animate([{height:before+'px'},{height:after+'px'}],{duration,easing:'ease-out'});entry.animations.push(sizing);
  activeStatuses.set(host,entry);Promise.all(entry.animations.map(a=>a.finished.catch(()=>{}))).then(()=>settleStatus(host,entry));
 }

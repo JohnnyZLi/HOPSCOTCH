@@ -168,8 +168,9 @@ function reflow(){
  const fitViewport=(getComputedStyle(stage).getPropertyValue?.('--rv-scene-fit')||'').trim()==='viewport';
  const consoleOwner=q('.rv-console'),consoleStyle=fitViewport?getComputedStyle(consoleOwner):null,mainStyle=fitViewport?getComputedStyle(q('.rv-main')):null;
  const stageOffset=fitViewport?stage.getBoundingClientRect().top-root.getBoundingClientRect().top:0;
- const summary=details.querySelector('summary'),detailsStyle=fitViewport?getComputedStyle(details):null;
- const clearance=fitViewport?(parseFloat(consoleStyle.marginTop)||0)+(parseFloat(mainStyle.paddingBottom)||0)+(q('.rv-foot')?.offsetHeight||0)+(summary?.offsetHeight||0)+(parseFloat(detailsStyle.marginTop)||0):32;
+ // Prioritize the reading surface and playback. The optional inspector and
+ // provenance footer can continue below the fold instead of shrinking a card.
+ const clearance=fitViewport?(parseFloat(consoleStyle.marginTop)||0)+(parseFloat(mainStyle.paddingBottom)||0):32;
  const key=[sceneId,variant,dnsMode,width,viewport,style.fontSize,style.fontFamily,root.dataset.theme,devicePixelRatio||1,fitViewport?stageOffset+'|'+consoleOwner.offsetHeight+'|'+dock.offsetHeight+'|'+clearance:''].join('|');if(key===layoutKey)return;
  // Measure one source object at a time. Keeping every cached card connected
  // makes each field/glyph measurement relayout the entire canonical history.

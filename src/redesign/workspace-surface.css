@@ -88,7 +88,7 @@
 .review-runtime.workspace-surface[data-scene=journey] .rv-scrub{grid-column:1/-1;margin:0;min-height:24px}
 .review-runtime.workspace-surface .ws-playback-extras{grid-column:1/-1;display:flex;align-items:flex-start;justify-content:center;gap:4px 18px;flex-wrap:wrap;font-size:12px}
 .review-runtime.workspace-surface .ws-playback-extras>details{flex:0 1 auto;margin:0;min-width:0}
-.review-runtime.workspace-surface .ws-playback-extras summary{min-height:36px;font-size:12px;color:var(--hs-muted)}
+.review-runtime.workspace-surface .ws-playback-extras summary{min-height:36px;padding:8px 0;font-size:12px;color:var(--hs-muted)}
 .review-runtime.workspace-surface .ws-playback-extras details[open]{flex:1 1 220px}
 .review-runtime.workspace-surface .ws-playback-extras .rv-source{display:block;border-top:1px solid var(--hs-line);padding-top:12px;margin-top:12px}
 .review-runtime.workspace-surface .rv-source span{display:block;margin-top:6px}
@@ -113,7 +113,7 @@
  .review-runtime.workspace-surface .journey-configuration>summary{width:max-content}
  .review-runtime.workspace-surface .journey-configuration form{grid-template-columns:minmax(0,1fr)}
  .review-runtime.workspace-surface .journey-configuration form>label:first-child{grid-column:auto}
- .review-runtime.workspace-surface[data-scene=journey] .rv-console{grid-template-columns:minmax(0,1fr);padding:16px;border-radius:24px;gap:10px;margin-top:20px}
+ .review-runtime.workspace-surface[data-scene=journey] .rv-console{grid-template-columns:minmax(0,1fr);padding:16px;border-radius:24px;gap:8px;margin-top:20px}
  .review-runtime.workspace-surface[data-scene=journey] .rv-controls{justify-content:flex-start;gap:4px}
  .review-runtime.workspace-surface[data-scene=journey] .rv-controls button{font-size:14px}
  .review-runtime.workspace-surface .ws-playback-extras{justify-content:flex-start;gap:6px 14px}

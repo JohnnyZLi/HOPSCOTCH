@@ -28,6 +28,9 @@ export function mountWorkspaceSurface(element,navigate,destination){
   if(sceneLabel)intro.append(sceneLabel);
   const configuration=main.querySelector('.journey-configuration');if(configuration)intro.append(configuration);
   const console=main.querySelector('.rv-console');console.dataset.uiSurface='record';console.dataset.glassRole='launcher';
+  for(const [selector,label]of [['.rv-playback-settings>summary','Settings'],['.journey-share>summary','Share']]){
+   const summary=console.querySelector(selector);if(summary)for(const child of summary.childNodes)if(child.nodeType===3&&child.textContent.trim())child.textContent=label;
+  }
   const source=console.querySelector('.rv-source'),explanation=console.querySelector('.rv-explanation');
   (explanation.querySelector('.rv-disclosure-inner')||explanation).append(source);
   const extras=document.createElement('div');extras.className='ws-playback-extras';

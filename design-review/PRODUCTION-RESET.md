@@ -60,8 +60,11 @@ The optional `--rv-field-max-columns` policy is read from the actual owner;
 glyph geometry and reading trajectories still come from measured content.
 
 `--rv-scene-fit: viewport` opts the scene into a measured vertical envelope:
-actual stage offset, playback height/margin, inspector summary, page padding,
-and footer determine its available reading height. The existing minimum readable
+actual stage offset, playback height/margin and page padding determine its
+available reading height. The optional inspector and provenance footer continue
+below the fold when necessary, keeping that space available for the scene.
+Secondary playback actions use concise labels and retain their disclosures.
+The existing minimum readable
 window wins when a viewport is too short. Settled disclosure changes and actual
 playback/status size changes invalidate geometry; no idle or per-frame layout
 probes are introduced. Source events, clocks, bytes and semantic roles do not
