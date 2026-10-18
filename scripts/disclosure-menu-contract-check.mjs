@@ -5,7 +5,7 @@ const controller=fs.readFileSync(new URL('../src/redesign/disclosure-menus.js',i
 
 // Controller behavior with explicit DOM/event/animation fixtures. These checks
 // do not represent browser rendering, native picker behavior, or visual QA.
-function fixture(width=390,rtl=false,selection=false,secondMenu=false){
+function fixture(width=390,rtl=false,selection=false,secondMenu=false,nativeFocusEvents=true){
  let rootWidth=width,hidden=false,nextFrame=1;
  const frames=new Map(),observers=[],animations=[],listeners=[],menuOwners=[];
  const doc={activeElement:null,events:{}};
@@ -32,7 +32,7 @@ function fixture(width=390,rtl=false,selection=false,secondMenu=false){
   querySelector(selector){if(selector===':scope > summary')return this.children.find(n=>n.kind==='summary');if(selector==='[data-disclosure-panel]')return this.children.find(n=>n.kind==='panel');return null;}
   querySelectorAll(selector){if(selector==='[data-disclosure-menu]')return menuOwners;if(selector==='a[href],button:not([disabled])')return this.children.filter(n=>n.kind==='link');return [];}
   closest(){return this.kind==='link'?this:this.parentElement?.closest();}
-  focus(){const old=doc.activeElement;if(old===this)return;doc.activeElement=this;if(old)fire(old,'focusout',{relatedTarget:this});fire(this,'focusin',{relatedTarget:old});fire(doc,'focusin',{target:this,relatedTarget:old});}
+  focus(){const old=doc.activeElement;if(old===this)return;doc.activeElement=this;if(nativeFocusEvents){if(old)fire(old,'focusout',{relatedTarget:this});fire(this,'focusin',{relatedTarget:old});fire(doc,'focusin',{target:this,relatedTarget:old});}}
   animate(keys,options){
    let resolve,reject;const animation={keys,options,done:false,finished:new Promise((yes,no)=>{resolve=yes;reject=no;}),
     cancel:()=>{if(!animation.done){animation.done=true;reject(Error('canceled'));}this.opacity='1';},
@@ -92,8 +92,8 @@ function fixture(width=390,rtl=false,selection=false,secondMenu=false){
   links[0].focus();f.resize(1024,true);assert.equal(details.open,false,'Hidden responsive trigger closes disclosure');assert.equal(doc.activeElement,f.picker);assert.equal(trigger.attrs['aria-expanded'],'false');assert.equal(f.pending(),0);
   f.menus.dispose();f.scope.dispose();assert.equal(f.pending(),0);
  }
- for(const order of [true,'silent']){
- const responsiveBlur=fixture();
+ for(const nativeEvents of [true,false])for(const order of [true,'silent']){
+ const responsiveBlur=fixture(390,false,false,false,nativeEvents);
  responsiveBlur.trigger.focus();responsiveBlur.fire(responsiveBlur.trigger,'keydown',{key:'ArrowDown'});await responsiveBlur.finish();
  responsiveBlur.resize(1024,true,order);
  assert.equal(responsiveBlur.details.open,false);assert.equal(responsiveBlur.doc.activeElement,responsiveBlur.picker,'Responsive blur before ResizeObserver must retain header focus');

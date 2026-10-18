@@ -15,6 +15,7 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
   const items=()=>[...panel.querySelectorAll('a[href],button:not([disabled])')].filter(node=>node.getClientRects().length);
   const selectedItem=()=>items().find(node=>node.getAttribute('aria-pressed')==='true'||node.getAttribute('aria-checked')==='true')||items()[0];
   const focusSelection=details.hasAttribute('data-disclosure-selection');
+  function focusItem(item){item?.focus({preventScroll:true});focusedWithin=details.contains(document.activeElement);}
   trigger.setAttribute('aria-expanded',String(wanted));
   trigger.setAttribute('aria-controls',panel.id);
   panel.inert=!wanted;
@@ -63,7 +64,7 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
    if(wanted){
     for(const other of controllers)if(other.details!==details)other.close({immediate:true});
     details.open=true;position();
-    if(focusSelection&&!wasOpen)selectedItem()?.focus({preventScroll:true});
+    if(focusSelection&&!wasOpen)focusItem(selectedItem());
    }
    onLayout();
    if(immediate||reduced.matches||!panel.animate||(!wanted&&!wasOpen)){settle();return;}
@@ -84,14 +85,14 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
   scope.listen(trigger,'keydown',event=>{
    if(event.key!=='ArrowDown'&&event.key!=='ArrowUp')return;
    event.preventDefault();setOpen(true);
-   const links=items();(focusSelection?selectedItem():event.key==='ArrowDown'?links[0]:links.at(-1))?.focus({preventScroll:true});
+   const links=items();focusItem(focusSelection?selectedItem():event.key==='ArrowDown'?links[0]:links.at(-1));
   });
   scope.listen(panel,'keydown',event=>{
    if(!['ArrowDown','ArrowUp','Home','End'].includes(event.key))return;
    const links=items(),index=links.indexOf(document.activeElement);if(!links.length)return;
    event.preventDefault();
    const next=event.key==='Home'?0:event.key==='End'?links.length-1:event.key==='ArrowDown'?(index+1)%links.length:(index-1+links.length)%links.length;
-   links[next].focus({preventScroll:true});
+   focusItem(links[next]);
   });
   scope.listen(details,'focusin',()=>{focusedWithin=true;});
   scope.listen(document,'focusin',event=>{if(!details.contains(event.target)&&event.target!==document.body&&event.target!==document.documentElement)focusedWithin=false;});
