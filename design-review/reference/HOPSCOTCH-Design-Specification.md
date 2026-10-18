@@ -1,6 +1,6 @@
 # HOPSCOTCH — Visual and Interaction Design Specification
 
-**Version:** 0.45 · **Date:** 2026-10-18 UTC · **Status:** Reviewed composition restoration in browser review; owner feedback remains the visual acceptance authority
+**Version:** 0.46 · **Date:** 2026-10-18 UTC · **Status:** Original packet studies restoration in browser review; owner feedback remains the visual acceptance authority
 **Product owner / design approver:** Johnny Li  
 **Scope:** App-wide visual and interaction redesign  
 **Repository baseline:** `JohnnyZLi/HOPSCOTCH`, `main` at `be21750003cf3c097c917ae4340c78a0035ccbc6`  
@@ -8,13 +8,15 @@
 **Current evidence authority:** [Live visual and animation audit — 8 October 2026](HOPSCOTCH-Live-Visual-Audit-20261008.md). Earlier evidence counts and manifests below describe their historical revisions, not current browser acceptance.
 
 
-## Restore the reviewed composition — 18 October 2026
+## Recover the original packet studies — 18 October 2026
 
-The owner rejected the production layout and asked to recover the quality of the preview/Site. The later toolbar, full-width transport strip, compact title, forced key/value rows and shared route/reading axis are superseded. Passing functional checks does not establish visual acceptance.
+The owner rejected the production reconstruction and the later generic review-layout restoration. The reference is the earlier `hopscotch-resilient-glass.html`, `hopscotch-tcp-resilient-glass.html` and focused router studies recovered from the October 9 checkpoint, not merely the subsequent four-study lifecycle page. See [original study restoration](HOPSCOTCH-Original-Study-Restoration.md) for source identity and the mapping.
 
-`review.css` and the shared measured lifecycle renderer own composition again: scene and 300px playback panel alongside one another on wide screens, playback before the scene on narrow screens, retained values inside the scene and full inspection below. Use the reference typography and field layout. The production adapter supplies the approved wallpaper/header and custom selection controls without changing those owners. Production-only request editing belongs among the existing playback tools.
+Restore protocol-owned hierarchy: TCP segment identity, leading flags with paired sequence/acknowledgment fields, and separate client/server retained records. The scene leads a compact explanatory transport below it across widths. Actual measured content, chrome and viewport bounds determine reading geometry; minimum readable glyphs win over squeezing. Keep the shared skinny scanner, timing/contact law and physical packet shader.
 
-Preserve the accepted packet material, scanner, docking, cadence, exact bytes, event identity and source clocks. Preserve the owned caption animation deadline fix. Compare the actual desktop/mobile Light/Dark outputs against the reference rather than certifying design quality from passing checks.
+Journey assembly and transit use the existing canonical packet-visual and physical-journey projections. The retained IP carrier shows actual projected fields while separate hop-local Ethernet and wire-only FCS pieces detach/attach. Payload meaning stays subordinate inside the IP object. No header values are parsed from narration or fabricated by presentation. Seek/replay retains the carrier and its continuity identity. The wallpaper remains but uses a quiet workspace exposure distinct from the home screen.
+
+Source clocks, events, bytes, capture provenance and navigation return anchors are unchanged. The full matrix and rendered desktop/phone Light/Dark review are necessary; owner feedback remains the acceptance authority.
 
 
 ## Current live visual and animation audit — 8 October 2026

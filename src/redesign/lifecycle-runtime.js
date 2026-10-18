@@ -565,7 +565,7 @@ const ready = value => value ? 'Ready' : 'Not ready';
 const journeyStateSchema = [['dns', 'Name resolution', words], ['route', 'Forwarding', words],
  ['transport', 'Transport', words], ['tls', 'Protection', words], ['http', 'Application', words]];
 function journeyFrames(actual, {hostname = actual[0]?.event.target || 'Not available', requestId = 'journey-request'} = {}) {
- return actual.map(({event: e, state}, index) => {
+ return actual.map(({event: e, state, packetVisual, physical}, index) => {
   const previous = actual[index - 1]?.state, family = e.kind.split('.')[0], wire = wireKinds.has(e.kind);
   let fields, objectTitle, assembly = null;
   if (family === 'dns') {
@@ -589,8 +589,22 @@ function journeyFrames(actual, {hostname = actual[0]?.event.target || 'Not avail
    }[stage] || []) : [{id:'forwarding',label:'Source operation',value:e.title},
     {id:'continuity',label:'Routed destination',value:state.resolvedAddress},
     {id:'transit',label:'Forwarding stage',value:words(state.packetTransitStage)}];
-   assembly = {identity:requestId, stage:state.packetAssemblyStage, transit:state.packetTransitStage,
-    hostname, destination:state.resolvedAddress, transport:state.transportProfile, protection:state.tls};
+   const layer=packetVisual?.layers.find(layer=>layer.id===(physical?'network':packetVisual.selectedLayerId));
+   if(layer){objectTitle=physical?'IPv4 packet':layer.id==='network'?'IPv4 packet':layer.id==='link'?'IPv4 packet':layer.protocol;
+    const readingLayer=layer.id==='link'?packetVisual.layers.find(layer=>layer.id==='network'):layer;
+    fields=readingLayer.fields.map(field=>({...field,value:field.value}));
+   }
+   const stageIndex=['application','security','transport','network','link','collapsed','exploded'].indexOf(stage),linked=physical?physical.l2Envelope!=='none':stageIndex>=4;
+   const ethernet=packetVisual?.snapshot.segments.find(segment=>segment.id==='ethernet'),linkLayer=packetVisual?.layers.find(layer=>layer.id==='link');
+   assembly = {identity:requestId, stage, transit:state.packetTransitStage,
+    hostname, destination:state.resolvedAddress, transport:state.transportProfile, protection:state.tls,
+    layer:layer?.id||(['network','link','collapsed','exploded'].includes(stage)?'network':stage),
+    payload:stageIndex>=3?(state.transportProfile==='quic-h3'?'UDP / QUIC · protected HTTP/3':'TCP · TLS application data'):stageIndex>=2?'Protected application data':null,
+    envelope:{present:linked,title:ethernet?ethernet.label+' · '+ethernet.length+' B':'Ethernet header',
+      detail:physical?(physical.l2Envelope==='wan'?physical.outgoing:physical.incoming).sourceMac+' → '+(physical.l2Envelope==='wan'?physical.outgoing:physical.incoming).destinationMac:linkLayer?.headline||'Hop-local envelope',
+      trailer:'FCS · wire only',identity:physical?.l2Envelope||'lan'},
+    projection:packetVisual,physical};
+
   } else if (family === 'transport') {
    objectTitle = wire ? e.protocol + ' · ' + words(e.phase) : 'Transport state';
    fields = stateValues(previous,state,[['transport','Connection',words],['impairmentState','Delivery state',words]]);
@@ -631,8 +645,8 @@ function journeyFrames(actual, {hostname = actual[0]?.event.target || 'Not avail
   fields=fields.map(f=>({...f,value:display(f.value)}));
   const changed=fields.filter(f=>f.changed);
   return {id:e.id,at:e.atMs,title:e.title,summary:e.summary,detail:e.detail,kind:assembly?'journey-assembly':e.kind,
-   local:!wire,physical:wire||Boolean(assembly),from:e.actor,to:e.target||e.actor,protocol:e.protocol,
-   objectTitle,fields,readIds:(changed.length?changed:fields).map(f=>f.id),assembly,
+   local:!wire,physical:wire||Boolean(assembly),from:e.actor,to:e.target||e.actor,protocol:assembly?(['network','link'].includes(assembly.layer)?'ipv4':packetVisual?.layers.find(layer=>layer.id===assembly.layer)?.protocol||e.protocol):e.protocol,
+   objectTitle,fields,columns:assembly?2:undefined,readIds:(changed.length?changed:fields).map(f=>f.id),assembly,
    records:[...stateValues(null,state,journeyStateSchema),{label:'Source event',value:e.id},{label:'Source time',value:e.atMs+' ms'},
     {label:'Provenance',value:e.provenance},{label:'Field boundary',value:wire?'Source semantics · no unprovided wire bytes or header numbers':'Canonical local state'}],state,event:e};
  });
@@ -824,17 +838,21 @@ const {clamp,ease,mix,makePlan,samplePlan}=motion,stage=q('.rv-stage'),dark=matc
 const tuning=Object.freeze({construct:620,morph:620,release:650,travelSpeed:.40,minTravel:600,maxTravel:1400,state:650,minimumExposure:900});
 const memories=new Map(),liveCanvas=document.createElement('canvas'),lensCanvas=document.createElement('canvas');liveCanvas.setAttribute('aria-hidden','true');lensCanvas.setAttribute('aria-hidden','true');
 const envelopeCanvas=document.createElement('canvas');envelopeCanvas.setAttribute('aria-hidden','true');q('.rv-envelope-header').prepend(envelopeCanvas);
+const trailerCanvas=document.createElement('canvas');trailerCanvas.setAttribute('aria-hidden','true');q('.rv-envelope-trailer').prepend(trailerCanvas);
 // Keep the live scene, its destinations and playback in one composition.
 // Complete field/state evidence is a deliberate disclosure below that scene.
 const secondary=node('section','rv-state-secondary'),composition=node('section','rv-composition'),dock=node('section','rv-retained-dock'),details=node('details','rv-scene-details'),fullFields=node('dl','rv-facts rv-full-fields');
 secondary.append(q('.rv-state-records'),q('.rv-buffer'));q('.rv-main').insertBefore(composition,q('.rv-motion-primary'));composition.append(q('.rv-motion-primary'),q('.rv-network-primary'),q('.rv-comparison-primary'),q('.rv-console'));stage.insertBefore(dock,q('.rv-path'));details.append(node('summary','','Full fields and retained state'),fullFields,secondary);q('.rv-main').insertBefore(details,q('.rv-byte-details'));
 const settingLabels=[...q('.rv-controls').children].filter(n=>n.matches('label'));const settings=node('details','rv-playback-settings');settings.append(node('summary','','Playback settings'));for(const label of settingLabels)settings.append(label);q('.rv-console').append(settings);
-const explanation=node('details','rv-explanation');explanation.append(node('summary','','Explanation'),q('.rv-caption-detail'));q('.rv-console').append(explanation);
+const explanation=node('details','rv-explanation');explanation.append(node('summary','','Source details'),q('.rv-source'));const consoleTools=node('div','rv-console-tools');consoleTools.append(settings,explanation);q('.rv-console').append(consoleTools);
 function bounded(){return ['tcp','tls','dns','journey','provider'].includes(sceneId);}
 function buildDock(){
  dock.replaceChildren();dock.hidden=!bounded()||sceneId==='provider';
  if(sceneId==='tcp'){
-  for(const [label,cls,value]of [['Highest ACK at sender','rv-ack','0'],['Next expected byte','rv-expected','1001']]){const fact=node('div','rv-fact');fact.append(node('dt','',label),node('dd',cls,value));dock.append(fact);}
+  for(const [owner,label,cls,value,note]of [['Client TCP','Acknowledged by the server','rv-ack','0','Acknowledgments retain what the peer received.'],['Server TCP','Next expected from the client','rv-expected','1001','Sequence space survives each received segment.']]){
+   const card=node('section','rv-peer-state'),fact=node('dl','rv-peer-value'),pair=node('div','rv-fact');card.dataset.uiSurface='record';
+   pair.append(node('dt','',label),node('dd',cls,value));fact.append(pair);card.append(node('h3','',owner),fact,node('p','rv-peer-note',note));dock.append(card);
+  }
  }else if(sceneId==='tls'){for(const [label,cls]of [['Certificate','rv-tls-certificate'],['Application channel','rv-tls-channel']]){const fact=node('div','rv-fact');fact.append(node('dt','',label),node('dd',cls,cls==='rv-tls-certificate'?'Unchecked':'Not ready'));dock.append(fact);}}
  else if(sceneId==='dns'||sceneId==='journey'){for(const [label,cls]of [['Resolved address','rv-dns-answer'],['Resolver / cache','rv-dns-cache']]){const fact=node('div','rv-fact');fact.append(node('dt','',label),node('dd',cls,'Not available'));dock.append(fact);}}
  else if(sceneId==='provider'){const fact=node('div','rv-fact');fact.append(node('dt','','Source boundary'),node('dd','','GRE / MPLS projections · no model clock'));dock.append(fact);}
@@ -880,7 +898,7 @@ function sourceFrameAdapter(id){
  if(id==='tcp')return data.tcp.frames.map(({event:e,state},i)=>{
   const local=e.direction==='local',previous=data.tcp.frames[i-1]?.state;
   const fields=local?stateFields(previous,state,[['cwndMss','Congestion window',v=>v+' MSS'],['ssthreshMss','Slow-start threshold',v=>v+' MSS'],['duplicateAcks','Duplicate ACKs'],['phase','Recovery phase',titleCase]]):[{id:'seq',label:'Sequence',value:e.seq??'Not active'},{id:'ack',label:'Acknowledgment',value:e.ack??'Not active'},{id:'flags',label:'Flags',value:e.flags},{id:'length',label:'Data length',value:(e.length||0)+' B'}];
-  return {id:e.id,at:e.atMs,title:e.title,summary:e.summary,detail:e.detail,kind:e.kind,local,lost:e.kind==='data.loss',from:e.direction==='server-to-client'?'Server':'Client',to:e.direction==='server-to-client'?'Client':'Server',protocol:'tcp',objectTitle:e.flags||'Congestion control',fields,readIds:local?fields.filter(f=>f.changed).map(f=>f.id):e.ack===undefined?['seq']:e.length?['seq','length']:['ack'],records:[{label:'Congestion window',value:state.cwndMss+' MSS'},{label:'Slow-start threshold',value:state.ssthreshMss+' MSS'},{label:'Duplicate ACKs',value:state.duplicateAcks},{label:'Next expected byte',value:state.expectedAck},{label:'Highest ACK at sender',value:state.highestAck}],state,event:e};
+  return {id:e.id,at:e.atMs,title:e.title,summary:e.summary,detail:e.detail,kind:e.kind,local,lost:e.kind==='data.loss',from:e.direction==='server-to-client'?'Server':'Client',to:e.direction==='server-to-client'?'Client':'Server',protocol:'tcp',objectTitle:local?'Congestion control':'TCP segment',compactTitle:e.flags||'Congestion control',columns:local?undefined:2,leadFields:local?[]:['flags'],fields,readIds:local?fields.filter(f=>f.changed).map(f=>f.id):e.ack===undefined?['seq']:e.length?['seq','length']:['ack'],records:[{label:'Congestion window',value:state.cwndMss+' MSS'},{label:'Slow-start threshold',value:state.ssthreshMss+' MSS'},{label:'Duplicate ACKs',value:state.duplicateAcks},{label:'Next expected byte',value:state.expectedAck},{label:'Highest ACK at sender',value:state.highestAck}],state,event:e};
  });
  if(id==='packet'){
   const packet=data.packetVariants[variant];return packet.segments.map((segment,i)=>({id:segment.id,identity:'frame-'+packet.config.family+'-'+packet.config.transport,at:null,title:segment.label+' · exact anatomy',summary:'Bytes '+segment.offset+'–'+(segment.offset+segment.length-1)+' remain part of the same '+packet.frameBytes+'-byte source frame. FCS is absent from these model bytes.',detail:'SIMULATED · field values and checksum bytes come from buildPacket. Layer opening is a presentation operation.',kind:'anatomy',from:'Sender',to:'Receiver',protocol:segment.id==='network'?packet.config.family:segment.id==='ethernet'?'ethernet':segment.id==='payload'?'payload':packet.config.transport,objectTitle:segment.label,fields:segment.fields.map(f=>({...f,value:String(f.value)})),readIds:segment.fields.map(f=>f.id),records:[{label:'Frame length',value:packet.frameBytes+' B'},{label:'Network length',value:packet.networkBytes+' B'},{label:'Selected layer',value:segment.label},{label:'Exact byte range',value:segment.offset+' + '+segment.length+' B'}],bytes:packet.bytes,segment,state:packet}));
@@ -927,8 +945,8 @@ function createActors(){
   if(['failure','http'].includes(sceneId)){actors.push(null);continue;}
   const actor=node('div','rv-actor'),face=node('div','rv-actor-face'),heading=node('div','rv-actor-heading'),title=node('span','rv-actor-title',f.objectTitle),role=node('span','rv-actor-role',f.local?(f.physical?'Retained packet · local operation':'Local state operation'):f.from+' → '+f.to),fields=node('div','rv-fields'),capsule=node('div','rv-capsule');
   root.presentation.material(actor,{role:root.presentation.frameRole(f),identity:f.protocol,moving:true});actor.dataset.identity=f.id;actor.setAttribute('aria-label',f.objectTitle+' · '+f.id);actor.style.opacity='0';actor.inert=true;actor.setAttribute('aria-hidden','true');
-  heading.append(title,role);face.append(heading,fields);capsule.append(node('span','rv-protocol'),node('span','',root.presentation.frameRole(f)==='operation'?'Local decision':f.objectTitle));
-  for(const field of f.fields||[]){const el=node('div','rv-field'),label=node('span','rv-field-label',field.label),value=node('span','rv-field-value',field.value);el.dataset.field=field.id;el.append(label,value);fields.append(el);}
+  heading.append(title,role);face.append(heading,fields);capsule.append(node('span','rv-protocol'),node('span','',root.presentation.frameRole(f)==='operation'?'Local decision':f.compactTitle||f.objectTitle));
+  for(const field of f.fields||[]){const el=node('div','rv-field'),label=node('span','rv-field-label',field.label),value=node('span','rv-field-value',field.value);el.dataset.field=field.id;el.dataset.lead=String((f.leadFields||[]).includes(field.id));el.append(label,value);fields.append(el);}
   if(sceneId==='packetOps'){const payload=node('section','rv-payload-body');payload.append(node('p','rv-payload-heading','Application data · exact source bytes'));const chunks=node('div','rv-payload-chunks'),bytes=f.state.segments.find(s=>s.id==='payload').bytes;for(let offset=0;offset<bytes.length;offset+=16){const chunk=node('div','rv-payload-chunk'),slice=bytes.slice(offset,offset+16);chunk.dataset.offset=String(offset);chunk.append(node('span','rv-payload-range',offset+'–'+(offset+slice.length-1)),node('span','rv-payload-pattern',String.fromCharCode(...slice)));chunks.append(chunk);}payload.append(chunks);payload.hidden=!bytes.length;face.append(payload);}
   actor.append(face,capsule);actors.push({actor,face,fields,capsule,fieldMap:new Map([...fields.children].map(n=>[n.dataset.field,n]))});
  }
@@ -944,9 +962,9 @@ function createActors(){
  }
  if(sceneId==='journey'){
   const indices=frames.flatMap((f,i)=>f.assembly?[i]:[]),first=indices[0];
-  if(first!==undefined){const carrier=actors[first],a=frames[first].assembly,deck=node('section','rv-layer-deck');deck.dataset.identity=a.identity;
-   for(const [id,title]of [['application',a.transport==='quic-h3'?'HTTP/3 meaning':'HTTP/2 meaning'],['security',a.transport==='quic-h3'?'QUIC protection':'TLS application data'],['transport',a.transport==='quic-h3'?'UDP / QUIC envelope':'TCP envelope'],['network','IPv4 continuity'],['link','Hop-local Ethernet']]){const layer=node('div','rv-layer-piece');layer.dataset.layer=id;root.presentation.material(layer,{role:'packet',identity:id==='link'?'ethernet':id==='network'?'ipv4':id==='transport'?'tcp':'tls',moving:true});layer.append(node('strong','',title),node('span','',id==='application'?'GET / · '+a.hostname:id==='network'?a.destination:''));deck.prepend(layer);}
-   carrier.face.insertBefore(deck,carrier.fields);carrier.deck=deck;carrier.actor.dataset.identity=a.identity;
+  if(first!==undefined){const carrier=actors[first],a=frames[first].assembly,deck=node('section','rv-payload-summary');deck.dataset.identity=a.identity;
+   deck.append(node('span','rv-payload-label','Payload'),node('span','rv-payload-meaning',''));
+   carrier.face.append(deck);carrier.deck=deck;carrier.actor.dataset.identity=a.identity;
    const all=new Map(indices.flatMap(i=>frames[i].fields.map(f=>[f.id,f])));carrier.fields.replaceChildren();carrier.fieldMap.clear();for(const field of all.values()){const el=node('div','rv-field');el.dataset.field=field.id;el.append(node('span','rv-field-label',field.label),node('span','rv-field-value',field.value));carrier.fields.append(el);carrier.fieldMap.set(field.id,el);}
    for(const i of indices){if(i!==first)actors[i].actor.remove();actors[i]=carrier;}
   }
@@ -955,11 +973,11 @@ function createActors(){
 }
 function prepareFields(index){
  const f=frames[index],a=actors[index];if(!a)return;
- if(a.deck){const order=['application','security','transport','network','link'],through=order.indexOf(f.assembly.stage),visible=through<0?4:through;
-  for(const layer of a.deck.children){layer.hidden=order.indexOf(layer.dataset.layer)>visible||(layer.dataset.layer==='link'&&['router-decapsulate','router-ttl','router-route'].includes(f.assembly.transit));layer.style.opacity='1';layer.style.transform='none';if(layer.dataset.layer==='application')layer.querySelector('span').textContent=visible>=1?'Opaque on the wire':'GET / · '+f.assembly.hostname;}
+ if(a.deck){a.deck.hidden=!f.assembly.payload;a.deck.querySelector('.rv-payload-meaning').textContent=f.assembly.payload||'';
+  a.actor.dataset.continuity=f.assembly.identity;
   a.face.querySelector('.rv-actor-title').textContent=f.objectTitle;
   for(const [id,field]of a.fieldMap){const value=f.fields.find(x=>x.id===id);field.hidden=!value;if(value){field.querySelector('.rv-field-label').textContent=value.label;field.querySelector('.rv-field-value').textContent=value.value;}}
- }else for(const field of f.fields){const value=a.fieldMap.get(field.id).querySelector('.rv-field-value');value.textContent=field.value;value.style.opacity='1';}
+ }else for(const field of [...f.fields].sort((a,b)=>(f.leadFields||[]).indexOf(a.id)>=0?-1:(f.leadFields||[]).indexOf(b.id)>=0?1:0)){a.fields.append(a.fieldMap.get(field.id));const value=a.fieldMap.get(field.id).querySelector('.rv-field-value');value.textContent=field.value;value.style.opacity='1';}
 }
 function textLines(element,origin){
  const range=document.createRange();range.selectNodeContents(element);const rows=[];
@@ -982,8 +1000,9 @@ function reserveState(){
  }
 }
 function reflow(){
- layoutJob=0;if(disposed)return;q('.rv-envelopes').hidden=!['packetOps','provider'].includes(sceneId);const width=stage.clientWidth||q('.rv-main').clientWidth;if(width<160)return;
- const probe=q('.rv-field-value')||q('.rv-title'),style=getComputedStyle(probe),viewport=root.dataset.integrated==='true'?root.clientHeight:typeof innerHeight==='number'?innerHeight:900,key=[sceneId,variant,dnsMode,width,viewport,style.fontSize,style.fontFamily,root.dataset.theme,devicePixelRatio||1].join('|');if(key===layoutKey)return;
+ layoutJob=0;if(disposed)return;q('.rv-envelopes').hidden=!['packetOps','provider','journey'].includes(sceneId);const width=stage.clientWidth||q('.rv-main').clientWidth;if(width<160)return;
+ const stageOffset=stage.getBoundingClientRect().top-root.getBoundingClientRect().top,consoleHeight=q('.rv-console').offsetHeight;
+ const probe=q('.rv-field-value')||q('.rv-title'),style=getComputedStyle(probe),viewport=root.dataset.integrated==='true'?root.clientHeight:typeof innerHeight==='number'?innerHeight:900,key=[sceneId,variant,dnsMode,width,viewport,style.fontSize,style.fontFamily,root.dataset.theme,devicePixelRatio||1,stageOffset,consoleHeight].join('|');if(key===layoutKey)return;
  // Measure one source object at a time. Keeping every cached card connected
  // makes each field/glyph measurement relayout the entire canonical history.
  const actorHost=q('.rv-actors');
@@ -996,22 +1015,23 @@ function reflow(){
   for(const f of frames){clone.textContent=f.endpoints?.[side]||'';max=Math.max(max,clone.getBoundingClientRect().height);}clone.remove();owner.style.minHeight=Math.ceil(max)+'px';
  }
  const dockHeight=bounded()?dock.offsetHeight:0;dock.style.top=endpoints.offsetHeight+'px';const pathY=endpoints.offsetHeight+dockHeight+24;
- const top=q('.rv-envelope-header'),bottom=q('.rv-envelope-trailer');q('.rv-envelope-direction').textContent=sceneId==='provider'?(data.provider.packet?.outer.source??'No outer header')+' → '+(data.provider.packet?.outer.destination??'Not supplied'):'02:48:4f:50:00:01 → 02:48:4f:50:00:02';top.querySelector('span').textContent=sceneId==='provider'?'Outer '+(data.provider.packet?.outer.protocol||'envelope')+' · '+(data.provider.gre?.encapsulationOverheadBytes??0)+' B':'Ethernet II · 14 B';bottom.querySelector('span').textContent=sceneId==='provider'?'MPLS label · 229811':'FCS · unavailable in model bytes';for(const piece of [top,bottom]){piece.style.width=cardWidth+'px';piece.style.height='auto';}const envelopeH=['packetOps','provider'].includes(sceneId)?Math.max(44,top.offsetHeight):0,trailerH=['packetOps','provider'].includes(sceneId)?Math.max(44,bottom.offsetHeight):0,focusY=pathY+(bounded()?(root.dataset.integrated==='true'?12:36):62)+(['packetOps','provider'].includes(sceneId)?envelopeH+20:0),compactLabelStyle=getComputedStyle(q('.rv-capsule')||q('.rv-title')),compactFont=parseFloat(compactLabelStyle.fontSize)||13,compactContext=document.createElement('canvas').getContext('2d');compactContext.font='500 '+compactFont+'px '+compactLabelStyle.fontFamily;const compactLabels=frames.map(f=>f.local?'Local state':f.kind==='anatomy'?'Frame':f.objectTitle),compactText=Math.max(...compactLabels.map(text=>compactContext.measureText(text).width)),compactW=Math.min((width-24)/2,Math.max(88,compactText+32)),compactH=Math.max(44,Math.ceil(compactText/Math.max(1,compactW-32))*compactFont*1.2+16),ports={a:{x:4,y:pathY-22,w:compactW,h:compactH},b:{x:width-compactW-4,y:pathY-22,w:compactW,h:compactH}};
+ const top=q('.rv-envelope-header'),bottom=q('.rv-envelope-trailer');q('.rv-envelope-direction').textContent=sceneId==='provider'?(data.provider.packet?.outer.source??'No outer header')+' → '+(data.provider.packet?.outer.destination??'Not supplied'):'02:48:4f:50:00:01 → 02:48:4f:50:00:02';top.querySelector('span').textContent=sceneId==='provider'?'Outer '+(data.provider.packet?.outer.protocol||'envelope')+' · '+(data.provider.gre?.encapsulationOverheadBytes??0)+' B':'Ethernet II · 14 B';bottom.querySelector('span').textContent=sceneId==='provider'?'MPLS label · 229811':'FCS · unavailable in model bytes';for(const piece of [top,bottom]){piece.style.width=cardWidth+'px';piece.style.height='auto';}const envelopeH=['packetOps','provider','journey'].includes(sceneId)?Math.max(64,top.offsetHeight):0,trailerH=['packetOps','provider','journey'].includes(sceneId)?Math.max(44,bottom.offsetHeight):0,focusY=pathY+(bounded()?(root.dataset.integrated==='true'?12:36):62)+(['packetOps','provider'].includes(sceneId)?envelopeH+20:0),compactLabelStyle=getComputedStyle(q('.rv-capsule')||q('.rv-title')),compactFont=parseFloat(compactLabelStyle.fontSize)||13,compactContext=document.createElement('canvas').getContext('2d');compactContext.font='500 '+compactFont+'px '+compactLabelStyle.fontFamily;const compactLabels=frames.map(f=>f.local?'Local state':f.kind==='anatomy'?'Frame':f.objectTitle),compactText=Math.max(...compactLabels.map(text=>compactContext.measureText(text).width)),compactW=Math.min((width-24)/2,Math.max(88,compactText+32)),compactH=Math.max(44,Math.ceil(compactText/Math.max(1,compactW-32))*compactFont*1.2+16),ports={a:{x:4,y:pathY-22,w:compactW,h:compactH},b:{x:width-compactW-4,y:pathY-22,w:compactW,h:compactH}};
  for(const ghost of root.querySelectorAll('.rv-change-token,.rv-deleted-payload'))ghost.remove();const prepared=[];let maxHeight=0;
  for(let i=0;i<actors.length;i++){
   const a=actors[i],f=frames[i];if(!a){prepared.push({read:{total:0},focus:{x:0,y:0,w:width,h:320},lens:{w:38,h:48}});continue;}
   actorHost.append(a.actor);prepareFields(i);a.actor.style.transform='none';a.actor.style.width=cardWidth+'px';a.actor.style.height='auto';a.face.style.width=cardWidth+'px';a.face.style.position='relative';a.face.style.opacity='1';a.face.style.transform='none';
-  const fs=getComputedStyle(a.face),padding=(parseFloat(fs.paddingLeft)||24)+(parseFloat(fs.paddingRight)||24),inner=cardWidth-padding,gap=20,font=parseFloat(style.fontSize)||20,min=font*6.1,count=Math.max(1,Math.floor((inner+gap)/(min+gap))),column=(inner-(count-1)*gap)/count;
+  const fs=getComputedStyle(a.face),padding=(parseFloat(fs.paddingLeft)||24)+(parseFloat(fs.paddingRight)||24),inner=cardWidth-padding,gap=20,font=parseFloat(style.fontSize)||20,min=font*6.1,count=Math.min(f.columns||Infinity,Math.max(1,Math.floor((inner+gap)/(min+gap)))),column=(inner-(count-1)*gap)/count;
   a.fields.style.gridTemplateColumns=`repeat(${count},minmax(0,1fr))`;
   const context=document.createElement('canvas').getContext('2d');context.font=style.fontWeight+' '+style.fontSize+' '+style.fontFamily;
   for(const el of a.fields.children)el.dataset.wide=String(context.measureText(el.querySelector('.rv-field-value').textContent).width>column-16);
   const height=a.face.offsetHeight,origin=a.face.getBoundingClientRect(),lens={w:clamp(font*1.2*1.6,34,62),h:Math.max(46,font*1.2*2.05)},targets=(frames[i].readIds||[]).map(id=>{const el=a.fieldMap.get(id);return {id,label:el?.querySelector('.rv-field-label').textContent||id,lines:el?textLines(el.querySelector('.rv-field-value'),origin):[]};}),read=makePlan(targets,lens);
-  const available=viewport-32-focusY-16-(sceneId==='provider'?trailerH:0),minimumViewHeight=Math.ceil((parseFloat(fs.paddingTop)||24)+(parseFloat(fs.paddingBottom)||24)+Math.max(lens.h,...targets.flatMap(t=>t.lines.map(line=>line.h)))),viewHeight=bounded()?Math.min(height,Math.max(minimumViewHeight,available)):height;
-  const focus={x:(width-cardWidth)/2,y:focusY,w:cardWidth,h:viewHeight},fit=motion.fitGeometry(cardWidth,[envelopeH||60,height,trailerH||48],1),attach=motion.makeAttachmentPlan(1,0,fit),detach=motion.makeAttachmentPlan(0,1,fit),emphasis=root.emphasis.compile(root.emphasis.readWindows(read,0,id=>a.fieldMap.get(id)));const payload=a.face.querySelector('.rv-payload-body'),pr=payload?.getBoundingClientRect(),payloadRect=pr?{x:pr.left-origin.left,y:pr.top-origin.top,w:pr.width,h:pr.height}:null;
+  const available=viewport-stageOffset-consoleHeight-48-focusY-(f.assembly?envelopeH+trailerH:sceneId==='provider'?trailerH:0),minimumViewHeight=Math.ceil((parseFloat(fs.paddingTop)||24)+(parseFloat(fs.paddingBottom)||24)+Math.max(lens.h,...targets.flatMap(t=>t.lines.map(line=>line.h)))),viewHeight=bounded()?Math.min(height,Math.max(minimumViewHeight,available)):height;
+  const focus={x:(width-cardWidth)/2,y:focusY+(f.assembly?envelopeH:0),w:cardWidth,h:viewHeight},fit=motion.fitGeometry(cardWidth,[envelopeH||60,height,trailerH||48],1),attach=motion.makeAttachmentPlan(1,0,fit),detach=motion.makeAttachmentPlan(0,1,fit),emphasis=root.emphasis.compile(root.emphasis.readWindows(read,0,id=>a.fieldMap.get(id)));const payload=a.face.querySelector('.rv-payload-body'),pr=payload?.getBoundingClientRect(),payloadRect=pr?{x:pr.left-origin.left,y:pr.top-origin.top,w:pr.width,h:pr.height}:null;
   const transferIds=sceneId==='tcp'?['seq','ack']:sceneId==='packetOps'?f.fields.map(field=>field.id):[],transferFields=Object.fromEntries(transferIds.filter(id=>a.fieldMap.has(id)).map(id=>[id,transfer.measure(a.fieldMap.get(id).querySelector('.rv-field-value'),origin)]));
   prepared.push({focus,fullHeight:height,lens,read,origin,targets,emphasis,fit,attach,detach,payloadRect,transferFields});maxHeight=Math.max(maxHeight,height);a.face.style.position='absolute';a.actor.remove();
  }
- stage.style.height=(['failure','http'].includes(sceneId)?0:focusY+(bounded()?prepared[0].focus.h:maxHeight)+(sceneId==='packetOps'?trailerH+60:16))+'px';
+ const sceneHeight=bounded()?Math.max(...prepared.map((g,i)=>g.focus.y+g.focus.h+(frames[i].assembly?trailerH:0)+16)):focusY+maxHeight+(sceneId==='packetOps'?trailerH+60:16);
+ stage.style.height=(['failure','http'].includes(sceneId)?0:sceneHeight)+'px';
  q('.rv-path').style.cssText='left:'+(ports.a.x+compactW/2)+'px;top:'+pathY+'px;width:'+(ports.b.x-ports.a.x)+'px';
  reserveState();root.surfacePainter.prepare(Math.max(cardWidth,compactW),Math.max(maxHeight,compactH));
  const stageOrigin=stage.getBoundingClientRect(),expected=q('.rv-expected')||q('.rv-server-record dd'),oldExpected=expected?.textContent;
@@ -1045,7 +1065,7 @@ function reflow(){
   if(!f.local||i<frames.length-1)add(i,'release',tuning.release);
  }
  if(expected)expected.textContent=oldExpected;
- plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH};
+ plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH,sceneHeight};
  if(old){const match=phases.find(p=>frames[p.index].id===old.id&&p.kind===old.kind)||phases.find(p=>frames[p.index].id===old.id&&old.kind==='retainFocus'&&p.kind==='retain');clock=match?mix(match.start,match.end,match.kind===old.kind?old.p:0):0;}else clock=0;
  // Canonical app controls already own source-event selection. Retain this
  // renderer's full picker only for its independent snapshot/review playback.
@@ -1109,9 +1129,9 @@ function renderActor(at){
  // the current carrier and an outgoing layer during an actual focus handoff.
  const retained=new Set([a.actor,...(at.kind==='focus'&&actors[at.index-1]?[actors[at.index-1].actor]:[])]),host=q('.rv-actors');
  for(const actor of new Set(actors.filter(Boolean).map(a=>a.actor))){if(retained.has(actor)){if(actor.parentElement!==host)host.append(actor);}else if(actor.parentElement===host)actor.remove();}
- if(a.deck){prepareFields(at.index);const active=f.assembly.stage,layer=[...a.deck.children].find(n=>n.dataset.layer===active);if(layer&&at.kind==='layerChange'){const progress=motion.attachmentState(plan.prepared[at.index].attach,at.elapsed);layer.style.transform='translateY('+(-plan.prepared[at.index].fit.spread*progress.amount)+'px)';layer.style.opacity=String(ease(at.p/.3));}}
+ if(a.deck)prepareFields(at.index);
  if(activeActor!==at.index){for(const n of actors)if(n){if(n.actor!==a.actor){n.actor.style.opacity='0';n.actor.inert=true;n.actor.setAttribute('aria-hidden','true');}n.face.style.opacity='0';n.face.style.visibility='hidden';}root.presentation.material(a.actor,{role:root.presentation.frameRole(f),identity:f.protocol,moving:true});a.actor.prepend(liveCanvas);liveCanvas.dataset.paintKey='';activeActor=at.index;}
- if(bounded()){const g=plan.prepared[at.index];a.face.style.transform='translateY('+(-readerOffset(at))+'px)';const height=(g.focus.y+g.focus.h+16)+'px';if(stage.style.height!==height)stage.style.height=height;}
+ if(bounded()){const g=plan.prepared[at.index];a.face.style.transform='translateY('+(-readerOffset(at))+'px)';const height=plan.sceneHeight+'px';if(stage.style.height!==height)stage.style.height=height;}
  const faceOpacity=clamp((s.detail-.5)*2),capsuleOpacity=clamp((.5-s.detail)*2);
  a.actor.style.transform=`translate(${s.box.x}px,${s.box.y}px)`;a.actor.style.width=s.box.w+'px';a.actor.style.height=s.box.h+'px';a.actor.style.borderRadius=s.radius+'px';a.actor.style.opacity=String(s.opacity);a.actor.inert=faceOpacity<.99;a.actor.setAttribute('aria-hidden',String(s.opacity<.01));a.face.style.opacity=String(faceOpacity);a.face.style.visibility=faceOpacity>0?'visible':'hidden';a.capsule.style.opacity=String(capsuleOpacity);a.capsule.style.visibility=capsuleOpacity>0?'visible':'hidden';
  if(s.opacity>0)root.surfacePainter.paint(liveCanvas,s.box.w,s.box.h,s.radius,s.openness);
@@ -1123,13 +1143,34 @@ function renderActor(at){
 }
 function renderAssembly(at,shape){
  if(sceneId==='provider'){renderProvider(at,shape);return;}
- const host=q('.rv-envelopes');host.hidden=sceneId!=='packetOps';if(host.hidden)return;const g=plan.prepared[at.index],f=frames[at.index],gap=f.operation==='attach'?(at.kind==='fitAttach'?motion.attachmentState(g.attach,at.elapsed).amount:0):f.operation==='detach'?(at.kind==='focus'?0:at.kind==='fitDetach'?motion.attachmentState(g.detach,at.elapsed).amount:1):0,spread=g.fit.spread*gap,top=q('.rv-envelope-header'),bottom=q('.rv-envelope-trailer');
+ if(sceneId==='journey'){renderJourneyEnvelope(at,shape);return;}
+ trailerCanvas.hidden=true;const host=q('.rv-envelopes');host.hidden=sceneId!=='packetOps';if(host.hidden)return;const g=plan.prepared[at.index],f=frames[at.index],gap=f.operation==='attach'?(at.kind==='fitAttach'?motion.attachmentState(g.attach,at.elapsed).amount:0):f.operation==='detach'?(at.kind==='focus'?0:at.kind==='fitDetach'?motion.attachmentState(g.detach,at.elapsed).amount:1):0,spread=g.fit.spread*gap,top=q('.rv-envelope-header'),bottom=q('.rv-envelope-trailer');top.hidden=false;bottom.hidden=false;
  Object.assign(top.style,{left:g.focus.x+'px',top:(shape.box.y-plan.envelopeH-spread)+'px',width:shape.box.w+'px',height:plan.envelopeH+'px'});Object.assign(bottom.style,{left:g.focus.x+'px',top:(shape.box.y+shape.box.h+spread)+'px',width:shape.box.w+'px',height:plan.trailerH+'px'});top.style.opacity=String(f.operation==='attach'&&at.kind==='focus'?0:1);root.surfacePainter.paint(envelopeCanvas,shape.box.w,plan.envelopeH,18,1);q('.rv-envelope-direction').textContent='02:48:4f:50:00:01 → 02:48:4f:50:00:02';
  for(const prepared of plan.prepared)for(const m of prepared.mutations||[])m.view.node.style.opacity='0';for(const field of f.fields){const value=actors[at.index].fieldMap.get(field.id).querySelector('.rv-field-value');value.textContent=field.value;value.style.opacity='1';}if(at.kind==='modify')for(const m of g.mutations||[]){const value=actors[at.index].fieldMap.get(m.fieldId).querySelector('.rv-field-value'),progress=transfer.draw(m.view,m.plan,Math.min(at.elapsed,m.plan.duration),f.id+'|'+m.fieldId,true);value.textContent=progress.landed?m.after:m.before;value.style.opacity=String(progress.landed?progress.receiverOpacity:1-progress.lift);actors[at.index].fieldMap.get(m.fieldId).style.setProperty('--hs-emphasis',String(Math.sin(Math.PI*at.p)));}
  const currentActor=actors[at.index];for(const chunk of currentActor.face.querySelectorAll('.rv-payload-chunk')){chunk.style.opacity='1';chunk.style.transform='none';}if(g.deletedPayload)g.deletedPayload.style.opacity='0';if(at.kind==='modify'){const before=frames[Math.max(0,at.index-1)].state;if(f.operation==='append'){for(const chunk of currentActor.face.querySelectorAll('.rv-payload-chunk'))if(Number(chunk.dataset.offset)>=before.payloadBytes){chunk.style.opacity=String(ease((at.p-.35)/.65));chunk.style.transform='translateY('+((1-ease(at.p))*6)+'px)';}}if(g.deletedPayload){g.deletedPayload.style.opacity=String(1-ease(at.p));g.deletedPayload.style.transform='translateY('+(ease(at.p)*8)+'px)';}}
  const parcel=q('.rv-payload-addon');parcel.style.opacity='0';if(at.kind==='modify'&&['append','remove'].includes(f.operation)){const old=frames[Math.max(0,at.index-1)].state,current=f.state,amount=motion.attachmentState(g.attach,at.elapsed).amount,inserting=f.operation==='append',distance=g.fit.spread*(inserting?amount:1-amount),blend=inserting?1-ease((at.p-.7)/.3):1-ease((at.p-.75)/.25);q('.rv-payload-addon-value').textContent=(inserting?current.payloadBytes-old.payloadBytes:old.payloadBytes-current.payloadBytes)+' B · '+(inserting?'Appending':'Removing');Object.assign(parcel.style,{left:(g.focus.x+20)+'px',top:(shape.box.y+shape.box.h-52+distance)+'px',opacity:String(blend),transform:'translateY('+((inserting?1-amount:amount)*6)+'px)'});}
 }
+function renderJourneyEnvelope(at,shape){
+ const f=frames[at.index],previous=frames[Math.max(0,at.index-1)],g=plan.prepared[at.index],host=q('.rv-envelopes');
+ const envelope=f.assembly?.envelope,prior=previous.assembly?.envelope;
+ host.hidden=!envelope;if(host.hidden)return;
+ const entering=envelope.present&&(!prior?.present||envelope.identity!==prior.identity),leaving=!envelope.present&&prior?.present;
+ const progress=at.kind==='layerChange'?motion.attachmentState(entering?g.attach:g.detach,at.elapsed):null;
+ const gap=entering?(progress?.amount??0):leaving?(progress?.amount??1):0;
+ const visible=envelope.present||leaving&&at.kind==='layerChange',shown=leaving?prior:envelope;
+ const top=q('.rv-envelope-header'),bottom=q('.rv-envelope-trailer');trailerCanvas.hidden=false;
+ for(const piece of [top,bottom]){piece.hidden=!visible;piece.style.opacity=String(leaving?1-ease(at.p):entering&&at.kind==='layerChange'?ease(at.p/.25):1);root.presentation.material(piece,{role:'packet',identity:'ethernet',moving:true});}
+ if(!visible)return;
+ top.dataset.envelope=shown.identity;top.querySelector('span').textContent=shown.title;q('.rv-envelope-direction').textContent=shown.detail;bottom.querySelector('span').textContent=shown.trailer;
+ const spread=g.fit.spread*gap;
+ Object.assign(top.style,{left:shape.box.x+'px',top:(shape.box.y-plan.envelopeH-spread)+'px',width:shape.box.w+'px',height:plan.envelopeH+'px'});
+ Object.assign(bottom.style,{left:shape.box.x+'px',top:(shape.box.y+shape.box.h+spread)+'px',width:shape.box.w+'px',height:plan.trailerH+'px'});
+ root.surfacePainter.paint(envelopeCanvas,shape.box.w,plan.envelopeH,18,1);root.surfacePainter.paint(trailerCanvas,shape.box.w,plan.trailerH,16,1);
+ stage.style.height=plan.sceneHeight+'px';
+ q('.rv-payload-addon').style.opacity='0';
+}
 function renderProvider(at,shape){
+ trailerCanvas.hidden=true;
  const f=frames[at.index],g=plan.prepared[at.index],top=q('.rv-envelope-header'),label=q('.rv-envelope-trailer'),op=f.labelOperation;
  const amount=at.kind==='fitAttach'?motion.attachmentState(g.attach,at.elapsed).amount:0;
  top.hidden=!f.envelope;top.style.opacity='1';top.style.transform='none';Object.assign(top.style,{left:shape.box.x+'px',top:(shape.box.y-plan.envelopeH-g.fit.spread*amount)+'px',width:shape.box.w+'px',height:plan.envelopeH+'px'});
@@ -1209,7 +1250,7 @@ function renderBytes(){
 }
 function select(id,restored=null){
  if(frames.length)memories.set(sceneId,{position:currentPosition(),variant,dnsMode,byte});pause();if(restored)memories.set(id,restored);sceneId=id;const remembered=memories.get(id);if(remembered){variant=remembered.variant;dnsMode=remembered.dnsMode;byte=remembered.byte;}root.dataset.scene=id;frames=frameAdapter(id);clock=0;plan=null;layoutKey='';networkKey='';recordKey='';activeActor=-1;
- q('.rv-scene-picker').value=id;q('.rv-title').textContent={tcp:'The packet stays the packet.',packet:'One frame. Every layer.',packetOps:'Construct. Read. Change. Keep the cause.',failure:'Failure takes time to become knowledge.',dns:'A question finds its authority.',tls:'Meaning closes into protected records.',http:'One loss. Two delivery models.',journey:'Follow a request.',provider:'An envelope around an envelope.'}[id];
+ q('.rv-scene-picker').value=id;q('.rv-title').textContent={tcp:'Three messages. One connection.',packet:'One frame. Every layer.',packetOps:'Construct. Read. Change. Keep the cause.',failure:'Failure takes time to become knowledge.',dns:'A question finds its authority.',tls:'Meaning closes into protected records.',http:'One loss. Two delivery models.',journey:'Follow a request.',provider:'An envelope around an envelope.'}[id];
  q('.rv-subtitle').textContent={tcp:'Every packet is constructed, sent, received, and processed separately. Connection state survives the exchange.',packet:'Measured fields open from the compact source frame. Version, protocol, and exact byte ranges remain explicit.',packetOps:'Separate envelopes touch without merging. Construction changes derive lengths and checksums from real source bytes.',failure:'The physical break, control propagation, route installation, and application recovery remain separate source events.',dns:'Questions, referrals, answers, and retained cache state follow the source sequence.',tls:'Parameters enter the transcript, keys activate, and application data becomes opaque. Cryptographic values are symbolic.',http:'TCP’s sequence hole blocks delivery across streams. QUIC’s Stream B continues while Stream A waits; congestion still affects the connection.',journey:'See how your browser finds a server, connects, and brings a page back.',provider:'Underlay forwarding, the inner packet, added envelopes, and MTU outcomes remain distinguishable.'}[id];
  q('.rv-motion-primary').hidden=['failure','http'].includes(id);q('.rv-state-secondary').hidden=['failure','http'].includes(id);q('.rv-network-primary').hidden=id!=='failure';q('.rv-comparison-primary').hidden=id!=='http';q('.rv-buffer').hidden=id!=='tcp';q('.rv-window').hidden=id!=='tcp';
  q('.rv-client-record h3').textContent=id==='tcp'?'Client · data sender':'Retained state';q('.rv-server-record h3').textContent=id==='tcp'?'Server · data receiver':'Context';
@@ -1220,7 +1261,7 @@ function select(id,restored=null){
   q('.rv-window').replaceChildren(...Array.from({length:Math.max(...frames.map(f=>f.state.cwndMss))},()=>node('span','rv-window-cell')));
   const ranges=[...new Map(frames.filter(f=>f.event.length).map(f=>[f.event.seq,f.event])).values()].sort((a,b)=>a.seq-b.seq);q('.rv-buffer-slots').replaceChildren(...ranges.map(e=>{const n=node('div','rv-buffer-slot');n.dataset.seq=String(e.seq);n.dataset.length=String(e.length);n.append(node('strong','',e.seq+'–'+(e.seq+e.length-1)),node('span','','Not received'));return n;}));
  }
- buildDock();root.disclosures.set(details,!bounded(),false);details.dataset.bounded=String(bounded());settings.hidden=!bounded();explanation.hidden=!bounded();root.disclosures.set(settings,false,false);root.disclosures.set(explanation,false,false);for(const label of settingLabels)(bounded()?(settings.querySelector('.rv-disclosure-inner')||settings):q('.rv-controls')).append(label);(bounded()?(explanation.querySelector('.rv-disclosure-inner')||explanation):q('.rv-caption')).append(q('.rv-caption-detail'));fullFields.hidden=!bounded();createActors();buildLocalControls();renderBytes();reflow();
+ buildDock();root.disclosures.set(details,!bounded(),false);details.dataset.bounded=String(bounded());settings.hidden=!bounded();explanation.hidden=!bounded();root.disclosures.set(settings,false,false);root.disclosures.set(explanation,false,false);for(const label of settingLabels)(bounded()?(settings.querySelector('.rv-disclosure-inner')||settings):q('.rv-controls')).append(label);q('.rv-caption').append(q('.rv-caption-detail'));fullFields.hidden=!bounded();createActors();buildLocalControls();renderBytes();reflow();
  // A lazy stylesheet or a newly mounted hidden workspace can have no measured
  // width yet. Resize/font observation will prepare its first real plan.
  if(!plan)return;

@@ -875,7 +875,7 @@ const ready = value => value ? 'Ready' : 'Not ready';
 const journeyStateSchema = [['dns', 'Name resolution', words], ['route', 'Forwarding', words],
  ['transport', 'Transport', words], ['tls', 'Protection', words], ['http', 'Application', words]];
 function journeyFrames(actual, {hostname = actual[0]?.event.target || 'Not available', requestId = 'journey-request'} = {}) {
- return actual.map(({event: e, state}, index) => {
+ return actual.map(({event: e, state, packetVisual, physical}, index) => {
   const previous = actual[index - 1]?.state, family = e.kind.split('.')[0], wire = wireKinds.has(e.kind);
   let fields, objectTitle, assembly = null;
   if (family === 'dns') {
@@ -899,8 +899,22 @@ function journeyFrames(actual, {hostname = actual[0]?.event.target || 'Not avail
    }[stage] || []) : [{id:'forwarding',label:'Source operation',value:e.title},
     {id:'continuity',label:'Routed destination',value:state.resolvedAddress},
     {id:'transit',label:'Forwarding stage',value:words(state.packetTransitStage)}];
-   assembly = {identity:requestId, stage:state.packetAssemblyStage, transit:state.packetTransitStage,
-    hostname, destination:state.resolvedAddress, transport:state.transportProfile, protection:state.tls};
+   const layer=packetVisual?.layers.find(layer=>layer.id===(physical?'network':packetVisual.selectedLayerId));
+   if(layer){objectTitle=physical?'IPv4 packet':layer.id==='network'?'IPv4 packet':layer.id==='link'?'IPv4 packet':layer.protocol;
+    const readingLayer=layer.id==='link'?packetVisual.layers.find(layer=>layer.id==='network'):layer;
+    fields=readingLayer.fields.map(field=>({...field,value:field.value}));
+   }
+   const stageIndex=['application','security','transport','network','link','collapsed','exploded'].indexOf(stage),linked=physical?physical.l2Envelope!=='none':stageIndex>=4;
+   const ethernet=packetVisual?.snapshot.segments.find(segment=>segment.id==='ethernet'),linkLayer=packetVisual?.layers.find(layer=>layer.id==='link');
+   assembly = {identity:requestId, stage, transit:state.packetTransitStage,
+    hostname, destination:state.resolvedAddress, transport:state.transportProfile, protection:state.tls,
+    layer:layer?.id||(['network','link','collapsed','exploded'].includes(stage)?'network':stage),
+    payload:stageIndex>=3?(state.transportProfile==='quic-h3'?'UDP / QUIC · protected HTTP/3':'TCP · TLS application data'):stageIndex>=2?'Protected application data':null,
+    envelope:{present:linked,title:ethernet?ethernet.label+' · '+ethernet.length+' B':'Ethernet header',
+      detail:physical?(physical.l2Envelope==='wan'?physical.outgoing:physical.incoming).sourceMac+' → '+(physical.l2Envelope==='wan'?physical.outgoing:physical.incoming).destinationMac:linkLayer?.headline||'Hop-local envelope',
+      trailer:'FCS · wire only',identity:physical?.l2Envelope||'lan'},
+    projection:packetVisual,physical};
+
   } else if (family === 'transport') {
    objectTitle = wire ? e.protocol + ' · ' + words(e.phase) : 'Transport state';
    fields = stateValues(previous,state,[['transport','Connection',words],['impairmentState','Delivery state',words]]);
@@ -941,8 +955,8 @@ function journeyFrames(actual, {hostname = actual[0]?.event.target || 'Not avail
   fields=fields.map(f=>({...f,value:display(f.value)}));
   const changed=fields.filter(f=>f.changed);
   return {id:e.id,at:e.atMs,title:e.title,summary:e.summary,detail:e.detail,kind:assembly?'journey-assembly':e.kind,
-   local:!wire,physical:wire||Boolean(assembly),from:e.actor,to:e.target||e.actor,protocol:e.protocol,
-   objectTitle,fields,readIds:(changed.length?changed:fields).map(f=>f.id),assembly,
+   local:!wire,physical:wire||Boolean(assembly),from:e.actor,to:e.target||e.actor,protocol:assembly?(['network','link'].includes(assembly.layer)?'ipv4':packetVisual?.layers.find(layer=>layer.id===assembly.layer)?.protocol||e.protocol):e.protocol,
+   objectTitle,fields,columns:assembly?2:undefined,readIds:(changed.length?changed:fields).map(f=>f.id),assembly,
    records:[...stateValues(null,state,journeyStateSchema),{label:'Source event',value:e.id},{label:'Source time',value:e.atMs+' ms'},
     {label:'Provenance',value:e.provenance},{label:'Field boundary',value:wire?'Source semantics · no unprovided wire bytes or header numbers':'Canonical local state'}],state,event:e};
  });

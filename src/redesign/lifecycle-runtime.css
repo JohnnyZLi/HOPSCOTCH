@@ -324,10 +324,11 @@
 .review-runtime .rv-actor-role{font-size:12px;line-height:1.5;color:var(--hs-material-muted)}
 .review-runtime .rv-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,120px),1fr));gap:0 20px}
 .review-runtime .rv-field{padding:12px 8px;position:relative;min-width:0;border-bottom:1px solid var(--hs-line);isolation:isolate}
-.review-runtime .rv-field[data-wide=true]{grid-column:1/-1}
+.review-runtime .rv-field:is([data-wide=true],[data-lead=true]){grid-column:1/-1}
+.review-runtime .rv-field[data-lead=true]{order:-1}
 .review-runtime .rv-field::before{content:"";position:absolute;inset:3px 0;border-radius:12px;background:color-mix(in srgb,var(--hs-accent) 12%,transparent);opacity:var(--hs-emphasis,0);z-index:-1;pointer-events:none}
 .review-runtime .rv-field-label{display:block;font-size:12px;line-height:1.5;color:var(--hs-material-muted);margin-bottom:6px;overflow-wrap:anywhere}
-.review-runtime .rv-field-value{display:inline;font-size:20px;line-height:1.35;font-weight:500;letter-spacing:-.015em;font-variant-numeric:tabular-nums;color:var(--hs-material-ink);overflow-wrap:anywhere;white-space:pre-wrap}
+.review-runtime .rv-field-value{display:inline;font-size:18px;line-height:1.35;font-weight:500;letter-spacing:-.015em;font-variant-numeric:tabular-nums;color:var(--hs-material-ink);overflow-wrap:anywhere;white-space:pre-wrap}
 .review-runtime .rv-capsule{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;line-height:1.2;font-weight:500;color:var(--hs-material-ink);white-space:normal;text-align:center;overflow-wrap:anywhere;padding:6px 10px}
 .review-runtime .rv-protocol{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--rv-blue);flex-shrink:0}
 .review-runtime [data-protocol=network] .rv-protocol{background:var(--rv-teal)}
@@ -440,10 +441,9 @@
 .review-runtime .rv-payload-chunk span{display:block;overflow-wrap:anywhere;line-height:1.5;font-size:12px}
 .review-runtime .rv-payload-range{color:var(--hs-material-muted);margin-bottom:4px;font-variant-numeric:tabular-nums}
 .review-runtime .rv-payload-pattern{color:var(--hs-material-ink);font-family:inherit}
-.review-runtime .rv-layer-deck{display:flex;flex-direction:column;gap:2px;margin:0 0 16px}
-.review-runtime .rv-layer-piece{display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px;padding:9px 12px;border-radius:10px;color:var(--hs-material-ink);background:color-mix(in srgb,var(--hs-panel) 46%,transparent);border:1px solid color-mix(in srgb,var(--hs-line) 70%,transparent);font-size:13px;line-height:1.45}
-.review-runtime .rv-layer-piece strong{font-weight:600}
-.review-runtime .rv-layer-piece span{margin-left:auto;font-size:12px;overflow-wrap:anywhere}
+.review-runtime .rv-payload-summary{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:16px;padding:12px 14px;border:1px solid var(--hs-line);border-radius:14px;background:color-mix(in srgb,var(--hs-panel) 24%,transparent);font-size:12px;line-height:1.5;color:var(--hs-material-muted)}
+.review-runtime .rv-payload-meaning{margin-left:auto;color:var(--hs-material-ink)}
+
 
 .review-runtime .rv-header-identity{display:flex;align-items:center;gap:16px;min-width:0;margin-right:auto}
 .review-runtime .rv-header-context{margin:0;font-size:12px;line-height:1.5;color:var(--hs-muted);overflow-wrap:anywhere}
@@ -477,21 +477,36 @@
 .review-runtime:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-scene-details:not([open])>.rv-state-secondary{display:block}
 .review-runtime:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-explanation>summary,.review-runtime:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-playback-settings>summary{display:none}
 .review-runtime:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-explanation:not([open])>p,.review-runtime:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-playback-settings:not([open])>label{display:flex}
-.review-runtime:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-composition{display:flex;flex-direction:column;container-type:inline-size;container-name:composition}
-.review-runtime:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-console{margin:12px 0 0;padding:14px}
-.review-runtime:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-caption{padding-bottom:10px}
-.review-runtime:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-source{margin-top:0}
-.review-runtime:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-scrub{min-height:24px;margin:4px 0}
-@container review (min-width:900px){
- .review-runtime:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-composition{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start}
- .review-runtime:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-console{margin:0}
-}
-
-.review-runtime:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-motion-primary{order:1}
-.review-runtime:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-console{order:0}
-
-@container review (min-width:900px){
- .review-runtime:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-motion-primary{order:0}
- .review-runtime:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-console{order:1}
+/* Recovered study composition: the object, retained state and transport are
+   one reading sequence. Protocol-specific semantics remain in source frames. */
+.review-runtime:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-main{width:100%;max-width:1120px;margin-inline:auto}
+.review-runtime:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-composition{display:flex;flex-direction:column;min-width:0}
+.review-runtime .rv-motion-primary{order:0}
+.review-runtime .rv-composition>.rv-console{order:1;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"caption controls" "scrub scrub" "tools tools";align-items:center;gap:8px 24px;margin:20px 0 0;padding:16px 18px;--hs-ui-density:.12}
+.review-runtime .rv-caption{grid-area:caption;padding:0}
+.review-runtime .rv-caption strong{font-size:15px}
+.review-runtime .rv-caption p{font-size:12px;margin:4px 0 0}
+.review-runtime .rv-controls{grid-area:controls;justify-content:flex-end}
+.review-runtime .rv-scrub{grid-area:scrub;margin:0;min-height:24px}
+.review-runtime .rv-console-tools{grid-area:tools;display:flex;align-items:flex-start;gap:12px 24px;flex-wrap:wrap}
+.review-runtime .rv-console-tools>details{margin:0;min-width:0;flex:0 1 auto}
+.review-runtime .rv-console-tools>details[open]{flex:1 1 280px}
+.review-runtime .rv-console-tools>details>summary{padding:7px 0;min-height:36px;font-size:12px}
+.review-runtime[data-scene=tcp] .rv-retained-dock{border:0;padding:0;background:none;gap:20px}
+.review-runtime .rv-peer-state{padding:14px 18px;border:1px solid var(--rv-divider);border-radius:18px;background:var(--hs-panel);min-width:0}
+.review-runtime .rv-peer-state h3{font-size:12px;color:var(--hs-muted);margin:0 0 10px}
+.review-runtime .rv-peer-state .rv-peer-value{margin:0}
+.review-runtime .rv-peer-state dt{font-size:11px;line-height:1.5}
+.review-runtime .rv-peer-state dd{font-size:20px;margin-top:4px}
+.review-runtime .rv-peer-state .rv-peer-note{font-size:11px;line-height:1.5;margin:8px 0 0}
+.review-runtime .rv-envelope-trailer[data-material-role=packet]{background:var(--hs-packet-fallback);border:0;color:var(--hs-material-ink);box-shadow:0 5px 16px var(--rv-shadow-soft)}
+@container review (max-width:600px){
+ .review-runtime .rv-composition>.rv-console{grid-template-columns:minmax(0,1fr);grid-template-areas:"caption" "controls" "scrub" "tools";gap:8px;padding:14px}
+ .review-runtime .rv-controls{justify-content:flex-start}
+ .review-runtime .rv-peer-state{padding:12px;min-width:0}
+ .review-runtime .rv-retained-dock{gap:12px}
+ .review-runtime .rv-peer-note{display:none}
+ .review-runtime .rv-envelope{padding:10px 14px}
+ .review-runtime .rv-envelope-direction{font-size:10px}
 }
 

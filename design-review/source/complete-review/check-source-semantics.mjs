@@ -8,6 +8,12 @@ for (const width of [320, 390, 1024, 1440]) {
   api.select('tcp');
   await env.flush();
   const frames = api.snapshot().frames;
+  assert.deepEqual([...env.root.querySelectorAll('.rv-peer-state h3')].map(node=>node.textContent),['Client TCP','Server TCP']);
+  assert.equal(env.root.querySelector('.rv-expected').closest('.rv-peer-state').querySelector('h3').textContent,'Server TCP');
+  for(const frame of frames.filter(frame=>!frame.local)){
+    assert.equal(frame.objectTitle,'TCP segment');assert.deepEqual([...frame.leadFields],['flags']);assert.equal(frame.columns,2);
+  }
+
   for (const [index, frame] of frames.entries()) {
     if (!frame.local) continue;
     assert(!frame.fields.some(field => ['Sequence', 'Acknowledgment', 'Flags', 'Data length'].includes(field.label)));

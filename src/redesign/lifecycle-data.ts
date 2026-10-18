@@ -7,6 +7,8 @@ import { buildPacket, defaultPacketConfig, type PacketConfig } from '../packet/m
 import { buildJourneyScenario, journeyStateAt } from '../journey/model';
 import { decodeJourneyQuery, scenarioConfigFromPortable } from '../journey/scenario';
 import { createProviderData } from './provider-data';
+import { projectJourneyPacketVisual } from '../journey/packet-visual';
+import { projectJourneyPhysicalState } from '../journey/physical-journey';
 
 export function createLifecycleData(scene: string, search: string) {
   const portable = decodeJourneyQuery(search);
@@ -21,7 +23,14 @@ export function createLifecycleData(scene: string, search: string) {
     http:{frames:httpComparisonEvents.map(event => ({event,state:httpComparisonStateAt(event.atMs)}))},
     failure:{graph:{nodes:lab01Scenario.nodes,links:lab01Scenario.links},frames:lab01Scenario.events.map(event => ({event,state:lab01StateAt(event.atMs)}))},
     packetVariants,packetOperations:configs.map(buildPacket),
-    journey:{context:{hostname:journey.hostname,requestId:journey.id,destinationAddress:journey.destinationAddress},frames:journey.events.map(event => ({event,state:journeyStateAt(journey,event.atMs)}))},
+    journey:{context:{hostname:journey.hostname,requestId:journey.id,destinationAddress:journey.destinationAddress},frames:journey.events.map(event => {
+      const state=journeyStateAt(journey,event.atMs);
+      if(!event.kind.startsWith('packet.'))return {event,state};
+      const physical=event.kind==='packet.transit'?projectJourneyPhysicalState({profile:journey.transportProfile,destinationAddress:journey.destinationAddress,stage:state.packetTransitStage}):null;
+      const envelope=physical?(physical.l2Envelope==='wan'?physical.outgoing:physical.incoming):null;
+      const packetVisual=projectJourneyPacketVisual({hostname:journey.hostname,destinationAddress:journey.destinationAddress,profile:journey.transportProfile,stage:state.packetAssemblyStage,selectedLayerId:physical?'network':undefined,ttl:physical?.currentTtl,sourceMac:envelope?.sourceMac,destinationMac:envelope?.destinationMac});
+      return {event,state,packetVisual,physical};
+    })},
     provider:createProviderData(),
   };
 }

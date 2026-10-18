@@ -1,6 +1,6 @@
 /* Workspace chrome uses the entry's environment; reading surfaces remain quiet. */
-.review-runtime.workspace-surface{--hs-panel:rgba(248,251,255,.70);--ws-reading:rgba(247,251,255,.66);--ws-reading-shadow:rgba(30,58,96,.12)}
-.review-runtime.workspace-surface[data-theme=dark]{--hs-panel:rgba(19,32,54,.78);--ws-reading:rgba(19,32,54,.78);--ws-reading-shadow:rgba(0,5,20,.30)}
+.review-runtime.workspace-surface{--lh-wallpaper-base:#f1f4f8;--lh-wallpaper-opacity:.28;--hs-panel:rgba(248,251,255,.70);--ws-reading:rgba(247,251,255,.66);--ws-reading-shadow:rgba(30,58,96,.12)}
+.review-runtime.workspace-surface[data-theme=dark]{--lh-wallpaper-base:#171c25;--lh-wallpaper-opacity:.38;--hs-panel:rgba(19,32,54,.78);--ws-reading:rgba(19,32,54,.78);--ws-reading-shadow:rgba(0,5,20,.30)}
 .hopscotch-app .review-runtime.workspace-surface>.rv-shell{background:transparent;overflow:visible;isolation:auto}
 .review-runtime.workspace-surface .lh-header.rv-header{border:0;flex-wrap:nowrap;padding:12px var(--lh-header-inset);background:transparent;z-index:30}
 .review-runtime.workspace-surface .lh-header .lh-navigation a[aria-current=page]{color:var(--hs-ink);font-weight:600}
