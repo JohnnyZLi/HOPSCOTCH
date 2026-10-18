@@ -25,10 +25,10 @@
   .review-runtime.hopscotch-surface a{text-decoration:none}
   .review-runtime.hopscotch-surface .lh-environment{position:absolute;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
   .review-runtime.hopscotch-surface .lh-wallpaper{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
-  .review-runtime.hopscotch-surface .lh-wallpaper-light{opacity:1}
+  .review-runtime.hopscotch-surface .lh-wallpaper-light{opacity:var(--lh-wallpaper-opacity,1)}
   .review-runtime.hopscotch-surface .lh-wallpaper-dark{opacity:0}
   .review-runtime.hopscotch-surface[data-theme=dark] .lh-wallpaper-light{opacity:0}
-  .review-runtime.hopscotch-surface[data-theme=dark] .lh-wallpaper-dark{opacity:1}
+  .review-runtime.hopscotch-surface[data-theme=dark] .lh-wallpaper-dark{opacity:var(--lh-wallpaper-opacity,1)}
 
   /* Shared material foundation; the home chrome adds backdrop refraction below. */
   .review-runtime.hopscotch-surface [data-ui-surface]{
