@@ -70,7 +70,7 @@ function fixture(width=390,rtl=false,selection=false,secondMenu=false){
  async function finish(){for(const animation of animations)animation.finish();await Promise.resolve();await Promise.resolve();}
  function flush(){const work=[...frames.values()];frames.clear();for(const callback of work)callback();}
  return {root,details,trigger,panel,links,picker,outside,doc,win,preference,animations,menus,scope,fire,finish,flush,second,
-  resize(w,unavailable=false){rootWidth=w;hidden=unavailable;for(const observer of observers)observer.callback();flush();},
+  resize(w,unavailable=false,blurFirst=false){rootWidth=w;hidden=unavailable;if(blurFirst&&doc.activeElement){const previous=doc.activeElement;doc.activeElement=null;fire(previous,'focusout',{relatedTarget:null});}for(const observer of observers)observer.callback();flush();},
   pending:()=>frames.size,invalidations:()=>invalidations};
 }
 
@@ -92,6 +92,11 @@ function fixture(width=390,rtl=false,selection=false,secondMenu=false){
   links[0].focus();f.resize(1024,true);assert.equal(details.open,false,'Hidden responsive trigger closes disclosure');assert.equal(doc.activeElement,f.picker);assert.equal(trigger.attrs['aria-expanded'],'false');assert.equal(f.pending(),0);
   f.menus.dispose();f.scope.dispose();assert.equal(f.pending(),0);
  }
+ const responsiveBlur=fixture();
+ responsiveBlur.trigger.focus();responsiveBlur.fire(responsiveBlur.trigger,'keydown',{key:'ArrowDown'});await responsiveBlur.finish();
+ responsiveBlur.resize(1024,true,true);
+ assert.equal(responsiveBlur.details.open,false);assert.equal(responsiveBlur.doc.activeElement,responsiveBlur.picker,'Responsive blur before ResizeObserver must retain header focus');
+ responsiveBlur.menus.dispose();responsiveBlur.scope.dispose();
  const choice=fixture(390,false,true);
  choice.trigger.focus();choice.fire(choice.trigger,'click');assert.equal(choice.doc.activeElement,choice.links[1],'Opening selection popup focuses the current preference');
  await choice.finish();choice.fire(choice.panel,'keydown',{key:'ArrowDown'});assert.equal(choice.doc.activeElement,choice.links[2]);

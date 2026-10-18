@@ -92,7 +92,14 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
    const next=event.key==='Home'?0:event.key==='End'?links.length-1:event.key==='ArrowDown'?(index+1)%links.length:(index-1+links.length)%links.length;
    links[next].focus({preventScroll:true});
   });
-  scope.listen(details,'focusout',event=>{if(!details.contains(event.relatedTarget))setOpen(false);});
+  scope.listen(details,'focusout',event=>{
+   if(details.contains(event.relatedTarget))return;
+   // A responsive display change blurs the hidden link before ResizeObserver
+   // runs. Preserve that cause instead of treating it as an ordinary Tab exit.
+   const hidden=trigger.getBoundingClientRect().width<=0;
+   setOpen(false,{immediate:hidden});
+   if(hidden&&!event.relatedTarget)fallbackFocus?.focus({preventScroll:true});
+  });
   scope.listen(panel,'click',event=>{if(event.target.closest('a[href],button:not([disabled])'))setOpen(false,{restoreFocus:true});});
   const observer=new scope.ResizeObserver(schedulePosition);observer.observe(trigger);observer.observe(panel);
  }
