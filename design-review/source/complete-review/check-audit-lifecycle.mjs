@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {environment} from './check-complete.mjs';
 let count=0;const ok=(v,m)=>{assert.ok(v,m);count++;},eq=(a,b,m)=>{assert.deepEqual(a,b,m);count++;};
+const pages={motion:'lifecycle',workbench:'builder',evidence:'evidence',connected:'connected'};
 for(const kind of ['motion','workbench','evidence','connected']){
- const e=await environment(kind,390),host=e.document.createElement('div'),title=e.document.createElement('strong'),detail=e.document.createElement('p');
+ const e=await environment(kind,390,{artifactPath:'../../public/review/'+pages[kind]+'.html'}),host=e.document.createElement('div'),title=e.document.createElement('strong'),detail=e.document.createElement('p');
  host.className='rv-caption';host.setAttribute('aria-live','polite');host.append(title,detail);e.root.append(host);
  const ui=e.root.reviewUI;
  ui.status(title,detail,'Initial','One result');eq(host.querySelectorAll('.rv-status-copy').length,0);
