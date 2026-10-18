@@ -35,3 +35,20 @@ Appearance uses the existing persisted app preference; canonical workspace hrefs
 also retain same-tab app navigation. Existing workspace models and controls are
 unchanged. The overview browser gate checks both menus, header stability,
 responsive bounds, keyboard dismissal, and Light/Dark/System behavior.
+
+The October 18 Journey correction carries that approved environment into all
+production workspaces. `surface.html`, `surface.css`, and `surface.js` own the
+shared wallpaper, single header, appearance preference, navigation and anchored
+menus. Workspace mounts adapt their original control contracts through custom
+menus; the underlying options, values, form submission, source-event seeking,
+and route changes stay owned by the existing engines. Dynamic controls release
+their listeners and observers when removed. The disclosure controller measures
+the trigger, clamps to the visible viewport, and opens above when space requires.
+
+Journey places playback below its scene and keeps presentation diagnostics and
+the share URL inside disclosures. The local operation reading surface is frosted;
+wire packets retain the existing packet material and motion. The original
+source-event clock, event IDs, scenario/share encoding, paused return state,
+capture bytes and evidence provenance are unchanged. The browser overview gate
+checks the single header, custom scene/speed/event/scenario controls, viewport
+bounds, appearance continuity, and desktop/mobile Journey compositions.

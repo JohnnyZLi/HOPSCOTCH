@@ -48,6 +48,7 @@ function resize(record){
 }
 const observer=new ResizeObserver(entries=>{for(const entry of entries||[]){const record=byInner.get(entry.target);if(record)resize(record);}});
 function upgradeOne(detail){
+ if(detail.hasAttribute?.('data-disclosure-menu'))return null;
  if(records.has(detail))return records.get(detail);
  const summary=[...detail.children].find(e=>e.tagName==='SUMMARY'||e.tag==='summary');if(!summary)return null;
  const icon=make('span','rv-disclosure-icon'),glyph=make('i','');glyph.setAttribute('data-lucide','chevron-right');glyph.setAttribute('aria-hidden','true');glyph.textContent='›';icon.setAttribute('aria-hidden','true');icon.append(glyph);summary.prepend(icon);summary.classList.add('rv-disclosure-summary','cursor-interaction');

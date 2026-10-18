@@ -212,7 +212,7 @@ async function main() {
       const deadline = performance.now() + 8000;
       let ready = false;
       while (performance.now() < deadline) {
-        ready = Boolean(await execute('return Boolean(document.querySelector(arguments[0]));', ['.review-runtime .rv-shell,.review-runtime .lh-header']));
+        ready = Boolean(await execute('const root=document.querySelector(".review-runtime");return Boolean(root?.homeStudy||root?.workspaceSurface);'));
         if (ready) break;
         await sleep(50);
       }

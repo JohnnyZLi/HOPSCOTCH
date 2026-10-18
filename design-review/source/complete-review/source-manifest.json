@@ -1,22 +1,22 @@
 [
   {
     "path": "../dist/fragment-hopscotch-causal-lifecycle.html",
-    "bytes": 562448,
-    "sha256": "ce791b6bc1501b56448e6d267131ccac096622a51543c268954a59e183dd4a21"
+    "bytes": 562514,
+    "sha256": "94acb4639b90b3da3bda4f4060553fa4461bdb391711555fb6b743a9535b69b2"
   },
   {
     "path": "../dist/fragment-hopscotch-builder-workbench.html",
-    "bytes": 869332,
-    "sha256": "b073ea26e272ddb74b0206c8fdd0f1ce4e58221cc24811020458152e3d3b1e37"
+    "bytes": 869441,
+    "sha256": "d0d140566de75d7866325d4fac8f49b748710e6b5e221fde141ffd6a071cde49"
   },
   {
     "path": "../dist/fragment-hopscotch-evidence-workspaces.html",
-    "bytes": 651927,
-    "sha256": "2bb996b5d9d86e33dd7948eae48c60997489da7d8dd324a5035427873ba741fa"
+    "bytes": 652036,
+    "sha256": "400350600414faffba1b9a63e6feff9553511c20440697c634c7172f5c21ee3a"
   },
   {
     "path": "../dist/fragment-hopscotch-connected-workspaces.html",
-    "bytes": 527203,
-    "sha256": "4bad6c6e702f917623edc79b311f263836ca360fb468e34ed58ac80dbd14f601"
+    "bytes": 527312,
+    "sha256": "2f158d5ac4f7d6b47dd655003e4401e83de9692610c720113294c5169d148a43"
   }
 ]

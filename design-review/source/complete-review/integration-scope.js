@@ -2,10 +2,11 @@
 // graphics surfaces. These wrappers are local to the mount; globals stay intact.
 export function createRuntimeScope(element) {
  let disposed = false;
- const cleanups = [], frames = new Set(), observers = new Set(), surfaces = new Map();
+ const cleanups = new Set(), frames = new Set(), observers = new Set(), surfaces = new Map();
  function listen(target, type, listener, options) {
   target.addEventListener(type, listener, options);
-  cleanups.push(() => target.removeEventListener(type, listener, options));
+  const remove=()=>{target.removeEventListener(type,listener,options);cleanups.delete(remove);};
+  cleanups.add(remove);return remove;
  }
  const bind = target => new Proxy(target, {get(object, key) {
   if (key === 'addEventListener') return (type, listener, options) => listen(object, type, listener, options);
@@ -35,6 +36,8 @@ export function createRuntimeScope(element) {
  const cancelFrame = id => {frames.delete(id);globalThis.cancelAnimationFrame(id);};
  const observerClass = Native => class extends Native {
   constructor(callback) {super((...args) => {if (!disposed) callback(...args);});observers.add(this);}
+  observe(...args){observers.add(this);return super.observe(...args);}
+  disconnect(){observers.delete(this);return super.disconnect();}
  };
  return {
   document: bind(globalThis.document), window: bind(globalThis.window),
@@ -45,10 +48,10 @@ export function createRuntimeScope(element) {
    if (disposed) return;disposed = true;
    for (const id of frames) globalThis.cancelAnimationFrame(id);frames.clear();
    for (const observer of observers) observer.disconnect();observers.clear();
-   for (const cleanup of cleanups.splice(0)) cleanup();
+   for (const cleanup of [...cleanups]) cleanup();cleanups.clear();
    for (const gl of surfaces.values()) gl.getExtension?.('WEBGL_lose_context')?.loseContext?.();
    surfaces.clear();
   },
-  stats: () => ({disposed, frames: frames.size, observers: observers.size, listeners: cleanups.length}),
+  stats: () => ({disposed, frames: frames.size, observers: observers.size, listeners: cleanups.size}),
  };
 }

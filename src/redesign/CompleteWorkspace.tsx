@@ -12,7 +12,7 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
   const [error,setError] = useState('');
   useEffect(() => {
     const element = host.current!;
-    let cancelled = false, mounted: Mounted | undefined,disposeControls:undefined|(()=>void),restorePlan:undefined|(()=>void);
+    let cancelled = false, mounted: Mounted | undefined,disposeControls:undefined|(()=>void),restorePlan:undefined|(()=>void),surface:undefined|{appearance():void;dispose():void};
     setError('');
     const key = (destination ?? 'home') + search;
     const restoreAppearance = () => {
@@ -20,6 +20,7 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
       if (picker) picker.value = appearancePreference();
       element.dataset.theme = document.documentElement.dataset.theme;
       mounted?.api.appearance?.();
+      surface?.appearance();
     };
     const changed = (event: Event) => {
       const target = event.target;
@@ -34,6 +35,8 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
     element.addEventListener('app-measured-change',measuredChanged);
     const unwatch = watchAppearance(restoreAppearance);
     const open = async () => {
+      const workspaceSurface=destination?await import('./workspace-surface'):null;
+      if(cancelled)return;
       if (!destination) {
         const {mountHome} = await import('./home-runtime');
         if (!cancelled) mounted = mountHome(element,navigate);
@@ -44,18 +47,21 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
         const [{mountEvidence},{createEvidenceData}] = await Promise.all([import('./evidence-runtime.js'),import('./evidence-data')]);
         const data=await createEvidenceData(destination,search);if (!cancelled) mounted = mountEvidence(element,data);
       } else {
-        const [{mountLifecycle},{createLifecycleData}] = await Promise.all([import('./lifecycle-runtime.js'),import('./lifecycle-data')]);
+        const [{mountLifecycle},{createLifecycleData},journeyControls] = await Promise.all([import('./lifecycle-runtime.js'),import('./lifecycle-data'),destination==='journey'?Promise.all([import('./journey-controls'),import('./measured-context')]):null]);
         if (!cancelled) {
           const data=createLifecycleData(destination,search);
           mounted = mountLifecycle(element,data);
           restoreAppearance();
-          if(destination==='journey'){
-            const [{attachJourneyControls},{attachMeasuredContext}]=await Promise.all([import('./journey-controls'),import('./measured-context')]);
-            if(!cancelled){const disposeJourney=attachJourneyControls(element,search,navigate,inspect),disposeMeasured=attachMeasuredContext(element,data.journey.context.hostname,data.journey.context.destinationAddress);disposeControls=()=>{disposeJourney();disposeMeasured();};}
+          if(journeyControls){
+            const [{attachJourneyControls},{attachMeasuredContext}]=journeyControls;
+            const disposeJourney=attachJourneyControls(element,search,navigate,inspect),disposeMeasured=attachMeasuredContext(element,data.journey.context.hostname,data.journey.context.destinationAddress);disposeControls=()=>{disposeJourney();disposeMeasured();};
           }
         }
       }
       if (cancelled) return;
+      if(destination&&workspaceSurface){
+        surface=workspaceSurface.mountWorkspaceSurface(element,navigate,destination);
+      }
       restoreAppearance();
       const memory = memories.get(key);
       if (memory !== undefined && mounted?.api.restore) {
@@ -76,7 +82,7 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
       if (mounted?.api.save) memories.set(key,mounted.api.save());
       else if (mounted?.api.snapshot) memories.set(key,mounted.api.snapshot());
       if(restorePlan)element.removeEventListener('review-plan-ready',restorePlan);
-      disposeControls?.();mounted?.dispose();unwatch();element.removeEventListener('change',changed,true);element.removeEventListener('app-measured-change',measuredChanged);
+      disposeControls?.();surface?.dispose();mounted?.dispose();unwatch();element.removeEventListener('change',changed,true);element.removeEventListener('app-measured-change',measuredChanged);
     };
   },[destination,search]);
   return <div className="workspace-container">

@@ -1,0 +1,110 @@
+/* Workspace chrome uses the entry's environment; reading surfaces remain quiet. */
+.review-runtime.workspace-surface{--hs-panel:rgba(248,251,255,.70);--ws-reading:rgba(247,251,255,.66);--ws-reading-shadow:rgba(30,58,96,.12)}
+.review-runtime.workspace-surface[data-theme=dark]{--hs-panel:rgba(19,32,54,.78);--ws-reading:rgba(19,32,54,.78);--ws-reading-shadow:rgba(0,5,20,.30)}
+.hopscotch-app .review-runtime.workspace-surface>.rv-shell{background:transparent;overflow:visible;isolation:auto}
+.review-runtime.workspace-surface .lh-header.rv-header{border:0;flex-wrap:nowrap;padding:12px var(--lh-header-inset);background:transparent;z-index:30}
+.review-runtime.workspace-surface .lh-header .lh-navigation a[aria-current=page]{color:var(--hs-ink);font-weight:600}
+.review-runtime.workspace-surface .lh-menu-panel a[aria-current=page]{background:color-mix(in srgb,var(--hs-tint) 58%,transparent)}
+.hopscotch-app .review-runtime.workspace-surface .rv-main{padding:28px var(--app-gutter) 40px;isolation:auto}
+.review-runtime.workspace-surface .rv-main::before{display:none}
+.review-runtime.workspace-surface .rv-foot{justify-content:flex-end;background:transparent;border:0;font-size:11px;padding-top:10px;color:var(--hs-ink)}
+.review-runtime.workspace-surface .ws-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin:0 0 24px;min-width:0}
+.review-runtime.workspace-surface .ws-heading{min-width:0;max-width:760px}
+.review-runtime.workspace-surface .rv-title{font-size:32px;font-weight:600;line-height:1.18;letter-spacing:-.04em;margin:8px 0 10px}
+.review-runtime.workspace-surface .rv-subtitle{font-size:14px;line-height:1.6;max-width:650px;margin:0;color:var(--hs-muted)}
+.review-runtime.workspace-surface .ws-scene-picker{display:flex;align-items:center;gap:0;font-size:0;min-height:36px;margin:0}
+.review-runtime.workspace-surface .ws-scene-picker .ws-select{flex:0 1 auto;max-width:100%}
+.review-runtime.workspace-surface .ws-scene-picker .ws-select-trigger{font-size:12px;min-height:36px;padding:6px 11px;background:rgba(255,255,255,.26);border-color:transparent;box-shadow:inset 0 1px 0 var(--hs-ui-high);color:var(--hs-ink)}
+.review-runtime.workspace-surface[data-theme=dark] .ws-scene-picker .ws-select-trigger{background:rgba(15,26,47,.42)}
+.review-runtime.workspace-surface .ws-scene-picker .ws-select-panel{font-size:14px}
+.review-runtime.workspace-surface .rv-console{overflow:visible}
+.review-runtime.workspace-surface .ws-select{position:static;display:block;min-width:0;max-width:100%;font-size:14px;flex:1}
+.review-runtime.workspace-surface .ws-select-trigger{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;min-height:44px;padding:9px 12px;border:1px solid var(--rv-control-rim);border-radius:14px;list-style:none;color:var(--hs-ink);background:var(--rv-control-fill);box-shadow:inset 0 1px 0 var(--rv-control-crest);font-size:14px;line-height:1.45;cursor:pointer}
+.review-runtime.workspace-surface .ws-select-trigger::-webkit-details-marker{display:none}
+.review-runtime.workspace-surface .ws-select-trigger>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.review-runtime.workspace-surface .ws-select-trigger svg{width:1em;height:1em;flex:none;stroke-width:1.7;transition:transform 140ms ease}
+.review-runtime.workspace-surface .ws-select-trigger[aria-expanded=true] svg{transform:rotate(180deg)}
+.review-runtime.workspace-surface .ws-select-trigger[aria-disabled=true]{opacity:.45;cursor:default}
+.review-runtime.workspace-surface .ws-select-panel{position:absolute;z-index:50;width:max-content;min-width:190px;max-width:min(400px,calc(100vw - 32px));max-height:min(360px,calc(100dvh - 48px));padding:7px;overflow:auto;overscroll-behavior:contain;border:1px solid var(--hs-line);border-radius:20px;background:var(--ws-reading);color:var(--hs-ink);box-shadow:inset 0 1px 0 var(--hs-ui-high),0 16px 36px var(--ws-reading-shadow);-webkit-backdrop-filter:blur(22px) saturate(1.15);backdrop-filter:blur(22px) saturate(1.15)}
+.review-runtime.workspace-surface .ws-select-option{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:44px;width:100%;max-width:100%;padding:10px 12px;border:0;border-radius:12px;background:transparent;color:var(--hs-ink);box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;font-size:14px;text-align:start;white-space:normal;overflow-wrap:anywhere}
+.review-runtime.workspace-surface .ws-select-option::after{content:'';width:13px;height:7px;flex:none;border-left:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);opacity:0;margin-right:2px}
+.review-runtime.workspace-surface .ws-select-option[aria-pressed=true]::after{opacity:1}
+.review-runtime.workspace-surface .ws-select-panel{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--hs-ink) 30%,transparent) transparent}
+.review-runtime.workspace-surface .ws-select-panel::-webkit-scrollbar{width:6px;height:6px}
+.review-runtime.workspace-surface .ws-select-panel::-webkit-scrollbar-thumb{border-radius:6px;background:color-mix(in srgb,var(--hs-ink) 30%,transparent)}
+.review-runtime.workspace-surface .ws-select-option:is(:hover,[aria-pressed=true]){background:color-mix(in srgb,var(--hs-tint) 64%,transparent)}
+.review-runtime.workspace-surface :is(a,button,summary,input):focus-visible{outline:2px solid var(--hs-text-accent);outline-offset:4px}
+.review-runtime.workspace-surface [data-disclosure-menu]:not([open]) [data-disclosure-panel] *{transition:none}
+.review-runtime.workspace-surface .journey-configuration{flex:none;margin:0;padding-top:3px;max-width:100%;position:relative}
+.review-runtime.workspace-surface .journey-configuration>summary{display:flex;align-items:center;gap:10px;min-height:44px;padding:10px 16px;border:1px solid var(--hs-line);border-radius:22px;background:var(--rv-control-fill);font-size:13px;white-space:nowrap}
+.review-runtime.workspace-surface .journey-configuration[open]{width:min(510px,100%);padding:16px;border-radius:24px;background:var(--ws-reading);box-shadow:0 8px 24px var(--ws-reading-shadow);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px)}
+.review-runtime.workspace-surface .journey-configuration[open]>summary{background:transparent;border-color:transparent;padding:0;min-height:32px}
+.review-runtime.workspace-surface .journey-configuration form{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+.review-runtime.workspace-surface .journey-configuration form>label{display:flex;flex-direction:column;align-items:stretch;gap:6px;min-width:0}
+.review-runtime.workspace-surface .journey-configuration form>label:first-child{grid-column:1/-1}
+.review-runtime.workspace-surface .journey-configuration .ws-select{width:100%}
+.review-runtime.workspace-surface .journey-modifiers{gap:4px 14px;border:0;border-top:1px solid var(--hs-line);border-radius:0;padding:10px 0 0}
+.review-runtime.workspace-surface .journey-modifiers input[type=checkbox]{width:17px;min-height:17px;accent-color:var(--hs-text-accent)}
+
+/* The request owns the canvas. Playback sits below it, in the same space. */
+.review-runtime.workspace-surface[data-scene=journey] .rv-composition{display:flex;flex-direction:column;gap:0;align-items:stretch}
+.review-runtime.workspace-surface[data-scene=journey] .rv-motion-primary{width:100%;order:0}
+.review-runtime.workspace-surface[data-scene=journey] .rv-endpoint{background:transparent;border:0;box-shadow:none;padding:10px 4px;font-size:13px}
+.review-runtime.workspace-surface[data-scene=journey] .rv-endpoint::before{display:none}
+.review-runtime.workspace-surface[data-scene=journey] .rv-endpoint .hs-record-glass{display:none}
+.review-runtime.workspace-surface[data-scene=journey] .rv-retained-dock{background:rgba(248,251,255,.42);border:1px solid var(--hs-line);border-radius:18px;padding:10px 16px;gap:12px;max-width:740px;margin-inline:auto;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+.review-runtime.workspace-surface[data-theme=dark][data-scene=journey] .rv-retained-dock{background:rgba(13,28,52,.46)}
+.review-runtime.workspace-surface[data-scene=journey] .rv-retained-dock dd{font-size:15px}
+.review-runtime.workspace-surface[data-scene=journey] .rv-retained-dock dt{font-size:11px;margin-bottom:1px}
+.review-runtime.workspace-surface[data-scene=journey] .rv-actor[data-material-role=operation]{background:var(--ws-reading);border:1px solid var(--hs-line);box-shadow:inset 0 1px 0 var(--hs-ui-high),0 12px 36px var(--ws-reading-shadow);-webkit-backdrop-filter:blur(24px) saturate(1.12);backdrop-filter:blur(24px) saturate(1.12)}
+.review-runtime.workspace-surface[data-scene=journey] .rv-console{order:1;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px 20px;width:min(100%,860px);max-width:100%;margin:24px auto 0;padding:18px 22px;border:0;border-radius:28px;z-index:10;--hs-ui-density:1.3;--hs-liquid-opacity-base:.46;--hs-liquid-opacity-step:.08;--hs-glass-blur:18px}
+.review-runtime.workspace-surface[data-theme=dark][data-scene=journey] .rv-console{--hs-liquid-opacity-base:.58;--hs-liquid-opacity-step:.08}
+.review-runtime.workspace-surface[data-scene=journey] .rv-caption{padding:0;min-height:0!important}
+.review-runtime.workspace-surface[data-scene=journey] .rv-caption strong{font-size:15px;font-weight:500;line-height:1.45}
+.review-runtime.workspace-surface[data-scene=journey] .rv-controls{gap:6px;justify-content:flex-end}
+.review-runtime.workspace-surface[data-scene=journey] .rv-controls button{border-radius:22px;min-height:44px;font-size:13px;padding:9px 14px}
+.review-runtime.workspace-surface[data-scene=journey] .rv-controls button:not([data-action-role=primary]){background:transparent;border-color:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+.review-runtime.workspace-surface[data-scene=journey] .rv-controls button:not([data-action-role=primary]):hover{background:color-mix(in srgb,var(--hs-tint) 45%,transparent)}
+.review-runtime.workspace-surface[data-scene=journey] .rv-scrub{grid-column:1/-1;margin:0;min-height:24px}
+.review-runtime.workspace-surface .ws-playback-extras{grid-column:1/-1;display:flex;align-items:flex-start;justify-content:center;gap:8px 24px;flex-wrap:wrap;font-size:12px}
+.review-runtime.workspace-surface .ws-playback-extras>details{flex:0 1 auto;margin:0;min-width:0}
+.review-runtime.workspace-surface .ws-playback-extras summary{min-height:36px;font-size:12px;color:var(--hs-muted)}
+.review-runtime.workspace-surface .ws-playback-extras details[open]{flex:1 1 220px}
+.review-runtime.workspace-surface .ws-playback-extras .rv-source{display:block;border-top:1px solid var(--hs-line);padding-top:12px;margin-top:12px}
+.review-runtime.workspace-surface .rv-source span{display:block;margin-top:6px}
+.review-runtime.workspace-surface .journey-context-actions{display:contents;margin:0}
+.review-runtime.workspace-surface .journey-context-actions>button{min-height:36px;font-size:12px;padding:6px 10px;border:0;border-radius:12px;background:transparent;box-shadow:none;color:var(--hs-muted)}
+.review-runtime.workspace-surface .journey-share{max-width:100%;min-width:0}
+.review-runtime.workspace-surface .journey-share input{min-width:0;width:100%;margin:8px 0}
+.review-runtime.workspace-surface .rv-scene-details{margin-top:20px}
+.review-runtime.workspace-surface .rv-main>details>summary{width:max-content;max-width:100%;min-height:44px;padding:10px 15px;border:1px solid var(--hs-line);border-radius:22px;background:var(--rv-control-fill);color:var(--hs-ink);font-size:12px;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+.review-runtime.workspace-surface .rv-main>details>.rv-disclosure-body{margin-top:12px;border-radius:22px;background:var(--ws-reading);color:var(--hs-ink);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px)}
+.review-runtime.workspace-surface .rv-main>details>.rv-disclosure-body>.rv-disclosure-inner{padding:18px}
+@container(max-width:880px){.review-runtime.workspace-surface .lh-header-tools{gap:8px}.review-runtime.workspace-surface .ws-intro{gap:16px}}
+@container(max-width:600px){
+ .hopscotch-app .review-runtime.workspace-surface .rv-main{padding:20px 18px 28px}
+ .review-runtime.workspace-surface .lh-header.rv-header{padding-block:10px;min-height:68px}
+ .review-runtime.workspace-surface .ws-intro{flex-direction:column;gap:14px;margin-bottom:16px}
+ .review-runtime.workspace-surface .rv-title{font-size:28px;line-height:1.2;max-width:340px}
+ .review-runtime.workspace-surface .rv-subtitle{font-size:14px;max-width:370px}
+ .review-runtime.workspace-surface .journey-configuration{width:100%}
+ .review-runtime.workspace-surface .journey-configuration>summary{width:max-content}
+ .review-runtime.workspace-surface .journey-configuration form{grid-template-columns:minmax(0,1fr)}
+ .review-runtime.workspace-surface .journey-configuration form>label:first-child{grid-column:auto}
+ .review-runtime.workspace-surface[data-scene=journey] .rv-console{grid-template-columns:minmax(0,1fr);padding:16px;border-radius:24px;gap:10px;margin-top:20px}
+ .review-runtime.workspace-surface[data-scene=journey] .rv-controls{justify-content:flex-start;gap:4px}
+ .review-runtime.workspace-surface[data-scene=journey] .rv-controls button{font-size:14px}
+ .review-runtime.workspace-surface .ws-playback-extras{justify-content:flex-start;gap:6px 14px}
+ .review-runtime.workspace-surface .ws-select-trigger{font-size:16px}
+ .review-runtime.workspace-surface .ws-scene-picker .ws-select-trigger{font-size:12px}
+}
+@media(prefers-reduced-motion:reduce){.review-runtime.workspace-surface .ws-select-trigger svg{transition:none}}
+@media(prefers-reduced-transparency:reduce){
+ .review-runtime.workspace-surface{--ws-reading:var(--hs-ui-solid)}
+ .review-runtime.workspace-surface :is(.ws-select-panel,.journey-configuration[open],.rv-retained-dock,.rv-actor[data-material-role=operation]){-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--hs-ui-solid)!important}
+}
+@media(forced-colors:active){
+ .review-runtime.workspace-surface{--ws-reading:Canvas;--hs-panel:Canvas;--hs-line:CanvasText}
+ .review-runtime.workspace-surface :is(.ws-select-panel,.ws-select-trigger,.journey-configuration[open],.rv-retained-dock,.rv-actor[data-material-role=operation]){color:CanvasText;background:Canvas!important;border:1px solid CanvasText;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none}
+ .review-runtime.workspace-surface .ws-select-option[aria-pressed=true]{background:Highlight;color:HighlightText}
+}

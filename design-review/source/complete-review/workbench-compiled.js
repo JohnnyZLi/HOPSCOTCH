@@ -518,6 +518,7 @@ function resize(record){
 }
 const observer=new ResizeObserver(entries=>{for(const entry of entries||[]){const record=byInner.get(entry.target);if(record)resize(record);}});
 function upgradeOne(detail){
+ if(detail.hasAttribute?.('data-disclosure-menu'))return null;
  if(records.has(detail))return records.get(detail);
  const summary=[...detail.children].find(e=>e.tagName==='SUMMARY'||e.tag==='summary');if(!summary)return null;
  const icon=make('span','rv-disclosure-icon'),glyph=make('i','');glyph.setAttribute('data-lucide','chevron-right');glyph.setAttribute('aria-hidden','true');glyph.textContent='›';icon.setAttribute('aria-hidden','true');icon.append(glyph);summary.prepend(icon);summary.classList.add('rv-disclosure-summary','cursor-interaction');
@@ -1185,7 +1186,7 @@ root.layoutReservation.watch(q('.wb-viewport'),{panes:[q('.wb-canvas'),q('.wb-wo
 (()=>{
 'use strict';
 const root=document.getElementById('hop-builder-review');
-let owners=[...root.querySelectorAll('[data-ui-surface="record"]')];
+let owners=[...root.querySelectorAll('[data-ui-surface="record"]:not([data-glass-role])')];
 const recordVertex=`attribute vec2 a_position;void main(){gl_Position=vec4(a_position,0.0,1.0);}`;
 const recordFragment=`precision highp float;
 uniform vec2 u_center;
@@ -1283,7 +1284,7 @@ function paint(){
   }catch(error){owner.removeAttribute('data-ui-optics');entry.key='';}
  }
 }
-function syncOwners(){const next=[...root.querySelectorAll('[data-ui-surface="record"]')],set=new Set(next);for(const [owner,entry]of entries)if(!set.has(owner)){resize.unobserve?.(owner);entry.canvas.remove();entries.delete(owner);}for(const owner of next)if(!owners.includes(owner))resize.observe(owner);owners=next;}
+function syncOwners(){const next=[...root.querySelectorAll('[data-ui-surface="record"]:not([data-glass-role])')],set=new Set(next);for(const [owner,entry]of entries)if(!set.has(owner)){resize.unobserve?.(owner);entry.canvas.remove();entries.delete(owner);}for(const owner of next)if(!owners.includes(owner))resize.observe(owner);owners=next;}
 function invalidate(){for(const e of entries.values())e.key='';queue();}
 
 // Paint changed bounds before the resize-observer delivery is presented. A resting

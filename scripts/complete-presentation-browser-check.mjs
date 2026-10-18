@@ -37,8 +37,9 @@ async function open(path,width=1440,height=1000,theme='light',reduced=false){
  await cdp.call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});await cdp.call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:reduced?'reduce':'no-preference'}]});
  cdp.clearEvents();await cdp.call('Page.navigate',{url:production.origin+path});await wait("Boolean(document.querySelector('.review-runtime')?.causalStudy||document.querySelector('.review-runtime')?.builderStudy||document.querySelector('.review-runtime')?.evidenceStudy||document.querySelector('.review-runtime')?.homeStudy||document.querySelector('.workspace-error'))");
  assert.equal(await cdp.evaluate("Boolean(document.querySelector('.workspace-error'))"),false,'A complete composition failed to mount.');
+ await wait("Boolean(document.querySelector('.review-runtime')?.homeStudy||document.querySelector('.review-runtime')?.workspaceSurface||document.querySelector('.workspace-error'))");
  await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),picker=root.querySelector('.rv-theme');if(picker){picker.value=${JSON.stringify(theme)};picker.dispatchEvent(new Event('change',{bubbles:true}));}else{root.querySelector('[data-appearance-value='+${JSON.stringify(theme)}+']').click();}})()`);await settled();
- const isHome=await cdp.evaluate("Boolean(document.querySelector('.review-runtime').homeStudy)");if(isHome){await wait("[...document.querySelectorAll('.lh-wallpaper')].every(image=>image.complete&&image.naturalWidth>0)");await settled();}
+ await wait("document.querySelectorAll('.lh-wallpaper').length===2&&[...document.querySelectorAll('.lh-wallpaper')].every(image=>image.complete&&image.naturalWidth>0)");await settled();
  const hasLifecycle=await cdp.evaluate("Boolean(document.querySelector('.review-runtime').causalStudy)");if(hasLifecycle)await wait("Boolean(document.querySelector('.review-runtime').causalStudy.snapshot().plan)");
  const hasAs=await cdp.evaluate("document.querySelector('.review-runtime').evidenceStudy?.snapshot().workspace==='internet'");if(hasAs)await wait("Boolean(document.querySelector('.review-runtime').evidenceStudy.snapshot().graphPlan)",60000);
  const hasBuilder=await cdp.evaluate("Boolean(document.querySelector('.review-runtime').builderStudy)");if(hasBuilder)await wait("Boolean(document.querySelector('.review-runtime').builderStudy.snapshot().graphPlan)",60000);
@@ -181,7 +182,7 @@ async function navigationContinuity(){
  await cdp.evaluate("(()=>{const picker=document.querySelector('.rv-scene-picker');picker.value='tcp';picker.dispatchEvent(new Event('change',{bubbles:true}));})()");await wait("document.querySelector('.review-runtime')?.causalStudy?.snapshot().sceneId==='tcp'&&Boolean(document.querySelector('.review-runtime').causalStudy.snapshot().plan)");await settled();
  const after=await cdp.evaluate("document.querySelector('.review-runtime').causalStudy.save()");assert.equal(after.sceneId,before.sceneId);assert.equal(after.position.id,before.position.id);assert.equal(after.position.kind,before.position.kind);assert.ok(Math.abs(after.position.p-before.position.p)<1e-6,'Protocol return must retain its exact phase');
  await open(WORKSPACE_CATALOG.builder.path);const builder=await cdp.evaluate("(()=>{const api=document.querySelector('.review-runtime').builderStudy;api.runCommand('ping app');api.selectPage('cli');return api.save();})()");
- await cdp.evaluate(`document.querySelector('.app-navigation a[href="/"]').click()`);await wait("Boolean(document.querySelector('.review-runtime')?.homeStudy)");
+ await cdp.evaluate(`document.querySelector('.lh-brand[href="/"]').click()`);await wait("Boolean(document.querySelector('.review-runtime')?.homeStudy)");
  await cdp.evaluate(`document.querySelector('.lh-navigation a[href="${WORKSPACE_CATALOG.builder.path}"]').click()`);await wait("Boolean(document.querySelector('.review-runtime')?.builderStudy)");await settled();const restored=await cdp.evaluate("document.querySelector('.review-runtime').builderStudy.save()");assert.deepEqual(restored.input,builder.input,'Builder return must not repeat a probe');assert.equal(restored.cliTranscript,builder.cliTranscript);assert.equal(restored.page,builder.page);
  await open(WORKSPACE_CATALOG.journey.path);const journey=await cdp.evaluate("(()=>{const root=document.querySelector('.review-runtime'),api=root.causalStudy,s=api.snapshot(),frame=s.frames.find(f=>f.event.detailLab);api.presentSource(frame.at,s.frames.at(-1).at,true);return api.save();})()");
  await cdp.evaluate("document.querySelector('.journey-context-actions button').click()");await wait("Boolean(document.querySelector('.app-return'))");await cdp.evaluate("document.querySelector('.app-return').click()");await wait("document.querySelector('.review-runtime')?.causalStudy?.snapshot().sceneId==='journey'&&Boolean(document.querySelector('.review-runtime').causalStudy.snapshot().plan)");await settled();const returned=await cdp.evaluate("document.querySelector('.review-runtime').causalStudy.save()");assert.equal(returned.position.id,journey.position.id);assert.equal(returned.position.kind,journey.position.kind);assert.ok(Math.abs(returned.position.p-journey.position.p)<1e-6);assert.equal(await cdp.evaluate("document.querySelectorAll('.review-runtime').length"),1,'Only the active presentation may be mounted');
@@ -191,6 +192,41 @@ async function captureContinuity(){
  await open(WORKSPACE_CATALOG.capture.path);await importFile('.ev-capture-file',join(output,'capture-fixture.pcap'));await wait("document.querySelector('.review-runtime').evidenceStudy.snapshot().capture.frames.length===2");const saved=await cdp.evaluate("(()=>{const api=document.querySelector('.review-runtime').evidenceStudy;api.inspectByte(14);return api.snapshot();})()");
  await cdp.evaluate("(()=>{const picker=document.querySelector('.ev-workspace');picker.value='measured';picker.dispatchEvent(new Event('change',{bubbles:true}));})()");await wait("document.querySelector('.review-runtime')?.evidenceStudy?.snapshot().workspace==='measured'");
  await cdp.evaluate("(()=>{const picker=document.querySelector('.ev-workspace');picker.value='capture';picker.dispatchEvent(new Event('change',{bubbles:true}));})()");await wait("document.querySelector('.review-runtime')?.evidenceStudy?.snapshot().workspace==='capture'");await settled();const restored=await cdp.evaluate("document.querySelector('.review-runtime').evidenceStudy.snapshot()");assert.deepEqual(restored.captureBytes,saved.captureBytes);for(const key of ['byte','frameIndex','fieldId','layerIndex'])assert.equal(restored[key],saved[key],'Capture selection '+key+' changed on return');report.captureContinuity=true;
+}
+async function workspaceMenus(){
+ for(const [width,height,theme]of [[1440,1000,'light'],[390,844,'dark']]){
+  await open('/journey',width,height,theme,true);
+  const shell=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),stage=root.querySelector('.rv-stage').getBoundingClientRect(),console=root.querySelector('.rv-console').getBoundingClientRect();return {headers:root.querySelectorAll('header').length,oldNav:document.querySelectorAll('.app-navigation').length,native:[...root.querySelectorAll('select')].filter(n=>n.getBoundingClientRect().width>0).length,stageBottom:stage.bottom,consoleTop:console.top,theme:root.dataset.theme};})()`);
+  assert.equal(shell.headers,1);assert.equal(shell.oldNav,0);assert.equal(shell.native,0,'Workspace selectors must use the custom menu');assert.ok(shell.consoleTop>=shell.stageBottom,'Journey playback belongs below its scene');assert.equal(shell.theme,theme);
+  await screenshot('journey-shared-surface-'+width+'-'+theme);
+  const headerHeight=await cdp.evaluate("document.querySelector('.lh-header').getBoundingClientRect().height");
+  await cdp.evaluate("document.querySelector('.lh-theme').click()");await settled();
+  assert.equal(await cdp.evaluate("document.querySelector('.lh-header').getBoundingClientRect().height"),headerHeight);
+  await cdp.evaluate("document.querySelector('.ws-scene-picker .ws-select-trigger').click()");await settled();
+  const scene=await cdp.evaluate(`(()=>{const panel=document.querySelector('.ws-scene-picker .ws-select-panel'),b=panel.getBoundingClientRect();return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,current:panel.querySelector('[aria-pressed=true]')?.textContent,appearance:document.querySelector('.lh-appearance').open};})()`);
+  assert.equal(scene.appearance,false);assert.match(scene.current,/Journey/);assert.ok(scene.left>=0&&scene.right<=width&&scene.top>=0&&scene.bottom<=height,'Scene menu must stay in the viewport');
+  await screenshot('journey-scene-menu-'+width+'-'+theme);
+  await cdp.evaluate("(()=>{const select=document.querySelector('.rv-scene-picker'),index=[...select.options].findIndex(o=>o.value==='dns');document.querySelector('.ws-scene-picker [data-select-index=\"'+index+'\"]').click();})()");
+  await wait("location.pathname==='/labs/dns'&&Boolean(document.querySelector('.review-runtime')?.workspaceSurface)&&document.querySelector('.review-runtime')?.causalStudy?.snapshot().sceneId==='dns'");
+  await settled();assert.equal(await cdp.evaluate("document.querySelector('.review-runtime').dataset.theme"),theme,'Custom scene navigation preserves appearance');
+ }
+ await open('/journey',390,844,'light',true);
+ await cdp.evaluate("document.querySelector('.rv-playback-settings summary').click()");await settled();
+ await cdp.evaluate("document.querySelector('.rv-speed + .ws-select summary').click()");await settled();
+ await cdp.evaluate("document.querySelector('.rv-speed + .ws-select [data-select-index=\"2\"]').click()");await settled();
+ assert.equal(await cdp.evaluate("document.querySelector('.rv-speed').value"),'2','Custom speed choice must update the existing playback control');
+ assert.equal(await cdp.evaluate("document.activeElement.id"),await cdp.evaluate("document.querySelector('.rv-speed + .ws-select summary').id"),'Selection restores trigger focus');
+ await cdp.evaluate("document.querySelector('.rv-event-picker + .ws-select summary').click()");await settled();
+ await cdp.evaluate("document.querySelector('.rv-event-picker + .ws-select [data-select-index=\"1\"]').click()");await settled();
+ assert.equal(await cdp.evaluate("document.querySelector('.review-runtime').causalStudy.snapshot().at.index"),1,'Custom event selection seeks the canonical event');
+ await cdp.evaluate("document.querySelector('.journey-configuration summary').click()");await settled();
+ await cdp.evaluate("(()=>{const select=document.querySelector('select[aria-label=Transport]');select.nextElementSibling.querySelector('summary').click();})()");await settled();
+ await cdp.evaluate("document.querySelector('select[aria-label=Transport]').nextElementSibling.querySelector('[data-select-index=\"1\"]').click()");await settled();
+ assert.equal(await cdp.evaluate("document.querySelector('select[aria-label=Transport]').value"),'quic-h3');
+ await cdp.evaluate("document.querySelector('.journey-configuration button[type=submit]').click()");
+ await wait("location.search.includes('quic-h3')&&Boolean(document.querySelector('.review-runtime')?.workspaceSurface)");await settled();
+ await geometry('journey-edited-custom-controls');
+ report.workspaceMenus=true;
 }
 async function homeMenus(){
  await open('/',390,844);
@@ -242,7 +278,7 @@ async function performanceBudgets(){
 try{
  production=await serveProductionArtifact(resolve('dist'));launch=await launchChrome(findChrome());const targets=await fetchJson('http://127.0.0.1:'+launch.port+'/json'),target=targets.find(t=>t.type==='page');cdp=new CdpClient(target.webSocketDebuggerUrl);for(const domain of ['Page','DOM','Runtime','Log','HeapProfiler'])await cdp.call(domain+'.enable');report.browser=launch.version;
  const task=async(name,run)=>{try{await run();}catch(error){report.failures.push(name+': '+(error.stack||String(error)));await screenshot(name+'-failure').catch(()=>{});}};
- await task('canonical-source',sourceSemantics);if(mode==='overview')await task('home-menus',homeMenus);if(mode==='choreography')await task('wire-playback',wirePlayback);await task('moving-lifecycle',movingLifecycle);if(['capture','phase4','performance'].includes(mode)){await task('capture',captureSemantics);await task('measured',measuredSemantics);}if(['phase3','performance'].includes(mode))await task('builder',builderSemantics);if(mode==='phase3')await task('navigation',navigationContinuity);if(mode==='phase4')await task('capture-return',captureContinuity);
+ await task('canonical-source',sourceSemantics);if(mode==='overview'){await task('home-menus',homeMenus);await task('workspace-menus',workspaceMenus);}if(mode==='choreography')await task('wire-playback',wirePlayback);await task('moving-lifecycle',movingLifecycle);if(['capture','phase4','performance'].includes(mode)){await task('capture',captureSemantics);await task('measured',measuredSemantics);}if(['phase3','performance'].includes(mode))await task('builder',builderSemantics);if(mode==='phase3')await task('navigation',navigationContinuity);if(mode==='phase4')await task('capture-return',captureContinuity);
  if(mode==='journey'||mode==='choreography')await task('journey',journeyMatrix);else await task('viewports',viewportMatrix);if(mode==='performance')await task('performance-budgets',performanceBudgets);if(report.failures.length)process.exitCode=1;
 }catch(error){report.failures.push(error.stack||String(error));process.exitCode=1;}
 finally{writeFileSync(reportPath,JSON.stringify(report,null,2)+'\n');await cdp?.close();if(launch?.chrome&&!launch.chrome.killed)launch.chrome.kill('SIGKILL');if(launch?.userDataDir)rmSync(launch.userDataDir,{recursive:true,force:true});await new Promise(resolve=>production?.server.close(resolve)||resolve());console.log(JSON.stringify({mode,profiles:report.profiles.length,failures:report.failures,report:reportPath}));}
