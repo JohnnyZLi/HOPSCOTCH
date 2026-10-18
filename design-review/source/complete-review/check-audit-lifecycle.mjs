@@ -17,6 +17,9 @@ for(const kind of ['motion','workbench','evidence','connected']){
  eq(host.style.height,'','Settlement releases the temporary caption height');eq(title.textContent,'Latest');ok(jobs.every(a=>a.cancelled),'Superseded and preference-settled caption effects are released');
  const existing=e.q('.rv-console');eq(existing.getAttribute('data-ui-surface'),'chrome','Every study uses the shared status surface role');
  for(const media of [...e.media])media.matches=false;
+ ui.status(title,detail,'Finished effect','An unresolved native completion promise');
+ const stranded=e.animationJobs.filter(a=>host.contains(a.target)&&!a.cancelled);for(const animation of stranded)animation.playState='finished';
+ await e.flush();eq(host.querySelectorAll('.rv-status-copy').length,0,'Finished effects settle even when their native promise never resolves');ok(stranded.every(a=>a.cancelled),'Settlement releases every finished effect');
  ui.status(title,detail,'Disposal','An interrupted result');ok(host.querySelector('.rv-status-copy'));ui.settle();eq(host.querySelectorAll('.rv-status-copy').length,0,'Owner disposal removes pending visual copies');
  ui.status(title,detail,'Disconnected','A detached receiver');const detached=e.animationJobs.filter(a=>host.contains(a.target));host.remove();
  for(const observer of e.mutations)if(observer.targets.some(t=>t.target===e.root&&t.options.childList))observer.callback([{target:e.root,addedNodes:[],removedNodes:[host]}]);

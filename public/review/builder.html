@@ -1098,6 +1098,7 @@ upgrade();
 const statuses=new WeakMap(),activeStatuses=new Map();
 function settleStatus(host,entry){
  if(statuses.get(host)!==entry)return;
+ if(entry.job)cancelAnimationFrame(entry.job);entry.job=0;
  for(const animation of entry.animations)animation.cancel();entry.copy?.remove();
  host.style.height='';host.style.overflow='';entry.copy=null;entry.animations=[];activeStatuses.delete(host);
 }
@@ -1106,7 +1107,7 @@ function status(titleNode,detailNode,title,detail){
  const host=titleNode.parentElement,previous=statuses.get(host),animate=Boolean(previous&&!reduced.matches&&host.animate),before=animate?host.getBoundingClientRect().height:0;if(previous)settleStatus(host,previous);
  const old=animate?host.cloneNode(true):null;
  if(old){old.querySelectorAll('.rv-status-copy').forEach(n=>n.remove());old.classList.add('rv-status-copy');old.setAttribute('aria-hidden','true');old.removeAttribute('aria-live');old.removeAttribute('aria-atomic');old.removeAttribute('id');old.inert=true;for(const n of old.querySelectorAll('[id]'))n.removeAttribute('id');}
- titleNode.textContent=String(title);detailNode.textContent=String(detail);const entry={copy:null,animations:[]};statuses.set(host,entry);
+ titleNode.textContent=String(title);detailNode.textContent=String(detail);const entry={copy:null,animations:[],job:0};statuses.set(host,entry);
  if(!old)return;
  const after=host.getBoundingClientRect().height;
  host.style.height=after+'px';host.style.overflow='clip';host.append(old);entry.copy=old;
@@ -1117,6 +1118,11 @@ function status(titleNode,detailNode,title,detail){
  const outgoing=old.animate([{opacity:1},{opacity:0}],{duration:exitMs,easing:'ease-out',fill:'forwards'}),incoming=[titleNode,detailNode].filter(n=>n.getBoundingClientRect().height>0).map(n=>n.animate([{opacity:0,transform:'translateY(2px)'},{opacity:1,transform:'translateY(0)'}],{delay:exitMs,duration:enterMs,easing:'ease-out',fill:'both'}));entry.animations=[outgoing,...incoming];
  const sizing=host.animate([{height:before+'px'},{height:after+'px'}],{duration,easing:'ease-out'});entry.animations.push(sizing);
  activeStatuses.set(host,entry);Promise.all(entry.animations.map(a=>a.finished.catch(()=>{}))).then(()=>settleStatus(host,entry));
+ // Rapid cancel/restart can strand Chromium's finished promise even after
+ // playState becomes finished. Check active effects without any layout read;
+ // this job exists only during the short transition and is owned by settlement.
+ const completed=()=>{entry.job=0;if(statuses.get(host)!==entry)return;if(entry.animations.every(a=>a.playState==='finished'||a.playState==='idle'))settleStatus(host,entry);else entry.job=requestAnimationFrame(completed);};
+ entry.job=requestAnimationFrame(completed);
 }
 root.reviewUI=Object.freeze({status,settle:()=>{for(const [host,entry]of activeStatuses)settleStatus(host,entry);}});
 })();
