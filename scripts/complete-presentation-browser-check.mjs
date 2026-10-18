@@ -196,7 +196,7 @@ async function captureContinuity(){
 async function workspaceMenus(){
  for(const [width,height,theme]of [[1280,800,'light'],[390,844,'dark']]){
   await open('/journey',width,height,theme,true);
-  const shell=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),stage=root.querySelector('.rv-stage').getBoundingClientRect(),console=root.querySelector('.rv-console').getBoundingClientRect();return {headers:root.querySelectorAll('header').length,oldNav:document.querySelectorAll('.app-navigation').length,native:[...root.querySelectorAll('select')].filter(n=>n.getBoundingClientRect().width>0).length,stageBottom:stage.bottom,consoleTop:console.top,consoleBottom:console.bottom,theme:root.dataset.theme};})()`);
+  const shell=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),stage=root.querySelector('.rv-stage').getBoundingClientRect(),console=root.querySelector('.rv-console').getBoundingClientRect();return {headers:root.querySelectorAll('header').length,oldNav:document.querySelectorAll('.app-navigation').length,native:[...root.querySelectorAll('select')].filter(n=>n.getBoundingClientRect().width>0).length,stageLeft:stage.left,stageBottom:stage.bottom,consoleTop:console.top,consoleBottom:console.bottom,theme:root.dataset.theme};})()`);
   assert.equal(shell.headers,1);assert.equal(shell.oldNav,0);assert.equal(shell.native,0,'Workspace selectors must use the custom menu');assert.ok(shell.consoleTop>=shell.stageBottom,'Journey playback belongs below its scene');assert.equal(shell.theme,theme);
   assert.ok(shell.consoleBottom<=height-8,'Playback must fit the working viewport, not fall below the page');
   const initial=await cdp.evaluate(`(()=>{const s=document.querySelector('.review-runtime').causalStudy.snapshot(),g=s.plan.prepared[s.at.index];return {focus:g.focus.h,full:g.fullHeight};})()`);
@@ -204,8 +204,8 @@ async function workspaceMenus(){
   await screenshot('journey-shared-surface-'+width+'-'+theme);
   // The densest source object must use the same measured viewport envelope.
   const before=await cdp.evaluate(`(()=>{const api=document.querySelector('.review-runtime').causalStudy,s=api.snapshot(),saved=api.save(),index=s.plan.prepared.reduce((best,g,i)=>g.fullHeight>s.plan.prepared[best].fullHeight?i:best,0),phase=s.plan.phases.find(p=>p.index===index&&p.kind==='read');if(phase)api.seek((phase.start+phase.end)/2);return saved;})()`);await settled();
-  const dense=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),bar=root.querySelector('.rv-console').getBoundingClientRect(),s=root.causalStudy.snapshot(),g=s.plan.prepared[s.at.index];return {bottom:bar.bottom,focusHeight:g.focus.h,fullHeight:g.fullHeight,event:s.frames[s.at.index].id};})()`);
-  assert.ok(dense.bottom<=height-8,'Dense packet playback must remain visible');assert.ok(dense.focusHeight>0&&dense.focusHeight<=dense.fullHeight);
+  const dense=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),bar=root.querySelector('.rv-console').getBoundingClientRect(),s=root.causalStudy.snapshot(),g=s.plan.prepared[s.at.index];return {stageLeft:root.querySelector('.rv-stage').getBoundingClientRect().left,bottom:bar.bottom,focusHeight:g.focus.h,fullHeight:g.fullHeight,event:s.frames[s.at.index].id};})()`);
+  assert.equal(dense.stageLeft,shell.stageLeft,'Scene alignment must stay stable when optional content crosses the fold');assert.ok(dense.bottom<=height-8,'Dense packet playback must remain visible');assert.ok(dense.focusHeight>0&&dense.focusHeight<=dense.fullHeight);
   await screenshot('journey-dense-reading-'+width+'-'+theme);
   await cdp.evaluate(`document.querySelector('.review-runtime').causalStudy.restore(${JSON.stringify(before)})`);await settled();
   const headerHeight=await cdp.evaluate("document.querySelector('.lh-header').getBoundingClientRect().height");
