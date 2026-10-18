@@ -7,7 +7,7 @@
 .review-runtime.workspace-surface .lh-menu-panel a[aria-current=page]{background:color-mix(in srgb,var(--hs-tint) 58%,transparent)}
 .hopscotch-app .review-runtime.workspace-surface .rv-main{padding:28px var(--app-gutter) 40px;isolation:auto}
 .review-runtime.workspace-surface .rv-main::before{display:none}
-.review-runtime.workspace-surface .rv-foot{justify-content:flex-end;background:transparent;border:0;font-size:11px;padding-top:10px}
+.review-runtime.workspace-surface .rv-foot{justify-content:flex-end;background:transparent;border:0;font-size:11px;padding-top:10px;color:var(--hs-ink)}
 .review-runtime.workspace-surface .ws-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin:0 0 24px;min-width:0}
 .review-runtime.workspace-surface .ws-heading{min-width:0;max-width:760px}
 .review-runtime.workspace-surface .rv-title{font-size:32px;font-weight:600;line-height:1.18;letter-spacing:-.04em;margin:8px 0 10px}
@@ -77,6 +77,9 @@
 .review-runtime.workspace-surface .journey-share{max-width:100%;min-width:0}
 .review-runtime.workspace-surface .journey-share input{min-width:0;width:100%;margin:8px 0}
 .review-runtime.workspace-surface .rv-scene-details{margin-top:20px}
+.review-runtime.workspace-surface .rv-main>details>summary{width:max-content;max-width:100%;min-height:44px;padding:10px 15px;border:1px solid var(--hs-line);border-radius:22px;background:var(--rv-control-fill);color:var(--hs-ink);font-size:12px;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+.review-runtime.workspace-surface .rv-main>details>.rv-disclosure-body{margin-top:12px;border-radius:22px;background:var(--ws-reading);color:var(--hs-ink);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px)}
+.review-runtime.workspace-surface .rv-main>details>.rv-disclosure-body>.rv-disclosure-inner{padding:18px}
 @container(max-width:880px){.review-runtime.workspace-surface .lh-header-tools{gap:8px}.review-runtime.workspace-surface .ws-intro{gap:16px}}
 @container(max-width:600px){
  .hopscotch-app .review-runtime.workspace-surface .rv-main{padding:20px 18px 28px}
