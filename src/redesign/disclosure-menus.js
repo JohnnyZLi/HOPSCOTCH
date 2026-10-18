@@ -18,8 +18,14 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
   trigger.setAttribute('aria-expanded',String(wanted));
   trigger.setAttribute('aria-controls',panel.id);
   panel.inert=!wanted;
+  function cancelHiddenTransitions(){
+   // Cancel while the subtree is still rendered. Chromium can leave finished
+   // promises unresolved when a CSS transition's details ancestor is hidden.
+   for(const effect of panel.getAnimations?.({subtree:true})||[])effect.cancel();
+  }
   function settle(){
    animation?.cancel();animation=null;
+   if(!wanted)cancelHiddenTransitions();
    details.open=wanted;panel.inert=!wanted;
    trigger.setAttribute('aria-expanded',String(wanted));
    onLayout();
@@ -70,7 +76,7 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
   const api={details,trigger,panel,position,
    close:options=>setOpen(false,options),
    finish:()=>{generation++;settle();},
-   destroy:()=>{generation++;animation?.cancel();animation=null;details.open=false;panel.inert=true;trigger.setAttribute('aria-expanded','false');}
+   destroy:()=>{generation++;animation?.cancel();animation=null;cancelHiddenTransitions();details.open=false;panel.inert=true;trigger.setAttribute('aria-expanded','false');}
   };
   controllers.push(api);
   scope.listen(trigger,'click',event=>{event.preventDefault();setOpen(!wanted);});

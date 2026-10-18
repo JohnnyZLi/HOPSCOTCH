@@ -190,3 +190,6 @@
     #hopscotch-home .lh-appearance-option[aria-pressed=true]{background:Highlight;color:HighlightText}
     #hopscotch-home .lh-glass-reading{color:CanvasText}
   }
+
+/* Hidden disclosure items have no transition timeline. Their popup owns entry/exit. */
+#hopscotch-home [data-disclosure-menu]:not([open]) [data-disclosure-panel] *{transition:none}
