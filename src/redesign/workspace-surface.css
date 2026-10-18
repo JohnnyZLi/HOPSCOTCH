@@ -47,7 +47,6 @@
 .review-runtime.workspace-surface .journey-modifiers input[type=checkbox]{width:17px;min-height:17px;accent-color:var(--hs-text-accent)}
 
 /* Journey is one working scene, with supporting chrome kept subordinate. */
-html:has(.review-runtime.workspace-surface[data-scene=journey]){scrollbar-gutter:stable}
 .review-runtime.workspace-surface[data-scene=journey]{--lh-wallpaper-opacity:.82}
 .review-runtime.workspace-surface[data-theme=dark][data-scene=journey]{--lh-wallpaper-opacity:.90}
 .hopscotch-app .review-runtime.workspace-surface[data-scene=journey] .rv-main{width:100%;max-width:none;margin:0;padding:0}
