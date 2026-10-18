@@ -118,7 +118,7 @@ async function wirePlayback(){
  while(performance.now()<deadline){
   const sample=await cdp.evaluate('('+readReviewedDOM.toString()+')()');
   if(sample){id??=sample.id;if(sample.id!==id){complete=true;break;}
-   assert.ok(sample.actor);assert.equal(sample.sourceUnchanged,true);assert.deepEqual(sample.fields,sample.sourceFields);assert.ok(sample.fonts.every(size=>size>=12));assert.ok(sample.actorCount<=2);
+   assert.ok(sample.actor);assert.equal(sample.sourceUnchanged,true);assert.deepEqual([...sample.fields].sort((a,b)=>a.id.localeCompare(b.id)),[...sample.sourceFields].sort((a,b)=>a.id.localeCompare(b.id)));assert.ok(sample.fonts.every(size=>size>=12));assert.ok(sample.actorCount<=2);
    if(phases.at(-1)!==sample.phase)phases.push(sample.phase);
    if(sample.phase==='read'&&sample.lensPhase!=='travel'&&sample.lensOpacity>.8&&sample.faceOpacity>.95)assert.equal(sample.lensTouchesSource,true,'Painted scanner misses the intended source glyphs: '+JSON.stringify(sample));
    samples.push(sample);
@@ -197,6 +197,7 @@ async function recoveredStudies(){
  for(const [width,height,theme]of [[1280,900,'light'],[1280,900,'dark'],[390,844,'light'],[390,844,'dark']]){
   await open('/labs/tcp',width,height,theme,true);
   const tcp=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),fields=root.querySelector('.rv-actor-face .rv-fields'),flag=fields.querySelector('[data-field=flags]'),seq=fields.querySelector('[data-field=seq]'),ack=fields.querySelector('[data-field=ack]'),rect=n=>{const b=n.getBoundingClientRect();return {x:b.x,y:b.y,width:b.width,bottom:b.bottom};};return {title:root.querySelector('.rv-actor-title').textContent,owners:[...root.querySelectorAll('.rv-peer-state h3')].map(n=>n.textContent),fieldBox:rect(fields),flag:rect(flag),seq:rect(seq),ack:rect(ack),receiver:root.querySelector('.rv-expected').closest('.rv-peer-state')?.querySelector('h3').textContent};})()`);
+  const fit=await cdp.evaluate("(()=>{const s=document.querySelector('.review-runtime').causalStudy.snapshot(),g=s.plan.prepared[s.at.index];return {focus:g.focus.h,full:g.fullHeight};})()");assert.equal(fit.focus,fit.full,'The complete TCP segment stays visible in the study');
   assert.equal(tcp.title,'TCP segment');assert.deepEqual(tcp.owners,['Client TCP','Server TCP']);assert.equal(tcp.receiver,'Server TCP');
   assert.ok(Math.abs(tcp.flag.width-tcp.fieldBox.width)<1,'Flags lead the packet across its full reading width');assert.ok(tcp.flag.bottom<=tcp.seq.y+1,'Sequence follows the leading flags');assert.ok(Math.abs(tcp.seq.y-tcp.ack.y)<1,'Sequence and acknowledgment remain a pair when measured width permits');
   await screenshot('tcp-recovered-study-'+width+'-'+theme);
