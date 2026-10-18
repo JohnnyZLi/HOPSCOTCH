@@ -61,3 +61,11 @@ wallpaper/header and custom menus; it preserves the original headings, fields,
 scene/console arrangement, in-scene retained state and separate full inspector.
 Production request editing sits among the console's existing tools. The caption
 animation deadline fix remains independent of this visual restoration.
+
+The generic reference restoration was also rejected. The original standalone
+TCP/router studies now govern protocol hierarchy and presentation, through
+shared source rather than another workspace adapter. TCP retains separately
+owned endpoint values; Journey consumes existing canonical packet/physical
+projections for the inner fields and separate outer pieces. The shared scene
+leads explanatory playback, with viewport/content measurement and a quiet
+workspace wallpaper exposure. See reference/HOPSCOTCH-Original-Study-Restoration.md.

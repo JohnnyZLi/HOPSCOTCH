@@ -326,10 +326,11 @@
 #hop-connected-review .rv-actor-role{font-size:12px;line-height:1.5;color:var(--hs-material-muted)}
 #hop-connected-review .rv-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,120px),1fr));gap:0 20px}
 #hop-connected-review .rv-field{padding:12px 8px;position:relative;min-width:0;border-bottom:1px solid var(--hs-line);isolation:isolate}
-#hop-connected-review .rv-field[data-wide=true]{grid-column:1/-1}
+#hop-connected-review .rv-field:is([data-wide=true],[data-lead=true]){grid-column:1/-1}
+#hop-connected-review .rv-field[data-lead=true]{order:-1}
 #hop-connected-review .rv-field::before{content:"";position:absolute;inset:3px 0;border-radius:12px;background:color-mix(in srgb,var(--hs-accent) 12%,transparent);opacity:var(--hs-emphasis,0);z-index:-1;pointer-events:none}
 #hop-connected-review .rv-field-label{display:block;font-size:12px;line-height:1.5;color:var(--hs-material-muted);margin-bottom:6px;overflow-wrap:anywhere}
-#hop-connected-review .rv-field-value{display:inline;font-size:20px;line-height:1.35;font-weight:500;letter-spacing:-.015em;font-variant-numeric:tabular-nums;color:var(--hs-material-ink);overflow-wrap:anywhere;white-space:pre-wrap}
+#hop-connected-review .rv-field-value{display:inline;font-size:18px;line-height:1.35;font-weight:500;letter-spacing:-.015em;font-variant-numeric:tabular-nums;color:var(--hs-material-ink);overflow-wrap:anywhere;white-space:pre-wrap}
 #hop-connected-review .rv-capsule{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;line-height:1.2;font-weight:500;color:var(--hs-material-ink);white-space:normal;text-align:center;overflow-wrap:anywhere;padding:6px 10px}
 #hop-connected-review .rv-protocol{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--rv-blue);flex-shrink:0}
 #hop-connected-review [data-protocol=network] .rv-protocol{background:var(--rv-teal)}
@@ -442,10 +443,9 @@
 #hop-connected-review .rv-payload-chunk span{display:block;overflow-wrap:anywhere;line-height:1.5;font-size:12px}
 #hop-connected-review .rv-payload-range{color:var(--hs-material-muted);margin-bottom:4px;font-variant-numeric:tabular-nums}
 #hop-connected-review .rv-payload-pattern{color:var(--hs-material-ink);font-family:inherit}
-#hop-connected-review .rv-layer-deck{display:flex;flex-direction:column;gap:2px;margin:0 0 16px}
-#hop-connected-review .rv-layer-piece{display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px;padding:9px 12px;border-radius:10px;color:var(--hs-material-ink);background:color-mix(in srgb,var(--hs-panel) 46%,transparent);border:1px solid color-mix(in srgb,var(--hs-line) 70%,transparent);font-size:13px;line-height:1.45}
-#hop-connected-review .rv-layer-piece strong{font-weight:600}
-#hop-connected-review .rv-layer-piece span{margin-left:auto;font-size:12px;overflow-wrap:anywhere}
+#hop-connected-review .rv-payload-summary{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:16px;padding:12px 14px;border:1px solid var(--hs-line);border-radius:14px;background:color-mix(in srgb,var(--hs-panel) 24%,transparent);font-size:12px;line-height:1.5;color:var(--hs-material-muted)}
+#hop-connected-review .rv-payload-meaning{margin-left:auto;color:var(--hs-material-ink)}
+
 
 #hop-connected-review .rv-header-identity{display:flex;align-items:center;gap:16px;min-width:0;margin-right:auto}
 #hop-connected-review .rv-header-context{margin:0;font-size:12px;line-height:1.5;color:var(--hs-muted);overflow-wrap:anywhere}
@@ -479,22 +479,37 @@
 #hop-connected-review:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-scene-details:not([open])>.rv-state-secondary{display:block}
 #hop-connected-review:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-explanation>summary,#hop-connected-review:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-playback-settings>summary{display:none}
 #hop-connected-review:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-explanation:not([open])>p,#hop-connected-review:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-playback-settings:not([open])>label{display:flex}
-#hop-connected-review:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-composition{display:flex;flex-direction:column;container-type:inline-size;container-name:composition}
-#hop-connected-review:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-console{margin:12px 0 0;padding:14px}
-#hop-connected-review:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-caption{padding-bottom:10px}
-#hop-connected-review:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-source{margin-top:0}
-#hop-connected-review:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-scrub{min-height:24px;margin:4px 0}
-@container review (min-width:900px){
- #hop-connected-review:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-composition{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start}
- #hop-connected-review:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-console{margin:0}
-}
-
-#hop-connected-review:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-motion-primary{order:1}
-#hop-connected-review:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-console{order:0}
-
-@container review (min-width:900px){
- #hop-connected-review:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-motion-primary{order:0}
- #hop-connected-review:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-console{order:1}
+/* Recovered study composition: the object, retained state and transport are
+   one reading sequence. Protocol-specific semantics remain in source frames. */
+#hop-connected-review:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-main{width:100%;max-width:1120px;margin-inline:auto}
+#hop-connected-review:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-composition{display:flex;flex-direction:column;min-width:0}
+#hop-connected-review .rv-motion-primary{order:0}
+#hop-connected-review .rv-composition>.rv-console{order:1;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"caption controls" "scrub scrub" "tools tools";align-items:center;gap:8px 24px;margin:20px 0 0;padding:16px 18px;--hs-ui-density:.12}
+#hop-connected-review .rv-caption{grid-area:caption;padding:0}
+#hop-connected-review .rv-caption strong{font-size:15px}
+#hop-connected-review .rv-caption p{font-size:12px;margin:4px 0 0}
+#hop-connected-review .rv-controls{grid-area:controls;justify-content:flex-end}
+#hop-connected-review .rv-scrub{grid-area:scrub;margin:0;min-height:24px}
+#hop-connected-review .rv-console-tools{grid-area:tools;display:flex;align-items:flex-start;gap:12px 24px;flex-wrap:wrap}
+#hop-connected-review .rv-console-tools>details{margin:0;min-width:0;flex:0 1 auto}
+#hop-connected-review .rv-console-tools>details[open]{flex:1 1 280px}
+#hop-connected-review .rv-console-tools>details>summary{padding:7px 0;min-height:36px;font-size:12px}
+#hop-connected-review[data-scene=tcp] .rv-retained-dock{border:0;padding:0;background:none;gap:20px}
+#hop-connected-review .rv-peer-state{padding:14px 18px;border:1px solid var(--rv-divider);border-radius:18px;background:var(--hs-panel);min-width:0}
+#hop-connected-review .rv-peer-state h3{font-size:12px;color:var(--hs-muted);margin:0 0 10px}
+#hop-connected-review .rv-peer-state .rv-peer-value{margin:0}
+#hop-connected-review .rv-peer-state dt{font-size:11px;line-height:1.5}
+#hop-connected-review .rv-peer-state dd{font-size:20px;margin-top:4px}
+#hop-connected-review .rv-peer-state .rv-peer-note{font-size:11px;line-height:1.5;margin:8px 0 0}
+#hop-connected-review .rv-envelope-trailer[data-material-role=packet]{background:var(--hs-packet-fallback);border:0;color:var(--hs-material-ink);box-shadow:0 5px 16px var(--rv-shadow-soft)}
+@container review (max-width:600px){
+ #hop-connected-review .rv-composition>.rv-console{grid-template-columns:minmax(0,1fr);grid-template-areas:"caption" "controls" "scrub" "tools";gap:8px;padding:14px}
+ #hop-connected-review .rv-controls{justify-content:flex-start}
+ #hop-connected-review .rv-peer-state{padding:12px;min-width:0}
+ #hop-connected-review .rv-retained-dock{gap:12px}
+ #hop-connected-review .rv-peer-note{display:none}
+ #hop-connected-review .rv-envelope{padding:10px 14px}
+ #hop-connected-review .rv-envelope-direction{font-size:10px}
 }
 
 #hop-connected-review .cx-home{font-size:12px;font-weight:500;letter-spacing:.04em;background:transparent;border-color:transparent;box-shadow:none;padding:8px 0}
@@ -1460,7 +1475,7 @@ const ready = value => value ? 'Ready' : 'Not ready';
 const journeyStateSchema = [['dns', 'Name resolution', words], ['route', 'Forwarding', words],
  ['transport', 'Transport', words], ['tls', 'Protection', words], ['http', 'Application', words]];
 function journeyFrames(actual, {hostname = actual[0]?.event.target || 'Not available', requestId = 'journey-request'} = {}) {
- return actual.map(({event: e, state}, index) => {
+ return actual.map(({event: e, state, packetVisual, physical}, index) => {
   const previous = actual[index - 1]?.state, family = e.kind.split('.')[0], wire = wireKinds.has(e.kind);
   let fields, objectTitle, assembly = null;
   if (family === 'dns') {
@@ -1484,8 +1499,22 @@ function journeyFrames(actual, {hostname = actual[0]?.event.target || 'Not avail
    }[stage] || []) : [{id:'forwarding',label:'Source operation',value:e.title},
     {id:'continuity',label:'Routed destination',value:state.resolvedAddress},
     {id:'transit',label:'Forwarding stage',value:words(state.packetTransitStage)}];
-   assembly = {identity:requestId, stage:state.packetAssemblyStage, transit:state.packetTransitStage,
-    hostname, destination:state.resolvedAddress, transport:state.transportProfile, protection:state.tls};
+   const layer=packetVisual?.layers.find(layer=>layer.id===(physical?'network':packetVisual.selectedLayerId));
+   if(layer){objectTitle=physical?'IPv4 packet':layer.id==='network'?'IPv4 packet':layer.id==='link'?'IPv4 packet':layer.protocol;
+    const readingLayer=layer.id==='link'?packetVisual.layers.find(layer=>layer.id==='network'):layer;
+    fields=readingLayer.fields.map(field=>({...field,value:field.value}));
+   }
+   const stageIndex=['application','security','transport','network','link','collapsed','exploded'].indexOf(stage),linked=physical?physical.l2Envelope!=='none':stageIndex>=4;
+   const ethernet=packetVisual?.snapshot.segments.find(segment=>segment.id==='ethernet'),linkLayer=packetVisual?.layers.find(layer=>layer.id==='link');
+   assembly = {identity:requestId, stage, transit:state.packetTransitStage,
+    hostname, destination:state.resolvedAddress, transport:state.transportProfile, protection:state.tls,
+    layer:layer?.id||(['network','link','collapsed','exploded'].includes(stage)?'network':stage),
+    payload:stageIndex>=3?(state.transportProfile==='quic-h3'?'UDP / QUIC · protected HTTP/3':'TCP · TLS application data'):stageIndex>=2?'Protected application data':null,
+    envelope:{present:linked,title:ethernet?ethernet.label+' · '+ethernet.length+' B':'Ethernet header',
+      detail:physical?(physical.l2Envelope==='wan'?physical.outgoing:physical.incoming).sourceMac+' → '+(physical.l2Envelope==='wan'?physical.outgoing:physical.incoming).destinationMac:linkLayer?.headline||'Hop-local envelope',
+      trailer:'FCS · wire only',identity:physical?.l2Envelope||'lan'},
+    projection:packetVisual,physical};
+
   } else if (family === 'transport') {
    objectTitle = wire ? e.protocol + ' · ' + words(e.phase) : 'Transport state';
    fields = stateValues(previous,state,[['transport','Connection',words],['impairmentState','Delivery state',words]]);
@@ -1526,8 +1555,8 @@ function journeyFrames(actual, {hostname = actual[0]?.event.target || 'Not avail
   fields=fields.map(f=>({...f,value:display(f.value)}));
   const changed=fields.filter(f=>f.changed);
   return {id:e.id,at:e.atMs,title:e.title,summary:e.summary,detail:e.detail,kind:assembly?'journey-assembly':e.kind,
-   local:!wire,physical:wire||Boolean(assembly),from:e.actor,to:e.target||e.actor,protocol:e.protocol,
-   objectTitle,fields,readIds:(changed.length?changed:fields).map(f=>f.id),assembly,
+   local:!wire,physical:wire||Boolean(assembly),from:e.actor,to:e.target||e.actor,protocol:assembly?(['network','link'].includes(assembly.layer)?'ipv4':packetVisual?.layers.find(layer=>layer.id===assembly.layer)?.protocol||e.protocol):e.protocol,
+   objectTitle,fields,columns:assembly?2:undefined,readIds:(changed.length?changed:fields).map(f=>f.id),assembly,
    records:[...stateValues(null,state,journeyStateSchema),{label:'Source event',value:e.id},{label:'Source time',value:e.atMs+' ms'},
     {label:'Provenance',value:e.provenance},{label:'Field boundary',value:wire?'Source semantics · no unprovided wire bytes or header numbers':'Canonical local state'}],state,event:e};
  });
