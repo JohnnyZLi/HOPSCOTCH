@@ -21,10 +21,11 @@ export function mountWorkspaceSurface(element,navigate,destination){
   if(node.tagName==='H2')node.classList.add('rv-title');
   heading.append(node);
  }
- if(sceneLabel){sceneLabel.classList.add('ws-scene-picker');heading.prepend(sceneLabel);heading.querySelector('.rv-eyebrow')?.remove();}
+ if(sceneLabel){sceneLabel.classList.add('ws-scene-picker');if(destination!=='journey')heading.prepend(sceneLabel);heading.querySelector('.rv-eyebrow')?.remove();}
  intro.append(heading);main.prepend(intro);
  element.querySelector('.rv-foot')?.removeAttribute('data-ui-surface');
  if(destination==='journey'){
+  if(sceneLabel)intro.append(sceneLabel);
   const configuration=main.querySelector('.journey-configuration');if(configuration)intro.append(configuration);
   const console=main.querySelector('.rv-console');console.dataset.uiSurface='record';console.dataset.glassRole='launcher';
   const source=console.querySelector('.rv-source'),explanation=console.querySelector('.rv-explanation');
@@ -32,6 +33,12 @@ export function mountWorkspaceSurface(element,navigate,destination){
   const extras=document.createElement('div');extras.className='ws-playback-extras';
   for(const node of console.querySelectorAll('.rv-playback-settings,.rv-explanation,.journey-context-actions'))extras.append(node);
   console.append(extras);
+  // Only actual layout changes invalidate scene framing. Animated disclosures
+  // are measured once they settle, not throughout their height animation.
+  const changed=()=>element.dispatchEvent(new CustomEvent('review-layout-metrics'));
+  const resize=new scope.ResizeObserver(()=>{if(!element.querySelector('.ws-intro [data-moving=true],.rv-console [data-moving=true]'))changed();});
+  for(const owner of [console,main.querySelector('.rv-retained-dock')])if(owner)resize.observe(owner);
+  scope.listen(element,'review-disclosure-layout',event=>{if(event.detail.phase==='settled')changed();});
  }
  const surface=mountSurface(element,scope,navigate,{workspace:destination,registerMaterial:false});
  const selects=mountSelectMenus(element,scope,surface.menus);

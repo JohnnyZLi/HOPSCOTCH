@@ -194,11 +194,18 @@ async function captureContinuity(){
  await cdp.evaluate("(()=>{const picker=document.querySelector('.ev-workspace');picker.value='capture';picker.dispatchEvent(new Event('change',{bubbles:true}));})()");await wait("document.querySelector('.review-runtime')?.evidenceStudy?.snapshot().workspace==='capture'");await settled();const restored=await cdp.evaluate("document.querySelector('.review-runtime').evidenceStudy.snapshot()");assert.deepEqual(restored.captureBytes,saved.captureBytes);for(const key of ['byte','frameIndex','fieldId','layerIndex'])assert.equal(restored[key],saved[key],'Capture selection '+key+' changed on return');report.captureContinuity=true;
 }
 async function workspaceMenus(){
- for(const [width,height,theme]of [[1440,1000,'light'],[390,844,'dark']]){
+ for(const [width,height,theme]of [[1280,800,'light'],[390,844,'dark']]){
   await open('/journey',width,height,theme,true);
-  const shell=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),stage=root.querySelector('.rv-stage').getBoundingClientRect(),console=root.querySelector('.rv-console').getBoundingClientRect();return {headers:root.querySelectorAll('header').length,oldNav:document.querySelectorAll('.app-navigation').length,native:[...root.querySelectorAll('select')].filter(n=>n.getBoundingClientRect().width>0).length,stageBottom:stage.bottom,consoleTop:console.top,theme:root.dataset.theme};})()`);
+  const shell=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),stage=root.querySelector('.rv-stage').getBoundingClientRect(),console=root.querySelector('.rv-console').getBoundingClientRect();return {headers:root.querySelectorAll('header').length,oldNav:document.querySelectorAll('.app-navigation').length,native:[...root.querySelectorAll('select')].filter(n=>n.getBoundingClientRect().width>0).length,stageBottom:stage.bottom,consoleTop:console.top,consoleBottom:console.bottom,theme:root.dataset.theme};})()`);
   assert.equal(shell.headers,1);assert.equal(shell.oldNav,0);assert.equal(shell.native,0,'Workspace selectors must use the custom menu');assert.ok(shell.consoleTop>=shell.stageBottom,'Journey playback belongs below its scene');assert.equal(shell.theme,theme);
+  assert.ok(shell.consoleBottom<=height-8,'Playback must fit the working viewport, not fall below the page');
   await screenshot('journey-shared-surface-'+width+'-'+theme);
+  // The densest source object must use the same measured viewport envelope.
+  const before=await cdp.evaluate(`(()=>{const api=document.querySelector('.review-runtime').causalStudy,s=api.snapshot(),saved=api.save(),index=s.plan.prepared.reduce((best,g,i)=>g.fullHeight>s.plan.prepared[best].fullHeight?i:best,0),phase=s.plan.phases.find(p=>p.index===index&&p.kind==='read');if(phase)api.seek((phase.start+phase.end)/2);return saved;})()`);await settled();
+  const dense=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),bar=root.querySelector('.rv-console').getBoundingClientRect(),s=root.causalStudy.snapshot(),g=s.plan.prepared[s.at.index];return {bottom:bar.bottom,focusHeight:g.focus.h,fullHeight:g.fullHeight,event:s.frames[s.at.index].id};})()`);
+  assert.ok(dense.bottom<=height-8,'Dense packet playback must remain visible');assert.ok(dense.focusHeight>0&&dense.focusHeight<=dense.fullHeight);
+  await screenshot('journey-dense-reading-'+width+'-'+theme);
+  await cdp.evaluate(`document.querySelector('.review-runtime').causalStudy.restore(${JSON.stringify(before)})`);await settled();
   const headerHeight=await cdp.evaluate("document.querySelector('.lh-header').getBoundingClientRect().height");
   await cdp.evaluate("document.querySelector('.lh-theme').click()");await settled();
   assert.equal(await cdp.evaluate("document.querySelector('.lh-header').getBoundingClientRect().height"),headerHeight);

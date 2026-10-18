@@ -106,7 +106,12 @@ export function mountWallpaperGlass(element,scope,{register=true}={}){
   const ratio=Math.min(1,1024/image.naturalWidth,1024/image.naturalHeight);
   canvas.width=Math.max(1,Math.round(image.naturalWidth*ratio));
   canvas.height=Math.max(1,Math.round(image.naturalHeight*ratio));
-  ctx.drawImage(image,0,0,canvas.width,canvas.height);textures.set(theme,canvas);return canvas;
+  // Match the visible environment, including its quiet workspace tint. The
+  // same raster is sampled by GPU lenses, CPU fallback and reading contrast.
+  const css=getComputedStyle(root),opacity=number(css,'--lh-wallpaper-opacity',1);
+  ctx.fillStyle=css.backgroundColor;ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.globalAlpha=Math.max(0,Math.min(1,opacity));ctx.drawImage(image,0,0,canvas.width,canvas.height);ctx.globalAlpha=1;
+  textures.set(theme,canvas);return canvas;
  }
  function readingContrast(entry,theme,extent,offset,pixels){
   if(!entry.readings?.length)return;

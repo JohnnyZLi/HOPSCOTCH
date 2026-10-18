@@ -52,3 +52,18 @@ source-event clock, event IDs, scenario/share encoding, paused return state,
 capture bytes and evidence provenance are unchanged. The browser overview gate
 checks the single header, custom scene/speed/event/scenario controls, viewport
 bounds, appearance continuity, and desktop/mobile Journey compositions.
+
+The subsequent Journey composition pass keeps request controls on the heading
+row, reduces supporting status chrome, and uses a one-column key/value layout
+for local operations. Physical packets retain their material and field type.
+The optional `--rv-field-max-columns` policy is read from the actual owner;
+glyph geometry and reading trajectories still come from measured content.
+
+`--rv-scene-fit: viewport` opts the scene into a measured vertical envelope:
+actual stage offset, playback height/margin, inspector summary, page padding,
+and footer determine its available reading height. The existing minimum readable
+window wins when a viewport is too short. Settled disclosure changes and actual
+playback/status size changes invalidate geometry; no idle or per-frame layout
+probes are introduced. Source events, clocks, bytes and semantic roles do not
+change. A subdued workspace wallpaper opacity is also applied to the raster
+sampled by both GPU and CPU lenses, keeping refraction consistent with the page.
