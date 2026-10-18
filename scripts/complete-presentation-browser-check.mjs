@@ -23,8 +23,17 @@ const report={schema:'hopscotch.complete-presentation-validation',version:1,mode
 mkdirSync(output,{recursive:true});mkdirSync(dirname(reportPath),{recursive:true});
 let production,launch,cdp;
 async function wait(expression,timeoutMs=15000){const end=performance.now()+timeoutMs;while(performance.now()<end){if(await cdp.evaluate(expression))return;await sleep(50);}const context=await cdp.evaluate("({error:document.querySelector('.rv-error')?.textContent,context:document.querySelector('.wb-context')?.textContent})");throw Error('Timed out: '+expression+' · '+JSON.stringify(context));}
-async function settled(){await cdp.evaluate('document.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))).then(()=>Promise.allSettled(document.getAnimations().filter(a=>a.effect.getComputedTiming().iterations!==Infinity).map(a=>a.finished))).then(()=>new Promise(resolve=>requestAnimationFrame(resolve)))');}
+async function settled(){await cdp.evaluate(`(async()=>{
+ await document.fonts.ready;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+ let timeout;
+ try{await Promise.race([
+  Promise.allSettled(document.getAnimations().filter(a=>a.effect.getComputedTiming().iterations!==Infinity).map(a=>a.finished)),
+  new Promise((_,reject)=>{timeout=setTimeout(()=>reject(Error('UI animations did not settle: '+JSON.stringify(document.getAnimations().map(a=>({target:a.effect.target?.outerHTML.slice(0,180),playState:a.playState,pending:a.pending,currentTime:a.currentTime,timing:a.effect.getComputedTiming()}))))),15000);})
+ ]);}finally{clearTimeout(timeout);}
+ await new Promise(resolve=>requestAnimationFrame(resolve));
+})()`);}
 async function open(path,width=1440,height=1000,theme='light',reduced=false){
+ console.log('Checking',path,width+'x'+height,theme,reduced?'reduced-motion':'');
  await cdp.call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});await cdp.call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:reduced?'reduce':'no-preference'}]});
  cdp.clearEvents();await cdp.call('Page.navigate',{url:production.origin+path});await wait("Boolean(document.querySelector('.review-runtime')?.causalStudy||document.querySelector('.review-runtime')?.builderStudy||document.querySelector('.review-runtime')?.evidenceStudy||document.querySelector('.review-runtime')?.homeStudy||document.querySelector('.workspace-error'))");
  assert.equal(await cdp.evaluate("Boolean(document.querySelector('.workspace-error'))"),false,'A complete composition failed to mount.');
