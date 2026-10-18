@@ -11,7 +11,7 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
   const trigger=details.querySelector(':scope > summary');
   const panel=details.querySelector('[data-disclosure-panel]');
   if(!trigger||!panel)continue;
-  let wanted=details.open,animation=null,generation=0;
+  let wanted=details.open,animation=null,generation=0,focusedWithin=false;
   const items=()=>[...panel.querySelectorAll('a[href],button:not([disabled])')].filter(node=>node.getClientRects().length);
   const selectedItem=()=>items().find(node=>node.getAttribute('aria-pressed')==='true'||node.getAttribute('aria-checked')==='true')||items()[0];
   const focusSelection=details.hasAttribute('data-disclosure-selection');
@@ -34,7 +34,8 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
    if(!details.open||disposed)return;
    const anchor=trigger.getBoundingClientRect();
    if(anchor.width<=0||anchor.height<=0){
-    const hadFocus=details.contains(document.activeElement);
+    const hadFocus=details.contains(document.activeElement)||(focusedWithin&&(!document.activeElement||document.activeElement===document.body||document.activeElement===document.documentElement));
+    focusedWithin=false;
     setOpen(false,{immediate:true});
     if(hadFocus)fallbackFocus?.focus({preventScroll:true});
     return;
@@ -92,11 +93,14 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
    const next=event.key==='Home'?0:event.key==='End'?links.length-1:event.key==='ArrowDown'?(index+1)%links.length:(index-1+links.length)%links.length;
    links[next].focus({preventScroll:true});
   });
+  scope.listen(details,'focusin',()=>{focusedWithin=true;});
+  scope.listen(document,'focusin',event=>{if(!details.contains(event.target)&&event.target!==document.body&&event.target!==document.documentElement)focusedWithin=false;});
   scope.listen(details,'focusout',event=>{
    if(details.contains(event.relatedTarget))return;
    // A responsive display change blurs the hidden link before ResizeObserver
    // runs. Preserve that cause instead of treating it as an ordinary Tab exit.
    const hidden=trigger.getBoundingClientRect().width<=0;
+   if(event.relatedTarget&&event.relatedTarget!==document.body&&event.relatedTarget!==document.documentElement)focusedWithin=false;
    setOpen(false,{immediate:hidden});
    if(hidden&&!event.relatedTarget)fallbackFocus?.focus({preventScroll:true});
   });

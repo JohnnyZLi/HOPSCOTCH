@@ -32,7 +32,7 @@ function fixture(width=390,rtl=false,selection=false,secondMenu=false){
   querySelector(selector){if(selector===':scope > summary')return this.children.find(n=>n.kind==='summary');if(selector==='[data-disclosure-panel]')return this.children.find(n=>n.kind==='panel');return null;}
   querySelectorAll(selector){if(selector==='[data-disclosure-menu]')return menuOwners;if(selector==='a[href],button:not([disabled])')return this.children.filter(n=>n.kind==='link');return [];}
   closest(){return this.kind==='link'?this:this.parentElement?.closest();}
-  focus(){const old=doc.activeElement;if(old===this)return;doc.activeElement=this;if(old)fire(old,'focusout',{relatedTarget:this});}
+  focus(){const old=doc.activeElement;if(old===this)return;doc.activeElement=this;if(old)fire(old,'focusout',{relatedTarget:this});fire(this,'focusin',{relatedTarget:old});fire(doc,'focusin',{target:this,relatedTarget:old});}
   animate(keys,options){
    let resolve,reject;const animation={keys,options,done:false,finished:new Promise((yes,no)=>{resolve=yes;reject=no;}),
     cancel:()=>{if(!animation.done){animation.done=true;reject(Error('canceled'));}this.opacity='1';},
@@ -70,7 +70,7 @@ function fixture(width=390,rtl=false,selection=false,secondMenu=false){
  async function finish(){for(const animation of animations)animation.finish();await Promise.resolve();await Promise.resolve();}
  function flush(){const work=[...frames.values()];frames.clear();for(const callback of work)callback();}
  return {root,details,trigger,panel,links,picker,outside,doc,win,preference,animations,menus,scope,fire,finish,flush,second,
-  resize(w,unavailable=false,blurFirst=false){rootWidth=w;hidden=unavailable;if(blurFirst&&doc.activeElement){const previous=doc.activeElement;doc.activeElement=null;fire(previous,'focusout',{relatedTarget:null});}for(const observer of observers)observer.callback();flush();},
+  resize(w,unavailable=false,blurFirst=false){rootWidth=w;hidden=unavailable;if(blurFirst&&doc.activeElement){const previous=doc.activeElement;doc.activeElement=null;if(blurFirst!=='silent')fire(previous,'focusout',{relatedTarget:null});}for(const observer of observers)observer.callback();flush();},
   pending:()=>frames.size,invalidations:()=>invalidations};
 }
 
@@ -92,11 +92,13 @@ function fixture(width=390,rtl=false,selection=false,secondMenu=false){
   links[0].focus();f.resize(1024,true);assert.equal(details.open,false,'Hidden responsive trigger closes disclosure');assert.equal(doc.activeElement,f.picker);assert.equal(trigger.attrs['aria-expanded'],'false');assert.equal(f.pending(),0);
   f.menus.dispose();f.scope.dispose();assert.equal(f.pending(),0);
  }
+ for(const order of [true,'silent']){
  const responsiveBlur=fixture();
  responsiveBlur.trigger.focus();responsiveBlur.fire(responsiveBlur.trigger,'keydown',{key:'ArrowDown'});await responsiveBlur.finish();
- responsiveBlur.resize(1024,true,true);
+ responsiveBlur.resize(1024,true,order);
  assert.equal(responsiveBlur.details.open,false);assert.equal(responsiveBlur.doc.activeElement,responsiveBlur.picker,'Responsive blur before ResizeObserver must retain header focus');
  responsiveBlur.menus.dispose();responsiveBlur.scope.dispose();
+ }
  const choice=fixture(390,false,true);
  choice.trigger.focus();choice.fire(choice.trigger,'click');assert.equal(choice.doc.activeElement,choice.links[1],'Opening selection popup focuses the current preference');
  await choice.finish();choice.fire(choice.panel,'keydown',{key:'ArrowDown'});assert.equal(choice.doc.activeElement,choice.links[2]);
