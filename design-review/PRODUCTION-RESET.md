@@ -23,3 +23,15 @@ compositions. It retains the required Chrome GPU, Firefox, replay, viewport,
 Journey, and performance gates. The existing versioned performance budgets
 are unchanged. Tests of canonical protocol, scenario, capture, and measurement
 models remain in the contract suite.
+
+The user approved the October 16 wallpaper homepage and its custom glass menus,
+then authorized production deployment on October 17. `home-runtime.js`,
+`home.html`, and `home.css` replace the connected entry screen at `/`. The
+original Light/Dark wallpaper assets are local WebP files. Their refractive
+edges sample the actual backdrop and share the packet material kernel and
+context-recovery factory through generated `material-runtime.js`. The custom
+appearance and collapsed navigation menus use one measured disclosure controller.
+Appearance uses the existing persisted app preference; canonical workspace hrefs
+also retain same-tab app navigation. Existing workspace models and controls are
+unchanged. The overview browser gate checks both menus, header stability,
+responsive bounds, keyboard dismissal, and Light/Dark/System behavior.

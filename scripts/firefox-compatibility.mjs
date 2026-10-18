@@ -212,14 +212,14 @@ async function main() {
       const deadline = performance.now() + 8000;
       let ready = false;
       while (performance.now() < deadline) {
-        ready = Boolean(await execute('return Boolean(document.querySelector(arguments[0]));', ['.review-runtime .rv-shell']));
+        ready = Boolean(await execute('return Boolean(document.querySelector(arguments[0]));', ['.review-runtime .rv-shell,.review-runtime .lh-header']));
         if (ready) break;
         await sleep(50);
       }
       if (!ready) throw new Error(`${profile.id} timed out waiting for ${profile.readySelector}.`);
       await sleep(650);
 
-      const structural=await execute(`const root=document.querySelector('.review-runtime');return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,header:root.querySelector('.rv-header').getBoundingClientRect().width,title:root.querySelector('h2').textContent,legacy:document.querySelectorAll('.visual-workspace,.reviewed-primary,.kinetic-overview').length,source:root.causalStudy?.snapshot().frames.map(f=>({id:f.id,at:f.at})),reduced:matchMedia('(prefers-reduced-motion: reduce)').matches};`);
+      const structural=await execute(`const root=document.querySelector('.review-runtime');return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,header:root.querySelector('.rv-header,.lh-header').getBoundingClientRect().width,title:root.querySelector('h1,h2').textContent,legacy:document.querySelectorAll('.visual-workspace,.reviewed-primary,.kinetic-overview').length,source:root.causalStudy?.snapshot().frames.map(f=>({id:f.id,at:f.at})),reduced:matchMedia('(prefers-reduced-motion: reduce)').matches};`);
       if(structural.scrollWidth>structural.width+1||structural.header<=0||!structural.title||structural.legacy!==0)throw Error(profile.id+' complete composition is clipped or retained legacy presentation: '+JSON.stringify(structural));
       if(!structural.reduced)throw Error(profile.id+' did not honor reduced motion');
       if(profile.path==='/labs/tcp'){const canonical=(await import('../src/protocol/tcp.ts')).tcpScenario.events.map(e=>({id:e.id,at:e.atMs}));assert.deepEqual(structural.source,canonical);}
