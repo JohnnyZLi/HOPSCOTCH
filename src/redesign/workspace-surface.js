@@ -24,27 +24,16 @@ export function mountWorkspaceSurface(element,navigate,destination){
  if(sceneLabel){sceneLabel.classList.add('ws-scene-picker');if(destination!=='journey')heading.prepend(sceneLabel);heading.querySelector('.rv-eyebrow')?.remove();}
  intro.append(heading);main.prepend(intro);
  element.querySelector('.rv-foot')?.removeAttribute('data-ui-surface');
+ // Keep the reviewed scene, retained values, inspector and console in their
+ // authored owners. Production adds request editing within the existing tools.
  if(destination==='journey'){
   if(sceneLabel)intro.append(sceneLabel);
-  const configuration=main.querySelector('.journey-configuration');if(configuration)intro.append(configuration);
-  const console=main.querySelector('.rv-console');console.dataset.uiSurface='record';console.dataset.glassRole='launcher';
-  for(const [selector,label]of [['.rv-playback-settings>summary','Settings'],['.journey-share>summary','Share']]){
-   const summary=console.querySelector(selector);if(summary)for(const child of summary.childNodes)if(child.nodeType===3&&child.textContent.trim())child.textContent=label;
-  }
-  const source=console.querySelector('.rv-source'),explanation=console.querySelector('.rv-explanation');
-  (explanation.querySelector('.rv-disclosure-inner')||explanation).append(source);
-  const extras=document.createElement('div');extras.className='ws-playback-extras';
-  const inspector=main.querySelector('.rv-scene-details');inspector.querySelector('summary').lastChild.textContent='Inspect';extras.append(inspector);
-  const detailAction=console.querySelector('.journey-context-actions>button');if(detailAction){detailAction.classList.add('ws-context-detail');inspector.querySelector('.rv-disclosure-inner').prepend(detailAction);}
-  for(const node of console.querySelectorAll('.rv-playback-settings,.rv-explanation,.journey-context-actions'))extras.append(node);
-  console.append(extras,main.querySelector('.rv-retained-dock'));
-  for(const fact of console.querySelectorAll('.rv-retained-dock>.rv-fact'))fact.dataset.glassReading='';
-  // Only actual layout changes invalidate scene framing. Animated disclosures
-  // are measured once they settle, not throughout their height animation.
-  const changed=()=>element.dispatchEvent(new CustomEvent('review-layout-metrics'));
-  const resize=new scope.ResizeObserver(()=>{if(!element.querySelector('.ws-intro [data-moving=true],.rv-console [data-moving=true]'))changed();});
-  for(const owner of [console,main.querySelector('.rv-retained-dock')])if(owner)resize.observe(owner);
-  scope.listen(element,'review-disclosure-layout',event=>{if(event.detail.phase==='settled')changed();});
+  const configuration=main.querySelector('.journey-configuration');
+  const settings=main.querySelector('.rv-playback-settings');
+  const tools=settings?.querySelector('.rv-disclosure-inner')||settings;
+  if(configuration&&tools)tools.append(configuration);
+  const actions=main.querySelector('.journey-context-actions');
+  if(actions&&tools)tools.append(actions);
  }
  const surface=mountSurface(element,scope,navigate,{workspace:destination,registerMaterial:false});
  const selects=mountSelectMenus(element,scope,surface.menus);

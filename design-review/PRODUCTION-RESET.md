@@ -53,28 +53,11 @@ capture bytes and evidence provenance are unchanged. The browser overview gate
 checks the single header, custom scene/speed/event/scenario controls, viewport
 bounds, appearance continuity, and desktop/mobile Journey compositions.
 
-The subsequent Journey composition pass keeps request controls on the heading
-row, reduces supporting status chrome, and uses a one-column key/value layout
-for local operations. Physical packets retain their material and field type.
-The optional `--rv-field-max-columns` policy is read from the actual owner;
-glyph geometry and reading trajectories still come from measured content.
-
-`--rv-scene-fit: viewport` opts the scene into a measured vertical envelope:
-actual stage offset, playback height/margin and page padding determine its
-available reading height. The optional inspector and provenance footer continue
-below the fold when necessary, keeping that space available for the scene.
-Secondary playback actions use concise labels and retain their disclosures.
-The existing minimum readable
-window wins when a viewport is too short. Settled disclosure changes and actual
-playback/status size changes invalidate geometry; no idle or per-frame layout
-probes are introduced. Source events, clocks, bytes and semantic roles do not
-change. A subdued workspace wallpaper opacity is also applied to the raster
-sampled by both GPU and CPU lenses, keeping refraction consistent with the page.
-
-The spatial composition pass replaces the separate Journey panels with request
-tools, a measured scene, and an attached transport strip. Peer labels use the
-actual travel ports; wide scenes share one route/reading axis, while narrow
-scenes place the route above the card. Retained state sits inside the attached transport, below its controls,
-with a consistent reading background. The `--rv-scene-layout: docked` policy reserves a stable scene envelope
-from actual chrome and readable minima, so changing source objects cannot move
-playback. Inspection and its contextual lab action belong to the transport.
+The owner rejected the later production composition passes. Their compact toolbar,
+viewport/docked scene geometry, forced operation rows and full-width transport
+strip are removed. The shared review CSS and original measured scene renderer
+again own the complete composition. The production adapter retains the approved
+wallpaper/header and custom menus; it preserves the original headings, fields,
+scene/console arrangement, in-scene retained state and separate full inspector.
+Production request editing sits among the console's existing tools. The caption
+animation deadline fix remains independent of this visual restoration.
