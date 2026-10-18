@@ -8,10 +8,8 @@
 .hopscotch-app .review-runtime.workspace-surface .rv-main{padding:28px var(--app-gutter) 40px;isolation:auto}
 .review-runtime.workspace-surface .rv-main::before{display:none}
 .review-runtime.workspace-surface .rv-foot{justify-content:flex-end;background:transparent;border:0;font-size:11px;padding-top:10px;color:var(--hs-ink)}
-.review-runtime.workspace-surface .ws-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin:0 0 24px;min-width:0}
+.review-runtime.workspace-surface .ws-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin:0 0 4px;min-width:0}
 .review-runtime.workspace-surface .ws-heading{min-width:0;max-width:760px}
-.review-runtime.workspace-surface .rv-title{font-size:32px;font-weight:600;line-height:1.18;letter-spacing:-.04em;margin:8px 0 10px}
-.review-runtime.workspace-surface .rv-subtitle{font-size:14px;line-height:1.6;max-width:650px;margin:0;color:var(--hs-muted)}
 .review-runtime.workspace-surface .ws-scene-picker{display:flex;align-items:center;gap:0;font-size:0;min-height:36px;margin:0}
 .review-runtime.workspace-surface .ws-scene-picker .ws-select{flex:0 1 auto;max-width:100%}
 .review-runtime.workspace-surface .ws-scene-picker .ws-select-trigger{font-size:12px;min-height:36px;padding:6px 11px;background:rgba(255,255,255,.26);border-color:transparent;box-shadow:inset 0 1px 0 var(--hs-ui-high);color:var(--hs-ink)}
@@ -46,96 +44,22 @@
 .review-runtime.workspace-surface .journey-modifiers{gap:4px 14px;border:0;border-top:1px solid var(--hs-line);border-radius:0;padding:10px 0 0}
 .review-runtime.workspace-surface .journey-modifiers input[type=checkbox]{width:17px;min-height:17px;accent-color:var(--hs-text-accent)}
 
-/* Journey is one working scene, with supporting chrome kept subordinate. */
-.review-runtime.workspace-surface[data-scene=journey]{--lh-wallpaper-opacity:.82}
-.review-runtime.workspace-surface[data-theme=dark][data-scene=journey]{--lh-wallpaper-opacity:.90}
-.hopscotch-app .review-runtime.workspace-surface[data-scene=journey] .rv-main{width:100%;max-width:none;margin:0;padding:0}
-.review-runtime.workspace-surface[data-scene=journey] .ws-intro{align-items:center;flex-wrap:wrap;gap:8px 18px;margin:0;padding:12px max(var(--app-gutter),calc((100% - 1120px)/2));border-bottom:1px solid var(--hs-line);background:rgba(248,251,255,.18);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
-.review-runtime.workspace-surface[data-scene=journey] .ws-heading{flex:1;min-width:min(100%,360px)}
-.review-runtime.workspace-surface[data-scene=journey] .rv-title{font-size:20px;margin:0 0 4px}
-.review-runtime.workspace-surface[data-scene=journey] .rv-subtitle{font-size:13px;max-width:540px}
-.review-runtime.workspace-surface[data-scene=journey] .ws-scene-picker{flex:none;min-height:44px}
-.review-runtime.workspace-surface[data-scene=journey] .ws-scene-picker .ws-select-trigger{min-height:44px;border-radius:22px;padding:10px 12px}
-.review-runtime.workspace-surface[data-scene=journey] .journey-configuration{padding:0}
-.review-runtime.workspace-surface[data-scene=journey] .journey-configuration>summary{background:rgba(248,251,255,.30);border-color:var(--hs-line)}
-.review-runtime.workspace-surface[data-theme=dark][data-scene=journey] .journey-configuration>summary{background:rgba(19,32,54,.38)}
-.review-runtime.workspace-surface[data-scene=journey] .journey-configuration[open]{flex:1 0 100%;width:100%;max-width:none;padding:16px}
-.review-runtime.workspace-surface[data-scene=journey] .rv-composition{display:flex;flex-direction:column;gap:0;align-items:stretch}
-.review-runtime.workspace-surface[data-scene=journey] .rv-motion-primary{width:100%;order:0}
-.review-runtime.workspace-surface[data-scene=journey] .rv-stage{--rv-scene-fit:viewport;--rv-scene-layout:docked;width:min(calc(100% - 2*var(--app-gutter)),1120px);margin-inline:auto}
-.review-runtime.workspace-surface[data-scene=journey] .rv-endpoints{position:absolute;left:4px;right:4px;grid-template-columns:repeat(2,var(--rv-port-width));justify-content:space-between;gap:0;padding:0}
-.review-runtime.workspace-surface[data-scene=journey] .rv-endpoint{text-align:center}
-.review-runtime.workspace-surface[data-scene=journey] .rv-path{height:1px;opacity:.5}
-.review-runtime.workspace-surface[data-scene=journey] .rv-path::before,.review-runtime.workspace-surface[data-scene=journey] .rv-path::after{content:"";position:absolute;top:-2px;width:5px;height:5px;border-radius:50%;background:var(--hs-route-line)}
-.review-runtime.workspace-surface[data-scene=journey] .rv-path::before{left:0}
-.review-runtime.workspace-surface[data-scene=journey] .rv-path::after{right:0}
-.review-runtime.workspace-surface[data-scene=journey] .rv-endpoint{background:transparent;border:0;box-shadow:none;padding:10px 4px;font-size:12px}
-.review-runtime.workspace-surface[data-scene=journey] .rv-endpoint::before{display:none}
-.review-runtime.workspace-surface[data-scene=journey] .rv-endpoint .hs-record-glass{display:none}
-.review-runtime.workspace-surface[data-scene=journey] .rv-retained-dock{grid-area:state;position:static;background:none;border:0;border-top:1px solid var(--hs-line);border-radius:0;padding:8px 0 0;gap:4px 24px;width:min(100%,540px);max-width:none;margin:0 auto;-webkit-backdrop-filter:none;backdrop-filter:none}
-.review-runtime.workspace-surface[data-scene=journey] .rv-retained-dock>.rv-fact{display:flex;align-items:baseline;justify-content:center;flex-wrap:wrap;gap:2px 6px}
-.review-runtime.workspace-surface[data-scene=journey] .rv-retained-dock dd{font-size:12px;font-weight:500}
-.review-runtime.workspace-surface[data-scene=journey] .rv-retained-dock dt{font-size:11px;margin:0}
-.review-runtime.workspace-surface[data-scene=journey] .rv-retained-dock :is(dt,dd){color:var(--hs-optical-ink,var(--hs-ink))}
-/* A local operation is a quiet key/value list. Wire packets keep their optics. */
-.review-runtime.workspace-surface[data-scene=journey] .rv-actor[data-material-role=operation]{--rv-field-max-columns:1;background:var(--ws-reading);border:1px solid var(--hs-line);border-radius:20px;box-shadow:inset 0 1px 0 var(--hs-ui-high),0 8px 24px var(--ws-reading-shadow);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px)}
-.review-runtime.workspace-surface[data-scene=journey] .rv-actor[data-material-role=operation] .rv-actor-face{padding:20px}
-.review-runtime.workspace-surface[data-scene=journey] .rv-actor[data-material-role=operation] .rv-actor-heading{margin-bottom:8px}
-.review-runtime.workspace-surface[data-scene=journey] .rv-actor[data-material-role=operation] .rv-field{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);align-items:center;gap:12px;padding:10px 4px}
-.review-runtime.workspace-surface[data-scene=journey] .rv-actor[data-material-role=operation] .rv-field-label{margin:0}
-.review-runtime.workspace-surface[data-scene=journey] .rv-console{order:1;display:grid;grid-template-columns:auto minmax(160px,1fr) auto;grid-template-areas:"caption caption caption" "controls scrub extras" "state state state";align-items:center;gap:4px 24px;width:100%;max-width:none;margin:0;padding:12px max(var(--app-gutter),calc((100% - 1120px)/2));border:0;border-top:1px solid var(--hs-line);border-radius:0;z-index:10;--hs-ui-density:.9;--hs-liquid-opacity-base:.32;--hs-liquid-opacity-step:.08;--hs-glass-depth:.04;--hs-glass-blur:16px;--hs-glass-shadow:transparent}
-.review-runtime.workspace-surface[data-scene=journey] .rv-console:has(.ws-playback-extras details[open]){grid-template-areas:"caption caption caption" "controls scrub scrub" "extras extras extras" "state state state"}
-.review-runtime.workspace-surface[data-theme=dark][data-scene=journey] .rv-console{--hs-liquid-opacity-base:.58;--hs-liquid-opacity-step:.08;--hs-glass-shadow:rgba(0,7,18,.18)}
-.review-runtime.workspace-surface[data-scene=journey] .rv-console::before{box-shadow:0 8px 22px var(--hs-glass-shadow),0 1px 4px var(--hs-glass-shadow)!important}
-.review-runtime.workspace-surface[data-scene=journey] .rv-caption{grid-area:caption;padding:0;text-align:center}
-.review-runtime.workspace-surface[data-scene=journey] .rv-caption strong{font-size:14px;font-weight:500;line-height:1.45}
-.review-runtime.workspace-surface[data-scene=journey] .rv-controls{grid-area:controls;gap:4px;justify-content:flex-start}
-.review-runtime.workspace-surface[data-scene=journey] .rv-controls button{border-radius:22px;min-height:44px;font-size:13px;padding:9px 13px}
-.review-runtime.workspace-surface[data-scene=journey] .rv-controls button:not([data-action-role=primary]){background:transparent;border-color:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
-.review-runtime.workspace-surface[data-scene=journey] .rv-controls button:not([data-action-role=primary]):hover{background:color-mix(in srgb,var(--hs-tint) 45%,transparent)}
-.review-runtime.workspace-surface[data-scene=journey] .rv-scrub{grid-area:scrub;margin:0;min-height:24px}
-.review-runtime.workspace-surface .ws-playback-extras{grid-area:extras;display:flex;align-items:flex-start;justify-content:center;gap:4px 18px;flex-wrap:wrap;font-size:12px}
-.review-runtime.workspace-surface .ws-playback-extras>details{flex:0 1 auto;margin:0;min-width:0}
-.review-runtime.workspace-surface .ws-playback-extras summary{min-height:36px;padding:8px 0;font-size:12px;color:var(--hs-muted)}
-.review-runtime.workspace-surface .ws-playback-extras details[open]{flex:1 1 220px}
-.review-runtime.workspace-surface .ws-playback-extras .rv-source{display:block;border-top:1px solid var(--hs-line);padding-top:12px;margin-top:12px}
-.review-runtime.workspace-surface .rv-source span{display:block;margin-top:6px}
-.review-runtime.workspace-surface .journey-context-actions{display:contents;margin:0}
-.review-runtime.workspace-surface .journey-context-actions>button{min-height:36px;font-size:12px;padding:6px 10px;border:0;border-radius:12px;background:transparent;box-shadow:none;color:var(--hs-muted)}
-.review-runtime.workspace-surface .journey-share{max-width:100%;min-width:0}
-.review-runtime.workspace-surface .journey-share input{min-width:0;width:100%;margin:8px 0}
-.review-runtime.workspace-surface .rv-scene-details{margin-top:12px}
-.review-runtime.workspace-surface .rv-main>details>summary{width:max-content;max-width:100%;min-height:44px;margin-block:0;padding:10px 15px;border:1px solid var(--hs-line);border-radius:22px;background:var(--rv-control-fill);color:var(--hs-ink);font-size:12px;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
-.review-runtime.workspace-surface[data-scene=journey] .rv-scene-details{margin:0}
-.review-runtime.workspace-surface[data-scene=journey] .rv-scene-details>summary{margin:0;padding:8px 0;border:0;border-radius:0;background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none}
-.review-runtime.workspace-surface .rv-main>details>.rv-disclosure-body{margin-top:12px;border-radius:22px;background:var(--ws-reading);color:var(--hs-ink);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px)}
-.review-runtime.workspace-surface .rv-main>details>.rv-disclosure-body>.rv-disclosure-inner{padding:18px}
-.review-runtime.workspace-surface[data-scene=journey] .rv-foot{padding-block:6px;font-size:10px}
-@container(max-width:880px){.review-runtime.workspace-surface .lh-header-tools{gap:8px}.review-runtime.workspace-surface .ws-intro{gap:16px}}
+/* Main layout, type, packet fields and scene geometry come from review.css.
+   The production adapter only presents existing controls over the wallpaper. */
+.review-runtime.workspace-surface .journey-context-actions{display:flex;flex-direction:column;align-items:stretch;gap:10px}
+.review-runtime.workspace-surface .journey-share{min-width:0;width:100%}
+.review-runtime.workspace-surface .journey-share input{width:100%;margin-top:8px}
+.review-runtime.workspace-surface .rv-console .journey-configuration{margin:6px 0 0;padding:0}
+.review-runtime.workspace-surface .rv-console .journey-configuration>summary{display:list-item;padding:8px 0;border:0;border-radius:0;background:transparent;font-size:13px;min-height:36px}
+.review-runtime.workspace-surface .rv-console .journey-configuration[open]{width:100%;padding:0;background:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+.review-runtime.workspace-surface .rv-console .journey-configuration form{grid-template-columns:minmax(0,1fr)}
+.review-runtime.workspace-surface .rv-console .journey-configuration form>label:first-child{grid-column:auto}
+.review-runtime.workspace-surface .rv-console .rv-source{display:flex}
 @container(max-width:600px){
- .hopscotch-app .review-runtime.workspace-surface .rv-main{padding:20px 18px 28px}
  .review-runtime.workspace-surface .lh-header.rv-header{padding-block:10px;min-height:68px}
- .review-runtime.workspace-surface .ws-intro{flex-direction:column;gap:14px;margin-bottom:16px}
- .review-runtime.workspace-surface .rv-title{font-size:28px;line-height:1.2;max-width:340px}
- .review-runtime.workspace-surface .rv-subtitle{font-size:14px;max-width:370px}
- .review-runtime.workspace-surface .journey-configuration{width:100%}
- .review-runtime.workspace-surface .journey-configuration>summary{width:max-content}
- .review-runtime.workspace-surface .journey-configuration form{grid-template-columns:minmax(0,1fr)}
- .review-runtime.workspace-surface .journey-configuration form>label:first-child{grid-column:auto}
- .review-runtime.workspace-surface[data-scene=journey] .rv-console,.review-runtime.workspace-surface[data-scene=journey] .rv-console:has(.ws-playback-extras details[open]){grid-template-columns:minmax(0,1fr);grid-template-areas:"caption" "controls" "scrub" "extras" "state";padding:12px 18px;border-radius:0;gap:6px;margin:0}
- .review-runtime.workspace-surface[data-scene=journey] .rv-controls{justify-content:flex-start;gap:4px}
- .review-runtime.workspace-surface[data-scene=journey] .rv-controls button{font-size:14px}
- .review-runtime.workspace-surface .ws-playback-extras{justify-content:space-between;gap:4px 8px}
+ .review-runtime.workspace-surface .ws-intro{flex-direction:column;gap:12px}
  .review-runtime.workspace-surface .ws-select-trigger{font-size:16px}
  .review-runtime.workspace-surface .ws-scene-picker .ws-select-trigger{font-size:12px}
- .review-runtime.workspace-surface[data-scene=journey] .ws-intro{flex-direction:row;gap:8px 12px;margin:0;padding:10px 18px}
- .review-runtime.workspace-surface[data-scene=journey] .ws-heading{flex:1 0 100%;min-width:0}
- .review-runtime.workspace-surface[data-scene=journey] .rv-title{font-size:20px}
- .review-runtime.workspace-surface[data-scene=journey] .rv-subtitle{font-size:12px}
- .review-runtime.workspace-surface[data-scene=journey] .journey-configuration{width:auto;margin-inline-start:auto}
- .review-runtime.workspace-surface[data-scene=journey] .journey-configuration[open]{width:100%;margin-inline-start:0}
- .review-runtime.workspace-surface[data-scene=journey] .rv-retained-dock>.rv-fact{display:block;text-align:center}
- .review-runtime.workspace-surface[data-scene=journey] .rv-retained-dock dt{margin-bottom:2px}
 }
 @media(prefers-reduced-motion:reduce){.review-runtime.workspace-surface .ws-select-trigger svg{transition:none}}
 @media(prefers-reduced-transparency:reduce){
@@ -147,5 +71,3 @@
  .review-runtime.workspace-surface :is(.ws-select-panel,.ws-select-trigger,.journey-configuration[open],.rv-retained-dock,.rv-actor[data-material-role=operation]){color:CanvasText;background:Canvas!important;border:1px solid CanvasText;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none}
  .review-runtime.workspace-surface .ws-select-option[aria-pressed=true]{background:Highlight;color:HighlightText}
 }
-
-.review-runtime.workspace-surface[data-theme=dark][data-scene=journey] .ws-intro{background:rgba(13,25,48,.20)}

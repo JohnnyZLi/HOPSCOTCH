@@ -1,6 +1,6 @@
 # HOPSCOTCH — Visual and Interaction Design Specification
 
-**Version:** 0.44 · **Date:** 2026-10-18 UTC · **Status:** Journey spatial composition in browser review; owner feedback remains the visual acceptance authority
+**Version:** 0.45 · **Date:** 2026-10-18 UTC · **Status:** Reviewed composition restoration in browser review; owner feedback remains the visual acceptance authority
 **Product owner / design approver:** Johnny Li  
 **Scope:** App-wide visual and interaction redesign  
 **Repository baseline:** `JohnnyZLi/HOPSCOTCH`, `main` at `be21750003cf3c097c917ae4340c78a0035ccbc6`  
@@ -8,13 +8,13 @@
 **Current evidence authority:** [Live visual and animation audit — 8 October 2026](HOPSCOTCH-Live-Visual-Audit-20261008.md). Earlier evidence counts and manifests below describe their historical revisions, not current browser acceptance.
 
 
-## Journey spatial composition — 18 October 2026
+## Restore the reviewed composition — 18 October 2026
 
-The owner rejected the previous Journey refinement as scattered. Fitting controls into a viewport and passing checks did not establish a coherent composition. The wallpaper and packet material remain the accepted foundation.
+The owner rejected the production layout and asked to recover the quality of the preview/Site. The later toolbar, full-width transport strip, compact title, forced key/value rows and shared route/reading axis are superseded. Passing functional checks does not establish visual acceptance.
 
-Journey uses three connected regions: a compact request toolbar, a dominant network scene, and playback attached to the scene's lower edge. Endpoint labels align with the measured departure/arrival positions. When the usable width can fit a reading card and both peer regions, the route passes through the card's center; narrower scenes place the shared route above the reading region. Retained results sit inside the attached transport, grouped with the current event instead of floating on the wallpaper. A stable scene envelope keeps playback in place across changing source objects.
+`review.css` and the shared measured lifecycle renderer own composition again: scene and 300px playback panel alongside one another on wide screens, playback before the scene on narrow screens, retained values inside the scene and full inspection below. Use the reference typography and field layout. The production adapter supplies the approved wallpaper/header and custom selection controls without changing those owners. Production-only request editing belongs among the existing playback tools.
 
-Inspection, explanation, settings and sharing belong to the transport tools. Contextual lab navigation belongs inside Inspect. Deep field content remains a deliberate disclosure. The toolbar and transport form quiet horizontal chrome, while the packet or local operation owns the central visual emphasis. These are reusable geometry policies derived from rendered text, available space and source semantics, not coordinates assigned to individual events. Canonical events, bytes and source clocks remain unchanged.
+Preserve the accepted packet material, scanner, docking, cadence, exact bytes, event identity and source clocks. Preserve the owned caption animation deadline fix. Compare the actual desktop/mobile Light/Dark outputs against the reference rather than certifying design quality from passing checks.
 
 
 ## Current live visual and animation audit — 8 October 2026
