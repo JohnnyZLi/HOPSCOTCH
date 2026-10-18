@@ -7,10 +7,13 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
   if(disposed||layoutFrame)return;
   layoutFrame=scope.requestAnimationFrame(()=>{layoutFrame=0;for(const menu of controllers)menu.position();});
  }
- for(const details of root.querySelectorAll('[data-disclosure-menu]')){
+ function register(details){
+  if(controllers.some(menu=>menu.details===details))return;
   const trigger=details.querySelector(':scope > summary');
   const panel=details.querySelector('[data-disclosure-panel]');
-  if(!trigger||!panel)continue;
+  if(!trigger||!panel)return;
+  const cleanups=[];
+  const listen=(...args)=>{const remove=scope.listen(...args);if(remove)cleanups.push(remove);};
   let wanted=details.open,animation=null,generation=0,focusedWithin=false;
   const items=()=>[...panel.querySelectorAll('a[href],button:not([disabled])')].filter(node=>node.getClientRects().length);
   const selectedItem=()=>items().find(node=>node.getAttribute('aria-pressed')==='true'||node.getAttribute('aria-checked')==='true')||items()[0];
@@ -46,8 +49,10 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
    const css=getComputedStyle(parent),gutter=parseFloat(css.getPropertyValue('--lh-header-inset'))||16;
    const popup=panel.getBoundingClientRect();
    const desiredX=css.direction==='rtl'?anchor.left:anchor.right-popup.width;
+   const visibleTop=Math.max(0,bounds.top),visibleBottom=Math.min(window.innerHeight||bounds.bottom,bounds.bottom);
    const x=Math.max(bounds.left+gutter,Math.min(desiredX,bounds.right-gutter-popup.width));
-   const y=Math.max(bounds.top+gutter,Math.min(anchor.bottom+8,bounds.bottom-gutter-popup.height));
+   const below=anchor.bottom+8,above=anchor.top-8-popup.height;
+   const y=Math.max(visibleTop+gutter,Math.min(below+popup.height<=visibleBottom-gutter?below:above,visibleBottom-gutter-popup.height));
    const left=(x-parentBounds.left)+'px',top=(y-parentBounds.top)+'px';
    if(panel.style.left!==left||panel.style.top!==top){
     panel.style.insetInlineEnd='auto';panel.style.left=left;panel.style.top=top;onLayout();
@@ -78,25 +83,25 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
   const api={details,trigger,panel,position,
    close:options=>setOpen(false,options),
    finish:()=>{generation++;settle();},
-   destroy:()=>{generation++;animation?.cancel();animation=null;cancelHiddenTransitions();details.open=false;panel.inert=true;trigger.setAttribute('aria-expanded','false');}
+   destroy:()=>{generation++;animation?.cancel();animation=null;cancelHiddenTransitions();details.open=false;panel.inert=true;trigger.setAttribute('aria-expanded','false');observer.disconnect();for(const cleanup of cleanups)cleanup();}
   };
   controllers.push(api);
-  scope.listen(trigger,'click',event=>{event.preventDefault();setOpen(!wanted);});
-  scope.listen(trigger,'keydown',event=>{
+  listen(trigger,'click',event=>{event.preventDefault();setOpen(!wanted);});
+  listen(trigger,'keydown',event=>{
    if(event.key!=='ArrowDown'&&event.key!=='ArrowUp')return;
    event.preventDefault();setOpen(true);
    const links=items();focusItem(focusSelection?selectedItem():event.key==='ArrowDown'?links[0]:links.at(-1));
   });
-  scope.listen(panel,'keydown',event=>{
+  listen(panel,'keydown',event=>{
    if(!['ArrowDown','ArrowUp','Home','End'].includes(event.key))return;
    const links=items(),index=links.indexOf(document.activeElement);if(!links.length)return;
    event.preventDefault();
    const next=event.key==='Home'?0:event.key==='End'?links.length-1:event.key==='ArrowDown'?(index+1)%links.length:(index-1+links.length)%links.length;
    focusItem(links[next]);
   });
-  scope.listen(details,'focusin',()=>{focusedWithin=true;});
-  scope.listen(document,'focusin',event=>{if(!details.contains(event.target)&&event.target!==document.body&&event.target!==document.documentElement)focusedWithin=false;});
-  scope.listen(details,'focusout',event=>{
+  listen(details,'focusin',()=>{focusedWithin=true;});
+  listen(document,'focusin',event=>{if(!details.contains(event.target)&&event.target!==document.body&&event.target!==document.documentElement)focusedWithin=false;});
+  listen(details,'focusout',event=>{
    if(details.contains(event.relatedTarget))return;
    // A responsive display change blurs the hidden link before ResizeObserver
    // runs. Preserve that cause instead of treating it as an ordinary Tab exit.
@@ -105,9 +110,15 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
    setOpen(false,{immediate:hidden});
    if(hidden&&!event.relatedTarget)fallbackFocus?.focus({preventScroll:true});
   });
-  scope.listen(panel,'click',event=>{if(event.target.closest('a[href],button:not([disabled])'))setOpen(false,{restoreFocus:true});});
+  listen(panel,'click',event=>{if(event.target.closest('a[href],button:not([disabled])'))setOpen(false,{restoreFocus:true});});
   const observer=new scope.ResizeObserver(schedulePosition);observer.observe(trigger);observer.observe(panel);
  }
+ function refresh(){
+  for(let i=controllers.length-1;i>=0;i--)if(!root.contains(controllers[i].details)){controllers[i].destroy();controllers.splice(i,1);}
+  for(const details of root.querySelectorAll('[data-disclosure-menu]'))register(details);
+  schedulePosition();
+ }
+ refresh();
  scope.listen(document,'pointerdown',event=>{
   const path=event.composedPath?.()||[];
   for(const menu of controllers)if(menu.details.open&&!path.includes(menu.details)&&!menu.details.contains(event.target))menu.close();
@@ -117,7 +128,8 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
   for(const menu of controllers)if(menu.details.open){event.preventDefault();menu.close({restoreFocus:true});}
  });
  scope.listen(window,'resize',schedulePosition);
+ scope.listen(document,'scroll',schedulePosition,{capture:true,passive:true});
  scope.listen(reduced,'change',()=>{if(reduced.matches)for(const menu of controllers)menu.finish();});
  const resize=new scope.ResizeObserver(schedulePosition);resize.observe(root);
- return Object.freeze({dispose(){if(disposed)return;for(const menu of controllers)menu.destroy();disposed=true;scope.cancelAnimationFrame(layoutFrame);layoutFrame=0;}});
+ return Object.freeze({refresh,dispose(){if(disposed)return;for(const menu of controllers)menu.destroy();controllers.length=0;disposed=true;scope.cancelAnimationFrame(layoutFrame);layoutFrame=0;}});
 }

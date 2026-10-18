@@ -21,13 +21,7 @@ export default function App() {
     setPath(next);
   };
   return <div className="hopscotch-app">
-    {destination && <nav className="app-navigation" aria-label="HOPSCOTCH workspaces">
-      <a href="/" aria-current={!destination ? 'page' : undefined} onClick={event => {event.preventDefault();navigate(null);}}>Home</a>
-      <a href="/journey" aria-current={destination === 'journey' ? 'page' : undefined} onClick={event => {event.preventDefault();navigate('journey');}}>Journey</a>
-      <a href={WORKSPACE_CATALOG.tcp.path} aria-current={destination && ['tcp','dns','tls','http','packet','failure'].includes(destination) ? 'page' : undefined} onClick={event => {event.preventDefault();navigate('tcp');}}>Protocols & packets</a>
-      <a href={WORKSPACE_CATALOG.builder.path} aria-current={destination === 'builder' ? 'page' : undefined} onClick={event => {event.preventDefault();navigate('builder');}}>Network Builder</a>
-      <a href="/measured" aria-current={destination && ['measured','capture','observed','physical','internet'].includes(destination) ? 'page' : undefined} onClick={event => {event.preventDefault();navigate('measured');}}>Evidence & Internet</a>
-    </nav>}
+
     {origin && destination!=='journey' && <button className="app-return" onClick={()=>{history.pushState(null,'',origin);setPath(origin);setOrigin(null);}}>Return to paused Journey</button>}
     <CompleteWorkspace destination={destination} search={url.search} navigate={navigate} inspect={id=>{setOrigin(path);const next=WORKSPACE_CATALOG[id].path;history.pushState(null,'',next);setPath(next);}} />
   </div>;

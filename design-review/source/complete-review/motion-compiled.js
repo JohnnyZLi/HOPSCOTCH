@@ -518,6 +518,7 @@ function resize(record){
 }
 const observer=new ResizeObserver(entries=>{for(const entry of entries||[]){const record=byInner.get(entry.target);if(record)resize(record);}});
 function upgradeOne(detail){
+ if(detail.hasAttribute?.('data-disclosure-menu'))return null;
  if(records.has(detail))return records.get(detail);
  const summary=[...detail.children].find(e=>e.tagName==='SUMMARY'||e.tag==='summary');if(!summary)return null;
  const icon=make('span','rv-disclosure-icon'),glyph=make('i','');glyph.setAttribute('data-lucide','chevron-right');glyph.setAttribute('aria-hidden','true');glyph.textContent='›';icon.setAttribute('aria-hidden','true');icon.append(glyph);summary.prepend(icon);summary.classList.add('rv-disclosure-summary','cursor-interaction');
@@ -1512,7 +1513,7 @@ function renderBytes(){
 function select(id){
  if(frames.length)memories.set(sceneId,{position:currentPosition(),variant,dnsMode,byte});pause();sceneId=id;const remembered=memories.get(id);if(remembered){variant=remembered.variant;dnsMode=remembered.dnsMode;byte=remembered.byte;}root.dataset.scene=id;frames=frameAdapter(id);clock=0;plan=null;layoutKey='';networkKey='';recordKey='';activeActor=-1;
  q('.rv-scene-picker').value=id;q('.rv-title').textContent={tcp:'The packet stays the packet.',packet:'One frame. Every layer.',packetOps:'Construct. Read. Change. Keep the cause.',failure:'Failure takes time to become knowledge.',dns:'A question finds its authority.',tls:'Meaning closes into protected records.',http:'One loss. Two delivery models.',journey:'One request across the layers.',provider:'An envelope around an envelope.'}[id];
- q('.rv-subtitle').textContent={tcp:'Every packet is constructed, sent, received, and processed separately. Connection state survives the exchange.',packet:'Measured fields open from the compact source frame. Version, protocol, and exact byte ranges remain explicit.',packetOps:'Separate envelopes touch without merging. Construction changes derive lengths and checksums from real source bytes.',failure:'The physical break, control propagation, route installation, and application recovery remain separate source events.',dns:'Questions, referrals, answers, and retained cache state follow the source sequence.',tls:'Parameters enter the transcript, keys activate, and application data becomes opaque. Cryptographic values are symbolic.',http:'TCP’s sequence hole blocks delivery across streams. QUIC’s Stream B continues while Stream A waits; congestion still affects the connection.',journey:'The event sequence changes scale while retaining its request context and existing source boundaries.',provider:'Underlay forwarding, the inner packet, added envelopes, and MTU outcomes remain distinguishable.'}[id];
+ q('.rv-subtitle').textContent={tcp:'Every packet is constructed, sent, received, and processed separately. Connection state survives the exchange.',packet:'Measured fields open from the compact source frame. Version, protocol, and exact byte ranges remain explicit.',packetOps:'Separate envelopes touch without merging. Construction changes derive lengths and checksums from real source bytes.',failure:'The physical break, control propagation, route installation, and application recovery remain separate source events.',dns:'Questions, referrals, answers, and retained cache state follow the source sequence.',tls:'Parameters enter the transcript, keys activate, and application data becomes opaque. Cryptographic values are symbolic.',http:'TCP’s sequence hole blocks delivery across streams. QUIC’s Stream B continues while Stream A waits; congestion still affects the connection.',journey:'See how your browser finds a server, connects, and brings a page back.',provider:'Underlay forwarding, the inner packet, added envelopes, and MTU outcomes remain distinguishable.'}[id];
  q('.rv-motion-primary').hidden=['failure','http'].includes(id);q('.rv-state-secondary').hidden=['failure','http'].includes(id);q('.rv-network-primary').hidden=id!=='failure';q('.rv-comparison-primary').hidden=id!=='http';q('.rv-buffer').hidden=id!=='tcp';q('.rv-window').hidden=id!=='tcp';
  q('.rv-client-record h3').textContent=id==='tcp'?'Client · data sender':'Retained state';q('.rv-server-record h3').textContent=id==='tcp'?'Server · data receiver':'Context';
  // Restore original receiver nodes after other protocol record schemas used them.
@@ -1540,7 +1541,7 @@ select(data.bootstrapScene||'tcp');
 (()=>{
 'use strict';
 const root=document.getElementById('hop-causal-review');
-let owners=[...root.querySelectorAll('[data-ui-surface="record"]')];
+let owners=[...root.querySelectorAll('[data-ui-surface="record"]:not([data-glass-role])')];
 const recordVertex=`attribute vec2 a_position;void main(){gl_Position=vec4(a_position,0.0,1.0);}`;
 const recordFragment=`precision highp float;
 uniform vec2 u_center;
@@ -1638,7 +1639,7 @@ function paint(){
   }catch(error){owner.removeAttribute('data-ui-optics');entry.key='';}
  }
 }
-function syncOwners(){const next=[...root.querySelectorAll('[data-ui-surface="record"]')],set=new Set(next);for(const [owner,entry]of entries)if(!set.has(owner)){resize.unobserve?.(owner);entry.canvas.remove();entries.delete(owner);}for(const owner of next)if(!owners.includes(owner))resize.observe(owner);owners=next;}
+function syncOwners(){const next=[...root.querySelectorAll('[data-ui-surface="record"]:not([data-glass-role])')],set=new Set(next);for(const [owner,entry]of entries)if(!set.has(owner)){resize.unobserve?.(owner);entry.canvas.remove();entries.delete(owner);}for(const owner of next)if(!owners.includes(owner))resize.observe(owner);owners=next;}
 function invalidate(){for(const e of entries.values())e.key='';queue();}
 
 // Paint changed bounds before the resize-observer delivery is presented. A resting

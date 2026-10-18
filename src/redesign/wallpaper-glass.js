@@ -1,5 +1,5 @@
 // Measured lens edges sample the same wallpaper used by the visible page.
-export function mountWallpaperGlass(element,scope){
+export function mountWallpaperGlass(element,scope,{register=true}={}){
  const {document,window,matchMedia,requestAnimationFrame,cancelAnimationFrame,ResizeObserver,MutationObserver}=scope;
  'use strict';
  const root=element;
@@ -282,9 +282,10 @@ export function mountWallpaperGlass(element,scope){
  document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(frame);frame=0;}else invalidate();});
  function watchDpr(){const mq=matchMedia('(resolution: '+(devicePixelRatio||1)+'dppx)');const change=()=>{mq.removeEventListener('change',change);watchDpr();invalidate();};mq.addEventListener('change',change);}
  watchDpr();
- root.recordMaterial=Object.freeze({invalidate,stats:()=>({draws,pending:Boolean(frame),surfaces:entries.size,cached:cache.size}),
+ const material=Object.freeze({invalidate,stats:()=>({draws,pending:Boolean(frame),surfaces:entries.size,cached:cache.size}),
   dispose(){disposed=true;cancelAnimationFrame(frame);frame=0;for(const entry of entries.values())entry.canvas.remove();entries.clear();cache.clear();textures.clear();texturePixels.clear();}
  });
+ if(register)root.recordMaterial=material;
  queue();
- return root.recordMaterial;
+ return material;
 }

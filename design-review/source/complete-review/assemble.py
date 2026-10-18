@@ -54,6 +54,9 @@ records=records.replace('function paint(){\n frame=0;', 'function paint(){\n fra
 records=records.replace('function invalidate(){for(const e of entries.values())', '''function syncOwners(){const next=[...root.querySelectorAll('[data-ui-surface="record"]')],set=new Set(next);for(const [owner,entry]of entries)if(!set.has(owner)){resize.unobserve?.(owner);entry.canvas.remove();entries.delete(owner);}for(const owner of next)if(!owners.includes(owner))resize.observe(owner);owners=next;}
 function invalidate(){for(const e of entries.values())''')
 
+# Wallpaper lenses own their optical canvas, separately from packet records.
+records=records.replace('[data-ui-surface="record"]','[data-ui-surface="record"]:not([data-glass-role])')
+
 reader=script[script.index('// BEGIN ADAPTIVE ENGINE'):script.index('let scene=null')]
 reader=reader.split('\n',1)[1]
 fit_start=script.index('const fitPolicy=')

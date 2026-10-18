@@ -12,7 +12,7 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
   const [error,setError] = useState('');
   useEffect(() => {
     const element = host.current!;
-    let cancelled = false, mounted: Mounted | undefined,disposeControls:undefined|(()=>void),restorePlan:undefined|(()=>void);
+    let cancelled = false, mounted: Mounted | undefined,disposeControls:undefined|(()=>void),restorePlan:undefined|(()=>void),surface:undefined|{appearance():void;dispose():void};
     setError('');
     const key = (destination ?? 'home') + search;
     const restoreAppearance = () => {
@@ -20,6 +20,7 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
       if (picker) picker.value = appearancePreference();
       element.dataset.theme = document.documentElement.dataset.theme;
       mounted?.api.appearance?.();
+      surface?.appearance();
     };
     const changed = (event: Event) => {
       const target = event.target;
@@ -56,6 +57,11 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
         }
       }
       if (cancelled) return;
+      if(destination){
+        const {mountWorkspaceSurface}=await import('./workspace-surface');
+        if(cancelled)return;
+        surface=mountWorkspaceSurface(element,navigate,destination);
+      }
       restoreAppearance();
       const memory = memories.get(key);
       if (memory !== undefined && mounted?.api.restore) {
@@ -76,7 +82,7 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
       if (mounted?.api.save) memories.set(key,mounted.api.save());
       else if (mounted?.api.snapshot) memories.set(key,mounted.api.snapshot());
       if(restorePlan)element.removeEventListener('review-plan-ready',restorePlan);
-      disposeControls?.();mounted?.dispose();unwatch();element.removeEventListener('change',changed,true);element.removeEventListener('app-measured-change',measuredChanged);
+      disposeControls?.();surface?.dispose();mounted?.dispose();unwatch();element.removeEventListener('change',changed,true);element.removeEventListener('app-measured-change',measuredChanged);
     };
   },[destination,search]);
   return <div className="workspace-container">
