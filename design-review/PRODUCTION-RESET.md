@@ -70,3 +70,11 @@ playback/status size changes invalidate geometry; no idle or per-frame layout
 probes are introduced. Source events, clocks, bytes and semantic roles do not
 change. A subdued workspace wallpaper opacity is also applied to the raster
 sampled by both GPU and CPU lenses, keeping refraction consistent with the page.
+
+The spatial composition pass replaces the separate Journey panels with request
+tools, a measured scene, and an attached transport strip. Peer labels use the
+actual travel ports; wide scenes share one route/reading axis, while narrow
+scenes place the route above the card. Retained state sits below the reading
+region. The `--rv-scene-layout: docked` policy reserves a stable scene envelope
+from actual chrome and readable minima, so changing source objects cannot move
+playback. Inspection and its contextual lab action belong to the transport.

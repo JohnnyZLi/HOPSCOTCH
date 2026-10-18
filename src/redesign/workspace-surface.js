@@ -34,6 +34,8 @@ export function mountWorkspaceSurface(element,navigate,destination){
   const source=console.querySelector('.rv-source'),explanation=console.querySelector('.rv-explanation');
   (explanation.querySelector('.rv-disclosure-inner')||explanation).append(source);
   const extras=document.createElement('div');extras.className='ws-playback-extras';
+  const inspector=main.querySelector('.rv-scene-details');inspector.querySelector('summary').lastChild.textContent='Inspect';extras.append(inspector);
+  const detailAction=console.querySelector('.journey-context-actions>button');if(detailAction){detailAction.classList.add('ws-context-detail');inspector.querySelector('.rv-disclosure-inner').prepend(detailAction);}
   for(const node of console.querySelectorAll('.rv-playback-settings,.rv-explanation,.journey-context-actions'))extras.append(node);
   console.append(extras);
   // Only actual layout changes invalidate scene framing. Animated disclosures

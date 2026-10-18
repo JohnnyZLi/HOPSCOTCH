@@ -1290,26 +1290,30 @@ function reserveState(){
 function reflow(){
  layoutJob=0;if(disposed)return;q('.rv-envelopes').hidden=!['packetOps','provider'].includes(sceneId);const width=stage.clientWidth||q('.rv-main').clientWidth;if(width<160)return;
  const probe=q('.rv-field-value')||q('.rv-title'),style=getComputedStyle(probe),viewport=root.dataset.integrated==='true'?root.clientHeight:typeof innerHeight==='number'?innerHeight:900;
- const fitViewport=(getComputedStyle(stage).getPropertyValue?.('--rv-scene-fit')||'').trim()==='viewport';
+ const stageStyle=getComputedStyle(stage),fitViewport=(stageStyle.getPropertyValue?.('--rv-scene-fit')||'').trim()==='viewport',docked=(stageStyle.getPropertyValue?.('--rv-scene-layout')||'').trim()==='docked';
  const consoleOwner=q('.rv-console'),consoleStyle=fitViewport?getComputedStyle(consoleOwner):null,mainStyle=fitViewport?getComputedStyle(q('.rv-main')):null;
  const stageOffset=fitViewport?stage.getBoundingClientRect().top-root.getBoundingClientRect().top:0;
  // Prioritize the reading surface and playback. The optional inspector and
  // provenance footer can continue below the fold instead of shrinking a card.
- const clearance=fitViewport?(parseFloat(consoleStyle.marginTop)||0)+(parseFloat(mainStyle.paddingBottom)||0):32;
+ const clearance=fitViewport?(parseFloat(consoleStyle.marginTop)||0)+(parseFloat(mainStyle.paddingBottom)||0)+(docked?(q('.rv-foot')?.offsetHeight||0):0):32;
  const key=[sceneId,variant,dnsMode,width,viewport,style.fontSize,style.fontFamily,root.dataset.theme,devicePixelRatio||1,fitViewport?stageOffset+'|'+consoleOwner.offsetHeight+'|'+dock.offsetHeight+'|'+clearance:''].join('|');if(key===layoutKey)return;
  // Measure one source object at a time. Keeping every cached card connected
  // makes each field/glyph measurement relayout the entire canonical history.
  const actorHost=q('.rv-actors');
  for(const actor of new Set(actors.filter(Boolean).map(a=>a.actor)))if(actor.parentElement===actorHost)actor.remove();
  if(bounded())reserveCaption();const old=currentPosition(),cardWidth=Math.min(540,width-8),endpoints=q('.rv-endpoints');
- // Reserve the actual peer labels before locating the path. Names can wrap at
- // enlarged type or compact widths; no event-specific header height is needed.
+ const compactLabelStyle=getComputedStyle(q('.rv-capsule')||q('.rv-title')),compactFont=parseFloat(compactLabelStyle.fontSize)||13,compactContext=document.createElement('canvas').getContext('2d');compactContext.font='500 '+compactFont+'px '+compactLabelStyle.fontFamily;const compactLabels=frames.map(f=>f.local?'Local state':f.kind==='anatomy'?'Frame':f.objectTitle),compactText=Math.max(...compactLabels.map(text=>compactContext.measureText(text).width)),compactW=Math.min((width-24)/2,Math.max(88,compactText+32)),compactH=Math.max(44,Math.ceil(compactText/Math.max(1,compactW-32))*compactFont*1.2+16);
+ if(docked)stage.style.setProperty('--rv-port-width',compactW+'px');
+ // Peer labels share the actual packet departure/arrival coordinates.
  for(const [side,owner]of [...endpoints.children].entries()){
   const clone=owner.cloneNode(true);clone.setAttribute('aria-hidden','true');clone.inert=true;Object.assign(clone.style,{position:'absolute',visibility:'hidden',width:owner.clientWidth+'px',minHeight:'0',height:'auto'});q('.rv-main').append(clone);let max=0;
   for(const f of frames){clone.textContent=f.endpoints?.[side]||'';max=Math.max(max,clone.getBoundingClientRect().height);}clone.remove();owner.style.minHeight=Math.ceil(max)+'px';
  }
- const dockHeight=bounded()?dock.offsetHeight:0;dock.style.top=endpoints.offsetHeight+'px';const pathY=endpoints.offsetHeight+dockHeight+24;
- const top=q('.rv-envelope-header'),bottom=q('.rv-envelope-trailer');q('.rv-envelope-direction').textContent=sceneId==='provider'?(data.provider.packet?.outer.source??'No outer header')+' → '+(data.provider.packet?.outer.destination??'Not supplied'):'02:48:4f:50:00:01 → 02:48:4f:50:00:02';top.querySelector('span').textContent=sceneId==='provider'?'Outer '+(data.provider.packet?.outer.protocol||'envelope')+' · '+(data.provider.gre?.encapsulationOverheadBytes??0)+' B':'Ethernet II · 14 B';bottom.querySelector('span').textContent=sceneId==='provider'?'MPLS label · 229811':'FCS · unavailable in model bytes';for(const piece of [top,bottom]){piece.style.width=cardWidth+'px';piece.style.height='auto';}const envelopeH=['packetOps','provider'].includes(sceneId)?Math.max(44,top.offsetHeight):0,trailerH=['packetOps','provider'].includes(sceneId)?Math.max(44,bottom.offsetHeight):0,focusY=pathY+(bounded()?(root.dataset.integrated==='true'?12:36):62)+(['packetOps','provider'].includes(sceneId)?envelopeH+20:0),compactLabelStyle=getComputedStyle(q('.rv-capsule')||q('.rv-title')),compactFont=parseFloat(compactLabelStyle.fontSize)||13,compactContext=document.createElement('canvas').getContext('2d');compactContext.font='500 '+compactFont+'px '+compactLabelStyle.fontFamily;const compactLabels=frames.map(f=>f.local?'Local state':f.kind==='anatomy'?'Frame':f.objectTitle),compactText=Math.max(...compactLabels.map(text=>compactContext.measureText(text).width)),compactW=Math.min((width-24)/2,Math.max(88,compactText+32)),compactH=Math.max(44,Math.ceil(compactText/Math.max(1,compactW-32))*compactFont*1.2+16),ports={a:{x:4,y:pathY-22,w:compactW,h:compactH},b:{x:width-compactW-4,y:pathY-22,w:compactW,h:compactH}};
+ const dockHeight=bounded()?dock.offsetHeight:0,rails=docked&&width>=cardWidth+2*compactW+64,workingHeight=docked?viewport-clearance-stageOffset-consoleOwner.offsetHeight:0;
+ let pathY=endpoints.offsetHeight+dockHeight+24,sceneHeight=null;
+ dock.style.top=endpoints.offsetHeight+'px';
+ const top=q('.rv-envelope-header'),bottom=q('.rv-envelope-trailer');q('.rv-envelope-direction').textContent=sceneId==='provider'?(data.provider.packet?.outer.source??'No outer header')+' → '+(data.provider.packet?.outer.destination??'Not supplied'):'02:48:4f:50:00:01 → 02:48:4f:50:00:02';top.querySelector('span').textContent=sceneId==='provider'?'Outer '+(data.provider.packet?.outer.protocol||'envelope')+' · '+(data.provider.gre?.encapsulationOverheadBytes??0)+' B':'Ethernet II · 14 B';bottom.querySelector('span').textContent=sceneId==='provider'?'MPLS label · 229811':'FCS · unavailable in model bytes';for(const piece of [top,bottom]){piece.style.width=cardWidth+'px';piece.style.height='auto';}
+ const envelopeH=['packetOps','provider'].includes(sceneId)?Math.max(44,top.offsetHeight):0,trailerH=['packetOps','provider'].includes(sceneId)?Math.max(44,bottom.offsetHeight):0,focusY=pathY+(bounded()?(root.dataset.integrated==='true'?12:36):62)+(['packetOps','provider'].includes(sceneId)?envelopeH+20:0),ports={a:{x:4,y:pathY-22,w:compactW,h:compactH},b:{x:width-compactW-4,y:pathY-22,w:compactW,h:compactH}};
  for(const ghost of root.querySelectorAll('.rv-change-token,.rv-deleted-payload'))ghost.remove();const prepared=[];let maxHeight=0;
  for(let i=0;i<actors.length;i++){
   const a=actors[i],f=frames[i];if(!a){prepared.push({read:{total:0},focus:{x:0,y:0,w:width,h:320},lens:{w:38,h:48}});continue;}
@@ -1322,9 +1326,22 @@ function reflow(){
   const consoleHeight=consoleOwner.offsetHeight,parallel=getComputedStyle(composition).display==='grid',available=viewport-clearance-stageOffset-(parallel?0:consoleHeight)-focusY-16-(sceneId==='provider'?trailerH:0),minimumViewHeight=Math.ceil((parseFloat(fs.paddingTop)||24)+(parseFloat(fs.paddingBottom)||24)+Math.max(lens.h,...targets.flatMap(t=>t.lines.map(line=>line.h)))),viewHeight=bounded()?Math.min(height,Math.max(minimumViewHeight,available)):height;
   const focus={x:(width-cardWidth)/2,y:focusY,w:cardWidth,h:viewHeight},fit=motion.fitGeometry(cardWidth,[envelopeH||60,height,trailerH||48],1),attach=motion.makeAttachmentPlan(1,0,fit),detach=motion.makeAttachmentPlan(0,1,fit),emphasis=root.emphasis.compile(root.emphasis.readWindows(read,0,id=>a.fieldMap.get(id)));const payload=a.face.querySelector('.rv-payload-body'),pr=payload?.getBoundingClientRect(),payloadRect=pr?{x:pr.left-origin.left,y:pr.top-origin.top,w:pr.width,h:pr.height}:null;
   const transferIds=sceneId==='tcp'?['seq','ack']:sceneId==='packetOps'?f.fields.map(field=>field.id):[],transferFields=Object.fromEntries(transferIds.filter(id=>a.fieldMap.has(id)).map(id=>[id,transfer.measure(a.fieldMap.get(id).querySelector('.rv-field-value'),origin)]));
-  prepared.push({focus,fullHeight:height,lens,read,origin,targets,emphasis,fit,attach,detach,payloadRect,transferFields});maxHeight=Math.max(maxHeight,height);a.face.style.position='absolute';a.actor.remove();
+  prepared.push({focus,fullHeight:height,minimumViewHeight,lens,read,origin,targets,emphasis,fit,attach,detach,payloadRect,transferFields});maxHeight=Math.max(maxHeight,height);a.face.style.position='absolute';a.actor.remove();
  }
- stage.style.height=(['failure','http'].includes(sceneId)?0:focusY+(bounded()?prepared[0].focus.h:maxHeight)+(sceneId==='packetOps'?trailerH+60:16))+'px';
+ if(docked){
+  // One scene envelope owns every pose, so the transport never follows a
+  // changing card height. Wide scenes put peers beside the reading surface;
+  // narrow scenes keep their shared route above it.
+  const bodyTop=rails?16:endpoints.offsetHeight+compactH+28,readingFloor=Math.max(...prepared.map(g=>g.minimumViewHeight||0));
+  sceneHeight=Math.max(workingHeight,bodyTop+readingFloor+dockHeight+32);
+  const readingHeight=sceneHeight-bodyTop-dockHeight-32;
+  for(const g of prepared){g.focus.h=Math.min(g.fullHeight,Math.max(g.minimumViewHeight,readingHeight));g.focus.y=bodyTop+(readingHeight-g.focus.h)/2;}
+  pathY=rails?bodyTop+readingHeight/2:endpoints.offsetHeight+compactH/2+12;
+  ports.a.y=ports.b.y=pathY-compactH/2;
+  endpoints.style.top=(rails?Math.max(0,pathY-compactH/2-endpoints.offsetHeight-8):0)+'px';
+  dock.style.top=(sceneHeight-dockHeight-12)+'px';
+ }
+ stage.style.height=(sceneHeight??(['failure','http'].includes(sceneId)?0:focusY+(bounded()?prepared[0].focus.h:maxHeight)+(sceneId==='packetOps'?trailerH+60:16)))+'px';
  q('.rv-path').style.cssText='left:'+(ports.a.x+compactW/2)+'px;top:'+pathY+'px;width:'+(ports.b.x-ports.a.x)+'px';
  reserveState();root.surfacePainter.prepare(Math.max(cardWidth,compactW),Math.max(maxHeight,compactH));
  const stageOrigin=stage.getBoundingClientRect(),expected=q('.rv-expected')||q('.rv-server-record dd'),oldExpected=expected?.textContent;
@@ -1358,7 +1375,7 @@ function reflow(){
   if(!f.local||i<frames.length-1)add(i,'release',tuning.release);
  }
  if(expected)expected.textContent=oldExpected;
- plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH};
+ plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH,sceneHeight};
  if(old){const match=phases.find(p=>frames[p.index].id===old.id&&p.kind===old.kind)||phases.find(p=>frames[p.index].id===old.id&&old.kind==='retainFocus'&&p.kind==='retain');clock=match?mix(match.start,match.end,match.kind===old.kind?old.p:0):0;}else clock=0;
  // Canonical app controls already own source-event selection. Retain this
  // renderer's full picker only for its independent snapshot/review playback.
@@ -1423,7 +1440,7 @@ function renderActor(at){
  for(const actor of new Set(actors.filter(Boolean).map(a=>a.actor))){if(retained.has(actor)){if(actor.parentElement!==host)host.append(actor);}else if(actor.parentElement===host)actor.remove();}
  if(a.deck){prepareFields(at.index);const active=f.assembly.stage,layer=[...a.deck.children].find(n=>n.dataset.layer===active);if(layer&&at.kind==='layerChange'){const progress=motion.attachmentState(plan.prepared[at.index].attach,at.elapsed);layer.style.transform='translateY('+(-plan.prepared[at.index].fit.spread*progress.amount)+'px)';layer.style.opacity=String(ease(at.p/.3));}}
  if(activeActor!==at.index){for(const n of actors)if(n){if(n.actor!==a.actor){n.actor.style.opacity='0';n.actor.inert=true;n.actor.setAttribute('aria-hidden','true');}n.face.style.opacity='0';n.face.style.visibility='hidden';}root.presentation.material(a.actor,{role:root.presentation.frameRole(f),identity:f.protocol,moving:true});a.actor.prepend(liveCanvas);liveCanvas.dataset.paintKey='';activeActor=at.index;}
- if(bounded()){const g=plan.prepared[at.index];a.face.style.transform='translateY('+(-readerOffset(at))+'px)';const height=(g.focus.y+g.focus.h+16)+'px';if(stage.style.height!==height)stage.style.height=height;}
+ if(bounded()){const g=plan.prepared[at.index];a.face.style.transform='translateY('+(-readerOffset(at))+'px)';const height=(plan.sceneHeight??g.focus.y+g.focus.h+16)+'px';if(stage.style.height!==height)stage.style.height=height;}
  const faceOpacity=clamp((s.detail-.5)*2),capsuleOpacity=clamp((.5-s.detail)*2);
  a.actor.style.transform=`translate(${s.box.x}px,${s.box.y}px)`;a.actor.style.width=s.box.w+'px';a.actor.style.height=s.box.h+'px';a.actor.style.borderRadius=s.radius+'px';a.actor.style.opacity=String(s.opacity);a.actor.inert=faceOpacity<.99;a.actor.setAttribute('aria-hidden',String(s.opacity<.01));a.face.style.opacity=String(faceOpacity);a.face.style.visibility=faceOpacity>0?'visible':'hidden';a.capsule.style.opacity=String(capsuleOpacity);a.capsule.style.visibility=capsuleOpacity>0?'visible':'hidden';
  if(s.opacity>0)root.surfacePainter.paint(liveCanvas,s.box.w,s.box.h,s.radius,s.openness);
