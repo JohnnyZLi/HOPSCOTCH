@@ -28,7 +28,7 @@
     "design-review/source/complete-review/shared-painter.js": "0c13346427de27f902585adc68d2103ecb78f4aad4e140e3489c0b8225be30b7",
     "design-review/source/complete-review/shared-presentation.js": "5cc11e66a8376de96bc3dfb1c7ecb349eb1816f2d1ad51464e73bf6260af2d72",
     "design-review/source/complete-review/shared-reservation.js": "d2296892c0b812070b4cda9b09627d5d9075992de223f08dd1418aeff9234be3",
-    "design-review/source/complete-review/shared-ui.js": "74412077532a2712ffea85b58380cb1ce67f83a3b5889a0f367b510eceb1571f",
+    "design-review/source/complete-review/shared-ui.js": "be281e44b6b60f58f0e515231e9e2231218579cabcdca4aa7fbf98be35307066",
     "design-review/source/complete-review/source-adapters.js": "742873884f8e72afdf81fc7e840991f9fb9067b4a83eec1b9383ed28b4bd4424",
     "design-review/source/complete-review/source-data.json": "3d727d60ec4605973a5fc2ff73958c2f720d0c1060b9a219cb573d9d98fe019e",
     "design-review/source/complete-review/workbench.html": "21c4740a7f6ce3214297665fc3c4f6f7cbd4fc01a06d8c3fd753c6bb9359860d",
@@ -39,11 +39,11 @@
     "design-review/wrap-pages.py": "01c7ca56d2aa575f2dffe57f55bb57e93186922c37e68561fb93ff93800d770d"
   },
   "outputs": {
-    "public/review/builder.html": "a2afa3e66389c1063d34b29e39248de9fd52a8972bfdac9e9395130c904e0849",
-    "public/review/connected.html": "a2d975d08b1573daa2b05653c489d008c91da086df986e9015cfa00c0e7dfd36",
-    "public/review/evidence.html": "147f06102668a014b5b2ef13d86def1fef9f96ec62c3737a16e0f0cdf418d56c",
+    "public/review/builder.html": "f6f8887e6bf5ecd50b2cd2d2a12b91916733e66898742cd4053628b0b97afa33",
+    "public/review/connected.html": "66d54e67eb22881797f598ed0ee6e770cb9ffce96027c0d8bf214aa3109f7025",
+    "public/review/evidence.html": "2158315b946ebdff8d1df395d1d82caa182d25db6e649c242e8ff3ec3394ad9c",
     "public/review/index.html": "6a9c09e26f33d40273c1bb299f71be1b8fc7b7c9cf1c5438cd99887de1a44f41",
-    "public/review/lifecycle.html": "96c15eced79fb18cd1133c16529c1af1cc3d0c28d7a84115bc2f491d8fb3190d",
+    "public/review/lifecycle.html": "cbcc5cc72e9b2503ccd5c0f2046a67dc1e43a04e3d02f5cf42ed11a06fe89564",
     "public/review/viewport.html": "75d00ce5b75458e1f8a150c6e7897b5662ea93bf5d763ccba95eca1652980455",
     "src/redesign/builder-domain.ts": "de72948ce57c9dcc2461e6f693f1bba922a123def55df13d675c5db62143689b",
     "src/redesign/builder-runtime.css": "f2663b8cd4e06e403ffcc5f63e1b9d0e950a63d645f4fac37ca30071e9b054df",
@@ -54,10 +54,10 @@
     "src/redesign/evidence-domain.ts": "9f4b509cee37fafece632c265536561b1655ef8164a88394a9f19406f899b868",
     "src/redesign/evidence-runtime.css": "a8084a9381172164243cd5703defa00ea197bf26f7d5baa22a45caf34ca0b7c1",
     "src/redesign/evidence-runtime.js": "f9f20483e2a71b551e2d15142df59a1fe86f280da038ca3c1d9345da0208a135",
-    "src/redesign/foundation-runtime.js": "e354613d39c2aca8ad42989d16aaac6edabd4fd1c3cbbae16303828b9f5f8bbb",
+    "src/redesign/foundation-runtime.js": "3b25b76190de6a7cd296e1976e7716a182f1dd821addf4bff16ec88a57e45561",
     "src/redesign/home-runtime.js": "06698335fb619f277f77935408d2d0d7aeda3dc36ac58a13c8cc591f6b66523f",
     "src/redesign/lifecycle-runtime.css": "52941c68ccbfbdf7fe8e256fd5eb55002cde17c4cfada6ba9075ce5a2b562c23",
-    "src/redesign/lifecycle-runtime.js": "a609e2abf6972c1f6982a96435b6ddc03053a2c0994ca6e262ed6cfd6825532c",
+    "src/redesign/lifecycle-runtime.js": "571b2635f371156ee8cb7e68846bcdae6d9b8d8bb59d8e3b49f64080deb51ae3",
     "src/redesign/material-runtime.js": "c564bbc58b3865986896fc750a9f278a247046ff3c6e122bae8f5703ddf9802b",
     "src/redesign/network-planner-worker.js": "84360af905dff3cc49a822bfdfadf7aa7d5cc757947b8379e102e938f4bbe54e"
   }
