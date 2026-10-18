@@ -17,7 +17,10 @@ export function mountWorkspaceSurface(element,navigate,destination){
  element.classList.add('workspace-surface');element.dataset.workspace=destination;
  const main=element.querySelector('.rv-main'),intro=document.createElement('div'),heading=document.createElement('div');
  intro.className='ws-intro';heading.className='ws-heading';
- for(const node of main.querySelectorAll(':scope > .rv-eyebrow,:scope > .rv-title,:scope > .rv-subtitle'))heading.append(node);
+ for(const node of main.querySelectorAll(':scope > .rv-eyebrow,:scope > h2,:scope > .rv-subtitle')){
+  if(node.tagName==='H2')node.classList.add('rv-title');
+  heading.append(node);
+ }
  if(sceneLabel){sceneLabel.classList.add('ws-scene-picker');heading.prepend(sceneLabel);heading.querySelector('.rv-eyebrow')?.remove();}
  intro.append(heading);main.prepend(intro);
  element.querySelector('.rv-foot')?.removeAttribute('data-ui-surface');
