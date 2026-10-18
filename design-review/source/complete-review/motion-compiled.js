@@ -1286,6 +1286,9 @@ function prepareFields(index){
  const f=frames[index],a=actors[index];if(!a)return;
  if(a.deck){a.deck.hidden=!f.assembly.payload;a.deck.querySelector('.rv-payload-meaning').textContent=f.assembly.payload||'';
   a.actor.dataset.continuity=f.assembly.identity;
+  a.actor.setAttribute('aria-label',f.objectTitle+' · '+f.id);
+  a.capsule.lastChild.textContent=f.compactTitle||f.objectTitle;
+  a.face.querySelector('.rv-actor-role').textContent=f.local?(f.physical?'Retained packet · local operation':'Local state operation'):f.from+' → '+f.to;
   a.face.querySelector('.rv-actor-title').textContent=f.objectTitle;
   for(const [id,field]of a.fieldMap){const value=f.fields.find(x=>x.id===id);field.hidden=!value;if(value){field.querySelector('.rv-field-label').textContent=value.label;field.querySelector('.rv-field-value').textContent=value.value;}}
  }else for(const field of [...f.fields].sort((a,b)=>(f.leadFields||[]).indexOf(a.id)>=0?-1:(f.leadFields||[]).indexOf(b.id)>=0?1:0)){a.fields.append(a.fieldMap.get(field.id));const value=a.fieldMap.get(field.id).querySelector('.rv-field-value');value.textContent=field.value;value.style.opacity='1';}
