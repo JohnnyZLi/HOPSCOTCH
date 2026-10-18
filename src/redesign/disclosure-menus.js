@@ -18,7 +18,14 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
   const items=()=>[...panel.querySelectorAll('a[href],button:not([disabled])')].filter(node=>node.getClientRects().length);
   const selectedItem=()=>items().find(node=>node.getAttribute('aria-pressed')==='true'||node.getAttribute('aria-checked')==='true')||items()[0];
   const focusSelection=details.hasAttribute('data-disclosure-selection');
-  function focusItem(item){item?.focus({preventScroll:true});focusedWithin=details.contains(document.activeElement);}
+  function focusItem(item){
+   item?.focus({preventScroll:true});focusedWithin=details.contains(document.activeElement);
+   if(item&&panel.scrollHeight>panel.clientHeight){
+    const option=item.getBoundingClientRect(),visible=panel.getBoundingClientRect();
+    if(option.top<visible.top)panel.scrollTop-=visible.top-option.top;
+    else if(option.bottom>visible.bottom)panel.scrollTop+=option.bottom-visible.bottom;
+   }
+  }
   trigger.setAttribute('aria-expanded',String(wanted));
   trigger.setAttribute('aria-controls',panel.id);
   panel.inert=!wanted;
@@ -48,7 +55,8 @@ export function mountDisclosureMenus({root,scope,onLayout=()=>{},fallbackFocus=n
    const parent=panel.offsetParent||root,parentBounds=parent.getBoundingClientRect();
    const css=getComputedStyle(parent),gutter=parseFloat(css.getPropertyValue('--lh-header-inset'))||16;
    const popup=panel.getBoundingClientRect();
-   const desiredX=css.direction==='rtl'?anchor.left:anchor.right-popup.width;
+   const alignStart=details.getAttribute('data-disclosure-align')==='start';
+   const desiredX=(css.direction==='rtl')!==alignStart?anchor.left:anchor.right-popup.width;
    const visibleTop=Math.max(0,bounds.top),visibleBottom=Math.min(window.innerHeight||bounds.bottom,bounds.bottom);
    const x=Math.max(bounds.left+gutter,Math.min(desiredX,bounds.right-gutter-popup.width));
    const below=anchor.bottom+8,above=anchor.top-8-popup.height;

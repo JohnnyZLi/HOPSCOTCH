@@ -7,12 +7,13 @@
 .review-runtime.workspace-surface .lh-menu-panel a[aria-current=page]{background:color-mix(in srgb,var(--hs-tint) 58%,transparent)}
 .hopscotch-app .review-runtime.workspace-surface .rv-main{padding:28px var(--app-gutter) 40px;isolation:auto}
 .review-runtime.workspace-surface .rv-main::before{display:none}
-.review-runtime.workspace-surface .rv-foot{background:transparent;border:0;font-size:11px;padding-top:10px}
+.review-runtime.workspace-surface .rv-foot{justify-content:flex-end;background:transparent;border:0;font-size:11px;padding-top:10px}
 .review-runtime.workspace-surface .ws-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin:0 0 24px;min-width:0}
 .review-runtime.workspace-surface .ws-heading{min-width:0;max-width:760px}
 .review-runtime.workspace-surface .rv-title{font-size:32px;font-weight:600;line-height:1.18;letter-spacing:-.04em;margin:8px 0 10px}
 .review-runtime.workspace-surface .rv-subtitle{font-size:14px;line-height:1.6;max-width:650px;margin:0;color:var(--hs-muted)}
 .review-runtime.workspace-surface .ws-scene-picker{display:flex;align-items:center;gap:0;font-size:0;min-height:36px;margin:0}
+.review-runtime.workspace-surface .ws-scene-picker .ws-select{flex:0 1 auto;max-width:100%}
 .review-runtime.workspace-surface .ws-scene-picker .ws-select-trigger{font-size:12px;min-height:36px;padding:6px 11px;background:rgba(255,255,255,.26);border-color:transparent;box-shadow:inset 0 1px 0 var(--hs-ui-high);color:var(--hs-ink)}
 .review-runtime.workspace-surface[data-theme=dark] .ws-scene-picker .ws-select-trigger{background:rgba(15,26,47,.42)}
 .review-runtime.workspace-surface .ws-scene-picker .ws-select-panel{font-size:14px}
@@ -28,6 +29,9 @@
 .review-runtime.workspace-surface .ws-select-option{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:44px;width:100%;max-width:100%;padding:10px 12px;border:0;border-radius:12px;background:transparent;color:var(--hs-ink);box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;font-size:14px;text-align:start;white-space:normal;overflow-wrap:anywhere}
 .review-runtime.workspace-surface .ws-select-option::after{content:'';width:13px;height:7px;flex:none;border-left:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);opacity:0;margin-right:2px}
 .review-runtime.workspace-surface .ws-select-option[aria-pressed=true]::after{opacity:1}
+.review-runtime.workspace-surface .ws-select-panel{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--hs-ink) 30%,transparent) transparent}
+.review-runtime.workspace-surface .ws-select-panel::-webkit-scrollbar{width:6px;height:6px}
+.review-runtime.workspace-surface .ws-select-panel::-webkit-scrollbar-thumb{border-radius:6px;background:color-mix(in srgb,var(--hs-ink) 30%,transparent)}
 .review-runtime.workspace-surface .ws-select-option:is(:hover,[aria-pressed=true]){background:color-mix(in srgb,var(--hs-tint) 64%,transparent)}
 .review-runtime.workspace-surface :is(a,button,summary,input):focus-visible{outline:2px solid var(--hs-text-accent);outline-offset:4px}
 .review-runtime.workspace-surface [data-disclosure-menu]:not([open]) [data-disclosure-panel] *{transition:none}
@@ -44,7 +48,7 @@
 
 /* The request owns the canvas. Playback sits below it, in the same space. */
 .review-runtime.workspace-surface[data-scene=journey] .rv-composition{display:flex;flex-direction:column;gap:0;align-items:stretch}
-.review-runtime.workspace-surface[data-scene=journey] .rv-motion-primary{width:100%}
+.review-runtime.workspace-surface[data-scene=journey] .rv-motion-primary{width:100%;order:0}
 .review-runtime.workspace-surface[data-scene=journey] .rv-endpoint{background:transparent;border:0;box-shadow:none;padding:10px 4px;font-size:13px}
 .review-runtime.workspace-surface[data-scene=journey] .rv-endpoint::before{display:none}
 .review-runtime.workspace-surface[data-scene=journey] .rv-endpoint .hs-record-glass{display:none}
@@ -53,7 +57,7 @@
 .review-runtime.workspace-surface[data-scene=journey] .rv-retained-dock dd{font-size:15px}
 .review-runtime.workspace-surface[data-scene=journey] .rv-retained-dock dt{font-size:11px;margin-bottom:1px}
 .review-runtime.workspace-surface[data-scene=journey] .rv-actor[data-material-role=operation]{background:var(--ws-reading);border:1px solid var(--hs-line);box-shadow:inset 0 1px 0 var(--hs-ui-high),0 12px 36px var(--ws-reading-shadow);-webkit-backdrop-filter:blur(24px) saturate(1.12);backdrop-filter:blur(24px) saturate(1.12)}
-.review-runtime.workspace-surface[data-scene=journey] .rv-console{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px 20px;width:min(100%,860px);max-width:100%;margin:24px auto 0;padding:18px 22px;border:0;border-radius:28px;z-index:10;--hs-ui-density:1.3;--hs-liquid-opacity-base:.46;--hs-liquid-opacity-step:.08;--hs-glass-blur:18px}
+.review-runtime.workspace-surface[data-scene=journey] .rv-console{order:1;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px 20px;width:min(100%,860px);max-width:100%;margin:24px auto 0;padding:18px 22px;border:0;border-radius:28px;z-index:10;--hs-ui-density:1.3;--hs-liquid-opacity-base:.46;--hs-liquid-opacity-step:.08;--hs-glass-blur:18px}
 .review-runtime.workspace-surface[data-theme=dark][data-scene=journey] .rv-console{--hs-liquid-opacity-base:.58;--hs-liquid-opacity-step:.08}
 .review-runtime.workspace-surface[data-scene=journey] .rv-caption{padding:0;min-height:0!important}
 .review-runtime.workspace-surface[data-scene=journey] .rv-caption strong{font-size:15px;font-weight:500;line-height:1.45}

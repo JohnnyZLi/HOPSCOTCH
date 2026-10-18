@@ -35,6 +35,8 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
     element.addEventListener('app-measured-change',measuredChanged);
     const unwatch = watchAppearance(restoreAppearance);
     const open = async () => {
+      const workspaceSurface=destination?await import('./workspace-surface'):null;
+      if(cancelled)return;
       if (!destination) {
         const {mountHome} = await import('./home-runtime');
         if (!cancelled) mounted = mountHome(element,navigate);
@@ -45,22 +47,20 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
         const [{mountEvidence},{createEvidenceData}] = await Promise.all([import('./evidence-runtime.js'),import('./evidence-data')]);
         const data=await createEvidenceData(destination,search);if (!cancelled) mounted = mountEvidence(element,data);
       } else {
-        const [{mountLifecycle},{createLifecycleData}] = await Promise.all([import('./lifecycle-runtime.js'),import('./lifecycle-data')]);
+        const [{mountLifecycle},{createLifecycleData},journeyControls] = await Promise.all([import('./lifecycle-runtime.js'),import('./lifecycle-data'),destination==='journey'?Promise.all([import('./journey-controls'),import('./measured-context')]):null]);
         if (!cancelled) {
           const data=createLifecycleData(destination,search);
           mounted = mountLifecycle(element,data);
           restoreAppearance();
-          if(destination==='journey'){
-            const [{attachJourneyControls},{attachMeasuredContext}]=await Promise.all([import('./journey-controls'),import('./measured-context')]);
-            if(!cancelled){const disposeJourney=attachJourneyControls(element,search,navigate,inspect),disposeMeasured=attachMeasuredContext(element,data.journey.context.hostname,data.journey.context.destinationAddress);disposeControls=()=>{disposeJourney();disposeMeasured();};}
+          if(journeyControls){
+            const [{attachJourneyControls},{attachMeasuredContext}]=journeyControls;
+            const disposeJourney=attachJourneyControls(element,search,navigate,inspect),disposeMeasured=attachMeasuredContext(element,data.journey.context.hostname,data.journey.context.destinationAddress);disposeControls=()=>{disposeJourney();disposeMeasured();};
           }
         }
       }
       if (cancelled) return;
-      if(destination){
-        const {mountWorkspaceSurface}=await import('./workspace-surface');
-        if(cancelled)return;
-        surface=mountWorkspaceSurface(element,navigate,destination);
+      if(destination&&workspaceSurface){
+        surface=workspaceSurface.mountWorkspaceSurface(element,navigate,destination);
       }
       restoreAppearance();
       const memory = memories.get(key);

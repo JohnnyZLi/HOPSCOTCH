@@ -20,6 +20,7 @@ export function mountWorkspaceSurface(element,navigate,destination){
  for(const node of main.querySelectorAll(':scope > .rv-eyebrow,:scope > .rv-title,:scope > .rv-subtitle'))heading.append(node);
  if(sceneLabel){sceneLabel.classList.add('ws-scene-picker');heading.prepend(sceneLabel);heading.querySelector('.rv-eyebrow')?.remove();}
  intro.append(heading);main.prepend(intro);
+ element.querySelector('.rv-foot')?.removeAttribute('data-ui-surface');
  if(destination==='journey'){
   const configuration=main.querySelector('.journey-configuration');if(configuration)intro.append(configuration);
   const console=main.querySelector('.rv-console');console.dataset.uiSurface='record';console.dataset.glassRole='launcher';

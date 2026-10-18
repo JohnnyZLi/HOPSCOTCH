@@ -29,7 +29,7 @@ export function mountSelectMenus(root,scope,menus){
    if(entries.has(select))continue;
    if(select.hidden||select.closest('[hidden],[aria-hidden="true"],[inert]'))continue;
    const details=document.createElement('details'),trigger=document.createElement('summary'),value=document.createElement('span'),panel=document.createElement('div');
-   details.className='ws-select';details.dataset.disclosureMenu='';details.dataset.disclosureSelection='';
+   details.className='ws-select';details.dataset.disclosureMenu='';details.dataset.disclosureSelection='';details.dataset.disclosureAlign='start';
    trigger.className='ws-select-trigger cursor-interaction';trigger.append(value);trigger.insertAdjacentHTML('beforeend',arrow);
    panel.className='ws-select-panel';panel.dataset.disclosurePanel='';panel.setAttribute('role','group');
    const label=select.getAttribute('aria-label')||select.labels?.[0]?.textContent?.trim().split('\n')[0]||'Choose an option';
