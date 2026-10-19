@@ -2,7 +2,7 @@
 'use strict';
 const root=document.getElementById('__ROOT__'),q=s=>root.querySelector(s),data=root.reviewData,motion=root.motionPlanner,pacing=root.pacing,transfer=root.valueTransfer;
 const {clamp,ease,mix,makePlan,samplePlan}=motion,stage=q('.rv-stage'),dark=matchMedia('(prefers-color-scheme: dark)'),reduced=matchMedia('(prefers-reduced-motion: reduce)');
-const tuning=Object.freeze({construct:620,morph:620,release:650,travelSpeed:.40,minTravel:600,maxTravel:1400,state:650,minimumExposure:900});
+const tuning=Object.freeze({construct:620,morph:620,release:650,travelSpeed:.40,minTravel:600,maxTravel:1400,state:650,minimumExposure:900,maxFrameStep:50});
 const memories=new Map(),liveCanvas=document.createElement('canvas'),lensCanvas=document.createElement('canvas');liveCanvas.setAttribute('aria-hidden','true');lensCanvas.setAttribute('aria-hidden','true');
 const envelopeCanvas=document.createElement('canvas');envelopeCanvas.setAttribute('aria-hidden','true');q('.rv-envelope-header').prepend(envelopeCanvas);
 const trailerCanvas=document.createElement('canvas');trailerCanvas.setAttribute('aria-hidden','true');q('.rv-envelope-trailer').prepend(trailerCanvas);
@@ -25,7 +25,7 @@ function buildDock(){
  else if(sceneId==='provider'){const fact=node('div','rv-fact');fact.append(node('dt','','Source boundary'),node('dd','','GRE / MPLS projections · no model clock'));dock.append(fact);}
 }
 
-let sceneId='tcp',frames=[],actors=[],plan=null,clock=0,playing=false,job=0,last=0,layoutJob=0,layoutKey='',captionKey='',lensKey='',recordKey='',activeActor=-1,variant=0,dnsMode=data.bootstrapDnsMode||'miss',byte=-1,disposed=false,alignAfterResize=false;
+let sceneId='tcp',frames=[],actors=[],plan=null,clock=0,playing=false,job=0,last=null,layoutJob=0,layoutKey='',captionKey='',lensKey='',recordKey='',activeActor=-1,variant=0,dnsMode=data.bootstrapDnsMode||'miss',byte=-1,disposed=false,alignAfterResize=false;
 const transferView=transfer.makeView(q('.rv-transfer'),q('.rv-transfer-value'),q('.rv-transfer-note'));
 function node(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=String(text);return n;}
 function titleCase(value){return String(value||'').toLowerCase().replace(/(^|[\s-])\p{L}/gu,m=>m.toUpperCase());}
@@ -417,17 +417,24 @@ function render(){
  q('.rv-operation').textContent='Presentation · '+({construct:'constructing a separate object',fold:'closing the same object',travel:f.lost?'in transit · loss boundary':'in transit',open:'opening the same object',read:'reading actual fields',retainFocus:'bringing the received value into view',retain:'retaining the result',hold:'outcome stays readable',release:'processed buffer released',lost:'lost before receipt',transition:'state changes continuously',focus:'opening another layer of the same object',fitAttach:'separate pieces seat at contact',fitDetach:'separate pieces release from contact',labelChange:'the outer label changes; the inner packet remains',modify:'a structural change carries its consequences'}[at.kind]||at.kind);
  q('.rv-model-time').textContent=f.at===null?'Source snapshot · no model clock':'Source event · '+f.id+' · '+f.at+' ms';q('.rv-event-picker').value=String(at.index);q('.rv-scrub').value=String(Math.round(clock/plan.total*1000));q('.rv-play').textContent=playing?'Pause':'Play';q('.rv-next').disabled=at.index===frames.length-1;
 }
-function pause(){playing=false;if(job)cancelAnimationFrame(job);job=0;last=0;if(plan)render();}
-function tick(now){job=0;if(!playing||disposed||!root.isConnected||document.hidden){pause();return;}if(last)clock=Math.min(plan.total,clock+(now-last)*Number(q('.rv-speed').value));last=now;render();if(clock>=plan.total){playing=false;q('.rv-play').textContent='Play';last=0;}else job=requestAnimationFrame(tick);}
-function play(){if(reduced.matches){next();return;}if(clock>=plan.total)clock=0;playing=true;last=0;render();if(!job)job=requestAnimationFrame(tick);}
-function next(){pause();const at=locate(clock);clock=plan.commits[Math.min(frames.length-1,at.index+1)];render();}
-function seek(value){pause();clock=clamp(Number(value)||0,0,plan.total);render();}
+function pause(){playing=false;if(job)cancelAnimationFrame(job);job=0;last=null;if(plan)render();root.reviewUI.settle();}
+function tick(now){
+ job=0;if(!playing||disposed||!root.isConnected||document.hidden){pause();return;}
+ // Presentation time follows visible frames. Discard excess stall time rather
+ // than repaying it by skipping the scanner, docking, or object lifecycle.
+ const delta=last===null?0:clamp(now-last,0,tuning.maxFrameStep);last=now;
+ clock=Math.min(plan.total,clock+delta*Number(q('.rv-speed').value));render();
+ if(clock>=plan.total){playing=false;q('.rv-play').textContent='Play';last=null;}else job=requestAnimationFrame(tick);
+}
+function play(){if(reduced.matches){next();return;}if(clock>=plan.total)clock=0;playing=true;last=null;render();if(!job)job=requestAnimationFrame(tick);}
+function next(){const at=locate(clock);seek(plan.commits[Math.min(frames.length-1,at.index+1)]);}
+function seek(value){pause();clock=clamp(Number(value)||0,0,plan.total);render();root.reviewUI.settle();}
 function presentSource(timeMs,durationMs,settle=false){
  settle=settle||reduced.matches;
  if(!plan)return;const next=frames.findIndex(f=>f.at>timeMs),index=next<0?frames.length-1:Math.max(0,next-1),start=plan.starts[index],end=plan.starts[index+1]??plan.total,sourceStart=frames[index].at??0,sourceEnd=frames[index+1]?.at??durationMs;
- playing=false;if(job)cancelAnimationFrame(job);job=0;last=0;
+ playing=false;if(job)cancelAnimationFrame(job);job=0;last=null;
  clock=settle?plan.commits[index]:mix(start,end,clamp((timeMs-sourceStart)/Math.max(1,sourceEnd-sourceStart)));
- render();
+ render();if(settle)root.reviewUI.settle();
 }
 function buildLocalControls(){
  const c=q('.rv-local-controls');c.replaceChildren();c.hidden=!['packet','dns'].includes(sceneId);
