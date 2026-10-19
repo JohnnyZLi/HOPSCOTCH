@@ -18,6 +18,7 @@ for(const width of [320,390,1024,1440])for(const scene of ['tcp','dns','tls','jo
  const mount=env.context.integratedMount,api=mount.api,frames=api.snapshot().frames;
  assert(frames.length>0);assert(mount.stats().observers>0);
  const firstPlan=api.snapshot().plan;
+ for(const g of firstPlan.prepared)assert.equal(g.focus.h,g.fullHeight,'A reading window must retain its entire source face.');
  assert(firstPlan.starts.every((start,i)=>Number.isFinite((firstPlan.starts[i+1]??firstPlan.total)-start)), 'Every source event needs a finite measured attention budget.');
  for(const geometry of firstPlan.prepared)for(const field of Object.values(geometry.transferFields||{}))assert(['x','y','w','h'].every(key=>Number.isFinite(field[key])), 'Detached source cards retain finite measured glyph-transfer geometry.');
  let peakAttached=0;const nativeStyle=env.context.getComputedStyle;

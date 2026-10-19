@@ -477,8 +477,6 @@
 #hop-connected-review .rv-playback-settings select{max-width:calc(100% - 50px)}
 #hop-connected-review:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-scene-details>summary{display:none}
 #hop-connected-review:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-scene-details:not([open])>.rv-state-secondary{display:block}
-#hop-connected-review:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-explanation>summary,#hop-connected-review:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-playback-settings>summary{display:none}
-#hop-connected-review:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-explanation:not([open])>p,#hop-connected-review:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-playback-settings:not([open])>label{display:flex}
 /* Recovered study composition: the object, retained state and transport are
    one reading sequence. Protocol-specific semantics remain in source frames. */
 #hop-connected-review:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-main{width:100%;max-width:1120px;margin-inline:auto}
@@ -510,6 +508,41 @@
  #hop-connected-review .rv-peer-note{display:none}
  #hop-connected-review .rv-envelope{padding:10px 14px}
  #hop-connected-review .rv-envelope-direction{font-size:10px}
+}
+
+/* Shared reading composition: full objects, a stable transport, quiet context. */
+#hop-connected-review .rv-main{width:100%;max-width:1320px;margin-inline:auto}
+#hop-connected-review .rv-composition{overflow-anchor:none}
+#hop-connected-review .rv-composition>.rv-console{position:sticky;bottom:12px;z-index:12;grid-template-columns:minmax(0,1fr) max-content;scroll-margin-block:16px}
+#hop-connected-review .rv-controls{flex-wrap:nowrap;min-width:0}
+#hop-connected-review .rv-controls button{flex:none}
+#hop-connected-review .rv-playback-settings>label{display:flex;align-items:center;gap:12px;min-width:0;margin-top:10px}
+#hop-connected-review .rv-playback-settings>label select{min-width:0;width:100%}
+#hop-connected-review .rv-console-tools>details[open]{flex:1 1 320px}
+#hop-connected-review .rv-endpoints{padding:6px 0;gap:16px}
+#hop-connected-review .rv-endpoint{padding:8px 12px}
+#hop-connected-review .rv-peer-state{padding:10px 14px}
+#hop-connected-review .rv-peer-state h3{margin-bottom:4px}
+#hop-connected-review .rv-peer-state .rv-peer-note{display:none}
+#hop-connected-review .rv-retained-dock dd{font-size:16px}
+@container review (max-width:600px){
+ #hop-connected-review .rv-composition>.rv-console{grid-template-columns:minmax(0,1fr);bottom:8px}
+ #hop-connected-review .rv-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:6px}
+ #hop-connected-review .rv-controls button{min-width:0;padding-inline:8px;font-size:12px}
+ #hop-connected-review .rv-console-tools{gap:4px 16px}
+ #hop-connected-review .rv-peer-state{padding:9px 10px}
+ #hop-connected-review .rv-peer-state dd{font-size:18px}
+}
+
+/* Compact transport keeps the packet dominant; full narration stays in Source details. */
+@container review (max-width:600px){
+ #hop-connected-review .rv-composition>.rv-console{padding:10px 12px;gap:4px}
+ #hop-connected-review .rv-caption{min-height:0!important}
+ #hop-connected-review .rv-caption strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
+ #hop-connected-review .rv-caption p{display:none}
+ #hop-connected-review .rv-console-tools>details>summary{padding-block:4px}
+ #hop-connected-review .rv-endpoint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ #hop-connected-review .rv-retained-dock{padding:6px 10px}
 }
 
 #hop-connected-review .cx-home{font-size:12px;font-weight:500;letter-spacing:.04em;background:transparent;border-color:transparent;box-shadow:none;padding:8px 0}

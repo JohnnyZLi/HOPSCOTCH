@@ -72,3 +72,31 @@
  .review-runtime.workspace-surface :is(.ws-select-panel,.ws-select-trigger,.journey-configuration[open],.rv-retained-dock,.rv-actor[data-material-role=operation]){color:CanvasText;background:Canvas!important;border:1px solid CanvasText;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none}
  .review-runtime.workspace-surface .ws-select-option[aria-pressed=true]{background:Highlight;color:HighlightText}
 }
+
+/* Reusable compact tools keep the canvas ahead of secondary configuration. */
+.review-runtime.workspace-surface .wb-secondary-tools{flex-basis:100%;margin:0}
+.review-runtime.workspace-surface .wb-secondary-tools>summary{font-size:13px;width:max-content;max-width:100%;padding-block:6px}
+.review-runtime.workspace-surface .wb-command-form{display:flex;justify-content:flex-start;align-items:flex-end}
+.review-runtime.workspace-surface .wb-command-form>label{display:flex;flex:1;flex-direction:column;align-items:stretch;gap:6px}
+.review-runtime.workspace-surface .wb-command-form input{width:100%;max-width:none}
+.review-runtime.workspace-surface .wb-command-form>button{flex:none}
+.review-runtime.workspace-surface .rv-composition>.rv-console{background:var(--ws-reading);-webkit-backdrop-filter:blur(24px) saturate(1.15);backdrop-filter:blur(24px) saturate(1.15);box-shadow:inset 0 1px 0 var(--hs-ui-high),0 8px 24px var(--ws-reading-shadow)}
+@container review (max-width:760px){
+ .review-runtime.workspace-surface .wb-pages{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));flex-wrap:wrap!important;overflow:visible!important;max-width:100%;gap:6px;padding-bottom:6px}
+ .review-runtime.workspace-surface .wb-pages button{min-width:0;font-size:12px;padding-inline:8px}
+ .review-runtime.workspace-surface .wb-graph-toolbar{gap:6px}
+ .review-runtime.workspace-surface .wb-graph-toolbar button{font-size:12px;padding-inline:10px}
+ .review-runtime.workspace-surface .ev-controls{gap:8px}
+ .review-runtime.workspace-surface .ev-controls>label{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;flex:1 1 140px}
+ .review-runtime.workspace-surface .ev-controls>label .ws-select{width:100%}
+ .review-runtime.workspace-surface .wb-topology>.rv-toolbar>label{flex:1;min-width:0}
+ .review-runtime.workspace-surface .wb-topology>.rv-toolbar>label .ws-select{min-width:0}
+}
+
+@container review (max-width:600px){
+ .review-runtime.workspace-surface .ws-intro .rv-subtitle{margin-bottom:0}
+ .review-runtime.workspace-surface .ws-intro{gap:8px;margin-bottom:12px}
+}
+
+.review-runtime.workspace-surface[data-workspace=internet]{--hs-route-line:rgba(68,91,123,.70)}
+.review-runtime.workspace-surface[data-workspace=internet][data-theme=dark]{--hs-route-line:rgba(163,185,215,.70)}

@@ -36,7 +36,7 @@ async function open(path,width=1440,height=1000,theme='light',reduced=false){
  console.log('Checking',path,width+'x'+height,theme,reduced?'reduced-motion':'');
  await cdp.call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});await cdp.call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:reduced?'reduce':'no-preference'}]});
  cdp.clearEvents();await cdp.call('Page.navigate',{url:production.origin+path});await wait("Boolean(document.querySelector('.review-runtime')?.causalStudy||document.querySelector('.review-runtime')?.builderStudy||document.querySelector('.review-runtime')?.evidenceStudy||document.querySelector('.review-runtime')?.homeStudy||document.querySelector('.workspace-error'))");
- assert.equal(await cdp.evaluate("Boolean(document.querySelector('.workspace-error'))"),false,'A complete composition failed to mount.');
+ assert.equal(await cdp.evaluate("Boolean(document.querySelector('.workspace-error'))"),false,'A complete composition failed to mount: '+await cdp.evaluate("document.querySelector('.workspace-error')?.textContent||''"));
  await wait("Boolean(document.querySelector('.review-runtime')?.homeStudy||document.querySelector('.review-runtime')?.workspaceSurface||document.querySelector('.workspace-error'))");
  await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),picker=root.querySelector('.rv-theme');if(picker){picker.value=${JSON.stringify(theme)};picker.dispatchEvent(new Event('change',{bubbles:true}));}else{root.querySelector('[data-appearance-value='+${JSON.stringify(theme)}+']').click();}})()`);await settled();
  await wait("document.querySelectorAll('.lh-wallpaper').length===2&&[...document.querySelectorAll('.lh-wallpaper')].every(image=>image.complete&&image.naturalWidth>0)");await settled();
@@ -214,7 +214,7 @@ async function workspaceMenus(){
  for(const [width,height,theme]of [[1280,800,'light'],[1280,800,'dark'],[390,844,'light'],[390,844,'dark']]){
   await open('/journey',width,height,theme,true);
   const shell=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),stage=root.querySelector('.rv-stage').getBoundingClientRect(),console=root.querySelector('.rv-console').getBoundingClientRect();return {headers:root.querySelectorAll('header').length,oldNav:document.querySelectorAll('.app-navigation').length,native:[...root.querySelectorAll('select')].filter(n=>n.getBoundingClientRect().width>0).length,stageLeft:stage.left,stageRight:stage.right,stageTop:stage.top,stageBottom:stage.bottom,consoleLeft:console.left,consoleTop:console.top,consoleBottom:console.bottom,theme:root.dataset.theme};})()`);
-  assert.equal(shell.headers,1);assert.equal(shell.oldNav,0);assert.equal(shell.native,0,'Workspace selectors must use the custom menu');assert.ok(shell.consoleTop>=shell.stageBottom,'Playback follows the scene in the recovered study composition');assert.equal(shell.theme,theme);
+  assert.equal(shell.headers,1);assert.equal(shell.oldNav,0);assert.equal(shell.native,0,'Workspace selectors must use the custom menu');assert.ok(shell.consoleBottom<=height+1&&shell.consoleTop>=0,'The sticky transport remains inside the viewport');assert.ok(shell.consoleTop-shell.stageBottom<40,'The opening object must not reserve a distant control region');assert.equal(shell.theme,theme);
   assert.ok(shell.consoleBottom>shell.consoleTop,'Playback remains a readable flow region');
   const initial=await cdp.evaluate(`(()=>{const s=document.querySelector('.review-runtime').causalStudy.snapshot(),g=s.plan.prepared[s.at.index];return {focus:g.focus.h,full:g.fullHeight};})()`);
   assert.equal(initial.focus,initial.full,'The opening local operation must fit without clipping its heading or fields');
@@ -222,10 +222,10 @@ async function workspaceMenus(){
   assert.ok(owners.retainedInScene,'Retained values stay within the reviewed scene');assert.ok(owners.inspectorOutsidePlayback,'Full inspection stays below the primary composition');assert.equal(owners.columns,'none','The primary scene no longer shares a generic sidebar grid');
 
   await screenshot('journey-shared-surface-'+width+'-'+theme);
-  // The densest source object preserves the reference column alignment and playback position.
+  // Dense content keeps full fields and a visible transport without reserving its height in every other event.
   const before=await cdp.evaluate(`(()=>{const api=document.querySelector('.review-runtime').causalStudy,s=api.snapshot(),saved=api.save(),index=s.plan.prepared.reduce((best,g,i)=>g.fullHeight>s.plan.prepared[best].fullHeight?i:best,0),phase=s.plan.phases.find(p=>p.index===index&&p.kind==='read');if(phase)api.seek((phase.start+phase.end)/2);return saved;})()`);await settled();
   const dense=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),bar=root.querySelector('.rv-console').getBoundingClientRect(),s=root.causalStudy.snapshot(),g=s.plan.prepared[s.at.index];return {top:bar.top,stageLeft:root.querySelector('.rv-stage').getBoundingClientRect().left,bottom:bar.bottom,focusHeight:g.focus.h,fullHeight:g.fullHeight,event:s.frames[s.at.index].id};})()`);
-  assert.equal(dense.stageLeft,shell.stageLeft,'Scene alignment must stay stable when optional content crosses the fold');assert.ok(Math.abs(dense.top-shell.consoleTop)<1,'Playback must retain its reference position across source states');assert.ok(dense.bottom>dense.top,'Dense playback remains readable');assert.ok(dense.focusHeight>0&&dense.focusHeight<=dense.fullHeight);
+  assert.equal(dense.stageLeft,shell.stageLeft,'Scene alignment must stay stable when optional content crosses the fold');assert.ok(dense.top>=0&&dense.bottom<=height+1,'Dense content keeps playback reachable within the viewport');assert.ok(dense.bottom>dense.top,'Dense playback remains readable');assert.ok(dense.focusHeight>0&&dense.focusHeight<=dense.fullHeight);
   await screenshot('journey-dense-reading-'+width+'-'+theme);
   await cdp.evaluate(`document.querySelector('.review-runtime').causalStudy.restore(${JSON.stringify(before)})`);await settled();
   const headerHeight=await cdp.evaluate("document.querySelector('.lh-header').getBoundingClientRect().height");
@@ -256,6 +256,24 @@ async function workspaceMenus(){
  await wait("location.search.includes('quic-h3')&&Boolean(document.querySelector('.review-runtime')?.workspaceSurface)");await settled();
  await geometry('journey-edited-custom-controls');
  report.workspaceMenus=true;
+}
+async function adaptiveReading(){
+ for(const [width,height]of [[1280,800],[390,844],[320,720]])for(const theme of ['light','dark']){
+  for(const id of ['dns','tls']){
+   await open(WORKSPACE_CATALOG[id].path,width,height,theme,true);
+   const result=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),s=root.causalStudy.snapshot(),a=root.querySelector('.rv-actor'),face=a.querySelector('.rv-actor-face'),g=s.plan.prepared[s.at.index],heading=face.querySelector('.rv-actor-heading').getBoundingClientRect(),last=face.querySelector('.rv-fields').lastElementChild.getBoundingClientRect(),box=a.getBoundingClientRect();return {full:g.fullHeight,focus:g.focus.h,heading:heading.top>=box.top-1,last:last.bottom<=box.bottom+1};})()`);
+   assert.equal(result.focus,result.full,id+' must keep the complete reading face');assert.ok(result.heading&&result.last,id+' must show its heading and last field');
+  }
+ }
+ await open('/labs/packet',1280,800,'light');
+ await cdp.evaluate("document.querySelector('.rv-next').click()");await settled();
+ const layer=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),s=root.causalStudy.snapshot();return {index:s.at.index,title:s.frames[s.at.index].objectTitle,card:[...root.querySelectorAll('.rv-actor-face')].find(n=>getComputedStyle(n).visibility==='visible'&&Number(getComputedStyle(n).opacity)>.99)?.querySelector('.rv-actor-title').textContent,caption:root.querySelector('.rv-caption-title').textContent,expectedCaption:s.frames[s.at.index].title,context:[...root.querySelectorAll('.rv-fact')].find(n=>n.querySelector('dt')?.textContent==='Selected layer')?.querySelector('dd').textContent};})()`);
+ assert.equal(layer.index,1);assert.equal(layer.card,layer.title);assert.equal(layer.context,layer.title);assert.equal(layer.caption,layer.expectedCaption);await screenshot('packet-next-settled');
+ await open('/labs/http2-vs-http3',1280,800,'light');
+ const initial=await cdp.evaluate("document.querySelector('.rv-console').getBoundingClientRect().height");
+ await cdp.evaluate("(()=>{const api=document.querySelector('.review-runtime').causalStudy;api.seek(api.snapshot().plan.commits.at(-1));})()");await settled();
+ assert.ok(Math.abs(initial-await cdp.evaluate("document.querySelector('.rv-console').getBoundingClientRect().height"))<1,'HTTP transport must retain its height as event labels change');await screenshot('http-stable-transport');
+ report.adaptiveReading=true;
 }
 async function homeMenus(){
  await open('/',390,844);
@@ -307,7 +325,7 @@ async function performanceBudgets(){
 try{
  production=await serveProductionArtifact(resolve('dist'));launch=await launchChrome(findChrome());const targets=await fetchJson('http://127.0.0.1:'+launch.port+'/json'),target=targets.find(t=>t.type==='page');cdp=new CdpClient(target.webSocketDebuggerUrl);for(const domain of ['Page','DOM','Runtime','Log','HeapProfiler'])await cdp.call(domain+'.enable');report.browser=launch.version;
  const task=async(name,run)=>{try{await run();}catch(error){report.failures.push(name+': '+(error.stack||String(error)));await screenshot(name+'-failure').catch(()=>{});}};
- await task('canonical-source',sourceSemantics);if(mode==='overview'){await task('home-menus',homeMenus);await task('workspace-menus',workspaceMenus);await task('recovered-studies',recoveredStudies);}if(mode==='choreography')await task('wire-playback',wirePlayback);await task('moving-lifecycle',movingLifecycle);if(['capture','phase4','performance'].includes(mode)){await task('capture',captureSemantics);await task('measured',measuredSemantics);}if(['phase3','performance'].includes(mode))await task('builder',builderSemantics);if(mode==='phase3')await task('navigation',navigationContinuity);if(mode==='phase4')await task('capture-return',captureContinuity);
+ await task('canonical-source',sourceSemantics);if(mode==='overview'){await task('home-menus',homeMenus);await task('workspace-menus',workspaceMenus);await task('recovered-studies',recoveredStudies);}if(mode==='choreography')await task('wire-playback',wirePlayback);await task('moving-lifecycle',movingLifecycle);if(['capture','phase4','performance'].includes(mode)){await task('capture',captureSemantics);await task('measured',measuredSemantics);}if(['phase3','performance'].includes(mode))await task('builder',builderSemantics);if(mode==='phase3'){await task('navigation',navigationContinuity);await task('adaptive-reading',adaptiveReading);}if(mode==='phase4')await task('capture-return',captureContinuity);
  if(mode==='journey'||mode==='choreography')await task('journey',journeyMatrix);else await task('viewports',viewportMatrix);if(mode==='performance')await task('performance-budgets',performanceBudgets);if(report.failures.length)process.exitCode=1;
 }catch(error){report.failures.push(error.stack||String(error));process.exitCode=1;}
 finally{writeFileSync(reportPath,JSON.stringify(report,null,2)+'\n');await cdp?.close();if(launch?.chrome&&launch.chrome.exitCode===null&&launch.chrome.signalCode===null){await new Promise(resolve=>{launch.chrome.once('exit',resolve);launch.chrome.kill('SIGKILL');});}if(launch?.userDataDir)rmSync(launch.userDataDir,{recursive:true,force:true,maxRetries:8,retryDelay:100});await new Promise(resolve=>production?.server.close(resolve)||resolve());console.log(JSON.stringify({mode,profiles:report.profiles.length,failures:report.failures,report:reportPath}));}
