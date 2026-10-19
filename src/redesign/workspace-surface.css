@@ -92,3 +92,8 @@
  .review-runtime.workspace-surface .wb-topology>.rv-toolbar>label{flex:1;min-width:0}
  .review-runtime.workspace-surface .wb-topology>.rv-toolbar>label .ws-select{min-width:0}
 }
+
+@container review (max-width:600px){
+ .review-runtime.workspace-surface .ws-intro .rv-subtitle{margin-bottom:0}
+ .review-runtime.workspace-surface .ws-intro{gap:8px;margin-bottom:12px}
+}

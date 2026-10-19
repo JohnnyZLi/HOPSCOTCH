@@ -534,6 +534,17 @@
  #hop-causal-review .rv-peer-state dd{font-size:18px}
 }
 
+/* Compact transport keeps the packet dominant; full narration stays in Source details. */
+@container review (max-width:600px){
+ #hop-causal-review .rv-composition>.rv-console{padding:10px 12px;gap:4px}
+ #hop-causal-review .rv-caption{min-height:0!important}
+ #hop-causal-review .rv-caption strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
+ #hop-causal-review .rv-caption p{display:none}
+ #hop-causal-review .rv-console-tools>details>summary{padding-block:4px}
+ #hop-causal-review .rv-endpoint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ #hop-causal-review .rv-retained-dock{padding:6px 10px}
+}
+
 </style>
 <section class="rv-shell">
 <header class="rv-header" data-ui-surface="chrome"><div class="rv-header-identity"><span class="rv-brand">HOPSCOTCH</span></div><div class="rv-header-tools"><label>Scene<select class="rv-scene-picker cursor-interaction" data-ui-surface="control" aria-label="Causal scene"><option value="tcp">TCP · complete lifecycle</option><option value="packet">Packet · anatomy and assembly</option><option value="packetOps">Packet · build and modify</option><option value="failure">Network · failure and recovery</option><option value="dns">DNS · resolution and cache</option><option value="tls">TLS · handshake and protection</option><option value="http">HTTP/2 and HTTP/3 · loss</option><option value="journey">Journey · one request</option><option value="provider">Provider · encapsulation</option></select></label><label>Appearance<select class="rv-theme cursor-interaction" data-ui-surface="control" aria-label="Appearance"><option value="light">Light</option><option value="dark">Dark</option><option value="system">System</option></select></label></div></header>
@@ -1709,7 +1720,7 @@ const trailerCanvas=document.createElement('canvas');trailerCanvas.setAttribute(
 const secondary=node('section','rv-state-secondary'),composition=node('section','rv-composition'),dock=node('section','rv-retained-dock'),details=node('details','rv-scene-details'),fullFields=node('dl','rv-facts rv-full-fields');
 secondary.append(q('.rv-state-records'),q('.rv-buffer'));q('.rv-main').insertBefore(composition,q('.rv-motion-primary'));composition.append(q('.rv-motion-primary'),q('.rv-network-primary'),q('.rv-comparison-primary'),q('.rv-console'));stage.insertBefore(dock,q('.rv-path'));details.append(node('summary','','Full fields and retained state'),fullFields,secondary);q('.rv-main').insertBefore(details,q('.rv-byte-details'));
 const settingLabels=[...q('.rv-controls').children].filter(n=>n.matches('label'));const settings=node('details','rv-playback-settings');settings.append(node('summary','','Playback settings'));for(const label of settingLabels)settings.append(label);q('.rv-console').append(settings);
-const explanation=node('details','rv-explanation');explanation.append(node('summary','','Source details'),q('.rv-source'));const consoleTools=node('div','rv-console-tools');consoleTools.append(settings,explanation);q('.rv-console').append(consoleTools);
+const explanation=node('details','rv-explanation');explanation.append(node('summary','','Source details'),node('p','rv-summary-detail'),q('.rv-source'));const consoleTools=node('div','rv-console-tools');consoleTools.append(settings,explanation);q('.rv-console').append(consoleTools);
 function bounded(){return ['tcp','tls','dns','journey','provider'].includes(sceneId);}
 function buildDock(){
  dock.replaceChildren();dock.hidden=!bounded()||sceneId==='provider';
@@ -1900,7 +1911,7 @@ function reflow(){
   const height=a.face.offsetHeight,origin=a.face.getBoundingClientRect(),lens={w:clamp(font*1.2*1.6,34,62),h:Math.max(46,font*1.2*2.05)},targets=(frames[i].readIds||[]).map(id=>{const el=a.fieldMap.get(id);return {id,label:el?.querySelector('.rv-field-label').textContent||id,lines:el?textLines(el.querySelector('.rv-field-value'),origin):[]};}),read=makePlan(targets,lens);
   // Reading faces retain their heading and all fields at every viewport height.
   const viewHeight=height;
-  const focus={x:(width-cardWidth)/2,y:focusY+(f.assembly?envelopeH:0),w:cardWidth,h:viewHeight},fit=motion.fitGeometry(cardWidth,[envelopeH||60,height,trailerH||48],1),attach=motion.makeAttachmentPlan(1,0,fit),detach=motion.makeAttachmentPlan(0,1,fit),emphasis=root.emphasis.compile(root.emphasis.readWindows(read,0,id=>a.fieldMap.get(id)));const payload=a.face.querySelector('.rv-payload-body'),pr=payload?.getBoundingClientRect(),payloadRect=pr?{x:pr.left-origin.left,y:pr.top-origin.top,w:pr.width,h:pr.height}:null;
+  const focus={x:(width-cardWidth)/2,y:focusY+(f.assembly?.envelope.present?envelopeH:0),w:cardWidth,h:viewHeight},fit=motion.fitGeometry(cardWidth,[envelopeH||60,height,trailerH||48],1),attach=motion.makeAttachmentPlan(1,0,fit),detach=motion.makeAttachmentPlan(0,1,fit),emphasis=root.emphasis.compile(root.emphasis.readWindows(read,0,id=>a.fieldMap.get(id)));const payload=a.face.querySelector('.rv-payload-body'),pr=payload?.getBoundingClientRect(),payloadRect=pr?{x:pr.left-origin.left,y:pr.top-origin.top,w:pr.width,h:pr.height}:null;
   const transferIds=sceneId==='tcp'?['seq','ack']:sceneId==='packetOps'?f.fields.map(field=>field.id):[],transferFields=Object.fromEntries(transferIds.filter(id=>a.fieldMap.has(id)).map(id=>[id,transfer.measure(a.fieldMap.get(id).querySelector('.rv-field-value'),origin)]));
   prepared.push({focus,fullHeight:height,lens,read,origin,targets,emphasis,fit,attach,detach,payloadRect,transferFields});maxHeight=Math.max(maxHeight,height);a.face.style.position='absolute';a.actor.remove();
  }
@@ -1961,6 +1972,7 @@ function pose(at){
  if(at.kind==='release'){const release={x:arrive.x,y:arrive.y,w:plan.compactW,h:plan.compactH};box=interpolate(focus,release,ease(at.p/.8));detail=1-ease(at.p/.22);opacity=1-ease((at.p-.75)/.25);}
  if(at.kind==='hold'&&f.lost){box=arrive;opacity=0;detail=0;}
  if(sceneId==='provider'||f.assembly){box=focus;detail=1;opacity=1;}
+ if(f.assembly&&at.kind==='layerChange'&&frames[at.index-1]?.assembly?.identity===f.assembly.identity)box=interpolate(plan.prepared[at.index-1].focus,focus,p);
  const openness=clamp(Math.max((box.w-plan.compactW)/Math.max(1,focus.w-plan.compactW),(box.h-plan.compactH)/Math.max(1,focus.h-plan.compactH))),radius=Math.min(mix(16,24,openness),box.w/2,box.h/2);
  return {box,detail,opacity,openness,radius};
 }
@@ -2003,7 +2015,7 @@ function renderActor(at){
  const retained=new Set([a.actor,...(at.kind==='focus'&&actors[at.index-1]?[actors[at.index-1].actor]:[])]),host=q('.rv-actors');
  for(const actor of new Set(actors.filter(Boolean).map(a=>a.actor))){if(retained.has(actor)){if(actor.parentElement!==host)host.append(actor);}else if(actor.parentElement===host)actor.remove();}
  if(a.deck)prepareFields(at.index);
- if(activeActor!==at.index){for(const n of actors)if(n){if(n.actor!==a.actor){n.actor.style.opacity='0';n.actor.inert=true;n.actor.setAttribute('aria-hidden','true');}n.face.style.opacity='0';n.face.style.visibility='hidden';}root.presentation.material(a.actor,{role:root.presentation.frameRole(f),identity:f.protocol,moving:true});a.actor.prepend(liveCanvas);liveCanvas.dataset.paintKey='';activeActor=at.index;}
+ if(activeActor!==at.index){a.actor.setAttribute('aria-label',f.objectTitle+' · '+f.id);for(const n of actors)if(n){if(n.actor!==a.actor){n.actor.style.opacity='0';n.actor.inert=true;n.actor.setAttribute('aria-hidden','true');}n.face.style.opacity='0';n.face.style.visibility='hidden';}root.presentation.material(a.actor,{role:root.presentation.frameRole(f),identity:f.protocol,moving:true});a.actor.prepend(liveCanvas);liveCanvas.dataset.paintKey='';activeActor=at.index;}
  a.face.style.transform='none';
  const faceOpacity=clamp((s.detail-.5)*2),capsuleOpacity=clamp((.5-s.detail)*2);
  a.actor.style.transform=`translate(${s.box.x}px,${s.box.y}px)`;a.actor.style.width=s.box.w+'px';a.actor.style.height=s.box.h+'px';a.actor.style.borderRadius=s.radius+'px';a.actor.style.opacity=String(s.opacity);a.actor.inert=faceOpacity<.99;a.actor.setAttribute('aria-hidden',String(s.opacity<.01));a.face.style.opacity=String(faceOpacity);a.face.style.visibility=faceOpacity>0?'visible':'hidden';a.capsule.style.opacity=String(capsuleOpacity);a.capsule.style.visibility=capsuleOpacity>0?'visible':'hidden';
@@ -2106,7 +2118,7 @@ function render(){
  if(!plan)return;const at=locate(clock),f=frames[at.index];resizeScene(at);renderState(at);renderActor(at);if(sceneId==='failure')renderNetwork(at);if(sceneId==='http')renderComparison(at);
  if(sceneId==='tls'){const state=frames[Math.max(0,stateIndex())].state;q('.rv-tls-certificate').textContent=state.certificateState;q('.rv-tls-channel').textContent=state.applicationReady?'Ready':'Not ready';}if(bounded()&&fullFields.dataset.event!==f.id){drawFacts(fullFields,f.fields);fullFields.dataset.event=f.id;}
  if(sceneId==='dns'||sceneId==='journey'){const state=frames[Math.max(0,stateIndex())].state;q('.rv-dns-answer').textContent=sceneId==='dns'?state.answer?.value||'Not available':state.resolvedAddress||'Not available';q('.rv-dns-cache').textContent=sceneId==='dns'?state.cacheState:state.dns;}
- const key=f.id+'|'+at.kind;if(key!==captionKey){root.reviewUI.status(q('.rv-caption-title'),q('.rv-caption-detail'),f.title,f.summary);captionKey=key;}
+ const key=f.id+'|'+at.kind;if(key!==captionKey){root.reviewUI.status(q('.rv-caption-title'),q('.rv-caption-detail'),f.title,f.summary);q('.rv-caption-title').title=f.title;q('.rv-summary-detail').textContent=f.summary;captionKey=key;}
  q('.rv-operation').textContent='Presentation · '+({construct:'constructing a separate object',fold:'closing the same object',travel:f.lost?'in transit · loss boundary':'in transit',open:'opening the same object',read:'reading actual fields',retainFocus:'bringing the received value into view',retain:'retaining the result',hold:'outcome stays readable',release:'processed buffer released',lost:'lost before receipt',transition:'state changes continuously',focus:'opening another layer of the same object',fitAttach:'separate pieces seat at contact',fitDetach:'separate pieces release from contact',labelChange:'the outer label changes; the inner packet remains',modify:'a structural change carries its consequences'}[at.kind]||at.kind);
  q('.rv-model-time').textContent=f.at===null?'Source snapshot · no model clock':'Source event · '+f.id+' · '+f.at+' ms';q('.rv-event-picker').value=String(at.index);q('.rv-scrub').value=String(Math.round(clock/plan.total*1000));q('.rv-play').textContent=playing?'Pause':'Play';q('.rv-next').disabled=at.index===frames.length-1;
 }

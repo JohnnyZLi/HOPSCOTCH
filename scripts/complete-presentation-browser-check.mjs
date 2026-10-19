@@ -267,7 +267,7 @@ async function adaptiveReading(){
  }
  await open('/labs/packet',1280,800,'light');
  await cdp.evaluate("document.querySelector('.rv-next').click()");await settled();
- const layer=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),s=root.causalStudy.snapshot();return {index:s.at.index,title:s.frames[s.at.index].objectTitle,card:root.querySelector('.rv-actor-title').textContent,caption:root.querySelector('.rv-caption-title').textContent,expectedCaption:s.frames[s.at.index].title,context:[...root.querySelectorAll('.rv-fact')].find(n=>n.querySelector('dt')?.textContent==='Selected layer')?.querySelector('dd').textContent};})()`);
+ const layer=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),s=root.causalStudy.snapshot();return {index:s.at.index,title:s.frames[s.at.index].objectTitle,card:[...root.querySelectorAll('.rv-actor-face')].find(n=>getComputedStyle(n).visibility==='visible'&&Number(getComputedStyle(n).opacity)>.99)?.querySelector('.rv-actor-title').textContent,caption:root.querySelector('.rv-caption-title').textContent,expectedCaption:s.frames[s.at.index].title,context:[...root.querySelectorAll('.rv-fact')].find(n=>n.querySelector('dt')?.textContent==='Selected layer')?.querySelector('dd').textContent};})()`);
  assert.equal(layer.index,1);assert.equal(layer.card,layer.title);assert.equal(layer.context,layer.title);assert.equal(layer.caption,layer.expectedCaption);await screenshot('packet-next-settled');
  await open('/labs/http2-vs-http3',1280,800,'light');
  const initial=await cdp.evaluate("document.querySelector('.rv-console').getBoundingClientRect().height");

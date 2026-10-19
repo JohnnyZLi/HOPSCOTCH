@@ -534,6 +534,17 @@
  #hop-connected-review .rv-peer-state dd{font-size:18px}
 }
 
+/* Compact transport keeps the packet dominant; full narration stays in Source details. */
+@container review (max-width:600px){
+ #hop-connected-review .rv-composition>.rv-console{padding:10px 12px;gap:4px}
+ #hop-connected-review .rv-caption{min-height:0!important}
+ #hop-connected-review .rv-caption strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
+ #hop-connected-review .rv-caption p{display:none}
+ #hop-connected-review .rv-console-tools>details>summary{padding-block:4px}
+ #hop-connected-review .rv-endpoint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ #hop-connected-review .rv-retained-dock{padding:6px 10px}
+}
+
 #hop-connected-review .cx-home{font-size:12px;font-weight:500;letter-spacing:.04em;background:transparent;border-color:transparent;box-shadow:none;padding:8px 0}
 #hop-connected-review .cx-location{margin:0;color:var(--hs-muted);font-size:12px;overflow-wrap:anywhere}
 #hop-connected-review .cx-opening{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:40px;align-items:center;padding:28px 0 36px}

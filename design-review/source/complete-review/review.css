@@ -286,3 +286,14 @@
  #__ROOT__ .rv-peer-state{padding:9px 10px}
  #__ROOT__ .rv-peer-state dd{font-size:18px}
 }
+
+/* Compact transport keeps the packet dominant; full narration stays in Source details. */
+@container review (max-width:600px){
+ #__ROOT__ .rv-composition>.rv-console{padding:10px 12px;gap:4px}
+ #__ROOT__ .rv-caption{min-height:0!important}
+ #__ROOT__ .rv-caption strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
+ #__ROOT__ .rv-caption p{display:none}
+ #__ROOT__ .rv-console-tools>details>summary{padding-block:4px}
+ #__ROOT__ .rv-endpoint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ #__ROOT__ .rv-retained-dock{padding:6px 10px}
+}
