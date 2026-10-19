@@ -383,10 +383,8 @@
 #hop-connected-review .rv-record-primary{font-size:17px;color:var(--hs-ink);line-height:1.5}
 #hop-connected-review .rv-record-count{margin:8px 0 16px}
 #hop-connected-review .wb-source-inspection{border-top:1px solid var(--rv-divider);margin-top:20px}
-#hop-connected-review [data-material-role=operation]{background:var(--hs-panel);color:var(--hs-ink);box-shadow:0 4px 14px var(--rv-shadow-soft);border:1px solid var(--rv-control-rim);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
-#hop-connected-review [data-material-role=operation]>canvas{display:none}
-#hop-connected-review [data-material-role=operation] .rv-actor-title,#hop-connected-review [data-material-role=operation] .rv-field-value,#hop-connected-review [data-material-role=operation] :is(h3,dd){color:var(--hs-ink)}
-#hop-connected-review [data-material-role=operation] :is(.rv-field-label,.rv-actor-role,p,dt){color:var(--hs-muted)}
+/* Moving local operations share the actor's clipped, geometry-driven glass.
+   Their explicit role label and absence of a wire marker retain the distinction. */
 #hop-connected-review [data-material-role=packet]>canvas{filter:hue-rotate(var(--rv-packet-hue,0deg));transition:filter 220ms ease}
 #hop-connected-review [data-material-role=packet] :is(.rv-actor-title,h3)::before{content:"";display:inline-block;width:6px;height:6px;vertical-align:middle;margin-right:9px;border-radius:50%;background:var(--rv-protocol-accent,var(--hs-accent))}
 #hop-connected-review [data-material-role=packet] .rv-capsule .rv-protocol{background:var(--rv-protocol-accent,var(--hs-accent))}
@@ -1748,7 +1746,7 @@ function paintOwner(canvas,owner,open=1){
  const r=Math.max(0,Math.min(resolve(parts[0],rect.width),resolve(parts[1]||parts[0],rect.height),rect.width/2,rect.height/2));paint(canvas,rect.width,rect.height,r,open);
 }
 function paint(canvas,w,h,radius=24,open=1){
- if(!canvas||!(w>0&&h>0)||canvas.parentElement?.dataset.materialRole==='operation')return;
+ if(!canvas||!(w>0&&h>0))return;
  const maxW=Math.max(w,capacity.w),maxH=Math.max(h,capacity.h),theme=root.dataset.theme==='dark'?'dark':'light',ratio=Math.min(devicePixelRatio||1,2,Math.sqrt(1048576/(maxW*maxH))),key=[w,h,radius,open,theme,ratio,epoch,session.epoch,session.state].join('|');
  if(canvas.dataset.paintKey===key)return;
  const ready=session.ready();for(const owner of owners)if(!owner.isConnected)owners.delete(owner);owners.add(canvas);

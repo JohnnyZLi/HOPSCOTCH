@@ -1115,7 +1115,7 @@ function paintOwner(canvas,owner,open=1){
  const r=Math.max(0,Math.min(resolve(parts[0],rect.width),resolve(parts[1]||parts[0],rect.height),rect.width/2,rect.height/2));paint(canvas,rect.width,rect.height,r,open);
 }
 function paint(canvas,w,h,radius=24,open=1){
- if(!canvas||!(w>0&&h>0)||canvas.parentElement?.dataset.materialRole==='operation')return;
+ if(!canvas||!(w>0&&h>0))return;
  const maxW=Math.max(w,capacity.w),maxH=Math.max(h,capacity.h),theme=root.dataset.theme==='dark'?'dark':'light',ratio=Math.min(devicePixelRatio||1,2,Math.sqrt(1048576/(maxW*maxH))),key=[w,h,radius,open,theme,ratio,epoch,session.epoch,session.state].join('|');
  if(canvas.dataset.paintKey===key)return;
  const ready=session.ready();for(const owner of owners)if(!owner.isConnected)owners.delete(owner);owners.add(canvas);
@@ -1437,7 +1437,7 @@ function renderLens(at,shape){
  if(at.kind!=='read'||!g.read.total){lens.style.opacity='0';return;}
  const s=samplePlan(g.read,at.elapsed),a=actors[at.index],key=frames[at.index].id+'|'+layoutKey;
  if(lensKey!==key){
-  const clone=a.face.cloneNode(true);clone.style.position='relative';clone.style.opacity='1';clone.style.transform='none';clone.style.left='0';clone.style.top='0';root.presentation.material(clone,{role:a.actor.dataset.materialRole,identity:a.actor.dataset.protocol,moving:true});clone.prepend(lensCanvas);lensCanvas.style.position='absolute';lensCanvas.style.zIndex='-1';if(a.actor.dataset.materialRole==='packet')root.surfacePainter.paint(lensCanvas,g.focus.w,g.focus.h,24,1);q('.rv-lens-copy').replaceChildren(clone);lensKey=key;
+  const clone=a.face.cloneNode(true);clone.style.position='relative';clone.style.opacity='1';clone.style.transform='none';clone.style.left='0';clone.style.top='0';root.presentation.material(clone,{role:a.actor.dataset.materialRole,identity:a.actor.dataset.protocol,moving:true});clone.prepend(lensCanvas);lensCanvas.style.position='absolute';lensCanvas.style.zIndex='-1';root.surfacePainter.paint(lensCanvas,g.focus.w,g.focus.h,24,1);q('.rv-lens-copy').replaceChildren(clone);lensKey=key;
  }
  lensCanvas.style.top=readerOffset(at)+'px';const zoom=mix(1,motion.policy.zoom,s.focus);lens.style.width=g.lens.w+'px';lens.style.height=g.lens.h+'px';lens.style.left=(shape.box.x+s.x-g.lens.w/2)+'px';lens.style.top=(shape.box.y+s.y-readerOffset(at)-g.lens.h/2)+'px';lens.style.opacity=String(s.opacity);q('.rv-lens-copy').style.transform=`translate(${g.lens.w/2-s.x*zoom}px,${g.lens.h/2-s.y*zoom}px) scale(${zoom})`;
  root.emphasis.draw(g.emphasis,at.elapsed);
