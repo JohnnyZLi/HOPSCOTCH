@@ -475,8 +475,6 @@
 .review-runtime .rv-playback-settings select{max-width:calc(100% - 50px)}
 .review-runtime:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-scene-details>summary{display:none}
 .review-runtime:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-scene-details:not([open])>.rv-state-secondary{display:block}
-.review-runtime:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-explanation>summary,.review-runtime:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-playback-settings>summary{display:none}
-.review-runtime:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-explanation:not([open])>p,.review-runtime:not([data-scene=tcp]):not([data-scene=tls]):not([data-scene=dns]):not([data-scene=journey]):not([data-scene=provider]) .rv-playback-settings:not([open])>label{display:flex}
 /* Recovered study composition: the object, retained state and transport are
    one reading sequence. Protocol-specific semantics remain in source frames. */
 .review-runtime:is([data-scene=tcp],[data-scene=tls],[data-scene=dns],[data-scene=journey],[data-scene=provider]) .rv-main{width:100%;max-width:1120px;margin-inline:auto}
@@ -508,5 +506,29 @@
  .review-runtime .rv-peer-note{display:none}
  .review-runtime .rv-envelope{padding:10px 14px}
  .review-runtime .rv-envelope-direction{font-size:10px}
+}
+
+/* Shared reading composition: full objects, a stable transport, quiet context. */
+.review-runtime .rv-main{width:100%;max-width:1320px;margin-inline:auto}
+.review-runtime .rv-composition{overflow-anchor:none}
+.review-runtime .rv-composition>.rv-console{position:sticky;bottom:12px;z-index:12;grid-template-columns:minmax(0,1fr) max-content;scroll-margin-block:16px}
+.review-runtime .rv-controls{flex-wrap:nowrap;min-width:0}
+.review-runtime .rv-controls button{flex:none}
+.review-runtime .rv-playback-settings>label{display:flex;align-items:center;gap:12px;min-width:0;margin-top:10px}
+.review-runtime .rv-playback-settings>label select{min-width:0;width:100%}
+.review-runtime .rv-console-tools>details[open]{flex:1 1 320px}
+.review-runtime .rv-endpoints{padding:6px 0;gap:16px}
+.review-runtime .rv-endpoint{padding:8px 12px}
+.review-runtime .rv-peer-state{padding:10px 14px}
+.review-runtime .rv-peer-state h3{margin-bottom:4px}
+.review-runtime .rv-peer-state .rv-peer-note{display:none}
+.review-runtime .rv-retained-dock dd{font-size:16px}
+@container review (max-width:600px){
+ .review-runtime .rv-composition>.rv-console{grid-template-columns:minmax(0,1fr);bottom:8px}
+ .review-runtime .rv-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:6px}
+ .review-runtime .rv-controls button{min-width:0;padding-inline:8px;font-size:12px}
+ .review-runtime .rv-console-tools{gap:4px 16px}
+ .review-runtime .rv-peer-state{padding:9px 10px}
+ .review-runtime .rv-peer-state dd{font-size:18px}
 }
 

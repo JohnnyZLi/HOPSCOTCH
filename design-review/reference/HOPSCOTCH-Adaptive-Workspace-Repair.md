@@ -1,0 +1,11 @@
+# Adaptive workspace repair — October 19, 2026
+
+The October 18 full visual audit found competing framing rules: TCP/Journey retained full objects but reserved the largest history-wide card, while DNS/TLS clipped cards to a remaining viewport budget. Packet stepping paused before its layer handoff, and evidence selections could update an offscreen inspector.
+
+The shared presentation now retains complete faces, measures field typography before assigning readable columns, and sizes the scene to its active source object. Transitional heights interpolate from cached geometry. The transport follows the scene in document order and stays at the viewport bottom when the object is tall. Source and playback settings use the same disclosure across every scene, so long event names cannot resize the playback row. Explicit event selection and Next event land on committed source states; continuous play and scrub retain full choreography.
+
+Evidence uses compact field grids and table rows. Desktop inspection stays visible within a scrolling panel; compact field/fact selection opens the existing Details pane and moves focus to its heading. Empty report/capture states expose the existing local file picker directly. AS routing repaint runs on appearance changes. Empty origins have an availability marker and source timestamps retain their exact value in semantic time attributes/title while presenting readable UTC dates.
+
+Secondary AS and Builder tools use existing custom animated disclosures, keeping primary scenes near the opening screen. Builder navigation scrolls horizontally at compact widths, command input and Run stay together, and probe results receive visible focus. Source events, clocks, capture bytes, packet ownership, scanner/contact kernels, performance budgets, and production deployment governance are unchanged.
+
+Validation: npm run check passed locally. Browser regressions cover complete DNS/TLS faces at 320/390/1280 in both themes, committed packet stepping, constant HTTP transport height, and reachable Journey controls. Browser captures and live visual acceptance are recorded separately after CI; passing contracts alone do not establish visual quality.
