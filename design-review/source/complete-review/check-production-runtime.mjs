@@ -32,10 +32,16 @@ const data=JSON.parse(fs.readFileSync('complete-review/source-data.json','utf8')
   for(const frame of before.frames)frame.records.push({label:'Hidden audit metadata',value:'Unseen provenance '.repeat(500)});
   api.appearance();await env.flush();const after=api.snapshot();
   assert.deepEqual(after.plan.phases.filter(p=>p.kind==='hold').map(p=>p.end-p.start),holds,'Hidden source disclosure must not extend visible playback: '+scene);
-  if(scene==='journey')assert.equal(holds[0],900,'Opening intent must advance after scanning and the minimum outcome exposure');
+  if(scene==='journey')assert.equal(holds[0],180,'An already-read face only needs the shared transition beat, not a new outcome pause');
   for(const [index,g]of after.plan.prepared.entries()){
    assert.equal(g.attention.retained.credit,0,'New receiver values cannot borrow earlier scan exposure');
    if(!after.frames[index].lost)assert.equal(g.attention.face.credit,g.read.total,'The visible face earns its measured scanning exposure');
+   const measured=env.root.motionPlanner.makePlan(g.targets,g.lens),scans=plan=>plan.phases.filter(p=>p.kind==='read').map(p=>({id:p.id,line:p.line,duration:Math.round((p.end-p.start)*1e6)/1e6,a:p.a,b:p.b}));
+   assert.deepEqual(scans(g.read),scans(measured),'Every glyph sweep keeps its original geometry and duration');
+   assert(g.read.phases.filter(p=>p.kind==='result').length<=1,'Settle once for the entire card');
+   const retain=after.plan.phases.find(p=>p.index===index&&p.kind==='retain');
+   assert.equal(Boolean(retain),Boolean(g.transfer),'Only an actual receiver transfer may reserve a retain phase');
+   if(g.transfer)assert(Math.abs(retain.end-retain.start-g.transfer.duration)<.001,'Receiver handoff motion must not be sped up');
   }
   for(let i=1;i<after.frames.length;i++){
    const start=after.plan.starts[i],phase=after.plan.phases.find(p=>p.index===i);
