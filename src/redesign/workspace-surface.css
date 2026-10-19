@@ -82,8 +82,8 @@
 .review-runtime.workspace-surface .wb-command-form>button{flex:none}
 .review-runtime.workspace-surface .rv-composition>.rv-console{background:var(--ws-reading);-webkit-backdrop-filter:blur(24px) saturate(1.15);backdrop-filter:blur(24px) saturate(1.15);box-shadow:inset 0 1px 0 var(--hs-ui-high),0 8px 24px var(--ws-reading-shadow)}
 @container review (max-width:760px){
- .review-runtime.workspace-surface .wb-pages{flex-wrap:nowrap!important;overflow-x:auto!important;max-width:100%;padding-bottom:6px;scrollbar-width:thin}
- .review-runtime.workspace-surface .wb-pages button{flex:none}
+ .review-runtime.workspace-surface .wb-pages{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));flex-wrap:wrap!important;overflow:visible!important;max-width:100%;gap:6px;padding-bottom:6px}
+ .review-runtime.workspace-surface .wb-pages button{min-width:0;font-size:12px;padding-inline:8px}
  .review-runtime.workspace-surface .wb-graph-toolbar{gap:6px}
  .review-runtime.workspace-surface .wb-graph-toolbar button{font-size:12px;padding-inline:10px}
  .review-runtime.workspace-surface .ev-controls{gap:8px}
