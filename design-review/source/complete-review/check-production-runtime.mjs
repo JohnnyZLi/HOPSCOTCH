@@ -4,6 +4,28 @@ import {environment} from './check-complete.mjs';
 import {frameCamera} from './shared-geometry.js';
 const data=JSON.parse(fs.readFileSync('complete-review/source-data.json','utf8'));
 {
+ const env=await environment('motion',390,{artifactPath:'../../public/review/lifecycle.html'}),api=env.root.causalStudy,source=JSON.stringify(env.root.reviewData);
+ for(const scene of ['journey','tcp','dns','tls','packetOps']){
+  api.select(scene);await env.flush();
+  const read=api.snapshot().plan.phases.find(p=>p.kind==='read');
+  for(const [step,count,speed]of [[1000/120,120,1],[1000/60,60,1],[1000/30,30,1],[1000/60,30,2],[1000/60,120,.5]]){
+   api.seek(read.start);env.q('.rv-speed').value=String(speed);api.play();env.frame(17);
+   const start=api.snapshot().clock;for(let i=0;i<count;i++)env.frame(step);
+   assert.ok(Math.abs(api.snapshot().clock-start-step*count*speed)<.001,'Normal display rates and selected speed retain the same presentation duration');api.pause();
+  }
+  env.q('.rv-speed').value='1';api.seek(0);api.play();env.frame(17);env.frame(17);
+  const before=api.snapshot();env.frame(2000);const after=api.snapshot();
+  assert.ok(after.clock-before.clock>0&&after.clock-before.clock<=50,'A delayed frame must not skip the object lifecycle');
+  assert.equal(after.at.kind,before.at.kind);assert.equal(after.at.index,before.at.index);
+  env.frame(17);assert.ok(Math.abs(api.snapshot().clock-after.clock-17)<.001,'Excess stall time must not become catch-up debt');
+  api.pause();const held=api.snapshot().clock;env.frame(5000);api.play();env.frame(5000);assert.equal(api.snapshot().clock,held,'Resume establishes a fresh frame timestamp');env.frame(17);assert.equal(api.snapshot().clock,held+17);api.pause();
+  api.next();const next=api.snapshot();assert.equal(env.q('.rv-caption-title').textContent,next.frames[next.at.index].title);assert.equal(env.root.querySelectorAll('.rv-status-copy').length,0,'Stepping commits the caption with the card');
+  api.seek(read.start+100);assert.equal(env.root.querySelectorAll('.rv-status-copy').length,0,'Scrubbing cannot leave an outgoing caption over the selected card');
+ }
+ assert.equal(JSON.stringify(env.root.reviewData),source,'Frame-delay handling must not alter source events or bytes');api.dispose();
+ console.log('PASS visible playback clock, frame-rate parity, stall recovery, resume and caption settlement');
+}
+{
  const env=await environment('motion',390,{artifactPath:'../../public/review/lifecycle.html',integratedData:{bootstrapScene:'dns',referenceModels:[],dns:data.dns},layoutReady:false});
  const api=env.context.integratedMount.api;
  assert.equal(api.snapshot().plan,null,'A mount without measured layout must wait, not guess or throw.');
