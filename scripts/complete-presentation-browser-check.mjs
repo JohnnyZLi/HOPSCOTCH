@@ -161,6 +161,40 @@ async function visiblePlaybackClock(){
  }
  report.visiblePlaybackClock=samples;
 }
+async function visiblePacingReview(){
+ const results=[];
+ for(const [path,width,height,theme]of [['/journey',1280,800,'light'],['/journey',390,844,'dark'],['/labs/tcp',1280,800,'dark'],['/labs/tcp',390,844,'light']]){
+  await open(path,width,height,theme);
+  const boundaries=await cdp.evaluate(`(()=>{
+   const root=document.querySelector('.review-runtime'),api=root.causalStudy,s=api.snapshot(),console=root.querySelector('.rv-console'),samples=[];
+   for(let i=1;i<s.frames.length;i++){
+    const phase=s.plan.phases.find(p=>p.index===i);if(phase.kind!=='construct')continue;
+    api.seek(phase.start-.01);const before=console.getBoundingClientRect().top,position=getComputedStyle(console).position;
+    api.seek(phase.start+.01);samples.push({id:s.frames[i].id,before,after:console.getBoundingClientRect().top,position,nextPosition:getComputedStyle(console).position});
+   }
+   api.seek(0);root.querySelector('.rv-speed').value='1';
+   return {samples,firstHold:s.plan.prepared[0].attention.hold,sceneFloor:s.plan.sceneFloor,sceneHeight:s.plan.sceneHeight,holds:s.plan.prepared.map((g,i)=>({id:s.frames[i].id,hold:g.attention.hold,scan:g.read.total,face:g.attention.face,retained:g.attention.retained}))};
+  })()`);
+  for(const sample of boundaries.samples){assert.ok(Math.abs(sample.after-sample.before)<=1,'Playback controls jumped at a card boundary: '+JSON.stringify(sample));assert.equal(sample.position,sample.nextPosition,'Playback positioning mode must stay stable');}
+  if(path==='/journey')assert.equal(boundaries.firstHold,900,'Opening card cannot stall after its measured scan');
+  await cdp.evaluate("document.querySelector('.review-runtime').causalStudy.play()");
+  const samples=[],captures=new Set(),deadline=performance.now()+45000;let completed=false;
+  while(performance.now()<deadline){
+   const sample=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),s=root.causalStudy.snapshot(),r=root.querySelector('.rv-console').getBoundingClientRect(),a=root.querySelector('.rv-actor[aria-hidden="false"]')?.getBoundingClientRect();return {clock:s.clock,index:s.at.index,phase:s.at.kind,p:s.at.p,id:s.frames[s.at.index].id,caption:root.querySelector('.rv-caption-title').textContent,expected:s.frames[s.at.index].title,consoleTop:r.top,actorBottom:a?.bottom};})()`);
+   assert.equal(sample.caption,sample.expected);samples.push(sample);
+   const key=sample.index+'-'+sample.phase+(sample.phase==='read'?'-'+Math.floor(sample.p*4):'');
+   if(!captures.has(key)){captures.add(key);await screenshot('pacing-'+path.split('/').at(-1)+'-'+width+'-'+theme+'-'+String(captures.size).padStart(2,'0')+'-'+key);}
+   if(sample.index>=1&&sample.phase==='read'&&sample.p>.2){completed=true;break;}
+   await sleep(90);
+  }
+  await cdp.evaluate("document.querySelector('.review-runtime').causalStudy.pause()");
+  assert.ok(completed,'Normal-speed visual review must reach the next card');
+  for(const phase of ['read','retain','hold','release'])assert.ok(samples.some(s=>s.index===0&&s.phase===phase),'Missing actual playback '+phase);
+  results.push({path,width,height,theme,...boundaries,samples});
+ }
+ report.visiblePacingReview=results;
+}
+
 async function importFile(selector,path){const document=await cdp.call('DOM.getDocument'),match=await cdp.call('DOM.querySelector',{nodeId:document.root.nodeId,selector});assert.ok(match.nodeId,'Import input is missing');await cdp.call('DOM.setFileInputFiles',{nodeId:match.nodeId,files:[resolve(path)]});}
 async function captureSemantics(){
  const frame=ethernetFrame(ipv4Packet(tcpSegment(new Uint8Array([65,66,67])))),pcap=pcapCapture([{bytes:frame,originalLength:frame.length,seconds:1,microseconds:0},{bytes:frame,originalLength:frame.length,seconds:1,microseconds:1000}]),path=join(output,'capture-fixture.pcap');writeFileSync(path,pcap);
@@ -357,7 +391,7 @@ async function performanceBudgets(){
 try{
  production=await serveProductionArtifact(resolve('dist'));launch=await launchChrome(findChrome());const targets=await fetchJson('http://127.0.0.1:'+launch.port+'/json'),target=targets.find(t=>t.type==='page');cdp=new CdpClient(target.webSocketDebuggerUrl);for(const domain of ['Page','DOM','Runtime','Log','HeapProfiler'])await cdp.call(domain+'.enable');report.browser=launch.version;
  const task=async(name,run)=>{try{await run();}catch(error){report.failures.push(name+': '+(error.stack||String(error)));await screenshot(name+'-failure').catch(()=>{});}};
- await task('canonical-source',sourceSemantics);if(mode==='overview'){await task('home-menus',homeMenus);await task('workspace-menus',workspaceMenus);await task('recovered-studies',recoveredStudies);}if(mode==='choreography')await task('wire-playback',wirePlayback);await task('moving-lifecycle',movingLifecycle);if(['capture','phase4','performance'].includes(mode)){await task('capture',captureSemantics);await task('measured',measuredSemantics);}if(['phase3','performance'].includes(mode))await task('builder',builderSemantics);if(mode==='phase3'){await task('visible-playback-clock',visiblePlaybackClock);await task('navigation',navigationContinuity);await task('adaptive-reading',adaptiveReading);}if(mode==='phase4')await task('capture-return',captureContinuity);
+ await task('canonical-source',sourceSemantics);if(mode==='overview'){await task('home-menus',homeMenus);await task('workspace-menus',workspaceMenus);await task('recovered-studies',recoveredStudies);}if(mode==='choreography')await task('wire-playback',wirePlayback);await task('moving-lifecycle',movingLifecycle);if(['capture','phase4','performance'].includes(mode)){await task('capture',captureSemantics);await task('measured',measuredSemantics);}if(['phase3','performance'].includes(mode))await task('builder',builderSemantics);if(mode==='phase3'){await task('visible-playback-clock',visiblePlaybackClock);await task('visible-pacing-review',visiblePacingReview);await task('navigation',navigationContinuity);await task('adaptive-reading',adaptiveReading);}if(mode==='phase4')await task('capture-return',captureContinuity);
  if(mode==='journey'||mode==='choreography')await task('journey',journeyMatrix);else await task('viewports',viewportMatrix);if(mode==='performance')await task('performance-budgets',performanceBudgets);if(report.failures.length)process.exitCode=1;
 }catch(error){report.failures.push(error.stack||String(error));process.exitCode=1;}
 finally{writeFileSync(reportPath,JSON.stringify(report,null,2)+'\n');await cdp?.close();if(launch?.chrome&&launch.chrome.exitCode===null&&launch.chrome.signalCode===null){await new Promise(resolve=>{launch.chrome.once('exit',resolve);launch.chrome.kill('SIGKILL');});}if(launch?.userDataDir)rmSync(launch.userDataDir,{recursive:true,force:true,maxRetries:8,retryDelay:100});await new Promise(resolve=>production?.server.close(resolve)||resolve());console.log(JSON.stringify({mode,profiles:report.profiles.length,failures:report.failures,report:reportPath}));}

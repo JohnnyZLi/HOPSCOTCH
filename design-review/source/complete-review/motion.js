@@ -30,6 +30,17 @@ const transferView=transfer.makeView(q('.rv-transfer'),q('.rv-transfer-value'),q
 function node(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=String(text);return n;}
 function titleCase(value){return String(value||'').toLowerCase().replace(/(^|[\s-])\p{L}/gu,m=>m.toUpperCase());}
 function facts(before,after){const a=new Map((before||[]).map(x=>[x.label,x.value]));return (after||[]).filter(x=>String(a.get(x.label))!==String(x.value)).map(x=>({text:x.label,value:x.value}));}
+// The retained dock is the visible outcome contract for both paint and pacing.
+// Full source records remain available in disclosure without charging playback.
+function dockValues(state){
+ if(sceneId==='tcp')return [{label:'Acknowledged by the server',value:String(state.highestAck),selector:'.rv-ack'},{label:'Next expected from the client',value:String(state.expectedAck),selector:'.rv-expected'}];
+ if(sceneId==='tls')return [{label:'Certificate',value:state.certificateState,selector:'.rv-tls-certificate'},{label:'Application channel',value:state.applicationReady?'Ready':'Not ready',selector:'.rv-tls-channel'}];
+ if(sceneId==='dns'||sceneId==='journey')return [{label:'Resolved address',value:sceneId==='dns'?state.answer?.value||'Not available':state.resolvedAddress||'Not available',selector:'.rv-dns-answer'},{label:'Resolver / cache',value:sceneId==='dns'?state.cacheState:state.dns,selector:'.rv-dns-cache'}];
+ return [];
+}
+function initialDockValues(){return dockValues(sceneId==='tcp'?{highestAck:0,expectedAck:1001}:frames[0]?.state);}
+function sceneExtent(g,f,trailerH){return g.focus.y+g.focus.h+(f.assembly||sceneId==='packetOps'||sceneId==='provider'?trailerH+g.fit.spread:0)+16;}
+
 function modelFrames(id){return data.referenceModels.find(m=>m.id===id)?.frames||[];}
 // A local operation exposes its actual state changes. Wire-message fields stay
 // on wire messages; formatted values never change the canonical source state.
@@ -206,7 +217,7 @@ function reflow(){
   const transferIds=sceneId==='tcp'?['seq','ack']:sceneId==='packetOps'?f.fields.map(field=>field.id):[],transferFields=Object.fromEntries(transferIds.filter(id=>a.fieldMap.has(id)).map(id=>[id,transfer.measure(a.fieldMap.get(id).querySelector('.rv-field-value'),origin)]));
   prepared.push({focus,fullHeight:height,lens,read,origin,targets,emphasis,fit,attach,detach,payloadRect,transferFields});maxHeight=Math.max(maxHeight,height);a.face.style.position='absolute';a.actor.remove();
  }
- const sceneHeight=bounded()?Math.max(...prepared.map((g,i)=>g.focus.y+g.focus.h+(frames[i].assembly?trailerH:0)+16)):focusY+maxHeight+(sceneId==='packetOps'?trailerH+60:16);
+ const sceneHeight=Math.max(...prepared.map((g,i)=>sceneExtent(g,frames[i],trailerH))),sceneFloor=Math.min(sceneHeight,Math.max(0,viewport-stageOffset-consoleHeight-48));
  stage.style.height=(['failure','http'].includes(sceneId)?0:sceneHeight)+'px';
  q('.rv-path').style.cssText='left:'+(ports.a.x+compactW/2)+'px;top:'+pathY+'px;width:'+(ports.b.x-ports.a.x)+'px';
  reserveState();root.surfacePainter.prepare(Math.max(cardWidth,compactW),Math.max(maxHeight,compactH));
@@ -215,17 +226,27 @@ function reflow(){
  const add=(index,kind,duration)=>{if(duration>0){phases.push({index,kind,start:total,end:total+duration});total+=duration;}};
  for(let i=0;i<frames.length;i++){
   const f=frames[i],g=prepared[i],previous=frames[i-1];starts.push(total);
-  const changed=facts(previous?.records,f.records),attention=pacing.prepare({facts:changed.length?changed:[{text:f.title,value:''}],persistent:i===frames.length-1});
-  if(['failure','http'].includes(sceneId)){add(i,'transition',tuning.state);commits.push(total);add(i,'hold',Math.max(tuning.minimumExposure,attention.hold));continue;}
-  if(f.kind==='provider-operation'){if(f.operation==='attach')add(i,'fitAttach',g.attach.duration);else if(['push','swap','pop'].includes(f.operation))add(i,'labelChange',g.attach.duration);else if(i)add(i,'transition',tuning.state);add(i,'read',g.read.total);commits.push(total);add(i,'hold',Math.max(tuning.minimumExposure,attention.hold));continue;}
-  if(f.kind==='journey-assembly'){add(i,'layerChange',g.attach.duration);add(i,'read',g.read.total);commits.push(total);add(i,'hold',Math.max(tuning.minimumExposure,attention.hold));continue;}
-  if(f.kind==='assembly'){const changing=['append','remove','replace'].includes(f.operation);if(i>0&&!changing)add(i,'focus',tuning.morph);if(changing){g.mutations=[];if(f.operation==='remove'){const oldPayload=actors[i-1].face.querySelector('.rv-payload-body'),rect=prepared[i-1].payloadRect;if(oldPayload&&rect){const copy=oldPayload.cloneNode(true);copy.className+=' rv-deleted-payload';copy.querySelector('.rv-payload-heading').hidden=true;for(const chunk of copy.querySelectorAll('.rv-payload-chunk'))if(Number(chunk.dataset.offset)<f.state.payloadBytes)chunk.style.visibility='hidden';copy.setAttribute('aria-hidden','true');copy.inert=true;Object.assign(copy.style,{position:'absolute',left:rect.x+'px',top:rect.y+'px',width:rect.w+'px',opacity:'0'});actors[i].face.append(copy);g.deletedPayload=copy;}}for(const field of f.fields){const before=previous?.fields.find(x=>x.id===field.id);if(!before||before.value===field.value)continue;const from={...prepared[i-1].transferFields[field.id]},to={...g.transferFields[field.id]};from.x+=prepared[i-1].focus.x;from.y+=prepared[i-1].focus.y;to.x+=g.focus.x;to.y+=g.focus.y;const viewNode=node('div','rv-transfer rv-change-token'),number=node('span'),note=node('span');viewNode.append(number,note);viewNode.setAttribute('aria-hidden','true');viewNode.style.opacity='0';q('.rv-actors').append(viewNode);g.mutations.push({fieldId:field.id,view:transfer.makeView(viewNode,number,note),plan:transfer.plan(from,to,before.value,field.value,'',{x:0,y:0,w:width}),before:before.value,after:field.value});}}if(f.operation==='attach')add(i,'fitAttach',g.attach.duration);if(f.operation==='detach')add(i,'fitDetach',g.detach.duration);if(['append','remove','replace'].includes(f.operation))add(i,'modify',Math.max(g.attach.duration,...(g.mutations||[]).map(m=>m.plan.duration)));add(i,'read',g.read.total);commits.push(total);add(i,'hold',Math.max(tuning.minimumExposure,attention.hold));continue;}
-  if(f.kind==='anatomy'){if(i===0){add(i,'travel',clamp((ports.b.x-ports.a.x)/tuning.travelSpeed,tuning.minTravel,tuning.maxTravel));add(i,'open',tuning.morph);}else add(i,'focus',tuning.morph);add(i,'read',g.read.total);commits.push(total);add(i,'hold',Math.max(tuning.minimumExposure,attention.hold));continue;}
+  const persistent=i===frames.length-1;
+  const hold=()=>{
+   const flat=['failure','http'].includes(sceneId),visibleFields=f.lost?[]:facts(previous?.fields,f.fields);
+   const face=pacing.prepare({facts:flat?facts(previous?.records,f.records):visibleFields,visibleFor:flat?0:g.read.total,persistent});
+   const caption=pacing.prepare({facts:[{text:f.title+' '+f.summary,value:''}],visibleFor:total-starts[i],persistent});
+   // Receiver outcomes become visible at commit, after scanning/transfer. They
+   // must earn their own reading exposure; preceding scans cannot pay for them.
+   const retained=pacing.prepare({facts:facts(previous?dockValues(previous.state):initialDockValues(),dockValues(f.state)),persistent});
+   g.attention={face,caption,retained,hold:Math.max(tuning.minimumExposure,face.hold,caption.hold,retained.hold)};
+   add(i,'hold',g.attention.hold);
+  };
+  if(['failure','http'].includes(sceneId)){add(i,'transition',tuning.state);commits.push(total);hold();continue;}
+  if(f.kind==='provider-operation'){if(f.operation==='attach')add(i,'fitAttach',g.attach.duration);else if(['push','swap','pop'].includes(f.operation))add(i,'labelChange',g.attach.duration);else if(i)add(i,'transition',tuning.state);add(i,'read',g.read.total);commits.push(total);hold();continue;}
+  if(f.kind==='journey-assembly'){add(i,'layerChange',g.attach.duration);add(i,'read',g.read.total);commits.push(total);hold();continue;}
+  if(f.kind==='assembly'){const changing=['append','remove','replace'].includes(f.operation);if(i>0&&!changing)add(i,'focus',tuning.morph);if(changing){g.mutations=[];if(f.operation==='remove'){const oldPayload=actors[i-1].face.querySelector('.rv-payload-body'),rect=prepared[i-1].payloadRect;if(oldPayload&&rect){const copy=oldPayload.cloneNode(true);copy.className+=' rv-deleted-payload';copy.querySelector('.rv-payload-heading').hidden=true;for(const chunk of copy.querySelectorAll('.rv-payload-chunk'))if(Number(chunk.dataset.offset)<f.state.payloadBytes)chunk.style.visibility='hidden';copy.setAttribute('aria-hidden','true');copy.inert=true;Object.assign(copy.style,{position:'absolute',left:rect.x+'px',top:rect.y+'px',width:rect.w+'px',opacity:'0'});actors[i].face.append(copy);g.deletedPayload=copy;}}for(const field of f.fields){const before=previous?.fields.find(x=>x.id===field.id);if(!before||before.value===field.value)continue;const from={...prepared[i-1].transferFields[field.id]},to={...g.transferFields[field.id]};from.x+=prepared[i-1].focus.x;from.y+=prepared[i-1].focus.y;to.x+=g.focus.x;to.y+=g.focus.y;const viewNode=node('div','rv-transfer rv-change-token'),number=node('span'),note=node('span');viewNode.append(number,note);viewNode.setAttribute('aria-hidden','true');viewNode.style.opacity='0';q('.rv-actors').append(viewNode);g.mutations.push({fieldId:field.id,view:transfer.makeView(viewNode,number,note),plan:transfer.plan(from,to,before.value,field.value,'',{x:0,y:0,w:width}),before:before.value,after:field.value});}}if(f.operation==='attach')add(i,'fitAttach',g.attach.duration);if(f.operation==='detach')add(i,'fitDetach',g.detach.duration);if(['append','remove','replace'].includes(f.operation))add(i,'modify',Math.max(g.attach.duration,...(g.mutations||[]).map(m=>m.plan.duration)));add(i,'read',g.read.total);commits.push(total);hold();continue;}
+  if(f.kind==='anatomy'){if(i===0){add(i,'travel',clamp((ports.b.x-ports.a.x)/tuning.travelSpeed,tuning.minTravel,tuning.maxTravel));add(i,'open',tuning.morph);}else add(i,'focus',tuning.morph);add(i,'read',g.read.total);commits.push(total);hold();continue;}
   add(i,'construct',tuning.construct);
   // Wire objects form at the sender in their compact transmitted shape. Only
   // receipt opens the inspector; construction must not preview a second read.
   if(!f.local)add(i,'travel',clamp((ports.b.x-ports.a.x)/tuning.travelSpeed,tuning.minTravel,tuning.maxTravel));
-  if(f.lost){add(i,'lost',tuning.release);commits.push(total);add(i,'hold',Math.max(tuning.minimumExposure,attention.hold));continue;}
+  if(f.lost){add(i,'lost',tuning.release);commits.push(total);hold();continue;}
   if(!f.local)add(i,'open',tuning.morph);
   add(i,'read',g.read.total);
   const bindings=[{stateKey:'highestAck',fieldId:'ack',target:'.rv-ack'},{stateKey:'expectedAck',fieldId:'seq',target:'.rv-expected'}],binding=sceneId==='tcp'?bindings.find(b=>f.fields.some(x=>x.id===b.fieldId&&Number.isFinite(Number(x.value)))&&(previous?previous.state[b.stateKey]!==f.state[b.stateKey]:b.stateKey==='expectedAck')):null,field=binding?f.fields.find(x=>x.id===binding.fieldId):null;
@@ -235,13 +256,13 @@ function reflow(){
    const delta=Number(nextValue)-Number(field.value),note=binding.stateKey==='highestAck'?'Acknowledged by peer':delta===1&&(f.event.flags||'').includes('SYN')?'+1 · SYN':delta===1&&(f.event.flags||'').includes('FIN')?'+1 · FIN':'+'+delta+' B · contiguous sequence space';g.transferTarget=binding.target;g.transferStateKey=binding.stateKey;g.transferFieldId=binding.fieldId;
    g.transfer=transfer.plan(from,to,field.value,nextValue,note,{x:0,y:0,w:width});add(i,'retain',g.transfer.duration);
   }else add(i,'retain',tuning.state);
-  commits.push(total);add(i,'hold',Math.max(tuning.minimumExposure,attention.hold));
+  commits.push(total);hold();
   // A final local decision is retained state, not a received wire buffer.
   // Keep its outcome visible; physical messages still finish their release.
   if(!f.local||i<frames.length-1)add(i,'release',tuning.release);
  }
  if(expected)expected.textContent=oldExpected;
- plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH,sceneHeight,viewport,stageOffset,consoleHeight};
+ plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH,sceneHeight,sceneFloor,viewport,stageOffset,consoleHeight};
  if(old){const match=phases.find(p=>frames[p.index].id===old.id&&p.kind===old.kind)||phases.find(p=>frames[p.index].id===old.id&&old.kind==='retainFocus'&&p.kind==='retain');clock=match?mix(match.start,match.end,match.kind===old.kind?old.p:0):0;}else clock=0;
  // Canonical app controls already own source-event selection. Retain this
  // renderer's full picker only for its independent snapshot/review playback.
@@ -360,7 +381,6 @@ function renderProvider(at,shape){
  Object.assign(label.style,{left:shape.box.x+'px',top:(shape.box.y+shape.box.h)+'px',width:shape.box.w+'px',height:plan.trailerH+'px'});
  label.dataset.label=number===null||number===undefined?'':String(number);label.dataset.operation=op?.operation||'';
  q('.rv-payload-addon').style.opacity='0';
- const height=shape.box.y+shape.box.h+plan.trailerH+16;stage.style.height=height+'px';
 }
 function svg(tag,attrs,text){const e=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [k,v]of Object.entries(attrs))e.setAttribute(k,String(v));if(text!==undefined)e.textContent=String(text);return e;}
 function networkGeometry(){
@@ -396,23 +416,22 @@ function renderComparison(at){
 }
 function resizeScene(at){
  if(['failure','http'].includes(sceneId)){q('.rv-console').style.position='relative';return;}
- // Use the active object rather than the largest object in the whole history.
- // Cached geometry keeps this free of layout reads during playback.
- const g=plan.prepared[at.index],previous=plan.prepared[Math.max(0,at.index-1)],f=frames[at.index];
- const extent=(geometry,frame)=>geometry.focus.y+geometry.focus.h+(frame.assembly||sceneId==='packetOps'||sceneId==='provider'?plan.trailerH:0)+16;
- let height=extent(g,f);
- if(['focus','modify','layerChange'].includes(at.kind))height=mix(extent(previous,frames[Math.max(0,at.index-1)]),height,ease(at.p));
- if(f.assembly||sceneId==='packetOps'||sceneId==='provider')height+=g.fit.spread;
+ // Reserve one measured viewport envelope for ordinary cards. Taller faces
+ // remain complete and grow the document; never reserve the tallest history
+ // below the fold or let a bottom-sticky panel cover an expanded card.
+ const extent=index=>sceneExtent(plan.prepared[index],frames[index],plan.trailerH);
+ const heightFor=index=>Math.max(plan.sceneFloor,extent(index));
+ let height=heightFor(at.index);
+ if(['construct','focus','modify','layerChange'].includes(at.kind)&&at.index>0)height=mix(heightFor(at.index-1),height,ease(at.p));
  const value=Math.ceil(height)+'px';if(stage.style.height!==value)stage.style.height=value;
- // A bottom-sticky panel pulls upward over the object when the composition
- // exceeds the viewport. Use document flow whenever the measured pair cannot
- // fit; both the complete card and controls then remain reachable by scrolling.
- q('.rv-console').style.position=plan.stageOffset+height+plan.consoleHeight+48<=plan.viewport?'sticky':'relative';
+ // Keep the positioning mode constant for this measured plan. Switching it at
+ // an individual card boundary causes a second jump when the page is scrolled.
+ q('.rv-console').style.position=plan.stageOffset+plan.sceneHeight+plan.consoleHeight+48<=plan.viewport?'sticky':'relative';
 }
 function render(){
  if(!plan)return;const at=locate(clock),f=frames[at.index];resizeScene(at);renderState(at);renderActor(at);if(sceneId==='failure')renderNetwork(at);if(sceneId==='http')renderComparison(at);
- if(sceneId==='tls'){const state=frames[Math.max(0,stateIndex())].state;q('.rv-tls-certificate').textContent=state.certificateState;q('.rv-tls-channel').textContent=state.applicationReady?'Ready':'Not ready';}if(bounded()&&fullFields.dataset.event!==f.id){drawFacts(fullFields,f.fields);fullFields.dataset.event=f.id;}
- if(sceneId==='dns'||sceneId==='journey'){const state=frames[Math.max(0,stateIndex())].state;q('.rv-dns-answer').textContent=sceneId==='dns'?state.answer?.value||'Not available':state.resolvedAddress||'Not available';q('.rv-dns-cache').textContent=sceneId==='dns'?state.cacheState:state.dns;}
+ if(sceneId!=='tcp')for(const fact of dockValues(frames[Math.max(0,stateIndex())].state))q(fact.selector).textContent=fact.value;
+ if(bounded()&&fullFields.dataset.event!==f.id){drawFacts(fullFields,f.fields);fullFields.dataset.event=f.id;}
  const key=f.id+'|'+at.kind;if(key!==captionKey){root.reviewUI.status(q('.rv-caption-title'),q('.rv-caption-detail'),f.title,f.summary);q('.rv-caption-title').title=f.title;q('.rv-summary-detail').textContent=f.summary;captionKey=key;}
  q('.rv-operation').textContent='Presentation · '+({construct:'constructing a separate object',fold:'closing the same object',travel:f.lost?'in transit · loss boundary':'in transit',open:'opening the same object',read:'reading actual fields',retainFocus:'bringing the received value into view',retain:'retaining the result',hold:'outcome stays readable',release:'processed buffer released',lost:'lost before receipt',transition:'state changes continuously',focus:'opening another layer of the same object',fitAttach:'separate pieces seat at contact',fitDetach:'separate pieces release from contact',labelChange:'the outer label changes; the inner packet remains',modify:'a structural change carries its consequences'}[at.kind]||at.kind);
  q('.rv-model-time').textContent=f.at===null?'Source snapshot · no model clock':'Source event · '+f.id+' · '+f.at+' ms';q('.rv-event-picker').value=String(at.index);q('.rv-scrub').value=String(Math.round(clock/plan.total*1000));q('.rv-play').textContent=playing?'Pause':'Play';q('.rv-next').disabled=at.index===frames.length-1;

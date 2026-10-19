@@ -26,6 +26,33 @@ const data=JSON.parse(fs.readFileSync('complete-review/source-data.json','utf8')
  console.log('PASS visible playback clock, frame-rate parity, stall recovery, resume and caption settlement');
 }
 {
+ const env=await environment('motion',1280,{artifactPath:'../../public/review/lifecycle.html'}),api=env.root.causalStudy;
+ for(const scene of ['journey','tcp','dns','tls','packetOps','packet','provider']){
+  api.select(scene);await env.flush();const before=api.snapshot(),holds=before.plan.phases.filter(p=>p.kind==='hold').map(p=>p.end-p.start);
+  for(const frame of before.frames)frame.records.push({label:'Hidden audit metadata',value:'Unseen provenance '.repeat(500)});
+  api.appearance();await env.flush();const after=api.snapshot();
+  assert.deepEqual(after.plan.phases.filter(p=>p.kind==='hold').map(p=>p.end-p.start),holds,'Hidden source disclosure must not extend visible playback: '+scene);
+  if(scene==='journey')assert.equal(holds[0],900,'Opening intent must advance after scanning and the minimum outcome exposure');
+  for(const [index,g]of after.plan.prepared.entries()){
+   assert.equal(g.attention.retained.credit,0,'New receiver values cannot borrow earlier scan exposure');
+   if(!after.frames[index].lost)assert.equal(g.attention.face.credit,g.read.total,'The visible face earns its measured scanning exposure');
+  }
+  for(let i=1;i<after.frames.length;i++){
+   const start=after.plan.starts[i],phase=after.plan.phases.find(p=>p.index===i);
+   if(phase.kind!=='construct')continue;
+   api.seek(start-.01);const previous=parseFloat(env.q('.rv-stage').style.height);api.seek(start+.01);
+   assert(Math.abs(parseFloat(env.q('.rv-stage').style.height)-previous)<=1,'A new card cannot abruptly move the playback panel');
+  }
+ }
+ api.select('tcp');await env.flush();const s=api.snapshot(),target=s.frames.find((f,i)=>i>0&&f.state.highestAck!==s.frames[i-1].state.highestAck);
+ target.state.highestAck='123456789012345678901234567890';api.appearance();await env.flush();
+ const i=api.snapshot().frames.indexOf(target),g=api.snapshot().plan.prepared[i];
+ assert(g.attention.retained.hold>2000,'A newly revealed long receiver value still gets its own reading time');
+ assert(g.attention.hold>=g.attention.retained.hold);api.dispose();
+ console.log('PASS visible-content pacing, hidden-metadata invariance, fresh receiver exposure and continuous scene boundaries');
+}
+
+{
  const env=await environment('motion',390,{artifactPath:'../../public/review/lifecycle.html',integratedData:{bootstrapScene:'dns',referenceModels:[],dns:data.dns},layoutReady:false});
  const api=env.context.integratedMount.api;
  assert.equal(api.snapshot().plan,null,'A mount without measured layout must wait, not guess or throw.');

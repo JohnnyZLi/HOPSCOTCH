@@ -19,6 +19,15 @@ Journey assembly and transit use the existing canonical packet-visual and physic
 Source clocks, events, bytes, capture provenance and navigation return anchors are unchanged. The full matrix and rendered desktop/phone Light/Dark review are necessary; owner feedback remains the acceptance authority.
 
 
+## Visible playback pacing and control placement — 19 October 2026
+
+Reading exposure belongs to visible content. The scanner's measured duration counts toward reading the card; hidden provenance, source clocks and disclosure records do not create a second reading pause. Caption exposure counts from its event's appearance. Newly committed receiver values earn their own reading interval after reveal; an earlier scan cannot pay for a value that was not yet visible. The existing minimum outcome exposure and shared reading policy remain in force.
+
+Measure a viewport-sized scene reservation from actual card extents and available space above the transport. Ordinary card changes keep the transport in place. Taller faces remain complete and extend document flow; interpolate their extent during the existing construction/layer transition. Keep the transport's sticky/flow mode constant within a measured plan so crossing a height threshold cannot make it jump over the card. Recompute on viewport, type, appearance and disclosure layout changes. These rules apply across the lifecycle renderer without event-title exceptions.
+
+Validation must include normal-speed scanner → retention → hold → release → next-card playback, alongside boundary geometry and source invariants. Passing runtime assertions alone does not establish visual acceptance.
+
+
 ## Current live visual and animation audit — 8 October 2026
 
 The review was inspected in the managed Chrome browser, including moving playback. Coverage includes all nine lifecycle study families, all six Builder tabs and twelve Builder system families, all five Evidence workspaces and their five review states, and all thirteen Connected entry workspaces. Both themes and desktop/narrow compositions were inspected. This is broad family coverage, not a claim that every input, protocol variant or compositor frame has passed. The audit report distinguishes complete recorded short studies, sampled longer playback, settled screens, synthetic runtime checks and remaining platform gates.
