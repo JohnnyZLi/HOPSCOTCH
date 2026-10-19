@@ -97,3 +97,6 @@
  .review-runtime.workspace-surface .ws-intro .rv-subtitle{margin-bottom:0}
  .review-runtime.workspace-surface .ws-intro{gap:8px;margin-bottom:12px}
 }
+
+.review-runtime.workspace-surface[data-workspace=internet]{--hs-route-line:rgba(68,91,123,.70)}
+.review-runtime.workspace-surface[data-workspace=internet][data-theme=dark]{--hs-route-line:rgba(163,185,215,.70)}
