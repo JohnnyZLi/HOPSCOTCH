@@ -113,7 +113,7 @@ The shared disclosure controller animates the arrow and expanding/collapsing con
 
 A physical packet, frame, segment, record or provider envelope receives packet optical volume. A local validation, lookup, MTU decision, dependency event or supporting explanation uses quieter supporting glass. Role comes from the actual source event semantics. Physical construction remains a packet object even when construction itself is local; that is an explicit semantic override, not title matching.
 
-Static supporting records may use the shared supporting-glass painter. Moving operation actors and their lenses use the quiet CSS material without installing a static canvas that could leave a rectangular stale surface during motion. The shared packet painter skips operation owners. Surrounding glass remains subordinate to the packet's optical character.
+Static supporting records may use the shared supporting-glass painter. Moving operation actors and their lenses use the same clipped, geometry-driven glass renderer as packets, including the shared Light/Dark and fallback paths. They retain a neutral palette, the explicit local-operation label and no wire marker. A semantic role must not replace the active object with a flat white panel. The active canvas follows measured morph geometry; no static supporting canvas is installed on a moving actor. Surrounding controls remain quieter than active objects.
 
 ### Protocol and layer identity
 

@@ -12,7 +12,7 @@ function paintOwner(canvas,owner,open=1){
  const r=Math.max(0,Math.min(resolve(parts[0],rect.width),resolve(parts[1]||parts[0],rect.height),rect.width/2,rect.height/2));paint(canvas,rect.width,rect.height,r,open);
 }
 function paint(canvas,w,h,radius=24,open=1){
- if(!canvas||!(w>0&&h>0)||canvas.parentElement?.dataset.materialRole==='operation')return;
+ if(!canvas||!(w>0&&h>0))return;
  const maxW=Math.max(w,capacity.w),maxH=Math.max(h,capacity.h),theme=root.dataset.theme==='dark'?'dark':'light',ratio=Math.min(devicePixelRatio||1,2,Math.sqrt(1048576/(maxW*maxH))),key=[w,h,radius,open,theme,ratio,epoch,session.epoch,session.state].join('|');
  if(canvas.dataset.paintKey===key)return;
  const ready=session.ready();for(const owner of owners)if(!owner.isConnected)owners.delete(owner);owners.add(canvas);

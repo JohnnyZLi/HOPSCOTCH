@@ -65,11 +65,11 @@
 @media(prefers-reduced-motion:reduce){.review-runtime.workspace-surface .ws-select-trigger svg{transition:none}}
 @media(prefers-reduced-transparency:reduce){
  .review-runtime.workspace-surface{--ws-reading:var(--hs-ui-solid)}
- .review-runtime.workspace-surface :is(.ws-select-panel,.journey-configuration[open],.rv-retained-dock,.rv-actor[data-material-role=operation]){-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--hs-ui-solid)!important}
+ .review-runtime.workspace-surface :is(.ws-select-panel,.journey-configuration[open],.rv-retained-dock){-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--hs-ui-solid)!important}
 }
 @media(forced-colors:active){
  .review-runtime.workspace-surface{--ws-reading:Canvas;--hs-panel:Canvas;--hs-line:CanvasText}
- .review-runtime.workspace-surface :is(.ws-select-panel,.ws-select-trigger,.journey-configuration[open],.rv-retained-dock,.rv-actor[data-material-role=operation]){color:CanvasText;background:Canvas!important;border:1px solid CanvasText;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none}
+ .review-runtime.workspace-surface :is(.ws-select-panel,.ws-select-trigger,.journey-configuration[open],.rv-retained-dock){color:CanvasText;background:Canvas!important;border:1px solid CanvasText;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none}
  .review-runtime.workspace-surface .ws-select-option[aria-pressed=true]{background:Highlight;color:HighlightText}
 }
 
