@@ -161,6 +161,24 @@ async function visiblePlaybackClock(){
  }
  report.visiblePlaybackClock=samples;
 }
+async function recordPlayback(name){
+ const directory=join(output,name);mkdirSync(directory,{recursive:true});const frames=[];
+ const listener=event=>{
+  const message=JSON.parse(event.data);if(message.method!=='Page.screencastFrame')return;
+  const {data,metadata,sessionId}=message.params,file=String(frames.length).padStart(5,'0')+'.jpg';
+  writeFileSync(join(directory,file),Buffer.from(data,'base64'));frames.push({file,timestamp:metadata.timestamp});
+  void cdp.call('Page.screencastFrameAck',{sessionId}).catch(()=>{});
+ };
+ cdp.socket.addEventListener('message',listener);
+ await cdp.call('Page.startScreencast',{format:'jpeg',quality:70,maxWidth:960,everyNthFrame:3});
+ return async()=>{
+  await cdp.call('Page.stopScreencast');cdp.socket.removeEventListener('message',listener);
+  const first=frames[0]?.timestamp??0,timeline=frames.map(f=>({file:f.file,ms:(f.timestamp-first)*1000}));
+  writeFileSync(join(directory,'index.json'),JSON.stringify(timeline));
+  return {directory:name,frames:frames.length,durationMs:timeline.at(-1)?.ms??0};
+ };
+}
+
 async function visiblePacingReview(){
  const results=[];
  for(const [path,width,height,theme]of [['/journey',1280,800,'light'],['/journey',390,844,'dark'],['/labs/tcp',1280,800,'dark'],['/labs/tcp',390,844,'light']]){
@@ -173,24 +191,27 @@ async function visiblePacingReview(){
     api.seek(phase.start+.01);samples.push({id:s.frames[i].id,before,after:console.getBoundingClientRect().top,position,nextPosition:getComputedStyle(console).position});
    }
    api.seek(0);root.querySelector('.rv-speed').value='1';
-   return {samples,firstHold:s.plan.prepared[0].attention.hold,sceneFloor:s.plan.sceneFloor,sceneHeight:s.plan.sceneHeight,holds:s.plan.prepared.map((g,i)=>({id:s.frames[i].id,hold:g.attention.hold,scan:g.read.total,face:g.attention.face,retained:g.attention.retained}))};
+   return {boundaries:samples,firstHold:s.plan.prepared[0].attention.hold,hasTransfer:Boolean(s.plan.prepared[0].transfer),sceneFloor:s.plan.sceneFloor,sceneHeight:s.plan.sceneHeight,holds:s.plan.prepared.map((g,i)=>({id:s.frames[i].id,hold:g.attention.hold,scan:g.read.total,face:g.attention.face,retained:g.attention.retained}))};
   })()`);
-  for(const sample of boundaries.samples){assert.ok(Math.abs(sample.after-sample.before)<=1,'Playback controls jumped at a card boundary: '+JSON.stringify(sample));assert.equal(sample.position,sample.nextPosition,'Playback positioning mode must stay stable');}
-  if(path==='/journey')assert.equal(boundaries.firstHold,900,'Opening card cannot stall after its measured scan');
+  for(const sample of boundaries.boundaries){assert.ok(Math.abs(sample.after-sample.before)<=1,'Playback controls jumped at a card boundary: '+JSON.stringify(sample));assert.equal(sample.position,sample.nextPosition,'Playback positioning mode must stay stable');}
+  if(path==='/journey')assert.equal(boundaries.firstHold,180,'An already-read opening card cannot receive another outcome pause');
+  const stopRecording=await recordPlayback('motion-'+path.split('/').at(-1)+'-'+width+'-'+theme);
+  const samples=[],captures=new Set(),targetIndex=path==='/journey'?4:2,deadline=performance.now()+70000;let completed=false,recording;
+  try{
   await cdp.evaluate("document.querySelector('.review-runtime').causalStudy.play()");
-  const samples=[],captures=new Set(),deadline=performance.now()+45000;let completed=false;
   while(performance.now()<deadline){
    const sample=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),s=root.causalStudy.snapshot(),r=root.querySelector('.rv-console').getBoundingClientRect(),a=root.querySelector('.rv-actor[aria-hidden="false"]')?.getBoundingClientRect();return {clock:s.clock,index:s.at.index,phase:s.at.kind,p:s.at.p,id:s.frames[s.at.index].id,caption:root.querySelector('.rv-caption-title').textContent,expected:s.frames[s.at.index].title,consoleTop:r.top,actorBottom:a?.bottom};})()`);
    assert.equal(sample.caption,sample.expected);samples.push(sample);
    const key=sample.index+'-'+sample.phase+(sample.phase==='read'?'-'+Math.floor(sample.p*4):'');
    if(!captures.has(key)){captures.add(key);await screenshot('pacing-'+path.split('/').at(-1)+'-'+width+'-'+theme+'-'+String(captures.size).padStart(2,'0')+'-'+key);}
-   if(sample.index>=1&&sample.phase==='read'&&sample.p>.2){completed=true;break;}
+   if(sample.index>=targetIndex&&sample.phase==='hold'&&sample.p>.2){completed=true;break;}
    await sleep(90);
   }
-  await cdp.evaluate("document.querySelector('.review-runtime').causalStudy.pause()");
-  assert.ok(completed,'Normal-speed visual review must reach the next card');
-  for(const phase of ['read','retain','hold','release'])assert.ok(samples.some(s=>s.index===0&&s.phase===phase),'Missing actual playback '+phase);
-  results.push({path,width,height,theme,...boundaries,samples});
+  }finally{await cdp.evaluate("document.querySelector('.review-runtime').causalStudy.pause()");recording=await stopRecording();}
+  assert.ok(completed,'Normal-speed visual review must cover multiple complete card lifecycles');
+  assert.ok(recording.frames>30,'Normal-speed playback must produce an inspectable motion recording');
+  for(const phase of ['read','hold','release',...(boundaries.hasTransfer?['retain']:[])])assert.ok(samples.some(s=>s.index===0&&s.phase===phase),'Missing actual playback '+phase);
+  results.push({path,width,height,theme,...boundaries,recording,samples});
  }
  report.visiblePacingReview=results;
 }

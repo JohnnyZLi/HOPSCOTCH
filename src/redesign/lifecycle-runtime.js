@@ -993,6 +993,14 @@ function prepareFields(index){
   for(const [id,field]of a.fieldMap){const value=f.fields.find(x=>x.id===id);field.hidden=!value;if(value){field.querySelector('.rv-field-label').textContent=value.label;field.querySelector('.rv-field-value').textContent=value.value;}}
  }else for(const field of [...f.fields].sort((a,b)=>(f.leadFields||[]).indexOf(a.id)>=0?-1:(f.leadFields||[]).indexOf(b.id)>=0?1:0)){a.fields.append(a.fieldMap.get(field.id));const value=a.fieldMap.get(field.id).querySelector('.rv-field-value');value.textContent=field.value;value.style.opacity='1';}
 }
+function readingPlan(targets,lens){
+ const measured=makePlan(targets,lens),lastResult=measured.phases.findLast(p=>p.kind==='result');let total=0;
+ // Keep every measured scan, acquisition, travel and release. Earlier values
+ // stay visible while later fields are read, so settle once for the whole card.
+ const phases=measured.phases.filter(p=>p.kind!=='result'||p===lastResult).map(p=>{const duration=p.end-p.start,next={...p,start:total,end:total+duration};total+=duration;return next;});
+ return {...measured,phases,total};
+}
+
 function textLines(element,origin){
  const range=document.createRange();range.selectNodeContents(element);const rows=[];
  for(const r of range.getClientRects())if(r.width&&r.height){const x=r.left-origin.left,y=r.top-origin.top,last=rows.find(x=>Math.abs(x.y-y)<1);if(last){const end=Math.max(last.x+last.w,x+r.width);last.x=Math.min(last.x,x);last.w=end-last.x;last.h=Math.max(last.h,r.height);}else rows.push({x,y,w:r.width,h:r.height});}
@@ -1043,7 +1051,7 @@ function reflow(){
    const inset=(parseFloat(fieldStyle.paddingLeft)||0)+(parseFloat(fieldStyle.paddingRight)||0);
    el.dataset.wide=String(Math.max(...value.textContent.split('\n').map(text=>context.measureText(text).width))>column-inset);
   }
-  const height=a.face.offsetHeight,origin=a.face.getBoundingClientRect(),lens={w:clamp(font*1.2*1.6,34,62),h:Math.max(46,font*1.2*2.05)},targets=(frames[i].readIds||[]).map(id=>{const el=a.fieldMap.get(id);return {id,label:el?.querySelector('.rv-field-label').textContent||id,lines:el?textLines(el.querySelector('.rv-field-value'),origin):[]};}),read=makePlan(targets,lens);
+  const height=a.face.offsetHeight,origin=a.face.getBoundingClientRect(),lens={w:clamp(font*1.2*1.6,34,62),h:Math.max(46,font*1.2*2.05)},targets=(frames[i].readIds||[]).map(id=>{const el=a.fieldMap.get(id);return {id,label:el?.querySelector('.rv-field-label').textContent||id,lines:el?textLines(el.querySelector('.rv-field-value'),origin):[]};}),read=readingPlan(targets,lens);
   // Reading faces retain their heading and all fields at every viewport height.
   const viewHeight=height;
   const focus={x:(width-cardWidth)/2,y:focusY+(f.assembly?.envelope.present?envelopeH:0),w:cardWidth,h:viewHeight},fit=motion.fitGeometry(cardWidth,[envelopeH||60,height,trailerH||48],1),attach=motion.makeAttachmentPlan(1,0,fit),detach=motion.makeAttachmentPlan(0,1,fit),emphasis=root.emphasis.compile(root.emphasis.readWindows(read,0,id=>a.fieldMap.get(id)));const payload=a.face.querySelector('.rv-payload-body'),pr=payload?.getBoundingClientRect(),payloadRect=pr?{x:pr.left-origin.left,y:pr.top-origin.top,w:pr.width,h:pr.height}:null;
@@ -1067,7 +1075,7 @@ function reflow(){
    // Receiver outcomes become visible at commit, after scanning/transfer. They
    // must earn their own reading exposure; preceding scans cannot pay for them.
    const retained=pacing.prepare({facts:facts(previous?dockValues(previous.state):initialDockValues(),dockValues(f.state)),persistent});
-   g.attention={face,caption,retained,hold:Math.max(tuning.minimumExposure,face.hold,caption.hold,retained.hold)};
+   g.attention={face,caption,retained,hold:Math.max(flat?tuning.minimumExposure:pacing.policy.minHold,face.hold,caption.hold,retained.hold)};
    add(i,'hold',g.attention.hold);
   };
   if(['failure','http'].includes(sceneId)){add(i,'transition',tuning.state);commits.push(total);hold();continue;}
@@ -1088,7 +1096,9 @@ function reflow(){
    const from={...g.transferFields[field.id]},to=transfer.measure(target,stageOrigin);const lastRead=samplePlan(g.read,g.read.total),limit=Math.max(0,g.fullHeight-g.focus.h);g.retainStartOffset=bounded()?clamp(lastRead.y-g.focus.h/2,0,limit):0;g.retainOffset=bounded()?clamp(from.y+from.h/2-g.focus.h/2,0,limit):0;const distance=Math.abs(g.retainOffset-g.retainStartOffset);if(distance>.5)add(i,'retainFocus',clamp(distance/.35,180,650));from.x+=g.focus.x;from.y+=g.focus.y-g.retainOffset;target.textContent=oldValue;
    const delta=Number(nextValue)-Number(field.value),note=binding.stateKey==='highestAck'?'Acknowledged by peer':delta===1&&(f.event.flags||'').includes('SYN')?'+1 · SYN':delta===1&&(f.event.flags||'').includes('FIN')?'+1 · FIN':'+'+delta+' B · contiguous sequence space';g.transferTarget=binding.target;g.transferStateKey=binding.stateKey;g.transferFieldId=binding.fieldId;
    g.transfer=transfer.plan(from,to,field.value,nextValue,note,{x:0,y:0,w:width});add(i,'retain',g.transfer.duration);
-  }else add(i,'retain',tuning.state);
+  }
+  // Commit directly when no value transfer exists. A timed empty retain would
+  // add a second, invisible pause before the actual outcome exposure.
   commits.push(total);hold();
   // A final local decision is retained state, not a received wire buffer.
   // Keep its outcome visible; physical messages still finish their release.
