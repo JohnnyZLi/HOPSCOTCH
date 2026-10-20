@@ -21,6 +21,13 @@ console.log('PASS morph pixel coordinates after high-DPI GL/fallback history');
  for(const phase of api.snapshot().plan.phases.filter(p=>p.kind==='retain')){const snapshot=api.snapshot(),g=snapshot.plan.prepared[phase.index],p=g.transfer;api.seek(phase.end-1);api.seek(phase.start+p.boundaries.lift);const sourceNode=env.root.querySelector('.rv-actors').querySelector('[data-field="'+g.transferFieldId+'"] .rv-field-value');assert.equal(Number(sourceNode.style.opacity),0,'A departing value has one visible copy');const previous=phase.index?snapshot.frames[phase.index-1].state:{expectedAck:1001,highestAck:0};assert.equal(env.q(g.transferTarget).textContent,String(previous[g.transferStateKey]),'Seeking backward from a landing restores the prior receiver value');}
  const source=JSON.stringify(env.root.reviewData);api.select('packet');await env.flush();const snapshot=api.snapshot();
  for(const phase of snapshot.plan.phases.filter(p=>p.kind==='read')){api.seek(phase.start+1);const frame=snapshot.frames[phase.index],context=env.q('.rv-server-record dl').textContent;assert(context.includes(frame.segment.label),'Anatomy context follows the currently displayed layer before its read commits');assert(context.includes(frame.segment.offset+' + '+frame.segment.length+' B'),'Anatomy byte range follows that same visible layer');}
+ api.seek(snapshot.plan.total);
+ for(let variant=0;variant<env.root.reviewData.packetVariants.length;variant++){
+  env.change('select[aria-label="Packet family and protocol"]',variant);await env.flush();
+  const selected=api.snapshot().frames.at(-1),context=env.q('.rv-server-record dl').textContent;
+  assert(context.includes(selected.segment.offset+' + '+selected.segment.length+' B'),'Changing packet family/protocol refreshes the range at a retained playback position');
+  assert(env.q('.rv-client-record dl').textContent.includes(selected.state.frameBytes+' B'),'Changing packet variants refreshes frame size too');
+ }
  assert.equal(JSON.stringify(env.root.reviewData),source,'Display selection cannot modify canonical packet data');api.dispose();
  console.log('PASS measured transfer clearance and active anatomy metadata');
 }

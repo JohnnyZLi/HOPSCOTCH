@@ -1543,25 +1543,25 @@ function pose(at){
 }
 function stateIndex(){let index=-1;plan.commits.forEach((time,i)=>{if(clock>=time)index=i;});return index;}
 function renderState(at){
- const committed=stateIndex(),f=frames[committed]||frames[0];
+ const committed=stateIndex(),f=frames[committed]||frames[0],recordPrefix=sceneId+'|'+variant+'|'+dnsMode+'|';
  if(sceneId==='tcp'){
   const state=committed<0?{cwndMss:6,ssthreshMss:12,duplicateAcks:0,expectedAck:1001,highestAck:0,phase:'closed'}:f.state;
-  if(recordKey!==sceneId+'|'+committed){
+  if(recordKey!==recordPrefix+committed){
   q('.rv-cwnd').textContent=state.cwndMss+' MSS';q('.rv-ssthresh').textContent=state.ssthreshMss+' MSS';q('.rv-dups').textContent=String(state.duplicateAcks);q('.rv-expected').textContent=String(state.expectedAck);q('.rv-ack').textContent=String(state.highestAck);q('.rv-ack-summary').textContent=String(state.highestAck);q('.rv-expected-summary').textContent=String(state.expectedAck);q('.rv-phase').textContent=titleCase(state.phase)+(state.phase==='closed-cleanly'?' · wire exchange complete; endpoint cleanup is outside this model':'');
   }
   const next=frames[at.index].state,previous=frames[at.index-1]?.state||state,change=['retain','transition'].includes(at.kind)?ease(at.p):clock>=plan.commits[at.index]?1:0,current=mix(previous.cwndMss,next.cwndMss,change);
   for(const [i,cell]of [...q('.rv-window').children].entries()){const amount=clamp(current-i);cell.style.opacity=String(.08+.67*amount);cell.style.transform='scaleX('+(.15+.85*amount)+')';}
-  if(recordKey!==sceneId+'|'+committed){
+  if(recordKey!==recordPrefix+committed){
   const events=frames.slice(0,committed+1).map(x=>x.event),received=events.filter(e=>['data.segment','data.retransmit'].includes(e.kind)),missing=events.filter(e=>e.kind==='data.loss'&&!received.some(r=>r.seq===e.seq)),ack=events.filter(e=>e.kind==='ack.cumulative').at(-1)?.ack||0;
   for(const slot of q('.rv-buffer-slots').children){const seq=Number(slot.dataset.seq),length=Number(slot.dataset.length),has=received.some(e=>e.seq===seq),hole=missing.some(e=>e.seq===seq),status=hole?'missing':has?(seq+length<=ack?'delivered':missing.length&&seq>missing[0].seq?'buffered':'delivered'):'waiting';slot.dataset.state=status;slot.querySelector('span').textContent={missing:'Missing',buffered:'Buffered',delivered:'Ready in order',waiting:'Not received'}[status];}
-  recordKey=sceneId+'|'+committed;
+  recordKey=recordPrefix+committed;
   }
  }else{
   // Anatomy selects a layer of one unchanged frame. Its label/range describe
   // the visible face, independently of when a simulated event commits.
   const displayed=frames[at.index].kind==='anatomy'?(at.kind==='focus'&&at.p<.5?at.index-1:at.index):committed;
-  if(recordKey===sceneId+'|'+displayed)return;
-  const current=frames[Math.max(0,displayed)],values=current.records||[];drawFacts(q('.rv-client-record dl'),values.slice(0,Math.ceil(values.length/2)));drawFacts(q('.rv-server-record dl'),values.slice(Math.ceil(values.length/2)));q('.rv-phase').textContent=current.state?.phaseLabel||'';recordKey=sceneId+'|'+displayed;
+  if(recordKey===recordPrefix+displayed)return;
+  const current=frames[Math.max(0,displayed)],values=current.records||[];drawFacts(q('.rv-client-record dl'),values.slice(0,Math.ceil(values.length/2)));drawFacts(q('.rv-server-record dl'),values.slice(Math.ceil(values.length/2)));q('.rv-phase').textContent=current.state?.phaseLabel||'';recordKey=recordPrefix+displayed;
  }
 }
 function readerOffset(at){
