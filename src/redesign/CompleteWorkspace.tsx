@@ -9,10 +9,20 @@ const memories = new Map<string, unknown>();
 
 export function CompleteWorkspace({destination,search,navigate,inspect}:{destination:ExploreDestination|null;search:string;navigate:(id:ExploreDestination|null,search?:string)=>void;inspect:(id:ExploreDestination)=>void}) {
   const host = useRef<HTMLDivElement>(null);
+  const retired = useRef<undefined | (() => void)>(undefined);
   const [error,setError] = useState('');
   useEffect(() => {
     const element = host.current!;
     let cancelled = false, mounted: Mounted | undefined,disposeControls:undefined|(()=>void),restorePlan:undefined|(()=>void),surface:undefined|{appearance():void;dispose():void};
+    // Keep the paused outgoing composition on screen while imports/data resolve.
+    // Dispose it immediately before mounting its replacement in the same turn.
+    const beginMount = () => {
+      const dispose = retired.current;
+      retired.current = undefined;
+      dispose?.();
+      element.inert = false;
+      element.removeAttribute('aria-busy');
+    };
     setError('');
     const key = (destination ?? 'home') + search;
     const restoreAppearance = () => {
@@ -39,17 +49,18 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
       if(cancelled)return;
       if (!destination) {
         const {mountHome} = await import('./home-runtime');
-        if (!cancelled) mounted = mountHome(element,navigate);
+        if (!cancelled) {beginMount();mounted = mountHome(element,navigate);}
       } else if (destination === 'builder') {
         const [{mountBuilder},{createBuilderData}] = await Promise.all([import('./builder-runtime.js'),import('./builder-data')]);
-        const data=await createBuilderData(search);if (!cancelled) mounted = mountBuilder(element,data);
+        const data=await createBuilderData(search);if (!cancelled) {beginMount();mounted = mountBuilder(element,data);}
       } else if (['measured','capture','observed','physical','internet'].includes(destination)) {
         const [{mountEvidence},{createEvidenceData}] = await Promise.all([import('./evidence-runtime.js'),import('./evidence-data')]);
-        const data=await createEvidenceData(destination,search);if (!cancelled) mounted = mountEvidence(element,data);
+        const data=await createEvidenceData(destination,search);if (!cancelled) {beginMount();mounted = mountEvidence(element,data);}
       } else {
         const [{mountLifecycle},{createLifecycleData},journeyControls] = await Promise.all([import('./lifecycle-runtime.js'),import('./lifecycle-data'),destination==='journey'?Promise.all([import('./journey-controls'),import('./measured-context')]):null]);
         if (!cancelled) {
           const data=createLifecycleData(destination,search);
+          beginMount();
           mounted = mountLifecycle(element,data);
           restoreAppearance();
           if(journeyControls){
@@ -82,9 +93,21 @@ export function CompleteWorkspace({destination,search,navigate,inspect}:{destina
       if (mounted?.api.save) memories.set(key,mounted.api.save());
       else if (mounted?.api.snapshot) memories.set(key,mounted.api.snapshot());
       if(restorePlan)element.removeEventListener('review-plan-ready',restorePlan);
-      disposeControls?.();surface?.dispose();mounted?.dispose();unwatch();element.removeEventListener('change',changed,true);element.removeEventListener('app-measured-change',measuredChanged);
+      unwatch();element.removeEventListener('change',changed,true);element.removeEventListener('app-measured-change',measuredChanged);
+      if(mounted){
+        element.inert = true;
+        element.setAttribute('aria-busy','true');
+        retired.current = () => {disposeControls?.();surface?.dispose();mounted?.dispose();};
+      }
     };
   },[destination,search]);
+  // Route cleanup above retires the active runtime first. On a true unmount,
+  // release it here; a cancelled intermediate route must not replace that owner.
+  useEffect(() => () => {
+    const dispose = retired.current;
+    retired.current = undefined;
+    dispose?.();
+  },[]);
   return <div className="workspace-container">
     <div ref={host} className="review-runtime" data-theme={document.documentElement.dataset.theme} />
     {error && <div className="workspace-error" role="alert"><p>This workspace could not load: {error}</p><button onClick={()=>location.reload()}>Reload workspace</button></div>}

@@ -1114,7 +1114,7 @@ const root=document.getElementById('hop-evidence-review'),vertex=`attribute vec2
       float rim=glassEdgeHighlight(depth,u_dpr,1.0);color=mix(color,vec3(1.0),rim*(.23+.43*max(orientation,0.0)));
       gl_FragColor=vec4(color,1.0-smoothstep(-aa,aa,d));
     }`,surface=document.createElement('canvas');
-let epoch=0,draws=0,allocations=0,capacity={w:0,h:0};const cache=new Map(),owners=new Set();
+let epoch=0,draws=0,allocations=0,capacity={w:0,h:0};const cache=new Map(),owners=new Set(),morphFaces=new Map();
 const session=root.packetMaterial.create({owner:root,surface,vertex,fragment,names:['u_scene','u_resolution','u_center','u_half','u_light','u_radius','u_dpr','u_dark','u_open'],onChange:()=>{epoch++;cache.clear();root.dispatchEvent(new CustomEvent('review-material-change'));}});
 function prepare(w,h){if(capacity.w!==w||capacity.h!==h){capacity={w,h};invalidate();}}
 function paintOwner(canvas,owner,open=1){
@@ -1143,13 +1143,41 @@ function paint(canvas,w,h,radius=24,open=1){
   image=surface;
   // Cache only resting faces. Morph frames share the active surface and never
   // retain hundreds of geometry-dependent images.
-  if(open===0||open===1){image=document.createElement('canvas');image.width=pw;image.height=ph;image.getContext('2d')?.drawImage(surface,0,0);cache.set(fullKey,image);while(cache.size>4)cache.delete(cache.keys().next().value);}
+  if(open===0||open===1){image=document.createElement('canvas');image.width=pw;image.height=ph;image.getContext('2d')?.drawImage(surface,0,0);cache.set(fullKey,image);while(cache.size>2)cache.delete(cache.keys().next().value);}
  }
  if(canvas.width!==pw||canvas.height!==ph){canvas.width=pw;canvas.height=ph;allocations++;}
- canvas.style.width=pw/dpr+'px';canvas.style.height=ph/dpr+'px';const ctx=canvas.getContext('2d');if(ctx){ctx.clearRect(0,0,pw,ph);ctx.drawImage(image,0,0);}canvas.dataset.paintKey=key;
+ canvas.style.width=pw/dpr+'px';canvas.style.height=ph/dpr+'px';const ctx=canvas.getContext('2d');if(ctx){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,pw,ph);ctx.drawImage(image,0,0);}canvas.dataset.paintKey=key;
 }
-function invalidate(){for(const canvas of owners){if(!canvas.isConnected)owners.delete(canvas);else canvas.dataset.paintKey='';}cache.clear();epoch++;}
-root.surfacePainter=Object.freeze({paint,paintOwner,prepare,invalidate,stats:()=>({draws,allocations,cache:cache.size,sessions:1,capacity:{...capacity}}),retry:()=>session.retry()});
+// Shape changes use two shader-rendered endpoint faces. Nine-slice composition
+// preserves rounded rims without a GPU readback at every animation frame.
+function morphFace(w,h,r,open){
+ const key=[w,h,r,open,root.dataset.theme,epoch,session.epoch,session.state].join('|');
+ let face=morphFaces.get(key);if(!face){face=document.createElement('canvas');paint(face,w,h,r,open);morphFaces.set(key,face);while(morphFaces.size>2)morphFaces.delete(morphFaces.keys().next().value);}return face;
+}
+function slice(ctx,face,source,w,h,r,alpha,targetDpr){
+ if(alpha<=0)return;const scale=parseFloat(face.style.width)/face.width||1,dpr=1/scale,
+  edge=Math.max(1,Math.min(source.r+12,(source.w-2)/2,(source.h-2)/2)),rim=Math.min(edge*r/Math.max(1,source.r),w/2,h/2),
+  xs=[0,edge,source.w-edge,source.w],ys=[0,edge,source.h-edge,source.h],
+  xd=[0,rim,w-rim,w],yd=[0,rim,h-rim,h];
+ ctx.globalAlpha=alpha;
+ for(let y=0;y<3;y++)for(let x=0;x<3;x++){
+  const sw=xs[x+1]-xs[x],sh=ys[y+1]-ys[y],dw=xd[x+1]-xd[x],dh=yd[y+1]-yd[y];
+  if(sw>0&&sh>0&&dw>0&&dh>0)ctx.drawImage(face,xs[x]*dpr,ys[y]*dpr,sw*dpr,sh*dpr,xd[x]*targetDpr,yd[y]*targetDpr,dw*targetDpr,dh*targetDpr);
+ }
+}
+function morph(canvas,box,r,open,closed,expanded){
+ // Endpoint paint stays exact, including the resting shader and fallback.
+ if(open<=0||open>=1){paint(canvas,box.w,box.h,r,open<=0?(closed.open??0):(expanded.open??1));return;}
+ const from={...closed},to={w:expanded.w,h:expanded.h,r:expanded.r??24},a=morphFace(from.w,from.h,from.r,from.open??0),b=morphFace(to.w,to.h,to.r,expanded.open??1),
+  cssW=parseFloat(b.style.width),dpr=b.width/cssW,pw=b.width,ph=b.height,key=['morph',box.w,box.h,r,open,a.dataset.paintKey,b.dataset.paintKey].join('|');
+ if(canvas.dataset.paintKey===key)return;
+ if(canvas.width!==pw||canvas.height!==ph){canvas.width=pw;canvas.height=ph;allocations++;}
+ canvas.style.width=cssW+'px';canvas.style.height=ph/dpr+'px';
+ const ctx=canvas.getContext('2d');if(ctx){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,pw,ph);slice(ctx,a,from,box.w,box.h,r,1-open,dpr);ctx.globalCompositeOperation='lighter';slice(ctx,b,to,box.w,box.h,r,open,dpr);ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';}
+ canvas.dataset.paintKey=key;
+}
+function invalidate(){for(const canvas of owners){if(!canvas.isConnected)owners.delete(canvas);else canvas.dataset.paintKey='';}cache.clear();morphFaces.clear();epoch++;}
+root.surfacePainter=Object.freeze({paint,morph,paintOwner,prepare,invalidate,stats:()=>({draws,allocations,cache:cache.size+morphFaces.size,sessions:1,capacity:{...capacity}}),retry:()=>session.retry()});
 })();
 
 (()=>{
@@ -1161,7 +1189,7 @@ const memories=new Map(),stateByWorkspace=new Map(),acquisitionErrors=new Map(),
 const geographicCenter=(()=>{const fs=d.physical.facilities,mean=(values)=>values.reduce((a,b)=>a+b,0)/Math.max(1,values.length),rad=Math.PI/180,longitude=Math.atan2(mean(fs.map(f=>Math.sin(f.longitude*rad))),mean(fs.map(f=>Math.cos(f.longitude*rad))))/rad,latitude=mean(fs.map(f=>f.latitude));return {longitude,latitude,facility:fs.slice().sort((a,b)=>d3.geoDistance([a.longitude,a.latitude],[longitude,latitude])-d3.geoDistance([b.longitude,b.latitude],[longitude,latitude]))[0]};})();
 let asViewport={w:0,h:0};
 let byteWindow={start:0,capacity:0},relationshipId=d.internet.graph.relationships[0].id;
-let workspace='measured',mode='populated',pane='scene',measured=domain.projectMeasuredSnapshot(d.measured.snapshot),capture=d.captureMulti,captureBytes=d.captureMultiBytes,captureKind='pcap',category='interface',target='all',selectedFact=measured.snapshot.facts[0].id,conversation='all',frameIndex=0,layerIndex=0,byte=-1,fieldId='',facilityId=geographicCenter.facility.id,rotation=[-geographicCenter.longitude,-geographicCenter.latitude],graphPlan=null,graphKey='',graphEpoch=0,graphPending=0,pendingGraphEpoch=0,paintedGraph=null,asSource=d.internet.source,asDestination=d.internet.destination,asFailed=new Set(),asPath=0,asSelected=d.internet.source,cam={x:0,y:0,z:1},drag=null,animations=new Set(),fileEpoch=0,importedMeasured=false,importedCapture=false,paintJob=0,asMap=null,globeJob=0,globeGeometry=null;
+let workspaceReady=false,workspace='measured',mode='populated',pane='scene',measured=domain.projectMeasuredSnapshot(d.measured.snapshot),capture=d.captureMulti,captureBytes=d.captureMultiBytes,captureKind='pcap',category='interface',target='all',selectedFact=measured.snapshot.facts[0].id,conversation='all',frameIndex=0,layerIndex=0,byte=-1,fieldId='',facilityId=geographicCenter.facility.id,rotation=[-geographicCenter.longitude,-geographicCenter.latitude],graphPlan=null,graphKey='',graphEpoch=0,graphPending=0,pendingGraphEpoch=0,paintedGraph=null,asSource=d.internet.source,asDestination=d.internet.destination,asFailed=new Set(),asPath=0,asSelected=d.internet.source,cam={x:0,y:0,z:1},drag=null,animations=new Set(),fileEpoch=0,importedMeasured=false,importedCapture=false,paintJob=0,asMap=null,globeJob=0,globeGeometry=null;
 function node(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=String(text);return n;}
 function svg(tag,attrs,text){const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [k,v]of Object.entries(attrs))n.setAttribute(k,String(v));if(text!==undefined)n.textContent=String(text);return n;}
 function words(value){return String(value||'').replaceAll('-',' ').replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());}
@@ -1311,7 +1339,7 @@ function arrangeEvidenceControls(){
 function render(){root.dataset.evidenceState=mode;root.layoutReservation.retainInteraction(q('.rv-main'),()=>{status();q('.ev-controls').replaceChildren();q('.ev-content').replaceChildren();q('.ev-detail-content').replaceChildren();q('.ev-setup').hidden=workspace!=='measured';q('.ev-capture-import').hidden=workspace!=='capture';if(mode==='empty'){empty();reserveDetail();return;}({measured:renderMeasured,capture:renderCapture,observed:renderObserved,physical:renderPhysical,internet:renderInternet}[workspace])();arrangeEvidenceControls();reserveDetail();root.recordMaterial?.invalidate();},workspace+'|'+(workspace==='capture'?captureKind:'source'));}
 function reserveDetail(duration=0){root.layoutReservation.adapt(q('.ev-layout'),[q('.ev-primary'),q('.ev-inspector')],duration);}
 function remember(){memories.set(workspace,{mode,pane,category,target,selectedFact,conversation,frameIndex,layerIndex,byte,fieldId,captureKind,facilityId,rotation:[...rotation],asSource,asDestination,asSelected,asPath,cam:{...cam},byteWindow:{...byteWindow}});}
-function select(id){remember();if(globeJob){cancelAnimationFrame(globeJob);globeJob=0;}++fileEpoch;++graphEpoch;workspace=id;const held=memories.get(id);if(held){mode=held.mode;pane=held.pane;category=held.category;target=held.target;selectedFact=held.selectedFact;conversation=held.conversation;frameIndex=held.frameIndex;layerIndex=held.layerIndex;byte=held.byte;fieldId=held.fieldId;facilityId=held.facilityId;rotation=held.rotation;asSource=held.asSource;asDestination=held.asDestination;asSelected=held.asSelected;asPath=held.asPath;cam=held.cam;byteWindow=held.byteWindow||{start:0,capacity:0};}else{mode='populated';pane='scene';if(id==='physical')rotation=[-geographicCenter.longitude,-geographicCenter.latitude];}root.dataset.workspace=id;q('.ev-workspace').value=id;q('.ev-layout').dataset.pane=pane;for(const b of q('.ev-mobile-panes').children)b.setAttribute('aria-pressed',String(b.dataset.pane===pane));q('.ev-title').textContent={measured:'What this host can actually see.',capture:'Every captured byte has a home.',observed:'Evidence from different vantage points.',physical:'The internet has physical places.',internet:'Relationships make the route.'}[id];q('.ev-subtitle').textContent={measured:'A source report, its exact targets, and the limits of one local run stay visible together.',capture:'Conversations, chronology, anatomy, and bytes follow one read-only captured frame.',observed:'Request edge, destination context, and public collectors retain separate lineage.',physical:'Geography explains infrastructure. It does not establish a forwarding path.',internet:'A true network of AS relationships. Policy and failures explain the chosen path.'}[id];render();transition();}
+function select(id,restored=null){const changed=workspace!==id;if(workspaceReady&&!changed&&!restored)return;workspaceReady=true;remember();if(restored)memories.set(id,restored);if(globeJob){cancelAnimationFrame(globeJob);globeJob=0;}++fileEpoch;++graphEpoch;workspace=id;const held=memories.get(id);if(held){mode=held.mode;pane=held.pane;category=held.category;target=held.target;selectedFact=held.selectedFact;conversation=held.conversation;frameIndex=held.frameIndex;layerIndex=held.layerIndex;byte=held.byte;fieldId=held.fieldId;facilityId=held.facilityId;rotation=held.rotation;asSource=held.asSource;asDestination=held.asDestination;asSelected=held.asSelected;asPath=held.asPath;cam=held.cam;byteWindow=held.byteWindow||{start:0,capacity:0};}else{mode='populated';pane='scene';if(id==='physical')rotation=[-geographicCenter.longitude,-geographicCenter.latitude];}root.dataset.workspace=id;q('.ev-workspace').value=id;q('.ev-layout').dataset.pane=pane;for(const b of q('.ev-mobile-panes').children)b.setAttribute('aria-pressed',String(b.dataset.pane===pane));q('.ev-title').textContent={measured:'What this host can actually see.',capture:'Every captured byte has a home.',observed:'Evidence from different vantage points.',physical:'The internet has physical places.',internet:'Relationships make the route.'}[id];q('.ev-subtitle').textContent={measured:'A source report, its exact targets, and the limits of one local run stay visible together.',capture:'Conversations, chronology, anatomy, and bytes follow one read-only captured frame.',observed:'Request edge, destination context, and public collectors retain separate lineage.',physical:'Geography explains infrastructure. It does not establish a forwarding path.',internet:'A true network of AS relationships. Policy and failures explain the chosen path.'}[id];render();if(changed)transition();}
 function setState(next){++fileEpoch;acquisitionErrors.delete(workspace);if(next==='empty'){++graphEpoch;graphKey='';if(globeJob){cancelAnimationFrame(globeJob);globeJob=0;}}mode=next;stateByWorkspace.set(workspace,next);render();transition();}
 async function importMeasuredText(text){const epoch=++fileEpoch;mode='loading';status();try{const value=JSON.parse(text),snapshot=value.schema==='hopscotch.native-measurement'?value:domain.adaptNetworkDiagnosticsReportV2(value),next=domain.projectMeasuredSnapshot(snapshot);if(epoch!==fileEpoch)return false;measured=next;selectedFact=next.snapshot.facts[0]?.id||'';category=Object.keys(next.factIdsByCategory).find(c=>next.factIdsByCategory[c].length)||'interface';target='all';mode='populated';importedMeasured=true;render();return true;}catch(e){if(epoch!==fileEpoch)return false;mode='error';acquisitionErrors.set(workspace,e.message||String(e));render();q('.ev-error p').textContent=e.message;return false;}}
 async function importCaptureBuffer(buffer){const epoch=++fileEpoch;mode='loading';status();try{const parsed=domain.parseCaptureSession(buffer),nextBytes=parsed.frames.map(f=>Array.from(f.record.bytes.copy()));if(nextBytes.some((b,i)=>b.length!==parsed.frames[i].record.capturedLength))throw Error('Captured byte lengths must stay exact.');if(epoch!==fileEpoch)return false;capture=JSON.parse(JSON.stringify(parsed,(_,v)=>typeof v==='bigint'?v.toString():v));captureBytes=nextBytes;frameIndex=0;layerIndex=0;conversation='all';byte=-1;fieldId='';importedCapture=true;byteWindow.start=0;mode='populated';render();return true;}catch(e){if(epoch!==fileEpoch)return false;mode='error';acquisitionErrors.set(workspace,e.message||String(e));render();q('.ev-error p').textContent=e.message;return false;}}

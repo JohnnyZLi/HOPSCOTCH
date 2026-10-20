@@ -105,6 +105,34 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  full-motion-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [1280, 390]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Record every source event at normal speed
+        env:
+          HOPSCOTCH_MOTION_AUDIT_WIDTH: ${{ matrix.width }}
+        run: node scripts/complete-presentation-browser-check.mjs --motion-audit
+      - name: Upload complete playback recordings and timing audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hopscotch-full-motion-audit-${{ matrix.width }}
+          path: artifacts/full-motion-audit
+          if-no-files-found: error
+          retention-days: 3
+
   phase4-visual-review:
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -226,6 +254,7 @@ jobs:
   compatibility-gate:
     if: always()
     needs:
+      - full-motion-audit
       - chrome-gpu-matrix
       - firefox-semantic
       - capture-replay
@@ -239,6 +268,7 @@ jobs:
     steps:
       - name: Require every compatibility job to pass
         env:
+          FULL_MOTION_AUDIT: ${{ needs.full-motion-audit.result }}
           CHROME_GPU_MATRIX: ${{ needs.chrome-gpu-matrix.result }}
           FIREFOX_SEMANTIC: ${{ needs.firefox-semantic.result }}
           CAPTURE_REPLAY: ${{ needs.capture-replay.result }}
@@ -250,6 +280,7 @@ jobs:
         run: |
           failed=0
           for result in \
+            "$FULL_MOTION_AUDIT" \
             "$CHROME_GPU_MATRIX" \
             "$FIREFOX_SEMANTIC" \
             "$CAPTURE_REPLAY" \

@@ -535,12 +535,25 @@
 /* Compact transport keeps the packet dominant; full narration stays in Source details. */
 @container review (max-width:600px){
  #hop-connected-review .rv-composition>.rv-console{padding:10px 12px;gap:4px}
- #hop-connected-review .rv-caption{min-height:0!important}
- #hop-connected-review .rv-caption strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
+ #hop-connected-review .rv-caption strong{white-space:normal;overflow-wrap:anywhere;line-height:1.5}
  #hop-connected-review .rv-caption p{display:none}
  #hop-connected-review .rv-console-tools>details>summary{padding-block:4px}
  #hop-connected-review .rv-endpoint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  #hop-connected-review .rv-retained-dock{padding:6px 10px}
+}
+
+#hop-connected-review .rv-reading-window{position:relative;overflow:auto;overscroll-behavior:contain;scrollbar-width:none}
+#hop-connected-review .rv-reading-window::-webkit-scrollbar{display:none}
+
+@container review (max-width:600px){
+ #hop-connected-review .rv-network-records{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+ #hop-connected-review .rv-network-records .rv-record{padding:10px 8px}
+ #hop-connected-review .rv-network-records h3{font-size:12px;line-height:1.4;margin:0 0 6px;overflow-wrap:anywhere}
+ #hop-connected-review .rv-network-records p{font-size:12px;line-height:1.4;margin:0;overflow-wrap:anywhere}
+ #hop-connected-review .rv-comparison-primary.rv-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ #hop-connected-review .rv-comparison-primary .rv-record{padding:12px 10px}
+ #hop-connected-review .rv-comparison-primary h3{font-size:13px;line-height:1.4;margin:0 0 12px}
+ #hop-connected-review .rv-comparison-primary p{font-size:12px;line-height:1.5;margin:6px 0;overflow-wrap:anywhere}
 }
 
 #hop-connected-review .cx-home{font-size:12px;font-weight:500;letter-spacing:.04em;background:transparent;border-color:transparent;box-shadow:none;padding:8px 0}
@@ -1735,7 +1748,7 @@ const root=document.getElementById('hop-connected-review'),vertex=`attribute vec
       float rim=glassEdgeHighlight(depth,u_dpr,1.0);color=mix(color,vec3(1.0),rim*(.23+.43*max(orientation,0.0)));
       gl_FragColor=vec4(color,1.0-smoothstep(-aa,aa,d));
     }`,surface=document.createElement('canvas');
-let epoch=0,draws=0,allocations=0,capacity={w:0,h:0};const cache=new Map(),owners=new Set();
+let epoch=0,draws=0,allocations=0,capacity={w:0,h:0};const cache=new Map(),owners=new Set(),morphFaces=new Map();
 const session=root.packetMaterial.create({owner:root,surface,vertex,fragment,names:['u_scene','u_resolution','u_center','u_half','u_light','u_radius','u_dpr','u_dark','u_open'],onChange:()=>{epoch++;cache.clear();root.dispatchEvent(new CustomEvent('review-material-change'));}});
 function prepare(w,h){if(capacity.w!==w||capacity.h!==h){capacity={w,h};invalidate();}}
 function paintOwner(canvas,owner,open=1){
@@ -1764,13 +1777,41 @@ function paint(canvas,w,h,radius=24,open=1){
   image=surface;
   // Cache only resting faces. Morph frames share the active surface and never
   // retain hundreds of geometry-dependent images.
-  if(open===0||open===1){image=document.createElement('canvas');image.width=pw;image.height=ph;image.getContext('2d')?.drawImage(surface,0,0);cache.set(fullKey,image);while(cache.size>4)cache.delete(cache.keys().next().value);}
+  if(open===0||open===1){image=document.createElement('canvas');image.width=pw;image.height=ph;image.getContext('2d')?.drawImage(surface,0,0);cache.set(fullKey,image);while(cache.size>2)cache.delete(cache.keys().next().value);}
  }
  if(canvas.width!==pw||canvas.height!==ph){canvas.width=pw;canvas.height=ph;allocations++;}
- canvas.style.width=pw/dpr+'px';canvas.style.height=ph/dpr+'px';const ctx=canvas.getContext('2d');if(ctx){ctx.clearRect(0,0,pw,ph);ctx.drawImage(image,0,0);}canvas.dataset.paintKey=key;
+ canvas.style.width=pw/dpr+'px';canvas.style.height=ph/dpr+'px';const ctx=canvas.getContext('2d');if(ctx){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,pw,ph);ctx.drawImage(image,0,0);}canvas.dataset.paintKey=key;
 }
-function invalidate(){for(const canvas of owners){if(!canvas.isConnected)owners.delete(canvas);else canvas.dataset.paintKey='';}cache.clear();epoch++;}
-root.surfacePainter=Object.freeze({paint,paintOwner,prepare,invalidate,stats:()=>({draws,allocations,cache:cache.size,sessions:1,capacity:{...capacity}}),retry:()=>session.retry()});
+// Shape changes use two shader-rendered endpoint faces. Nine-slice composition
+// preserves rounded rims without a GPU readback at every animation frame.
+function morphFace(w,h,r,open){
+ const key=[w,h,r,open,root.dataset.theme,epoch,session.epoch,session.state].join('|');
+ let face=morphFaces.get(key);if(!face){face=document.createElement('canvas');paint(face,w,h,r,open);morphFaces.set(key,face);while(morphFaces.size>2)morphFaces.delete(morphFaces.keys().next().value);}return face;
+}
+function slice(ctx,face,source,w,h,r,alpha,targetDpr){
+ if(alpha<=0)return;const scale=parseFloat(face.style.width)/face.width||1,dpr=1/scale,
+  edge=Math.max(1,Math.min(source.r+12,(source.w-2)/2,(source.h-2)/2)),rim=Math.min(edge*r/Math.max(1,source.r),w/2,h/2),
+  xs=[0,edge,source.w-edge,source.w],ys=[0,edge,source.h-edge,source.h],
+  xd=[0,rim,w-rim,w],yd=[0,rim,h-rim,h];
+ ctx.globalAlpha=alpha;
+ for(let y=0;y<3;y++)for(let x=0;x<3;x++){
+  const sw=xs[x+1]-xs[x],sh=ys[y+1]-ys[y],dw=xd[x+1]-xd[x],dh=yd[y+1]-yd[y];
+  if(sw>0&&sh>0&&dw>0&&dh>0)ctx.drawImage(face,xs[x]*dpr,ys[y]*dpr,sw*dpr,sh*dpr,xd[x]*targetDpr,yd[y]*targetDpr,dw*targetDpr,dh*targetDpr);
+ }
+}
+function morph(canvas,box,r,open,closed,expanded){
+ // Endpoint paint stays exact, including the resting shader and fallback.
+ if(open<=0||open>=1){paint(canvas,box.w,box.h,r,open<=0?(closed.open??0):(expanded.open??1));return;}
+ const from={...closed},to={w:expanded.w,h:expanded.h,r:expanded.r??24},a=morphFace(from.w,from.h,from.r,from.open??0),b=morphFace(to.w,to.h,to.r,expanded.open??1),
+  cssW=parseFloat(b.style.width),dpr=b.width/cssW,pw=b.width,ph=b.height,key=['morph',box.w,box.h,r,open,a.dataset.paintKey,b.dataset.paintKey].join('|');
+ if(canvas.dataset.paintKey===key)return;
+ if(canvas.width!==pw||canvas.height!==ph){canvas.width=pw;canvas.height=ph;allocations++;}
+ canvas.style.width=cssW+'px';canvas.style.height=ph/dpr+'px';
+ const ctx=canvas.getContext('2d');if(ctx){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,pw,ph);slice(ctx,a,from,box.w,box.h,r,1-open,dpr);ctx.globalCompositeOperation='lighter';slice(ctx,b,to,box.w,box.h,r,open,dpr);ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';}
+ canvas.dataset.paintKey=key;
+}
+function invalidate(){for(const canvas of owners){if(!canvas.isConnected)owners.delete(canvas);else canvas.dataset.paintKey='';}cache.clear();morphFaces.clear();epoch++;}
+root.surfacePainter=Object.freeze({paint,morph,paintOwner,prepare,invalidate,stats:()=>({draws,allocations,cache:cache.size+morphFaces.size,sessions:1,capacity:{...capacity}}),retry:()=>session.retry()});
 })();
 
 (()=>{const modules={"workspace-catalog.ts":(exports,read)=>{

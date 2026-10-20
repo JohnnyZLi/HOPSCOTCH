@@ -535,12 +535,25 @@
 /* Compact transport keeps the packet dominant; full narration stays in Source details. */
 @container review (max-width:600px){
  #hop-causal-review .rv-composition>.rv-console{padding:10px 12px;gap:4px}
- #hop-causal-review .rv-caption{min-height:0!important}
- #hop-causal-review .rv-caption strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
+ #hop-causal-review .rv-caption strong{white-space:normal;overflow-wrap:anywhere;line-height:1.5}
  #hop-causal-review .rv-caption p{display:none}
  #hop-causal-review .rv-console-tools>details>summary{padding-block:4px}
  #hop-causal-review .rv-endpoint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  #hop-causal-review .rv-retained-dock{padding:6px 10px}
+}
+
+#hop-causal-review .rv-reading-window{position:relative;overflow:auto;overscroll-behavior:contain;scrollbar-width:none}
+#hop-causal-review .rv-reading-window::-webkit-scrollbar{display:none}
+
+@container review (max-width:600px){
+ #hop-causal-review .rv-network-records{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+ #hop-causal-review .rv-network-records .rv-record{padding:10px 8px}
+ #hop-causal-review .rv-network-records h3{font-size:12px;line-height:1.4;margin:0 0 6px;overflow-wrap:anywhere}
+ #hop-causal-review .rv-network-records p{font-size:12px;line-height:1.4;margin:0;overflow-wrap:anywhere}
+ #hop-causal-review .rv-comparison-primary.rv-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ #hop-causal-review .rv-comparison-primary .rv-record{padding:12px 10px}
+ #hop-causal-review .rv-comparison-primary h3{font-size:13px;line-height:1.4;margin:0 0 12px}
+ #hop-causal-review .rv-comparison-primary p{font-size:12px;line-height:1.5;margin:6px 0;overflow-wrap:anywhere}
 }
 
 </style>
@@ -1667,7 +1680,7 @@ const root=document.getElementById('hop-causal-review'),vertex=`attribute vec2 a
       float rim=glassEdgeHighlight(depth,u_dpr,1.0);color=mix(color,vec3(1.0),rim*(.23+.43*max(orientation,0.0)));
       gl_FragColor=vec4(color,1.0-smoothstep(-aa,aa,d));
     }`,surface=document.createElement('canvas');
-let epoch=0,draws=0,allocations=0,capacity={w:0,h:0};const cache=new Map(),owners=new Set();
+let epoch=0,draws=0,allocations=0,capacity={w:0,h:0};const cache=new Map(),owners=new Set(),morphFaces=new Map();
 const session=root.packetMaterial.create({owner:root,surface,vertex,fragment,names:['u_scene','u_resolution','u_center','u_half','u_light','u_radius','u_dpr','u_dark','u_open'],onChange:()=>{epoch++;cache.clear();root.dispatchEvent(new CustomEvent('review-material-change'));}});
 function prepare(w,h){if(capacity.w!==w||capacity.h!==h){capacity={w,h};invalidate();}}
 function paintOwner(canvas,owner,open=1){
@@ -1696,20 +1709,48 @@ function paint(canvas,w,h,radius=24,open=1){
   image=surface;
   // Cache only resting faces. Morph frames share the active surface and never
   // retain hundreds of geometry-dependent images.
-  if(open===0||open===1){image=document.createElement('canvas');image.width=pw;image.height=ph;image.getContext('2d')?.drawImage(surface,0,0);cache.set(fullKey,image);while(cache.size>4)cache.delete(cache.keys().next().value);}
+  if(open===0||open===1){image=document.createElement('canvas');image.width=pw;image.height=ph;image.getContext('2d')?.drawImage(surface,0,0);cache.set(fullKey,image);while(cache.size>2)cache.delete(cache.keys().next().value);}
  }
  if(canvas.width!==pw||canvas.height!==ph){canvas.width=pw;canvas.height=ph;allocations++;}
- canvas.style.width=pw/dpr+'px';canvas.style.height=ph/dpr+'px';const ctx=canvas.getContext('2d');if(ctx){ctx.clearRect(0,0,pw,ph);ctx.drawImage(image,0,0);}canvas.dataset.paintKey=key;
+ canvas.style.width=pw/dpr+'px';canvas.style.height=ph/dpr+'px';const ctx=canvas.getContext('2d');if(ctx){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,pw,ph);ctx.drawImage(image,0,0);}canvas.dataset.paintKey=key;
 }
-function invalidate(){for(const canvas of owners){if(!canvas.isConnected)owners.delete(canvas);else canvas.dataset.paintKey='';}cache.clear();epoch++;}
-root.surfacePainter=Object.freeze({paint,paintOwner,prepare,invalidate,stats:()=>({draws,allocations,cache:cache.size,sessions:1,capacity:{...capacity}}),retry:()=>session.retry()});
+// Shape changes use two shader-rendered endpoint faces. Nine-slice composition
+// preserves rounded rims without a GPU readback at every animation frame.
+function morphFace(w,h,r,open){
+ const key=[w,h,r,open,root.dataset.theme,epoch,session.epoch,session.state].join('|');
+ let face=morphFaces.get(key);if(!face){face=document.createElement('canvas');paint(face,w,h,r,open);morphFaces.set(key,face);while(morphFaces.size>2)morphFaces.delete(morphFaces.keys().next().value);}return face;
+}
+function slice(ctx,face,source,w,h,r,alpha,targetDpr){
+ if(alpha<=0)return;const scale=parseFloat(face.style.width)/face.width||1,dpr=1/scale,
+  edge=Math.max(1,Math.min(source.r+12,(source.w-2)/2,(source.h-2)/2)),rim=Math.min(edge*r/Math.max(1,source.r),w/2,h/2),
+  xs=[0,edge,source.w-edge,source.w],ys=[0,edge,source.h-edge,source.h],
+  xd=[0,rim,w-rim,w],yd=[0,rim,h-rim,h];
+ ctx.globalAlpha=alpha;
+ for(let y=0;y<3;y++)for(let x=0;x<3;x++){
+  const sw=xs[x+1]-xs[x],sh=ys[y+1]-ys[y],dw=xd[x+1]-xd[x],dh=yd[y+1]-yd[y];
+  if(sw>0&&sh>0&&dw>0&&dh>0)ctx.drawImage(face,xs[x]*dpr,ys[y]*dpr,sw*dpr,sh*dpr,xd[x]*targetDpr,yd[y]*targetDpr,dw*targetDpr,dh*targetDpr);
+ }
+}
+function morph(canvas,box,r,open,closed,expanded){
+ // Endpoint paint stays exact, including the resting shader and fallback.
+ if(open<=0||open>=1){paint(canvas,box.w,box.h,r,open<=0?(closed.open??0):(expanded.open??1));return;}
+ const from={...closed},to={w:expanded.w,h:expanded.h,r:expanded.r??24},a=morphFace(from.w,from.h,from.r,from.open??0),b=morphFace(to.w,to.h,to.r,expanded.open??1),
+  cssW=parseFloat(b.style.width),dpr=b.width/cssW,pw=b.width,ph=b.height,key=['morph',box.w,box.h,r,open,a.dataset.paintKey,b.dataset.paintKey].join('|');
+ if(canvas.dataset.paintKey===key)return;
+ if(canvas.width!==pw||canvas.height!==ph){canvas.width=pw;canvas.height=ph;allocations++;}
+ canvas.style.width=cssW+'px';canvas.style.height=ph/dpr+'px';
+ const ctx=canvas.getContext('2d');if(ctx){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,pw,ph);slice(ctx,a,from,box.w,box.h,r,1-open,dpr);ctx.globalCompositeOperation='lighter';slice(ctx,b,to,box.w,box.h,r,open,dpr);ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';}
+ canvas.dataset.paintKey=key;
+}
+function invalidate(){for(const canvas of owners){if(!canvas.isConnected)owners.delete(canvas);else canvas.dataset.paintKey='';}cache.clear();morphFaces.clear();epoch++;}
+root.surfacePainter=Object.freeze({paint,morph,paintOwner,prepare,invalidate,stats:()=>({draws,allocations,cache:cache.size+morphFaces.size,sessions:1,capacity:{...capacity}}),retry:()=>session.retry()});
 })();
 
 (()=>{
 'use strict';
 const root=document.getElementById('hop-causal-review'),q=s=>root.querySelector(s),data=root.reviewData,motion=root.motionPlanner,pacing=root.pacing,transfer=root.valueTransfer;
 const {clamp,ease,mix,makePlan,samplePlan}=motion,stage=q('.rv-stage'),dark=matchMedia('(prefers-color-scheme: dark)'),reduced=matchMedia('(prefers-reduced-motion: reduce)');
-const tuning=Object.freeze({construct:620,morph:620,release:650,travelSpeed:.40,minTravel:600,maxTravel:1400,state:650,minimumExposure:900,maxFrameStep:50});
+const tuning=Object.freeze({construct:180,localConstruct:360,localRelease:220,morph:620,release:440,travelSpeed:.40,minTravel:600,maxTravel:1400,state:650,minimumExposure:900,maxFrameStep:50,ordinaryFrame:250,stallThreshold:600});
 const memories=new Map(),liveCanvas=document.createElement('canvas'),lensCanvas=document.createElement('canvas');liveCanvas.setAttribute('aria-hidden','true');lensCanvas.setAttribute('aria-hidden','true');
 const envelopeCanvas=document.createElement('canvas');envelopeCanvas.setAttribute('aria-hidden','true');q('.rv-envelope-header').prepend(envelopeCanvas);
 const trailerCanvas=document.createElement('canvas');trailerCanvas.setAttribute('aria-hidden','true');q('.rv-envelope-trailer').prepend(trailerCanvas);
@@ -1828,12 +1869,13 @@ function createActors(){
  activeActor=-1;lensKey='';q('.rv-actors').replaceChildren();actors=[];
  for(const f of frames){
   if(['failure','http'].includes(sceneId)){actors.push(null);continue;}
-  const actor=node('div','rv-actor'),face=node('div','rv-actor-face'),heading=node('div','rv-actor-heading'),title=node('span','rv-actor-title',f.objectTitle),role=node('span','rv-actor-role',f.local?(f.physical?'Retained packet · local operation':'Local state operation'):f.from+' → '+f.to),fields=node('div','rv-fields'),capsule=node('div','rv-capsule');
+  const actor=node('div','rv-actor'),face=node('div','rv-actor-face'),heading=node('div','rv-actor-heading'),viewport=node('div','rv-reading-window'),title=node('span','rv-actor-title',f.objectTitle),role=node('span','rv-actor-role',f.local?(f.physical?'Retained packet · local operation':'Local state operation'):f.from+' → '+f.to),fields=node('div','rv-fields'),capsule=node('div','rv-capsule');
   root.presentation.material(actor,{role:root.presentation.frameRole(f),identity:f.protocol,moving:true});actor.dataset.identity=f.id;actor.setAttribute('aria-label',f.objectTitle+' · '+f.id);actor.style.opacity='0';actor.inert=true;actor.setAttribute('aria-hidden','true');
-  heading.append(title,role);face.append(heading,fields);capsule.append(node('span','rv-protocol'),node('span','',root.presentation.frameRole(f)==='operation'?'Local decision':f.compactTitle||f.objectTitle));
+  heading.append(title,role);viewport.append(fields);face.append(heading,viewport);capsule.append(node('span','rv-protocol'),node('span','',root.presentation.frameRole(f)==='operation'?'Local decision':f.compactTitle||f.objectTitle));
   for(const field of f.fields||[]){const el=node('div','rv-field'),label=node('span','rv-field-label',field.label),value=node('span','rv-field-value',field.value);el.dataset.field=field.id;el.dataset.lead=String((f.leadFields||[]).includes(field.id));el.append(label,value);fields.append(el);}
-  if(sceneId==='packetOps'){const payload=node('section','rv-payload-body');payload.append(node('p','rv-payload-heading','Application data · exact source bytes'));const chunks=node('div','rv-payload-chunks'),bytes=f.state.segments.find(s=>s.id==='payload').bytes;for(let offset=0;offset<bytes.length;offset+=16){const chunk=node('div','rv-payload-chunk'),slice=bytes.slice(offset,offset+16);chunk.dataset.offset=String(offset);chunk.append(node('span','rv-payload-range',offset+'–'+(offset+slice.length-1)),node('span','rv-payload-pattern',String.fromCharCode(...slice)));chunks.append(chunk);}payload.append(chunks);payload.hidden=!bytes.length;face.append(payload);}
-  actor.append(face,capsule);actors.push({actor,face,fields,capsule,fieldMap:new Map([...fields.children].map(n=>[n.dataset.field,n]))});
+  if(sceneId==='packetOps'){const payload=node('section','rv-payload-body');payload.append(node('p','rv-payload-heading','Application data · exact source bytes'));const chunks=node('div','rv-payload-chunks'),bytes=f.state.segments.find(s=>s.id==='payload').bytes;for(let offset=0;offset<bytes.length;offset+=16){const chunk=node('div','rv-payload-chunk'),slice=bytes.slice(offset,offset+16);chunk.dataset.offset=String(offset);chunk.append(node('span','rv-payload-range',offset+'–'+(offset+slice.length-1)),node('span','rv-payload-pattern',String.fromCharCode(...slice)));chunks.append(chunk);}payload.append(chunks);payload.hidden=!bytes.length;viewport.append(payload);}
+  viewport.addEventListener('scroll',()=>{if(playing||!plan||activeActor<0||actors[activeActor]?.viewport!==viewport)return;const at=locate(clock);if(at.kind==='read')renderLens(at,pose(at),viewport.scrollTop);});
+  actor.append(face,capsule);actors.push({actor,face,fields,viewport,capsule,fieldMap:new Map([...fields.children].map(n=>[n.dataset.field,n]))});
  }
  if(['packet','packetOps'].includes(sceneId)){
   const carrier=actors[0].actor,compact=actors[0].capsule;carrier.dataset.identity=frames[0].identity;compact.lastChild.textContent='Frame · '+(sceneId==='packet'?data.packetVariants[variant].frameBytes:data.packetOperations[0].frameBytes)+' B';
@@ -1868,10 +1910,15 @@ function prepareFields(index){
  }else for(const field of [...f.fields].sort((a,b)=>(f.leadFields||[]).indexOf(a.id)>=0?-1:(f.leadFields||[]).indexOf(b.id)>=0?1:0)){a.fields.append(a.fieldMap.get(field.id));const value=a.fieldMap.get(field.id).querySelector('.rv-field-value');value.textContent=field.value;value.style.opacity='1';}
 }
 function readingPlan(targets,lens){
- const measured=makePlan(targets,lens),lastResult=measured.phases.findLast(p=>p.kind==='result');let total=0;
- // Keep every measured scan, acquisition, travel and release. Earlier values
- // stay visible while later fields are read, so settle once for the whole card.
- const phases=measured.phases.filter(p=>p.kind!=='result'||p===lastResult).map(p=>{const duration=p.end-p.start,next={...p,start:total,end:total+duration};total+=duration;return next;});
+ const measured=makePlan(targets,lens),firstAcquire=measured.phases.find(p=>p.kind==='acquire');let total=0;
+ // Acquire once, carry focus between glyph rows, then fade once. Reading
+ // speed/coverage stay content-derived; no stop-defocus-reacquire per line.
+ const phases=measured.phases.filter(p=>p.kind==='read'||p.kind==='travel'||p.kind==='finish'||p.kind==='unavailable'||p===firstAcquire).map(p=>{
+  const duration=p.end-p.start,next={...p,start:total,end:total+duration};
+  if(p.kind==='travel')Object.assign(next,{fa:1,fb:1});
+  if(p.kind==='finish')Object.assign(next,{fa:1,fb:0});
+  total+=duration;return next;
+ });
  return {...measured,phases,total};
 }
 
@@ -1887,6 +1934,9 @@ function reserveCaption(){
  const probe=area.cloneNode(true);if(!bounded()&&!probe.querySelector('p'))probe.append(q('.rv-caption-detail').cloneNode(true));for(const copy of probe.querySelectorAll('.rv-status-copy'))copy.remove();probe.style.height='';probe.removeAttribute('aria-live');probe.setAttribute('aria-hidden','true');Object.assign(probe.style,{position:'absolute',visibility:'hidden',width:width+'px',minHeight:'0'});q('.rv-console').append(probe);
  let max=0;for(const f of frames){probe.querySelector('strong').textContent=f.title;if(probe.querySelector('p'))probe.querySelector('p').textContent=f.summary;max=Math.max(max,probe.getBoundingClientRect().height);}probe.remove();area.style.minHeight=Math.ceil(max)+'px';captionKey='';
 }
+function reserveText(owner,values){
+ const width=owner.clientWidth;if(!width)return;const probe=owner.cloneNode(false);probe.setAttribute('aria-hidden','true');Object.assign(probe.style,{position:'absolute',visibility:'hidden',width:width+'px',height:'auto',minHeight:'0',margin:'0'});owner.parentElement.append(probe);let height=0;for(const value of values){probe.textContent=value;height=Math.max(height,probe.getBoundingClientRect().height);}probe.remove();owner.style.minHeight=Math.ceil(height)+'px';
+}
 function reserveState(){
  if(['failure','http'].includes(sceneId))return;
  const cards=[q('.rv-client-record'),q('.rv-server-record')];
@@ -1896,14 +1946,15 @@ function reserveState(){
  }
 }
 function reflow(){
- layoutJob=0;if(disposed)return;q('.rv-envelopes').hidden=!['packetOps','provider','journey'].includes(sceneId);const width=stage.clientWidth||q('.rv-main').clientWidth;if(width<160)return;
- const stageOffset=stage.getBoundingClientRect().top-root.getBoundingClientRect().top,consoleHeight=q('.rv-console').offsetHeight;
+ layoutJob=0;if(disposed)return;const width=stage.clientWidth||q('.rv-main').clientWidth;if(width<160)return;
+ reserveCaption();const stageOffset=stage.getBoundingClientRect().top-root.getBoundingClientRect().top,consoleHeight=q('.rv-console').offsetHeight;
  const probe=q('.rv-field-value')||q('.rv-title'),style=getComputedStyle(probe),viewport=root.dataset.integrated==='true'?root.clientHeight:typeof innerHeight==='number'?innerHeight:900,key=[sceneId,variant,dnsMode,width,viewport,style.fontSize,style.fontFamily,root.dataset.theme,devicePixelRatio||1,stageOffset,consoleHeight].join('|');if(key===layoutKey)return;
+ q('.rv-envelopes').hidden=!['packetOps','provider','journey'].includes(sceneId);
  // Measure one source object at a time. Keeping every cached card connected
  // makes each field/glyph measurement relayout the entire canonical history.
  const actorHost=q('.rv-actors');
  for(const actor of new Set(actors.filter(Boolean).map(a=>a.actor)))if(actor.parentElement===actorHost)actor.remove();
- if(bounded())reserveCaption();const old=currentPosition(),cardWidth=Math.min(540,width-8),endpoints=q('.rv-endpoints');
+ const old=currentPosition(),cardWidth=Math.min(540,width-8),endpoints=q('.rv-endpoints');
  // Reserve the actual peer labels before locating the path. Names can wrap at
  // enlarged type or compact widths; no event-specific header height is needed.
  for(const [side,owner]of [...endpoints.children].entries()){
@@ -1912,10 +1963,10 @@ function reflow(){
  }
  const dockHeight=bounded()?dock.offsetHeight:0;dock.style.top=endpoints.offsetHeight+'px';const pathY=endpoints.offsetHeight+dockHeight+24;
  const top=q('.rv-envelope-header'),bottom=q('.rv-envelope-trailer');q('.rv-envelope-direction').textContent=sceneId==='provider'?(data.provider.packet?.outer.source??'No outer header')+' → '+(data.provider.packet?.outer.destination??'Not supplied'):'02:48:4f:50:00:01 → 02:48:4f:50:00:02';top.querySelector('span').textContent=sceneId==='provider'?'Outer '+(data.provider.packet?.outer.protocol||'envelope')+' · '+(data.provider.gre?.encapsulationOverheadBytes??0)+' B':'Ethernet II · 14 B';bottom.querySelector('span').textContent=sceneId==='provider'?'MPLS label · 229811':'FCS · unavailable in model bytes';for(const piece of [top,bottom]){piece.style.width=cardWidth+'px';piece.style.height='auto';}const envelopeH=['packetOps','provider','journey'].includes(sceneId)?Math.max(64,top.offsetHeight):0,trailerH=['packetOps','provider','journey'].includes(sceneId)?Math.max(44,bottom.offsetHeight):0,focusY=pathY+(bounded()?(root.dataset.integrated==='true'?12:36):62)+(['packetOps','provider'].includes(sceneId)?envelopeH+20:0),compactLabelStyle=getComputedStyle(q('.rv-capsule')||q('.rv-title')),compactFont=parseFloat(compactLabelStyle.fontSize)||13,compactContext=document.createElement('canvas').getContext('2d');compactContext.font='500 '+compactFont+'px '+compactLabelStyle.fontFamily;const compactLabels=frames.map(f=>f.local?'Local state':f.kind==='anatomy'?'Frame':f.objectTitle),compactText=Math.max(...compactLabels.map(text=>compactContext.measureText(text).width)),compactW=Math.min((width-24)/2,Math.max(88,compactText+32)),compactH=Math.max(44,Math.ceil(compactText/Math.max(1,compactW-32))*compactFont*1.2+16),ports={a:{x:4,y:pathY-22,w:compactW,h:compactH},b:{x:width-compactW-4,y:pathY-22,w:compactW,h:compactH}};
- for(const ghost of root.querySelectorAll('.rv-change-token,.rv-deleted-payload'))ghost.remove();const prepared=[];let maxHeight=0;
+ for(const ghost of root.querySelectorAll('.rv-change-token,.rv-deleted-payload'))ghost.remove();const prepared=[],readingHistory=new Map(),readingAnchors=new Map();let maxHeight=0;
  for(let i=0;i<actors.length;i++){
   const a=actors[i],f=frames[i];if(!a){prepared.push({read:{total:0},focus:{x:0,y:0,w:width,h:320},lens:{w:38,h:48}});continue;}
-  actorHost.append(a.actor);prepareFields(i);a.actor.style.transform='none';a.actor.style.width=cardWidth+'px';a.actor.style.height='auto';a.face.style.width=cardWidth+'px';a.face.style.position='relative';a.face.style.opacity='1';a.face.style.transform='none';
+  actorHost.append(a.actor);prepareFields(i);a.viewport.style.height='';a.viewport.scrollTop=0;a.actor.style.transform='none';a.actor.style.width=cardWidth+'px';a.actor.style.height='auto';a.face.style.width=cardWidth+'px';a.face.style.position='relative';a.face.style.opacity='1';a.face.style.transform='none';
   const fs=getComputedStyle(a.face),padding=(parseFloat(fs.paddingLeft)||24)+(parseFloat(fs.paddingRight)||24),inner=cardWidth-padding,gap=20,font=parseFloat(style.fontSize)||20,min=font*(f.columns?6.1:8),count=Math.min(f.columns||2,Math.max(1,Math.floor((inner+gap)/(min+gap)))),column=(inner-(count-1)*gap)/count;
   a.fields.style.gridTemplateColumns=`repeat(${count},minmax(0,1fr))`;
   const context=document.createElement('canvas').getContext('2d');context.font=style.fontWeight+' '+style.fontSize+' '+style.fontFamily;
@@ -1925,19 +1976,32 @@ function reflow(){
    const inset=(parseFloat(fieldStyle.paddingLeft)||0)+(parseFloat(fieldStyle.paddingRight)||0);
    el.dataset.wide=String(Math.max(...value.textContent.split('\n').map(text=>context.measureText(text).width))>column-inset);
   }
-  const height=a.face.offsetHeight,origin=a.face.getBoundingClientRect(),lens={w:clamp(font*1.2*1.6,34,62),h:Math.max(46,font*1.2*2.05)},targets=(frames[i].readIds||[]).map(id=>{const el=a.fieldMap.get(id);return {id,label:el?.querySelector('.rv-field-label').textContent||id,lines:el?textLines(el.querySelector('.rv-field-value'),origin):[]};}),read=readingPlan(targets,lens);
-  // Reading faces retain their heading and all fields at every viewport height.
-  const viewHeight=height;
-  const focus={x:(width-cardWidth)/2,y:focusY+(f.assembly?.envelope.present?envelopeH:0),w:cardWidth,h:viewHeight},fit=motion.fitGeometry(cardWidth,[envelopeH||60,height,trailerH||48],1),attach=motion.makeAttachmentPlan(1,0,fit),detach=motion.makeAttachmentPlan(0,1,fit),emphasis=root.emphasis.compile(root.emphasis.readWindows(read,0,id=>a.fieldMap.get(id)));const payload=a.face.querySelector('.rv-payload-body'),pr=payload?.getBoundingClientRect(),payloadRect=pr?{x:pr.left-origin.left,y:pr.top-origin.top,w:pr.width,h:pr.height}:null;
+  // A retained physical carrier keeps its already-read facts. New messages
+  // have no continuity key and receive their complete source-selected scan.
+  // Reflow reconstructs this history from canonical order, so seeking cannot
+  // change which values earn a new reading pass.
+  const identity=f.assembly?.identity||f.identity,readingKey=identity?identity+'|'+(f.assembly?.layer||f.protocol):null,seen=readingHistory.get(readingKey)||new Map(),readIds=(f.readIds||[]).filter(id=>{const field=f.fields.find(field=>field.id===id),signature=JSON.stringify([field?.label,field?.value]);if(readingKey&&seen.get(id)===signature)return false;seen.set(id,signature);return true;});if(readingKey)readingHistory.set(readingKey,seen);
+  const height=a.face.offsetHeight,origin=a.face.getBoundingClientRect(),lens={w:clamp(font*1.2*1.6,34,62),h:Math.max(46,font*1.2*2.05)},targets=readIds.map(id=>{const el=a.fieldMap.get(id);return {id,label:el?.querySelector('.rv-field-label').textContent||id,lines:el?textLines(el.querySelector('.rv-field-value'),origin):[]};}),read=readingPlan(targets,lens),firstReadingY=read.total?samplePlan(read,0).y:readingAnchors.get(readingKey)||0,startReadingY=readingKey&&readingAnchors.has(readingKey)?readingAnchors.get(readingKey):firstReadingY,lastReadingY=read.total?samplePlan(read,read.total).y:startReadingY;if(readingKey)readingAnchors.set(readingKey,lastReadingY);
+  // Preserve full source content inside a measured reading viewport. The
+  // heading stays outside the scrolling body. Payload chunks and structural
+  // value overlays share that same viewport and coordinate offset.
+  const fieldRects=[...a.fieldMap.values()].filter(el=>!el.hidden).map(el=>el.getBoundingClientRect()),contentTop=fieldRects.length?Math.min(...fieldRects.map(r=>r.top-origin.top)):height,
+   bottomPadding=parseFloat(fs.paddingBottom)||20,lineHeight=Math.max(font*1.35,...targets.flatMap(t=>t.lines.map(l=>l.h))),
+   rowHeight=Math.min(...fieldRects.map(r=>r.height),lineHeight*3+12),minimum=contentTop+Math.min(2,fieldRects.length)*Math.min(rowHeight,lineHeight*2)+bottomPadding,
+   attachmentRoom=f.assembly||sceneId==='provider'||sceneId==='packetOps'?trailerH+24:0,
+   available=viewport-stageOffset-focusY-(f.assembly?.envelope.present?envelopeH:0)-consoleHeight-48-attachmentRoom,
+   viewHeight=Math.min(height,Math.max(minimum,available)),windowHeight=Math.max(0,viewHeight-contentTop-bottomPadding),readingCenter=contentTop+windowHeight/2;
+
+  const focus={x:(width-cardWidth)/2,y:focusY+(f.assembly?.envelope.present?envelopeH:0),w:cardWidth,h:viewHeight},fit=motion.fitGeometry(cardWidth,[envelopeH||60,viewHeight,trailerH||48],1),attach=motion.makeAttachmentPlan(1,0,fit),detach=motion.makeAttachmentPlan(0,1,fit),emphasis=root.emphasis.compile(root.emphasis.readWindows(read,0,id=>a.fieldMap.get(id)));const payload=a.face.querySelector('.rv-payload-body'),pr=payload?.getBoundingClientRect(),payloadRect=pr?{x:pr.left-origin.left,y:pr.top-origin.top,w:pr.width,h:pr.height}:null;
   const transferIds=sceneId==='tcp'?['seq','ack']:sceneId==='packetOps'?f.fields.map(field=>field.id):[],transferFields=Object.fromEntries(transferIds.filter(id=>a.fieldMap.has(id)).map(id=>[id,transfer.measure(a.fieldMap.get(id).querySelector('.rv-field-value'),origin)]));
-  prepared.push({focus,fullHeight:height,lens,read,origin,targets,emphasis,fit,attach,detach,payloadRect,transferFields});maxHeight=Math.max(maxHeight,height);a.face.style.position='absolute';a.actor.remove();
+  prepared.push({focus,fullHeight:height,contentTop,contentLeft:a.fields.getBoundingClientRect().left-origin.left,windowHeight,readingCenter,bottomPadding,startReadingY,firstReadingY,lastReadingY,lens,read,origin,targets,emphasis,fit,attach,detach,payloadRect,transferFields});maxHeight=Math.max(maxHeight,height);a.face.style.position='absolute';a.actor.remove();
  }
  const sceneHeight=Math.max(...prepared.map((g,i)=>sceneExtent(g,frames[i],trailerH))),sceneFloor=Math.min(sceneHeight,Math.max(0,viewport-stageOffset-consoleHeight-48));
  stage.style.height=(['failure','http'].includes(sceneId)?0:sceneHeight)+'px';
  q('.rv-path').style.cssText='left:'+(ports.a.x+compactW/2)+'px;top:'+pathY+'px;width:'+(ports.b.x-ports.a.x)+'px';
  reserveState();root.surfacePainter.prepare(Math.max(cardWidth,compactW),Math.max(maxHeight,compactH));
  const stageOrigin=stage.getBoundingClientRect(),expected=q('.rv-expected')||q('.rv-server-record dd'),oldExpected=expected?.textContent;
- const phases=[],starts=[],commits=[];let total=0;
+ const phases=[],starts=[],commits=[],captionDetailVisible=!q('.rv-caption-detail').hidden&&getComputedStyle(q('.rv-caption-detail')).display!=='none';let total=0;
  const add=(index,kind,duration)=>{if(duration>0){phases.push({index,kind,start:total,end:total+duration});total+=duration;}};
  for(let i=0;i<frames.length;i++){
   const f=frames[i],g=prepared[i],previous=frames[i-1];starts.push(total);
@@ -1945,7 +2009,8 @@ function reflow(){
   const hold=()=>{
    const flat=['failure','http'].includes(sceneId),visibleFields=f.lost?[]:facts(previous?.fields,f.fields);
    const face=pacing.prepare({facts:flat?facts(previous?.records,f.records):visibleFields,visibleFor:flat?0:g.read.total,persistent});
-   const caption=pacing.prepare({facts:[{text:f.title+' '+f.summary,value:''}],visibleFor:total-starts[i],persistent});
+   const reveal=f.local?null:phases.find(p=>p.index===i&&['read','lost'].includes(p.kind));
+   const caption=pacing.prepare({facts:[{text:f.title+(captionDetailVisible?' '+f.summary:''),value:''}],visibleFor:total-(reveal?.start??starts[i]),persistent});
    // Receiver outcomes become visible at commit, after scanning/transfer. They
    // must earn their own reading exposure; preceding scans cannot pay for them.
    const retained=pacing.prepare({facts:facts(previous?dockValues(previous.state):initialDockValues(),dockValues(f.state)),persistent});
@@ -1955,9 +2020,9 @@ function reflow(){
   if(['failure','http'].includes(sceneId)){add(i,'transition',tuning.state);commits.push(total);hold();continue;}
   if(f.kind==='provider-operation'){if(f.operation==='attach')add(i,'fitAttach',g.attach.duration);else if(['push','swap','pop'].includes(f.operation))add(i,'labelChange',g.attach.duration);else if(i)add(i,'transition',tuning.state);add(i,'read',g.read.total);commits.push(total);hold();continue;}
   if(f.kind==='journey-assembly'){add(i,'layerChange',g.attach.duration);add(i,'read',g.read.total);commits.push(total);hold();continue;}
-  if(f.kind==='assembly'){const changing=['append','remove','replace'].includes(f.operation);if(i>0&&!changing)add(i,'focus',tuning.morph);if(changing){g.mutations=[];if(f.operation==='remove'){const oldPayload=actors[i-1].face.querySelector('.rv-payload-body'),rect=prepared[i-1].payloadRect;if(oldPayload&&rect){const copy=oldPayload.cloneNode(true);copy.className+=' rv-deleted-payload';copy.querySelector('.rv-payload-heading').hidden=true;for(const chunk of copy.querySelectorAll('.rv-payload-chunk'))if(Number(chunk.dataset.offset)<f.state.payloadBytes)chunk.style.visibility='hidden';copy.setAttribute('aria-hidden','true');copy.inert=true;Object.assign(copy.style,{position:'absolute',left:rect.x+'px',top:rect.y+'px',width:rect.w+'px',opacity:'0'});actors[i].face.append(copy);g.deletedPayload=copy;}}for(const field of f.fields){const before=previous?.fields.find(x=>x.id===field.id);if(!before||before.value===field.value)continue;const from={...prepared[i-1].transferFields[field.id]},to={...g.transferFields[field.id]};from.x+=prepared[i-1].focus.x;from.y+=prepared[i-1].focus.y;to.x+=g.focus.x;to.y+=g.focus.y;const viewNode=node('div','rv-transfer rv-change-token'),number=node('span'),note=node('span');viewNode.append(number,note);viewNode.setAttribute('aria-hidden','true');viewNode.style.opacity='0';q('.rv-actors').append(viewNode);g.mutations.push({fieldId:field.id,view:transfer.makeView(viewNode,number,note),plan:transfer.plan(from,to,before.value,field.value,'',{x:0,y:0,w:width}),before:before.value,after:field.value});}}if(f.operation==='attach')add(i,'fitAttach',g.attach.duration);if(f.operation==='detach')add(i,'fitDetach',g.detach.duration);if(['append','remove','replace'].includes(f.operation))add(i,'modify',Math.max(g.attach.duration,...(g.mutations||[]).map(m=>m.plan.duration)));add(i,'read',g.read.total);commits.push(total);hold();continue;}
+  if(f.kind==='assembly'){const changing=['append','remove','replace'].includes(f.operation);if(i>0&&!changing)add(i,'focus',tuning.morph);if(changing){g.mutations=[];if(f.operation==='remove'){const oldPayload=actors[i-1].face.querySelector('.rv-payload-body'),rect=prepared[i-1].payloadRect;if(oldPayload&&rect){const copy=oldPayload.cloneNode(true);copy.className+=' rv-deleted-payload';copy.querySelector('.rv-payload-heading').hidden=true;for(const chunk of copy.querySelectorAll('.rv-payload-chunk'))if(Number(chunk.dataset.offset)<f.state.payloadBytes)chunk.style.visibility='hidden';copy.setAttribute('aria-hidden','true');copy.inert=true;Object.assign(copy.style,{position:'absolute',left:(rect.x-g.contentLeft)+'px',top:(rect.y-g.contentTop)+'px',width:rect.w+'px',opacity:'0'});actors[i].viewport.append(copy);g.deletedPayload=copy;}}for(const field of f.fields){const before=previous?.fields.find(x=>x.id===field.id);if(!before||before.value===field.value)continue;const from={...prepared[i-1].transferFields[field.id]},to={...g.transferFields[field.id]};from.x+=prepared[i-1].focus.x;from.y+=prepared[i-1].focus.y;to.x+=g.focus.x;to.y+=g.focus.y;const viewNode=node('div','rv-transfer rv-change-token'),number=node('span'),note=node('span');viewNode.append(number,note);viewNode.setAttribute('aria-hidden','true');viewNode.style.opacity='0';q('.rv-actors').append(viewNode);g.mutations.push({fieldId:field.id,view:transfer.makeView(viewNode,number,note),plan:transfer.plan(from,to,before.value,field.value,'',{x:0,y:0,w:width}),before:before.value,after:field.value});}}if(f.operation==='attach')add(i,'fitAttach',g.attach.duration);if(f.operation==='detach')add(i,'fitDetach',g.detach.duration);if(['append','remove','replace'].includes(f.operation))add(i,'modify',Math.max(g.attach.duration,...(g.mutations||[]).map(m=>m.plan.duration)));add(i,'read',g.read.total);commits.push(total);hold();continue;}
   if(f.kind==='anatomy'){if(i===0){add(i,'travel',clamp((ports.b.x-ports.a.x)/tuning.travelSpeed,tuning.minTravel,tuning.maxTravel));add(i,'open',tuning.morph);}else add(i,'focus',tuning.morph);add(i,'read',g.read.total);commits.push(total);hold();continue;}
-  add(i,'construct',tuning.construct);
+  add(i,'construct',f.local?tuning.localConstruct:tuning.construct);
   // Wire objects form at the sender in their compact transmitted shape. Only
   // receipt opens the inspector; construction must not preview a second read.
   if(!f.local)add(i,'travel',clamp((ports.b.x-ports.a.x)/tuning.travelSpeed,tuning.minTravel,tuning.maxTravel));
@@ -1967,16 +2032,20 @@ function reflow(){
   const bindings=[{stateKey:'highestAck',fieldId:'ack',target:'.rv-ack'},{stateKey:'expectedAck',fieldId:'seq',target:'.rv-expected'}],binding=sceneId==='tcp'?bindings.find(b=>f.fields.some(x=>x.id===b.fieldId&&Number.isFinite(Number(x.value)))&&(previous?previous.state[b.stateKey]!==f.state[b.stateKey]:b.stateKey==='expectedAck')):null,field=binding?f.fields.find(x=>x.id===binding.fieldId):null;
   if(field){
    const target=q(binding.target),oldValue=target.textContent,nextValue=String(f.state[binding.stateKey]);target.textContent=nextValue;
-   const from={...g.transferFields[field.id]},to=transfer.measure(target,stageOrigin);const lastRead=samplePlan(g.read,g.read.total),limit=Math.max(0,g.fullHeight-g.focus.h);g.retainStartOffset=bounded()?clamp(lastRead.y-g.focus.h/2,0,limit):0;g.retainOffset=bounded()?clamp(from.y+from.h/2-g.focus.h/2,0,limit):0;const distance=Math.abs(g.retainOffset-g.retainStartOffset);if(distance>.5)add(i,'retainFocus',clamp(distance/.35,180,650));from.x+=g.focus.x;from.y+=g.focus.y-g.retainOffset;target.textContent=oldValue;
+   const from={...g.transferFields[field.id]},to=transfer.measure(target,stageOrigin);const lastRead=samplePlan(g.read,g.read.total),limit=Math.max(0,g.fullHeight-g.focus.h);g.retainStartOffset=clamp(lastRead.y-g.readingCenter,0,limit);g.retainOffset=clamp(from.y+from.h/2-g.readingCenter,0,limit);const distance=Math.abs(g.retainOffset-g.retainStartOffset);if(distance>.5)add(i,'retainFocus',clamp(distance/.35,180,650));from.x+=g.focus.x;from.y+=g.focus.y-g.retainOffset;target.textContent=oldValue;
    const delta=Number(nextValue)-Number(field.value),note=binding.stateKey==='highestAck'?'Acknowledged by peer':delta===1&&(f.event.flags||'').includes('SYN')?'+1 · SYN':delta===1&&(f.event.flags||'').includes('FIN')?'+1 · FIN':'+'+delta+' B · contiguous sequence space';g.transferTarget=binding.target;g.transferStateKey=binding.stateKey;g.transferFieldId=binding.fieldId;
    g.transfer=transfer.plan(from,to,field.value,nextValue,note,{x:0,y:0,w:width});add(i,'retain',g.transfer.duration);
   }
+  // End a cropped local outcome at its leading facts, rather than leaving
+  // the completed view parked on the last incidental field. Use the same
+  // measured camera handoff as retained values; no scanner-speed change.
+  if(f.local&&i===frames.length-1&&g.fullHeight>g.focus.h&&g.read.total){g.retainStartOffset=clamp(g.lastReadingY-g.readingCenter,0,g.fullHeight-g.focus.h);g.retainOffset=0;if(g.retainStartOffset>.5)add(i,'retainFocus',clamp(g.retainStartOffset/.35,180,650));}
   // Commit directly when no value transfer exists. A timed empty retain would
   // add a second, invisible pause before the actual outcome exposure.
   commits.push(total);hold();
   // A final local decision is retained state, not a received wire buffer.
   // Keep its outcome visible; physical messages still finish their release.
-  if(!f.local||i<frames.length-1)add(i,'release',tuning.release);
+  if(!f.local||i<frames.length-1)add(i,'release',f.local?tuning.localRelease:tuning.release);
  }
  if(expected)expected.textContent=oldExpected;
  plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH,sceneHeight,sceneFloor,viewport,stageOffset,consoleHeight};
@@ -1991,14 +2060,15 @@ function locate(t){const phase=plan.phases.find(p=>t<p.end)||plan.phases.at(-1);
 function interpolate(a,b,t){return {x:mix(a.x,b.x,t),y:mix(a.y,b.y,t),w:mix(a.w,b.w,t),h:mix(a.h,b.h,t)};}
 function pose(at){
  const f=frames[at.index],g=plan.prepared[at.index],forward=f.forward,depart=forward?plan.ports.a:plan.ports.b,arrive=forward?plan.ports.b:plan.ports.a,focus=g.focus,p=ease(at.p);let box=focus,detail=1,opacity=1;
- if(at.kind==='construct'){box=f.local?interpolate(depart,focus,p):depart;detail=f.local?ease((at.p-.5)/.5):0;opacity=ease(at.p/.2);}
+ if(at.kind==='construct'){box=f.local?focus:depart;detail=f.local?1:0;opacity=p;}
  if(at.kind==='fold'){box=interpolate(focus,depart,p);detail=1-ease(at.p/.22);}
  if(at.kind==='travel'){box=interpolate(depart,arrive,p);detail=0;if(f.lost){box=interpolate(depart,interpolate(depart,arrive,.58),p);}}
- if(at.kind==='open'){box=interpolate(arrive,focus,p);detail=ease((at.p-.62)/.38);}
+ if(at.kind==='open'){box=interpolate(arrive,focus,p);detail=ease((at.p-.25)/.6);}
  if(at.kind==='modify'&&sceneId==='packetOps'){box=interpolate(plan.prepared[Math.max(0,at.index-1)].focus,focus,p);}
  if(at.kind==='focus'){box=interpolate(plan.prepared[Math.max(0,at.index-1)].focus,focus,p);}
  if(at.kind==='lost'){box=interpolate(depart,arrive,.58);box.y+=p*12;detail=0;opacity=1-p;}
- if(at.kind==='release'){const release={x:arrive.x,y:arrive.y,w:plan.compactW,h:plan.compactH};box=interpolate(focus,release,ease(at.p/.8));detail=1-ease(at.p/.22);opacity=1-ease((at.p-.75)/.25);}
+ if(at.kind==='release'&&f.local){box=focus;detail=1;opacity=1-p;}
+ if(at.kind==='release'&&!f.local){const release={x:arrive.x,y:arrive.y,w:plan.compactW,h:plan.compactH};box=interpolate(focus,release,ease(at.p/.8));detail=1-ease(at.p/.8);opacity=1-ease((at.p-.5)/.5);}
  if(at.kind==='hold'&&f.lost){box=arrive;opacity=0;detail=0;}
  if(sceneId==='provider'||f.assembly){box=focus;detail=1;opacity=1;}
  if(f.assembly&&at.kind==='layerChange'&&frames[at.index-1]?.assembly?.identity===f.assembly.identity)box=interpolate(plan.prepared[at.index-1].focus,focus,p);
@@ -2010,30 +2080,37 @@ function renderState(at){
  const committed=stateIndex(),f=frames[committed]||frames[0];
  if(sceneId==='tcp'){
   const state=committed<0?{cwndMss:6,ssthreshMss:12,duplicateAcks:0,expectedAck:1001,highestAck:0,phase:'closed'}:f.state;
+  if(recordKey!==sceneId+'|'+committed){
   q('.rv-cwnd').textContent=state.cwndMss+' MSS';q('.rv-ssthresh').textContent=state.ssthreshMss+' MSS';q('.rv-dups').textContent=String(state.duplicateAcks);q('.rv-expected').textContent=String(state.expectedAck);q('.rv-ack').textContent=String(state.highestAck);q('.rv-ack-summary').textContent=String(state.highestAck);q('.rv-expected-summary').textContent=String(state.expectedAck);q('.rv-phase').textContent=titleCase(state.phase)+(state.phase==='closed-cleanly'?' · wire exchange complete; endpoint cleanup is outside this model':'');
+  }
   const next=frames[at.index].state,previous=frames[at.index-1]?.state||state,change=['retain','transition'].includes(at.kind)?ease(at.p):clock>=plan.commits[at.index]?1:0,current=mix(previous.cwndMss,next.cwndMss,change);
   for(const [i,cell]of [...q('.rv-window').children].entries()){const amount=clamp(current-i);cell.style.opacity=String(.08+.67*amount);cell.style.transform='scaleX('+(.15+.85*amount)+')';}
+  if(recordKey!==sceneId+'|'+committed){
   const events=frames.slice(0,committed+1).map(x=>x.event),received=events.filter(e=>['data.segment','data.retransmit'].includes(e.kind)),missing=events.filter(e=>e.kind==='data.loss'&&!received.some(r=>r.seq===e.seq)),ack=events.filter(e=>e.kind==='ack.cumulative').at(-1)?.ack||0;
   for(const slot of q('.rv-buffer-slots').children){const seq=Number(slot.dataset.seq),length=Number(slot.dataset.length),has=received.some(e=>e.seq===seq),hole=missing.some(e=>e.seq===seq),status=hole?'missing':has?(seq+length<=ack?'delivered':missing.length&&seq>missing[0].seq?'buffered':'delivered'):'waiting';slot.dataset.state=status;slot.querySelector('span').textContent={missing:'Missing',buffered:'Buffered',delivered:'Ready in order',waiting:'Not received'}[status];}
+  recordKey=sceneId+'|'+committed;
+  }
  }else if(recordKey!==sceneId+'|'+committed){
   const current=frames[Math.max(0,committed)],values=current.records||[];drawFacts(q('.rv-client-record dl'),values.slice(0,Math.ceil(values.length/2)));drawFacts(q('.rv-server-record dl'),values.slice(Math.ceil(values.length/2)));q('.rv-phase').textContent=current.state?.phaseLabel||'';recordKey=sceneId+'|'+committed;
  }
 }
 function readerOffset(at){
- const g=plan.prepared[at.index];if(!bounded()||g.fullHeight<=g.focus.h)return 0;
- if(!g.read.total)return 0;
+ const g=plan.prepared[at.index];if(g.fullHeight<=g.focus.h)return 0;
+ if(!g.read.total)return clamp(g.lastReadingY-g.readingCenter,0,g.fullHeight-g.focus.h);
+ if(['layerChange','focus','modify'].includes(at.kind))return mix(clamp(g.startReadingY-g.readingCenter,0,g.fullHeight-g.focus.h),clamp(g.firstReadingY-g.readingCenter,0,g.fullHeight-g.focus.h),ease(at.p));
  if(at.kind==='retainFocus')return mix(g.retainStartOffset,g.retainOffset,ease(at.p));if(['retain','hold','release'].includes(at.kind)&&g.retainOffset!==undefined)return g.retainOffset;const time=at.kind==='read'?at.elapsed:['retain','hold','release'].includes(at.kind)?g.read.total:0,s=samplePlan(g.read,time);
- return clamp(s.y-g.focus.h/2,0,g.fullHeight-g.focus.h);
+ return clamp(s.y-g.readingCenter,0,g.fullHeight-g.focus.h);
 }
-function renderLens(at,shape){
+function renderLens(at,shape,scrollOffset=readerOffset(at)){
  const lens=q('.rv-lens'),g=plan.prepared[at.index];
- for(const a of actors)if(a)for(const f of a.fieldMap.values())f.style.setProperty('--hs-emphasis','0');
+ for(const a of actors)if(a?.actor.isConnected)for(const f of a.fieldMap.values())f.style.setProperty('--hs-emphasis','0');
  if(at.kind!=='read'||!g.read.total){lens.style.opacity='0';return;}
  const s=samplePlan(g.read,at.elapsed),a=actors[at.index],key=frames[at.index].id+'|'+layoutKey;
  if(lensKey!==key){
-  const clone=a.face.cloneNode(true);clone.style.position='relative';clone.style.opacity='1';clone.style.transform='none';clone.style.left='0';clone.style.top='0';root.presentation.material(clone,{role:a.actor.dataset.materialRole,identity:a.actor.dataset.protocol,moving:true});clone.prepend(lensCanvas);lensCanvas.style.position='absolute';lensCanvas.style.zIndex='-1';root.surfacePainter.paint(lensCanvas,g.focus.w,g.focus.h,24,1);q('.rv-lens-copy').replaceChildren(clone);lensKey=key;
+  const clone=a.face.cloneNode(true);clone.style.position='relative';clone.style.opacity='1';clone.style.transform='none';clone.style.left='0';clone.style.top='0';const body=clone.querySelector('.rv-reading-window');if(body){body.style.height='auto';body.style.overflow='visible';}root.presentation.material(clone,{role:a.actor.dataset.materialRole,identity:a.actor.dataset.protocol,moving:true});clone.prepend(lensCanvas);lensCanvas.style.position='absolute';lensCanvas.style.zIndex='-1';root.surfacePainter.paint(lensCanvas,g.focus.w,g.focus.h,24,1);q('.rv-lens-copy').replaceChildren(clone);lensKey=key;
  }
- lensCanvas.style.top=readerOffset(at)+'px';const zoom=mix(1,motion.policy.zoom,s.focus);lens.style.width=g.lens.w+'px';lens.style.height=g.lens.h+'px';lens.style.left=(shape.box.x+s.x-g.lens.w/2)+'px';lens.style.top=(shape.box.y+s.y-readerOffset(at)-g.lens.h/2)+'px';lens.style.opacity=String(s.opacity);q('.rv-lens-copy').style.transform=`translate(${g.lens.w/2-s.x*zoom}px,${g.lens.h/2-s.y*zoom}px) scale(${zoom})`;
+ if(s.y-scrollOffset<g.contentTop||s.y-scrollOffset>g.contentTop+g.windowHeight){lens.style.opacity='0';return;}
+ lensCanvas.style.top=scrollOffset+'px';const zoom=mix(1,motion.policy.zoom,s.focus);lens.style.width=g.lens.w+'px';lens.style.height=g.lens.h+'px';lens.style.left=(shape.box.x+s.x-g.lens.w/2)+'px';lens.style.top=(shape.box.y+s.y-scrollOffset-g.lens.h/2)+'px';lens.style.opacity=String(s.opacity);q('.rv-lens-copy').style.transform=`translate(${g.lens.w/2-s.x*zoom}px,${g.lens.h/2-s.y*zoom}px) scale(${zoom})`;
  root.emphasis.draw(g.emphasis,at.elapsed);
 }
 function renderActor(at){
@@ -2045,11 +2122,11 @@ function renderActor(at){
  for(const actor of new Set(actors.filter(Boolean).map(a=>a.actor))){if(retained.has(actor)){if(actor.parentElement!==host)host.append(actor);}else if(actor.parentElement===host)actor.remove();}
  if(a.deck)prepareFields(at.index);
  if(activeActor!==at.index){a.actor.setAttribute('aria-label',f.objectTitle+' · '+f.id);for(const n of actors)if(n){if(n.actor!==a.actor){n.actor.style.opacity='0';n.actor.inert=true;n.actor.setAttribute('aria-hidden','true');}n.face.style.opacity='0';n.face.style.visibility='hidden';}root.presentation.material(a.actor,{role:root.presentation.frameRole(f),identity:f.protocol,moving:true});a.actor.prepend(liveCanvas);liveCanvas.dataset.paintKey='';activeActor=at.index;}
- a.face.style.transform='none';
- const faceOpacity=clamp((s.detail-.5)*2),capsuleOpacity=clamp((.5-s.detail)*2);
+ a.face.style.transform='none';a.viewport.style.height=plan.prepared[at.index].windowHeight+'px';a.viewport.scrollTop=readerOffset(at);
+ const faceOpacity=clamp(s.detail),capsuleOpacity=Math.pow(1-faceOpacity,6);
  a.actor.style.transform=`translate(${s.box.x}px,${s.box.y}px)`;a.actor.style.width=s.box.w+'px';a.actor.style.height=s.box.h+'px';a.actor.style.borderRadius=s.radius+'px';a.actor.style.opacity=String(s.opacity);a.actor.inert=faceOpacity<.99;a.actor.setAttribute('aria-hidden',String(s.opacity<.01));a.face.style.opacity=String(faceOpacity);a.face.style.visibility=faceOpacity>0?'visible':'hidden';a.capsule.style.opacity=String(capsuleOpacity);a.capsule.style.visibility=capsuleOpacity>0?'visible':'hidden';
- if(s.opacity>0)root.surfacePainter.paint(liveCanvas,s.box.w,s.box.h,s.radius,s.openness);
- if(at.kind==='focus'){const previous=actors[at.index-1],exit=1-ease(clamp(at.p*2)),enter=ease(clamp((at.p-.5)*2));previous.face.style.visibility=exit>0?'visible':'hidden';previous.face.style.opacity=String(exit);a.face.style.visibility=enter>0?'visible':'hidden';a.face.style.opacity=String(enter);}else if(['packet','packetOps'].includes(sceneId))for(const other of actors)if(other.face!==a.face){other.face.style.visibility='hidden';other.face.style.opacity='0';}
+ if(s.opacity>0){const previous=plan.prepared[at.index-1]?.focus,handoff=previous&&['focus','modify','layerChange'].includes(at.kind);root.surfacePainter.morph(liveCanvas,s.box,s.radius,handoff?ease(at.p):s.openness,handoff?{...previous,r:24,open:1}:{w:plan.compactW,h:plan.compactH,r:16},plan.prepared[at.index].focus);}
+ if(at.kind==='focus'){const previous=actors[at.index-1];previous.viewport.scrollTop=readerOffset({index:at.index-1,kind:'hold'});const enter=ease(at.p),exit=1-enter;previous.face.style.visibility=exit>0?'visible':'hidden';previous.face.style.opacity=String(exit);a.face.style.visibility=enter>0?'visible':'hidden';a.face.style.opacity=String(enter);}else if(['packet','packetOps'].includes(sceneId))for(const other of actors)if(other.face!==a.face){other.face.style.visibility='hidden';other.face.style.opacity='0';}
  const endpointNodes=q('.rv-endpoints').children;endpointNodes[0].textContent=f.endpoints[0];endpointNodes[1].textContent=f.endpoints[1];
  renderAssembly(at,s);renderLens(at,s);if(at.kind==='modify')for(const m of plan.prepared[at.index].mutations||[])a.fieldMap.get(m.fieldId).style.setProperty('--hs-emphasis',String(Math.sin(Math.PI*at.p)));transferView.node.style.opacity='0';
  for(const target of [q('.rv-expected'),q('.rv-ack')])if(target){target.style.opacity='1';target.parentElement.style.setProperty('--hs-receive','0');}
@@ -2060,7 +2137,7 @@ function renderAssembly(at,shape){
  if(sceneId==='journey'){renderJourneyEnvelope(at,shape);return;}
  trailerCanvas.hidden=true;const host=q('.rv-envelopes');host.hidden=sceneId!=='packetOps';if(host.hidden)return;const g=plan.prepared[at.index],f=frames[at.index],gap=f.operation==='attach'?(at.kind==='fitAttach'?motion.attachmentState(g.attach,at.elapsed).amount:0):f.operation==='detach'?(at.kind==='focus'?0:at.kind==='fitDetach'?motion.attachmentState(g.detach,at.elapsed).amount:1):0,spread=g.fit.spread*gap,top=q('.rv-envelope-header'),bottom=q('.rv-envelope-trailer');top.hidden=false;bottom.hidden=false;
  Object.assign(top.style,{left:g.focus.x+'px',top:(shape.box.y-plan.envelopeH-spread)+'px',width:shape.box.w+'px',height:plan.envelopeH+'px'});Object.assign(bottom.style,{left:g.focus.x+'px',top:(shape.box.y+shape.box.h+spread)+'px',width:shape.box.w+'px',height:plan.trailerH+'px'});top.style.opacity=String(f.operation==='attach'&&at.kind==='focus'?0:1);root.surfacePainter.paint(envelopeCanvas,shape.box.w,plan.envelopeH,18,1);q('.rv-envelope-direction').textContent='02:48:4f:50:00:01 → 02:48:4f:50:00:02';
- for(const prepared of plan.prepared)for(const m of prepared.mutations||[])m.view.node.style.opacity='0';for(const field of f.fields){const value=actors[at.index].fieldMap.get(field.id).querySelector('.rv-field-value');value.textContent=field.value;value.style.opacity='1';}if(at.kind==='modify')for(const m of g.mutations||[]){const value=actors[at.index].fieldMap.get(m.fieldId).querySelector('.rv-field-value'),progress=transfer.draw(m.view,m.plan,Math.min(at.elapsed,m.plan.duration),f.id+'|'+m.fieldId,true);value.textContent=progress.landed?m.after:m.before;value.style.opacity=String(progress.landed?progress.receiverOpacity:1-progress.lift);actors[at.index].fieldMap.get(m.fieldId).style.setProperty('--hs-emphasis',String(Math.sin(Math.PI*at.p)));}
+ for(const prepared of plan.prepared)for(const m of prepared.mutations||[])m.view.node.style.opacity='0';for(const field of f.fields){const value=actors[at.index].fieldMap.get(field.id).querySelector('.rv-field-value');value.textContent=field.value;value.style.opacity='1';}if(at.kind==='modify')for(const m of g.mutations||[]){const value=actors[at.index].fieldMap.get(m.fieldId).querySelector('.rv-field-value'),progress=transfer.draw(m.view,m.plan,Math.min(at.elapsed,m.plan.duration),f.id+'|'+m.fieldId,true),offset=readerOffset(at),center=progress.y-offset+progress.lineHeight/2;m.view.node.style.top=-offset+'px';if(center<shape.box.y+g.contentTop||center>shape.box.y+g.contentTop+g.windowHeight)m.view.node.style.opacity='0';value.textContent=progress.landed?m.after:m.before;value.style.opacity=String(progress.landed?progress.receiverOpacity:1-progress.lift);actors[at.index].fieldMap.get(m.fieldId).style.setProperty('--hs-emphasis',String(Math.sin(Math.PI*at.p)));}
  const currentActor=actors[at.index];for(const chunk of currentActor.face.querySelectorAll('.rv-payload-chunk')){chunk.style.opacity='1';chunk.style.transform='none';}if(g.deletedPayload)g.deletedPayload.style.opacity='0';if(at.kind==='modify'){const before=frames[Math.max(0,at.index-1)].state;if(f.operation==='append'){for(const chunk of currentActor.face.querySelectorAll('.rv-payload-chunk'))if(Number(chunk.dataset.offset)>=before.payloadBytes){chunk.style.opacity=String(ease((at.p-.35)/.65));chunk.style.transform='translateY('+((1-ease(at.p))*6)+'px)';}}if(g.deletedPayload){g.deletedPayload.style.opacity=String(1-ease(at.p));g.deletedPayload.style.transform='translateY('+(ease(at.p)*8)+'px)';}}
  const parcel=q('.rv-payload-addon');parcel.style.opacity='0';if(at.kind==='modify'&&['append','remove'].includes(f.operation)){const old=frames[Math.max(0,at.index-1)].state,current=f.state,amount=motion.attachmentState(g.attach,at.elapsed).amount,inserting=f.operation==='append',distance=g.fit.spread*(inserting?amount:1-amount),blend=inserting?1-ease((at.p-.7)/.3):1-ease((at.p-.75)/.25);q('.rv-payload-addon-value').textContent=(inserting?current.payloadBytes-old.payloadBytes:old.payloadBytes-current.payloadBytes)+' B · '+(inserting?'Appending':'Removing');Object.assign(parcel.style,{left:(g.focus.x+20)+'px',top:(shape.box.y+shape.box.h-52+distance)+'px',opacity:String(blend),transform:'translateY('+((inserting?1-amount:amount)*6)+'px)'});}
 }
@@ -2123,12 +2200,13 @@ function renderNetwork(at){
  }
  const activePath=current.activePathId==='alternate'?['client-edge','edge-r2','r2-core','core-service']:['client-edge','edge-r1','r1-core','core-service'],beforePath=previous.activePathId==='alternate'?['client-edge','edge-r2','r2-core','core-service']:['client-edge','edge-r1','r1-core','core-service'];
  for(const el of networkElements){const broken=current.failedLinkIds.includes(el.link.id),wasBroken=previous.failedLinkIds.includes(el.link.id),failure=mix(wasBroken?1:0,broken?1:0,t),selected=mix(beforePath.includes(el.link.id)?1:0,activePath.includes(el.link.id)?1:0,t);el.path.setAttribute('stroke',failure>.01?'var(--rv-red)':selected>.01?'var(--hs-accent)':'var(--hs-route-line)');el.path.setAttribute('stroke-width',1+selected*1.5);el.path.setAttribute('opacity',failure?1:selected>.01?.85:.65);el.gap.setAttribute('r',6*failure);el.label.setAttribute('opacity',failure);const traveling=current.controlLinkIds.includes(el.link.id)&&at.kind==='transition';el.message.setAttribute('opacity',traveling?Math.sin(Math.PI*at.p):0);el.message.setAttribute('cx',mix(el.ax,el.bx,at.p));el.message.setAttribute('cy',mix(el.ay,el.by,at.p));}
- const recordKey=f.id+'|'+layoutKey;if(recordKey!==networkRecordKey){const records=q('.rv-network-records');records.replaceChildren();for(const fact of f.records){const r=node('section','rv-record');r.dataset.uiSurface='record';r.append(node('h3','',fact.label),node('p','',fact.value));records.append(r);}networkRecordKey=recordKey;root.recordMaterial?.invalidate();s.setAttribute('aria-label',f.summary);}
+ const recordKey=f.id+'|'+layoutKey;if(recordKey!==networkRecordKey){const records=q('.rv-network-records');records.replaceChildren();for(const fact of f.records){const r=node('section','rv-record');r.dataset.uiSurface='record';r.append(node('h3','',fact.label),node('p','',fact.value));records.append(r);}for(const card of records.children){const label=card.querySelector('h3').textContent;reserveText(card.querySelector('p'),frames.flatMap(frame=>frame.records.filter(fact=>fact.label===label).map(fact=>fact.value)));}networkRecordKey=recordKey;root.recordMaterial?.invalidate();s.setAttribute('aria-label',f.summary);}
 }
 
 function renderComparison(at){
  const f=frames[at.index],previous=frames[at.index-1]?.state||f.state,t=at.kind==='transition'?ease(at.p):1,region=q('.rv-comparison-primary');
  if(!region.children.length){region.classList.add('rv-grid');for(const type of ['h2','h3']){const card=node('section','rv-record');card.dataset.uiSurface='record';card.dataset.lane=type;card.append(node('h3','',type==='h2'?'HTTP/2 · TCP':'HTTP/3 · QUIC'));for(const stream of ['A','B']){const row=node('div','rv-http-stream');row.dataset.stream=stream;row.append(node('p','',stream==='A'?'/hero.jpg':'/app.js'),node('div','rv-http-slots'),node('p','rv-http-status'));card.append(row);}card.append(node('p','rv-http-congestion'));region.append(card);}}
+ if(region.dataset.reservationKey!==layoutKey){for(const card of region.children){const type=card.dataset.lane;for(const row of card.querySelectorAll('.rv-http-stream'))reserveText(row.querySelector('.rv-http-status'),frames.map(frame=>frame.state[type]['stream'+row.dataset.stream]+' · 100%'));reserveText(card.querySelector('.rv-http-congestion'),frames.map(frame=>frame.state[type].deliveryLabel+' · '+frame.state[type].congestionLabel));}region.dataset.reservationKey=layoutKey;}
  for(const card of region.children){const type=card.dataset.lane,next=f.state[type],before=previous[type];for(const row of card.querySelectorAll('.rv-http-stream')){const stream=row.dataset.stream,progress=mix(before['stream'+stream+'Progress'],next['stream'+stream+'Progress'],t),slots=row.querySelector('.rv-http-slots');slots.style.cssText='display:flex;gap:4px;min-height:26px';if(!slots.children.length)for(let i=0;i<12;i++)slots.append(node('span','rv-window-cell'));for(const [i,slot]of [...slots.children].entries()){slot.style.opacity=String(.08+.67*clamp(progress/100*12-i));slot.style.transform='scaleX('+(.2+.8*clamp(progress/100*12-i))+')';}row.querySelector('.rv-http-status').textContent=next['stream'+stream]+' · '+Math.round(progress)+'%';}card.querySelector('.rv-http-congestion').textContent=next.deliveryLabel+' · '+next.congestionLabel;}
 }
 function resizeScene(at){
@@ -2145,24 +2223,30 @@ function resizeScene(at){
  // an individual card boundary causes a second jump when the page is scrolled.
  q('.rv-console').style.position=plan.stageOffset+plan.sceneHeight+plan.consoleHeight+48<=plan.viewport?'sticky':'relative';
 }
+function captionFor(at){
+ const f=frames[at.index],pending=!f.local&&['construct','travel','open'].includes(at.kind);
+ return pending?{title:f.objectTitle,detail:f.from+' → '+f.to}:{title:f.title,detail:f.summary};
+}
 function render(){
- if(!plan)return;const at=locate(clock),f=frames[at.index];resizeScene(at);renderState(at);renderActor(at);if(sceneId==='failure')renderNetwork(at);if(sceneId==='http')renderComparison(at);
- if(sceneId!=='tcp')for(const fact of dockValues(frames[Math.max(0,stateIndex())].state))q(fact.selector).textContent=fact.value;
+ if(!plan)return;const at=locate(clock),f=frames[at.index];stage.dataset.phase=at.kind;stage.dataset.phaseProgress=String(at.p);resizeScene(at);renderState(at);renderActor(at);if(sceneId==='failure')renderNetwork(at);if(sceneId==='http')renderComparison(at);
+ const dockKey=sceneId+'|'+stateIndex();if(sceneId!=='tcp'&&dock.dataset.state!==dockKey){for(const fact of dockValues(frames[Math.max(0,stateIndex())].state))q(fact.selector).textContent=fact.value;dock.dataset.state=dockKey;}
  if(bounded()&&fullFields.dataset.event!==f.id){drawFacts(fullFields,f.fields);fullFields.dataset.event=f.id;}
- const key=f.id+'|'+at.kind;if(key!==captionKey){root.reviewUI.status(q('.rv-caption-title'),q('.rv-caption-detail'),f.title,f.summary);q('.rv-caption-title').title=f.title;q('.rv-summary-detail').textContent=f.summary;captionKey=key;}
+ const key=f.id+'|'+at.kind,caption=captionFor(at);if(key!==captionKey){root.reviewUI.status(q('.rv-caption-title'),q('.rv-caption-detail'),caption.title,caption.detail);q('.rv-caption-title').title=f.title;q('.rv-summary-detail').textContent=f.summary;captionKey=key;}
  q('.rv-operation').textContent='Presentation · '+({construct:'constructing a separate object',fold:'closing the same object',travel:f.lost?'in transit · loss boundary':'in transit',open:'opening the same object',read:'reading actual fields',retainFocus:'bringing the received value into view',retain:'retaining the result',hold:'outcome stays readable',release:'processed buffer released',lost:'lost before receipt',transition:'state changes continuously',focus:'opening another layer of the same object',fitAttach:'separate pieces seat at contact',fitDetach:'separate pieces release from contact',labelChange:'the outer label changes; the inner packet remains',modify:'a structural change carries its consequences'}[at.kind]||at.kind);
  q('.rv-model-time').textContent=f.at===null?'Source snapshot · no model clock':'Source event · '+f.id+' · '+f.at+' ms';q('.rv-event-picker').value=String(at.index);q('.rv-scrub').value=String(Math.round(clock/plan.total*1000));q('.rv-play').textContent=playing?'Pause':'Play';q('.rv-next').disabled=at.index===frames.length-1;
 }
 function pause(){playing=false;if(job)cancelAnimationFrame(job);job=0;last=null;if(plan)render();root.reviewUI.settle();}
 function tick(now){
  job=0;if(!playing||disposed||!root.isConnected||document.hidden){pause();return;}
- // Presentation time follows visible frames. Discard excess stall time rather
- // than repaying it by skipping the scanner, docking, or object lifecycle.
- const delta=last===null?0:clamp(now-last,0,tuning.maxFrameStep);last=now;
+ // Ordinary delayed frames retain 1× wall time. Only a genuine interruption
+ // discards excess time; a universal 50 ms cap silently slows lower frame rates.
+ const gap=last===null?0:Math.max(0,now-last),delta=mix(gap,Math.min(gap,tuning.maxFrameStep),ease((gap-tuning.ordinaryFrame)/(tuning.stallThreshold-tuning.ordinaryFrame)));last=now;
+ const renderStart=performance.now();stage.dataset.frameGap=String(gap);
  clock=Math.min(plan.total,clock+delta*Number(q('.rv-speed').value));render();
+ stage.dataset.presentationClock=String(clock);stage.dataset.presentationDuration=String(plan.total);stage.dataset.renderCost=String(performance.now()-renderStart);stage.dataset.shaderDraws=String(root.surfacePainter.stats().draws);
  if(clock>=plan.total){playing=false;q('.rv-play').textContent='Play';last=null;}else job=requestAnimationFrame(tick);
 }
-function play(){if(reduced.matches){next();return;}if(clock>=plan.total)clock=0;playing=true;last=null;render();if(!job)job=requestAnimationFrame(tick);}
+function play(){if(reduced.matches){next();return;}if(clock>=plan.total)clock=0;playing=true;last=null;render();if(composition.offsetHeight<=plan.viewport-24)composition.scrollIntoView?.({block:'start',behavior:'auto'});if(!job)job=requestAnimationFrame(tick);}
 function next(){const at=locate(clock);seek(plan.commits[Math.min(frames.length-1,at.index+1)]);}
 function seek(value){pause();clock=clamp(Number(value)||0,0,plan.total);render();root.reviewUI.settle();}
 function presentSource(timeMs,durationMs,settle=false){
@@ -2205,7 +2289,7 @@ q('.rv-play').addEventListener('click',()=>playing?pause():play());q('.rv-replay
 details.addEventListener('toggle',()=>{if(details.open)pause();});root.addEventListener('review-disclosure-layout',e=>{if([settings,explanation].includes(e.detail.element)){if(root.disclosures.wanted(e.detail.element))pause();layoutKey='';queueLayout();}});const viewportResize=()=>{alignAfterResize=playing&&bounded();layoutKey='';queueLayout();};window.addEventListener('resize',viewportResize);
 let observedMainWidth=q('.rv-main').clientWidth;const resize=new ResizeObserver(()=>{const width=q('.rv-main').clientWidth;if(bounded()&&Math.abs(width-observedMainWidth)<.5)return;observedMainWidth=width;layoutKey='';queueLayout();});resize.observe(q('.rv-main'));document.fonts?.ready.then(()=>{layoutKey='';queueLayout();});document.fonts?.addEventListener('loadingdone',()=>{layoutKey='';queueLayout();});document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});root.addEventListener('review-material-change',()=>{root.surfacePainter.invalidate();layoutKey='';queueLayout();});
 root.byteWindows.watch(q('.rv-byte-details'),()=>{if(sceneId==='packet')root.byteWindows.layout(q('.rv-bytes'),q('.rv-byte-details'));});
-root.causalStudy=Object.freeze({select,seek,next,play,pause,reflow,appearance,presentSource,snapshot:()=>({sceneId,clock,playing,plan,frames,at:plan?locate(clock):null,committed:plan?stateIndex():-1,plannerUsesCachedGeometry:true,material:root.surfacePainter.stats()}),sample:t=>plan?{at:locate(t),pose:['failure','http'].includes(sceneId)?null:pose(locate(t))}:null,dispose:()=>{root.reviewUI.settle();root.byteWindows.dispose();root.layoutReservation.dispose();pause();disposed=true;if(layoutJob)cancelAnimationFrame(layoutJob);resize.disconnect();window.removeEventListener?.('resize',viewportResize);}});
+root.causalStudy=Object.freeze({select,seek,next,play,pause,reflow,appearance,presentSource,snapshot:()=>({sceneId,clock,playing,plan,frames,at:plan?locate(clock):null,committed:plan?stateIndex():-1,caption:plan?captionFor(locate(clock)):null,plannerUsesCachedGeometry:true,material:root.surfacePainter.stats()}),sample:t=>plan?{at:locate(t),pose:['failure','http'].includes(sceneId)?null:pose(locate(t))}:null,dispose:()=>{root.reviewUI.settle();root.byteWindows.dispose();root.layoutReservation.dispose();pause();disposed=true;if(layoutJob)cancelAnimationFrame(layoutJob);resize.disconnect();window.removeEventListener?.('resize',viewportResize);}});
 select(data.bootstrapScene||'tcp');
 })();
 

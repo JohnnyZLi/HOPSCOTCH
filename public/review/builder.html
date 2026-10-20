@@ -535,12 +535,25 @@
 /* Compact transport keeps the packet dominant; full narration stays in Source details. */
 @container review (max-width:600px){
  #hop-builder-review .rv-composition>.rv-console{padding:10px 12px;gap:4px}
- #hop-builder-review .rv-caption{min-height:0!important}
- #hop-builder-review .rv-caption strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
+ #hop-builder-review .rv-caption strong{white-space:normal;overflow-wrap:anywhere;line-height:1.5}
  #hop-builder-review .rv-caption p{display:none}
  #hop-builder-review .rv-console-tools>details>summary{padding-block:4px}
  #hop-builder-review .rv-endpoint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  #hop-builder-review .rv-retained-dock{padding:6px 10px}
+}
+
+#hop-builder-review .rv-reading-window{position:relative;overflow:auto;overscroll-behavior:contain;scrollbar-width:none}
+#hop-builder-review .rv-reading-window::-webkit-scrollbar{display:none}
+
+@container review (max-width:600px){
+ #hop-builder-review .rv-network-records{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+ #hop-builder-review .rv-network-records .rv-record{padding:10px 8px}
+ #hop-builder-review .rv-network-records h3{font-size:12px;line-height:1.4;margin:0 0 6px;overflow-wrap:anywhere}
+ #hop-builder-review .rv-network-records p{font-size:12px;line-height:1.4;margin:0;overflow-wrap:anywhere}
+ #hop-builder-review .rv-comparison-primary.rv-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ #hop-builder-review .rv-comparison-primary .rv-record{padding:12px 10px}
+ #hop-builder-review .rv-comparison-primary h3{font-size:13px;line-height:1.4;margin:0 0 12px}
+ #hop-builder-review .rv-comparison-primary p{font-size:12px;line-height:1.5;margin:6px 0;overflow-wrap:anywhere}
 }
 
 #hop-builder-review .wb-map-wrap{position:relative;overflow:hidden;border-radius:18px;min-height:360px}
@@ -1755,9 +1768,9 @@ function renderChallenge(){const reference=d.challenges[Number(q('.wb-challenge-
 
 function render(){options();renderWorkbench();renderResult();if(page==='topology')prepareMap();if(page==='systems')renderSystems();if(page==='history')renderHistory();if(page==='challenge')renderChallenge();root.disclosures.upgrade();q('.wb-authoring-summary').textContent=selection.size+' selected · '+sites.length+' sites · '+templates.length+' templates';q('.wb-fail').disabled=historical!==null||selected.plane!=='routed';for(const selector of ['.wb-copy','.wb-paste','.wb-align','.wb-site','.wb-template'])q(selector).disabled=historical!==null||selected.plane!=='routed';root.recordMaterial?.invalidate();}
 function cancelTransitions(){transitionEpoch++;for(const a of animations)a.cancel();animations.clear();}
-function selectPage(next){
- cancelTransitions();page=next;for(const n of q('.wb-pages').children)n.setAttribute('aria-pressed',String(n.dataset.page===next));for(const id of ['topology','systems','cli','history','challenge','scenario'])q('.wb-'+id).hidden=id!==next;
- const target=q('.wb-'+next);if(!reduced.matches&&target.animate){const a=target.animate([{opacity:0,transform:'translateY(4px)'},{opacity:1,transform:'translateY(0)'}],{duration:220,easing:'cubic-bezier(.22,.7,.3,1)'});animations.add(a);a.finished.catch(()=>{}).then(()=>animations.delete(a));}render();
+function selectPage(next,restoring=false){
+ const changed=page!==next;if(!changed&&!restoring)return;cancelTransitions();page=next;for(const n of q('.wb-pages').children)n.setAttribute('aria-pressed',String(n.dataset.page===next));for(const id of ['topology','systems','cli','history','challenge','scenario'])q('.wb-'+id).hidden=id!==next;
+ const target=q('.wb-'+next);if(changed&&!reduced.matches&&target.animate){const a=target.animate([{opacity:0,transform:'translateY(4px)'},{opacity:1,transform:'translateY(0)'}],{duration:220,easing:'cubic-bezier(.22,.7,.3,1)'});animations.add(a);a.finished.catch(()=>{}).then(()=>animations.delete(a));}render();
 }
 function runProbe(kind='ping',destination=input.destinationId){if(historical!==null){error(Error('A historical view cannot run a new probe.'));return null;}const probe=domain.runBuilderProbe(input.graph,input.addressing,input.routing,kind,input.sourceId,destination,input.probeHistory.length+1,input.linkProfiles,input.acl,input.nat,input.natSessions);input.probeHistory=[...input.probeHistory,probe];input.natSessions=probe.natSessions;snapshot(kind.toUpperCase()+' · '+probe.summary);render();announce(probe.success?(kind==='ping'?'Ping delivered':'Trace completed'):(kind==='ping'?'Ping stopped':'Trace stopped'),probe.summary);if(challenge)addChallengeEvidence({kind,sourceId:input.sourceId,destinationId:destination,success:probe.success});if(page==='topology'){const result=q('.wb-result');result.tabIndex=-1;result.focus({preventScroll:true});result.scrollIntoView({block:'nearest',behavior:'auto'});}return probe;}
 function runPing(){return runProbe();}

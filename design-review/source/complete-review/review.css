@@ -288,10 +288,23 @@
 /* Compact transport keeps the packet dominant; full narration stays in Source details. */
 @container review (max-width:600px){
  #__ROOT__ .rv-composition>.rv-console{padding:10px 12px;gap:4px}
- #__ROOT__ .rv-caption{min-height:0!important}
- #__ROOT__ .rv-caption strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
+ #__ROOT__ .rv-caption strong{white-space:normal;overflow-wrap:anywhere;line-height:1.5}
  #__ROOT__ .rv-caption p{display:none}
  #__ROOT__ .rv-console-tools>details>summary{padding-block:4px}
  #__ROOT__ .rv-endpoint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  #__ROOT__ .rv-retained-dock{padding:6px 10px}
+}
+
+#__ROOT__ .rv-reading-window{position:relative;overflow:auto;overscroll-behavior:contain;scrollbar-width:none}
+#__ROOT__ .rv-reading-window::-webkit-scrollbar{display:none}
+
+@container review (max-width:600px){
+ #__ROOT__ .rv-network-records{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+ #__ROOT__ .rv-network-records .rv-record{padding:10px 8px}
+ #__ROOT__ .rv-network-records h3{font-size:12px;line-height:1.4;margin:0 0 6px;overflow-wrap:anywhere}
+ #__ROOT__ .rv-network-records p{font-size:12px;line-height:1.4;margin:0;overflow-wrap:anywhere}
+ #__ROOT__ .rv-comparison-primary.rv-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ #__ROOT__ .rv-comparison-primary .rv-record{padding:12px 10px}
+ #__ROOT__ .rv-comparison-primary h3{font-size:13px;line-height:1.4;margin:0 0 12px}
+ #__ROOT__ .rv-comparison-primary p{font-size:12px;line-height:1.5;margin:6px 0;overflow-wrap:anywhere}
 }

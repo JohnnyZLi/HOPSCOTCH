@@ -12,8 +12,8 @@ for(const width of [320,390,1024,1440]){
   e.viewport(640);await e.flush();const after=api.snapshot();eq(after.frames[after.at.index].id,before.frames[before.at.index].id,'Height reflow preserves event identity');check(Math.abs(after.at.p-before.at.p)<1e-6,'Height reflow preserves reading progress');
   for(const g of after.plan.prepared.filter(g=>g.transfer)){check(g.retainOffset>=0&&g.retainOffset<=Math.max(0,g.fullHeight-g.focus.h),'Retaining a cropped source value keeps its camera inside the same card');}
   for(const phase of after.plan.phases.filter(p=>p.kind==='read')){
-   const destination=(phase.start+phase.end)/2;api.seek(destination);const actor=e.root.querySelectorAll('.rv-actor').find(n=>Number(n.style.opacity)>.99),face=actor.querySelector('.rv-actor-face'),expected=face.style.transform;const lensCanvas=e.q('.rv-lens-copy').querySelector('canvas'),offset=-Number(face.style.transform.match(/translateY\(([-\d.]+)px\)/)?.[1]||0);if(lensCanvas)check(Math.abs((parseFloat(lensCanvas.style.top)||0)-offset)<1e-6,'Scanner background follows the same view offset as the source fields');
-   api.seek(0);api.seek(destination);eq(face.style.transform,expected,'Reader camera is derived from position, independent of seek history');
+   const destination=(phase.start+phase.end)/2;api.seek(destination);const actor=e.root.querySelectorAll('.rv-actor').find(n=>Number(n.style.opacity)>.99),face=actor.querySelector('.rv-actor-face'),expected=actor.querySelector('.rv-reading-window').scrollTop;const lensCanvas=e.q('.rv-lens-copy').querySelector('canvas'),offset=expected;if(lensCanvas)check(Math.abs((parseFloat(lensCanvas.style.top)||0)-offset)<1e-6,'Scanner background follows the same view offset as the source fields');
+   api.seek(0);api.seek(destination);eq(actor.querySelector('.rv-reading-window').scrollTop,expected,'Reader camera is derived from position, independent of seek history');
   }
   eq(JSON.stringify(e.root.reviewData),source,'Viewport composition cannot change source events, bytes or timestamps');
  }

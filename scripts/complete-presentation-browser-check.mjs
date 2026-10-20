@@ -15,8 +15,8 @@ import {runBuilderProbe} from '../src/builder/probes.ts';
 import {encodeJourneyQuery,createPortableJourneyScenario} from '../src/journey/scenario.ts';
 import {ethernetFrame,ipv4Packet,tcpSegment,pcapCapture,pcapngSection} from './capture-fixtures.mjs';
 
-const flags=new Set(process.argv.slice(2));if(flags.has('--phase4-visual-review'))flags.add('--phase4');if(flags.has('--visual-review'))flags.add('--phase3');const mode=['phase3','phase4','timeline','journey','choreography','overview','capture','geometry'].find(value=>flags.has('--'+value))??'performance';
-const dirs={phase3:'phase3-visual-review',phase4:'phase4-visual-review',timeline:'timeline-visual-review',journey:'journey-annotation-visual-review',choreography:'journey-choreography-review',overview:'overview-browser-review',capture:'capture-browser',geometry:'dns-workspace-geometry-review'};
+const flags=new Set(process.argv.slice(2));if(flags.has('--phase4-visual-review'))flags.add('--phase4');if(flags.has('--visual-review'))flags.add('--phase3');const mode=['motion-audit','phase3','phase4','timeline','journey','choreography','overview','capture','geometry'].find(value=>flags.has('--'+value))??'performance';
+const dirs={'motion-audit':'full-motion-audit',phase3:'phase3-visual-review',phase4:'phase4-visual-review',timeline:'timeline-visual-review',journey:'journey-annotation-visual-review',choreography:'journey-choreography-review',overview:'overview-browser-review',capture:'capture-browser',geometry:'dns-workspace-geometry-review'};
 const output=resolve(process.env.HOPSCOTCH_VISUAL_REVIEW_DIR||join('artifacts',dirs[mode]??'complete-presentation-performance')),reportPath=resolve(process.env.HOPSCOTCH_REPORT_PATH||(mode==='performance'?'artifacts/performance-profile.json':mode==='capture'?'artifacts/capture-browser.json':join(output,'report.json')));
 const budgets=JSON.parse(readFileSync('config/performance-budget.json','utf8'));
 const report={schema:'hopscotch.complete-presentation-validation',version:1,mode,gpuMode:process.env.HOPSCOTCH_GPU_MODE||'default',generatedAt:new Date().toISOString(),profiles:[],failures:[]};
@@ -161,7 +161,7 @@ async function visiblePlaybackClock(){
  }
  report.visiblePlaybackClock=samples;
 }
-async function recordPlayback(name){
+async function recordPlayback(name,everyNthFrame=3){
  const directory=join(output,name);mkdirSync(directory,{recursive:true});const frames=[];
  const listener=event=>{
   const message=JSON.parse(event.data);if(message.method!=='Page.screencastFrame')return;
@@ -170,13 +170,81 @@ async function recordPlayback(name){
   void cdp.call('Page.screencastFrameAck',{sessionId}).catch(()=>{});
  };
  cdp.socket.addEventListener('message',listener);
- await cdp.call('Page.startScreencast',{format:'jpeg',quality:70,maxWidth:960,everyNthFrame:3});
+ await cdp.call('Page.startScreencast',{format:'jpeg',quality:70,maxWidth:960,everyNthFrame});
  return async()=>{
   await cdp.call('Page.stopScreencast');cdp.socket.removeEventListener('message',listener);
   const first=frames[0]?.timestamp??0,timeline=frames.map(f=>({file:f.file,ms:(f.timestamp-first)*1000}));
   writeFileSync(join(directory,'index.json'),JSON.stringify(timeline));
   return {directory:name,frames:frames.length,durationMs:timeline.at(-1)?.ms??0};
  };
+}
+
+async function fullMotionAudit(){
+ const width=Number(process.env.HOPSCOTCH_MOTION_AUDIT_WIDTH||1280),height=width<600?844:900,theme=width<600?'dark':'light',results=[];
+ for(const scene of ['journey','tcp','dns','tls','packet','packetOps','provider','failure','http']){
+  const path=WORKSPACE_CATALOG[scene]?.path||WORKSPACE_CATALOG.packet.path;
+  await open(path,width,height,theme);
+  const plan=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),api=root.causalStudy;api.select(${JSON.stringify(scene)});return true;})()`);await settled();
+  const prepared=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),api=root.causalStudy,s=api.snapshot();api.seek(0);root.querySelector('.rv-speed').value='1';return {total:s.plan.total,events:s.frames.map(f=>({id:f.id,title:f.title,at:f.at,kind:f.kind})),phases:s.plan.phases,attention:s.plan.prepared.map(g=>g.attention),source:JSON.stringify(root.reviewData)};})()`);
+  const stop=await recordPlayback('complete-'+scene+'-'+width+'-'+theme,4),samples=[],started=performance.now(),deadline=started+prepared.total*1.45+10000;let recording,complete=false;
+  console.log('Full normal-speed motion audit',scene,width,Math.round(prepared.total)+'ms');
+  try{
+   await cdp.evaluate("document.querySelector('.review-runtime .rv-play').click()");
+   while(performance.now()<deadline){
+    const sample=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),s=root.causalStudy.snapshot(),lens=root.querySelector('.rv-lens'),r=lens.getBoundingClientRect(),actor=root.querySelector('.rv-actors>.rv-actor:not([aria-hidden=true])'),a=actor?.getBoundingClientRect(),body=actor?.querySelector('.rv-reading-window')?.getBoundingClientRect(),heading=actor?.querySelector('.rv-actor-heading')?.getBoundingClientRect();return {bodyTop:body?.top,bodyBottom:body?.bottom,headingTop:heading?.top,headingBottom:heading?.bottom,structural:s.frames[s.at.index].kind==='assembly',clock:s.clock,index:s.at.index,phase:s.at.kind,p:s.at.p,playing:s.playing,lensOpacity:Number(lens.style.opacity),lensTop:r.top,lensBottom:r.bottom,faceOpacity:Number(actor?.querySelector('.rv-actor-face')?.style.opacity??0),actorTop:a?.top,actorBottom:a?.bottom,sourceId:s.frames[s.at.index].id};})()`);
+    samples.push({wallMs:performance.now()-started,...sample});
+    if(!sample.playing&&sample.clock>=prepared.total-.01){complete=true;break;}
+    await sleep(150);
+   }
+  }finally{await cdp.evaluate("document.querySelector('.review-runtime').causalStudy.pause()");recording=await stop();}
+  const durationMs=performance.now()-started,visited=new Set(samples.map(s=>s.sourceId));
+  const result={scene,path,width,height,theme,totalMs:prepared.total,durationMs,ratio:durationMs/prepared.total,events:prepared.events,phases:prepared.phases,attention:prepared.attention,recording,samples,offscreenReads:samples.filter(s=>s.phase==='read'&&s.lensOpacity>.8&&(s.lensTop<0||s.lensBottom>height)).length};results.push(result);report.fullMotionAudit=results;
+  const activeReads=samples.filter(s=>s.phase==='read'&&s.lensOpacity>.8 );
+  for(const sample of activeReads){assert(sample.lensTop>=-1&&sample.lensBottom<=height+1,scene+' reader must remain visible');const center=(sample.lensTop+sample.lensBottom)/2;assert(center>=sample.bodyTop-1&&center<=sample.bodyBottom+1,scene+' reader follows actual visible source fields');assert(sample.headingTop>=-1&&sample.headingBottom<=sample.bodyTop+1,scene+' heading remains above its scrolling fields');}
+  assert(complete,scene+' failed to finish at normal speed');
+  assert(durationMs<prepared.total*1.35+1500,scene+' visible clock stretched beyond the planned normal-speed duration');
+  for(const f of prepared.events)assert(visited.has(f.id),'Actual playback skipped source event '+f.id);
+  assert.equal(await cdp.evaluate("JSON.stringify(document.querySelector('.review-runtime').reviewData)"),prepared.source,'Playback mutated source evidence');
+  await geometry('complete-'+scene+'-'+width+'-'+theme);
+ }
+ // Exercise real shared controls at normal speed, including interrupted/reversed
+ // disclosures and repeated pane selections. Record motion, not settled PNGs.
+ for(const [path,label]of [[WORKSPACE_CATALOG.builder.path,'builder'],[WORKSPACE_CATALOG.capture.path,'evidence']]){
+  await open(path,width,height,theme);const stop=await recordPlayback('controls-'+label+'-'+width+'-'+theme);let recording;
+  try{
+   if(label==='evidence'){
+    const bytes=pcapCapture(Array.from({length:4},(_,i)=>({bytes:ethernetFrame(ipv4Packet(tcpSegment())),seconds:1+i,fraction:0}))),file=join(output,'audit-synthetic-capture.pcap');
+    writeFileSync(file,bytes);await importFile('.ev-capture-file',file);await wait("document.querySelector('.review-runtime').evidenceStudy.snapshot().capture.frames.length===4");
+    for(const index of [0,1,3]){await cdp.evaluate(`document.querySelectorAll('.ev-timeline button')[${index}].click()`);await sleep(800);}
+   }
+   const selectors=label==='builder'?['.wb-pages [data-page=cli]','.wb-pages [data-page=systems]','.wb-pages [data-page=topology]']:['.ev-tabs button'];
+   if(label==='builder')for(const selector of selectors){const exists=await cdp.evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`);if(exists){await cdp.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);await sleep(350);}}
+   const disclosures=await cdp.evaluate("[...document.querySelectorAll('.review-runtime details')].filter(d=>d.getBoundingClientRect().width>0).slice(0,4).map(d=>[...document.querySelectorAll('.review-runtime details')].indexOf(d))");
+   for(const index of disclosures){for(const waitMs of [100,90,350,350]){await cdp.evaluate(`document.querySelectorAll('.review-runtime details')[${index}].querySelector('summary').click()`);await sleep(waitMs);}}
+   await settled();await geometry('shared-controls-'+label+'-'+width+'-'+theme);
+  }finally{recording=await stop();}
+  (report.sharedMotionAudit??=[]).push({path,label,width,theme,recording});
+ }
+ // Client navigation must retain a painted outgoing runtime until the next
+ // lazy import/data preparation is ready, including a return to saved evidence.
+ const savedCapture=await cdp.evaluate("(()=>{const s=document.querySelector('.review-runtime').evidenceStudy.snapshot();return {frame:s.frameIndex,bytes:s.captureBytes};})()");
+ await cdp.evaluate(`(()=>{window.__handoffSamples=[];window.__handoffRunning=true;const sample=()=>{const root=document.querySelector('.review-runtime');window.__handoffSamples.push({at:performance.now(),children:root?.childElementCount??0,busy:root?.getAttribute('aria-busy'),height:root?.getBoundingClientRect().height??0});if(window.__handoffRunning)requestAnimationFrame(sample);};requestAnimationFrame(sample);})()`);
+ const stopHandoff=await recordPlayback('workspace-handoff-'+width+'-'+theme);let handoffRecording;
+ try{
+  for(const [path,api]of [[WORKSPACE_CATALOG.builder.path,'builderStudy'],[WORKSPACE_CATALOG.tcp.path,'causalStudy'],[WORKSPACE_CATALOG.measured.path,'evidenceStudy']]){
+   await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),menu=root.querySelector('#hopscotch-workspace-navigation-trigger');if(menu)menu.click();const link=root.querySelector('a[href='+${JSON.stringify(JSON.stringify(path))}+']');if(!link)throw Error('Missing workspace link');link.click();})()`);
+   await wait(`Boolean(document.querySelector('.review-runtime')?.${api})&&!document.querySelector('.review-runtime')?.hasAttribute('aria-busy')`);
+   await settled();
+  }
+  await cdp.evaluate("(()=>{const picker=document.querySelector('.ev-workspace');picker.value='capture';picker.dispatchEvent(new Event('change',{bubbles:true}));})()");
+  await wait("document.querySelector('.review-runtime')?.evidenceStudy?.snapshot().workspace==='capture'&&!document.querySelector('.review-runtime').hasAttribute('aria-busy')");await settled();
+  const restoredCapture=await cdp.evaluate("(()=>{const s=document.querySelector('.review-runtime').evidenceStudy.snapshot();return {frame:s.frameIndex,bytes:s.captureBytes};})()");
+  assert.deepEqual(restoredCapture,savedCapture,'Client navigation must restore the original captured bytes and selected frame');
+ }finally{await cdp.evaluate('window.__handoffRunning=false');handoffRecording=await stopHandoff();}
+ const handoffSamples=await cdp.evaluate('window.__handoffSamples');
+ assert(handoffSamples.length>2,'Workspace handoff must include painted samples');
+ assert.deepEqual(handoffSamples.filter(s=>s.children===0||s.height===0),[],'Client navigation painted an empty workspace');
+ report.workspaceHandoff={width,theme,samples:handoffSamples,recording:handoffRecording};
 }
 
 async function visiblePacingReview(){
@@ -200,7 +268,7 @@ async function visiblePacingReview(){
   try{
   await cdp.evaluate("document.querySelector('.review-runtime').causalStudy.play()");
   while(performance.now()<deadline){
-   const sample=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),s=root.causalStudy.snapshot(),r=root.querySelector('.rv-console').getBoundingClientRect(),a=root.querySelector('.rv-actor[aria-hidden="false"]')?.getBoundingClientRect();return {clock:s.clock,index:s.at.index,phase:s.at.kind,p:s.at.p,id:s.frames[s.at.index].id,caption:root.querySelector('.rv-caption-title').textContent,expected:s.frames[s.at.index].title,consoleTop:r.top,actorBottom:a?.bottom};})()`);
+   const sample=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),s=root.causalStudy.snapshot(),r=root.querySelector('.rv-console').getBoundingClientRect(),a=root.querySelector('.rv-actor[aria-hidden="false"]')?.getBoundingClientRect();return {clock:s.clock,index:s.at.index,phase:s.at.kind,p:s.at.p,id:s.frames[s.at.index].id,caption:root.querySelector('.rv-caption-title').textContent,expected:s.caption.title,consoleTop:r.top,actorBottom:a?.bottom};})()`);
    assert.equal(sample.caption,sample.expected);samples.push(sample);
    const key=sample.index+'-'+sample.phase+(sample.phase==='read'?'-'+Math.floor(sample.p*4):'');
    if(!captures.has(key)){captures.add(key);await screenshot('pacing-'+path.split('/').at(-1)+'-'+width+'-'+theme+'-'+String(captures.size).padStart(2,'0')+'-'+key);}
@@ -281,7 +349,7 @@ async function recoveredStudies(){
  for(const [width,height,theme]of [[1280,900,'light'],[1280,900,'dark'],[390,844,'light'],[390,844,'dark']]){
   await open('/labs/tcp',width,height,theme,true);
   const tcp=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),fields=root.querySelector('.rv-actor-face .rv-fields'),flag=fields.querySelector('[data-field=flags]'),seq=fields.querySelector('[data-field=seq]'),ack=fields.querySelector('[data-field=ack]'),rect=n=>{const b=n.getBoundingClientRect();return {x:b.x,y:b.y,width:b.width,bottom:b.bottom};};return {title:root.querySelector('.rv-actor-title').textContent,owners:[...root.querySelectorAll('.rv-peer-state h3')].map(n=>n.textContent),fieldBox:rect(fields),flag:rect(flag),seq:rect(seq),ack:rect(ack),receiver:root.querySelector('.rv-expected').closest('.rv-peer-state')?.querySelector('h3').textContent};})()`);
-  const fit=await cdp.evaluate("(()=>{const s=document.querySelector('.review-runtime').causalStudy.snapshot(),g=s.plan.prepared[s.at.index];return {focus:g.focus.h,full:g.fullHeight};})()");assert.equal(fit.focus,fit.full,'The complete TCP segment stays visible in the study');
+  const fit=await cdp.evaluate("(()=>{const s=document.querySelector('.review-runtime').causalStudy.snapshot(),g=s.plan.prepared[s.at.index];return {focus:g.focus.h,full:g.fullHeight};})()");assert.ok(fit.focus>0&&fit.focus<=fit.full,'TCP retains its complete source in a positive reading viewport');
   assert.equal(tcp.title,'TCP segment');assert.deepEqual(tcp.owners,['Client TCP','Server TCP']);assert.equal(tcp.receiver,'Server TCP');
   assert.ok(Math.abs(tcp.flag.width-tcp.fieldBox.width)<1,'Flags lead the packet across its full reading width');assert.ok(tcp.flag.bottom<=tcp.seq.y+1,'Sequence follows the leading flags');assert.ok(Math.abs(tcp.seq.y-tcp.ack.y)<1,'Sequence and acknowledgment remain a pair when measured width permits');
   await screenshot('tcp-recovered-study-'+width+'-'+theme);
@@ -301,7 +369,7 @@ async function workspaceMenus(){
   assert.equal(shell.headers,1);assert.equal(shell.oldNav,0);assert.equal(shell.native,0,'Workspace selectors must use the custom menu');assert.ok(shell.consoleBottom<=height+1&&shell.consoleTop>=0,'The sticky transport remains inside the viewport');assert.ok(shell.consoleTop-shell.stageBottom<40,'The opening object must not reserve a distant control region');assert.equal(shell.theme,theme);
   assert.ok(shell.consoleBottom>shell.consoleTop,'Playback remains a readable flow region');
   const initial=await cdp.evaluate(`(()=>{const s=document.querySelector('.review-runtime').causalStudy.snapshot(),g=s.plan.prepared[s.at.index];return {focus:g.focus.h,full:g.fullHeight};})()`);
-  assert.equal(initial.focus,initial.full,'The opening local operation must fit without clipping its heading or fields');
+  assert.ok(initial.focus>0&&initial.focus<=initial.full,'The opening local operation retains a positive viewport within its full source height');
   const owners=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),scene=root.querySelector('.rv-stage'),console=root.querySelector('.rv-console'),inspector=root.querySelector('.rv-scene-details'),style=getComputedStyle(root.querySelector('.rv-composition'));return {retainedInScene:scene.contains(root.querySelector('.rv-retained-dock')),inspectorOutsidePlayback:!console.contains(inspector)&&root.querySelector('.rv-main').contains(inspector),columns:style.gridTemplateColumns};})()`);
   assert.ok(owners.retainedInScene,'Retained values stay within the reviewed scene');assert.ok(owners.inspectorOutsidePlayback,'Full inspection stays below the primary composition');assert.equal(owners.columns,'none','The primary scene no longer shares a generic sidebar grid');
 
@@ -348,8 +416,8 @@ async function adaptiveReading(){
  for(const [width,height]of [[1280,800],[390,844],[320,720]])for(const theme of ['light','dark']){
   for(const id of ['dns','tls']){
    await open(WORKSPACE_CATALOG[id].path,width,height,theme,true);
-   const result=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),s=root.causalStudy.snapshot(),a=root.querySelector('.rv-actor'),face=a.querySelector('.rv-actor-face'),g=s.plan.prepared[s.at.index],heading=face.querySelector('.rv-actor-heading').getBoundingClientRect(),last=face.querySelector('.rv-fields').lastElementChild.getBoundingClientRect(),box=a.getBoundingClientRect();return {full:g.fullHeight,focus:g.focus.h,heading:heading.top>=box.top-1,last:last.bottom<=box.bottom+1};})()`);
-   assert.equal(result.focus,result.full,id+' must keep the complete reading face');assert.ok(result.heading&&result.last,id+' must show its heading and last field');
+   const result=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),s=root.causalStudy.snapshot(),a=root.querySelector('.rv-actors>.rv-actor:not([aria-hidden=true])'),face=a.querySelector('.rv-actor-face'),body=face.querySelector('.rv-reading-window'),g=s.plan.prepared[s.at.index],heading=face.querySelector('.rv-actor-heading').getBoundingClientRect(),box=a.getBoundingClientRect(),window=body.getBoundingClientRect(),fields=[...face.querySelectorAll('.rv-fields>.rv-field')].map(n=>n.dataset.field).sort(),expected=s.frames[s.at.index].fields.map(f=>f.id).sort();body.scrollTop=body.scrollHeight;const last=face.querySelector('.rv-fields').lastElementChild.querySelector('.rv-field-value').getBoundingClientRect(),headingAfter=face.querySelector('.rv-actor-heading').getBoundingClientRect();return {full:g.fullHeight,focus:g.focus.h,windowHeight:window.height,heading:heading.top>=box.top-1&&heading.bottom<=window.top+1,headingShift:headingAfter.top-heading.top,last:last.top>=window.top-1&&last.bottom<=window.bottom+1,fields,expected};})()`);
+   assert.ok(result.focus>0&&result.focus<=result.full,id+' must bound its reading viewport within the complete source face');assert.ok(result.windowHeight>0&&result.heading,id+' must pin its heading above a positive reading body');assert.equal(result.headingShift,0,id+' scrolling fields must not move the heading');assert.deepEqual(result.fields,result.expected,id+' must retain every source field');assert.ok(result.last,id+' scrolling must reach the final source value');
   }
  }
  await open('/labs/packet',1280,800,'light');
@@ -412,7 +480,10 @@ async function performanceBudgets(){
 try{
  production=await serveProductionArtifact(resolve('dist'));launch=await launchChrome(findChrome());const targets=await fetchJson('http://127.0.0.1:'+launch.port+'/json'),target=targets.find(t=>t.type==='page');cdp=new CdpClient(target.webSocketDebuggerUrl);for(const domain of ['Page','DOM','Runtime','Log','HeapProfiler'])await cdp.call(domain+'.enable');report.browser=launch.version;
  const task=async(name,run)=>{try{await run();}catch(error){report.failures.push(name+': '+(error.stack||String(error)));await screenshot(name+'-failure').catch(()=>{});}};
+ if(mode==='motion-audit'){await task('full-motion-audit',fullMotionAudit);}else{
  await task('canonical-source',sourceSemantics);if(mode==='overview'){await task('home-menus',homeMenus);await task('workspace-menus',workspaceMenus);await task('recovered-studies',recoveredStudies);}if(mode==='choreography')await task('wire-playback',wirePlayback);await task('moving-lifecycle',movingLifecycle);if(['capture','phase4','performance'].includes(mode)){await task('capture',captureSemantics);await task('measured',measuredSemantics);}if(['phase3','performance'].includes(mode))await task('builder',builderSemantics);if(mode==='phase3'){await task('visible-playback-clock',visiblePlaybackClock);await task('visible-pacing-review',visiblePacingReview);await task('navigation',navigationContinuity);await task('adaptive-reading',adaptiveReading);}if(mode==='phase4')await task('capture-return',captureContinuity);
  if(mode==='journey'||mode==='choreography')await task('journey',journeyMatrix);else await task('viewports',viewportMatrix);if(mode==='performance')await task('performance-budgets',performanceBudgets);if(report.failures.length)process.exitCode=1;
+ }
+ if(report.failures.length)process.exitCode=1;
 }catch(error){report.failures.push(error.stack||String(error));process.exitCode=1;}
 finally{writeFileSync(reportPath,JSON.stringify(report,null,2)+'\n');await cdp?.close();if(launch?.chrome&&launch.chrome.exitCode===null&&launch.chrome.signalCode===null){await new Promise(resolve=>{launch.chrome.once('exit',resolve);launch.chrome.kill('SIGKILL');});}if(launch?.userDataDir)rmSync(launch.userDataDir,{recursive:true,force:true,maxRetries:8,retryDelay:100});await new Promise(resolve=>production?.server.close(resolve)||resolve());console.log(JSON.stringify({mode,profiles:report.profiles.length,failures:report.failures,report:reportPath}));}

@@ -12,6 +12,7 @@ const requiredWorkflows = [
 ];
 
 const compatibilityDependencies = [
+  'full-motion-audit',
   'chrome-gpu-matrix',
   'firefox-semantic',
   'capture-replay',

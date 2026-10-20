@@ -8,6 +8,13 @@
 **Current evidence authority:** [Live visual and animation audit — 8 October 2026](HOPSCOTCH-Live-Visual-Audit-20261008.md). Earlier evidence counts and manifests below describe their historical revisions, not current browser acceptance.
 
 
+## Full motion audit — 20 October 2026
+
+The owner rejected the remaining stop/start rhythm and requested code predictions followed by actual visual inspection. See [full motion audit](HOPSCOTCH-Full-Motion-Audit-20261020.md). The current review removes per-line scanner resets, compact construction idle time, late text thresholds, local decisions collapsing toward wire ports, and repeated zero-opacity pane entrances. Glass morphs reuse shader-rendered endpoint faces with bounded nine-slice interpolation instead of GPU readback for each shape. Existing glyph reading speed, source semantics, fresh receiver exposure and reduced motion remain.
+
+Complete normal-speed playback of all nine lifecycle families now belongs to the compatibility gate on desktop and phone. Timing assertions and historical screenshots do not substitute for reviewing these recordings. The audit document distinguishes confirmed observations from remaining findings.
+
+
 ## Recover the original packet studies — 18 October 2026
 
 The owner rejected the production reconstruction and the later generic review-layout restoration. The reference is the earlier `hopscotch-resilient-glass.html`, `hopscotch-tcp-resilient-glass.html` and focused router studies recovered from the October 9 checkpoint, not merely the subsequent four-study lifecycle page. See [original study restoration](HOPSCOTCH-Original-Study-Restoration.md) for source identity and the mapping.
