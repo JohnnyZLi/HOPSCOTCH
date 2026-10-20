@@ -90,13 +90,13 @@ def complete_runtimes():
         (folder/(name+'-runtime.js')).write_text(code)
 
 def production_evidence(runtime):
-    runtime=runtime.replace('function select(id){remember();','function select(id,restored=null){remember();if(restored)memories.set(id,restored);')
+    assert 'function select(id,restored=null){' in runtime, 'Evidence selection must retain its shared restoration contract'
     runtime=runtime.replace('function remember(){memories.set(workspace,{mode','function remember(){memories.set(workspace,{asFailed:[...asFailed],relationshipId,mode')
     runtime=runtime.replace('asPath=held.asPath;cam=held.cam;','asPath=held.asPath;cam=held.cam;relationshipId=held.relationshipId??relationshipId;if(held.asFailed){asFailed.clear();for(const id of held.asFailed)asFailed.add(id);}')
     runtime=runtime.replace('facility:fs.slice()', 'facility:fs.slice()').replace('[0]};})();','[0]||{id:null}};})();',1)
     runtime=runtime.replace('measured=domain.projectMeasuredSnapshot(d.measured.snapshot)','measured=d.measured?domain.projectMeasuredSnapshot(d.measured.snapshot):null',1).replace('selectedFact=measured.snapshot.facts[0].id',"selectedFact=measured?.snapshot.facts[0]?.id||''")
     runtime=runtime.replace('parsed=domain.parseCaptureSession(buffer)','parsed=await domain.parseCaptureSessionAsync(buffer)')
-    runtime=runtime.replace("let workspace='measured',mode='populated'","let workspace='measured',mode='empty'")
+    runtime=runtime.replace("workspace='measured',mode='populated'","workspace='measured',mode='empty'")
     runtime=runtime.replace("else{mode='populated';pane='scene';","else{mode=id==='internet'||(id==='measured'&&measured)||(id==='capture'&&capture.frames.length)||(id==='physical'&&d.physical.facilities.length)||(id==='observed'&&d.observed)?'populated':'empty';pane='scene';")
     runtime=runtime.replace("select('measured');","select(d.bootstrapWorkspace||'measured');")
     runtime=runtime.replace("q('.rv-main').insertBefore(q('.ev-review-states'),q('.ev-setup'));","q('.ev-review-states').hidden=true;")
