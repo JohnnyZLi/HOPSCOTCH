@@ -23,7 +23,7 @@ inputs += ['design-review/source/complete-review/' + name for name in [
     'motion.html', 'motion.js', 'workbench.html', 'workbench.js',
     'evidence.html', 'evidence.js', 'connected.html', 'connected.js',
     'shared-painter.js', 'shared-ui.js', 'shared-network.js',
-    'shared-reservation.js', 'shared-bytes.js', 'shared-presentation.js', 'source-adapters.js', 'integration-scope.js', 'shared-geometry.js',
+    'shared-reservation.js', 'shared-bytes.js', 'shared-presentation.js', 'shared-transfer.js', 'source-adapters.js', 'integration-scope.js', 'shared-geometry.js',
     'domain.bundle.js', 'evidence-domain.bundle.js', 'entry-domain.bundle.js',
     'd3-array.min.js', 'd3-geo.min.js', 'world-110m.topojson']]
 
