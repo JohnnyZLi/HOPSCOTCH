@@ -2,7 +2,14 @@
 'use strict';
 const root=document.getElementById('__ROOT__'),q=s=>root.querySelector(s),data=root.reviewData,motion=root.motionPlanner,pacing=root.pacing,transfer=root.valueTransfer;
 const {clamp,ease,mix,makePlan,samplePlan}=motion,stage=q('.rv-stage'),dark=matchMedia('(prefers-color-scheme: dark)'),reduced=matchMedia('(prefers-reduced-motion: reduce)');
-const tuning=Object.freeze({construct:180,localConstruct:360,localRelease:220,morph:620,release:440,travelSpeed:.40,minTravel:600,maxTravel:1400,state:650,minimumExposure:900,maxFrameStep:50,ordinaryFrame:250,stallThreshold:600});
+const tuning=Object.freeze({construct:180,localConstruct:360,localRelease:360,morph:620,morphPeakSpeed:1.8,release:440,travelSpeed:.40,minTravel:600,maxTravel:1400,state:650,minimumExposure:900,maxFrameStep:50,ordinaryFrame:250,stallThreshold:600});
+const morphEase=p=>{p=clamp(p);return p*p*p*(p*(p*6-15)+10);};
+function morphDuration(from,to){
+ // The quintic curve peaks at 1.875 times average speed. Bound actual corner
+ // travel, so a distant dock or tall card cannot turn the close into a snap.
+ const distance=Math.max(...[0,1].flatMap(x=>[0,1].map(y=>Math.hypot(to.x+to.w*x-from.x-from.w*x,to.y+to.h*y-from.y-from.h*y))));
+ return Math.max(tuning.morph,distance*1.875/tuning.morphPeakSpeed);
+}
 const memories=new Map(),liveCanvas=document.createElement('canvas'),lensCanvas=document.createElement('canvas');liveCanvas.setAttribute('aria-hidden','true');lensCanvas.setAttribute('aria-hidden','true');
 const envelopeCanvas=document.createElement('canvas');envelopeCanvas.setAttribute('aria-hidden','true');q('.rv-envelope-header').prepend(envelopeCanvas);
 const trailerCanvas=document.createElement('canvas');trailerCanvas.setAttribute('aria-hidden','true');q('.rv-envelope-trailer').prepend(trailerCanvas);
@@ -279,7 +286,7 @@ function reflow(){
   // receipt opens the inspector; construction must not preview a second read.
   if(!f.local)add(i,'travel',clamp((ports.b.x-ports.a.x)/tuning.travelSpeed,tuning.minTravel,tuning.maxTravel));
   if(f.lost){add(i,'lost',tuning.release);commits.push(total);hold();continue;}
-  if(!f.local)add(i,'open',tuning.morph);
+  if(!f.local){const arrive=f.forward?ports.b:ports.a;g.morphDuration=morphDuration(arrive,g.focus);add(i,'open',g.morphDuration);}
   add(i,'read',g.read.total);
   const bindings=[{stateKey:'highestAck',fieldId:'ack',target:'.rv-ack'},{stateKey:'expectedAck',fieldId:'seq',target:'.rv-expected'}],binding=sceneId==='tcp'?bindings.find(b=>f.fields.some(x=>x.id===b.fieldId&&Number.isFinite(Number(x.value)))&&(previous?previous.state[b.stateKey]!==f.state[b.stateKey]:b.stateKey==='expectedAck')):null,field=binding?f.fields.find(x=>x.id===binding.fieldId):null;
   if(field){
@@ -297,7 +304,7 @@ function reflow(){
   commits.push(total);hold();
   // A final local decision is retained state, not a received wire buffer.
   // Keep its outcome visible; physical messages still finish their release.
-  if(!f.local||i<frames.length-1)add(i,'release',f.local?tuning.localRelease:tuning.release);
+  if(!f.local||i<frames.length-1)add(i,'release',f.local?tuning.localRelease:g.morphDuration);
  }
  if(expected)expected.textContent=oldExpected;
  plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH,sceneHeight,sceneFloor,viewport,stageOffset,consoleHeight};
@@ -315,12 +322,12 @@ function pose(at){
  if(at.kind==='construct'){box=f.local?focus:depart;detail=f.local?1:0;opacity=p;}
  if(at.kind==='fold'){box=interpolate(focus,depart,p);detail=1-ease(at.p/.22);}
  if(at.kind==='travel'){box=interpolate(depart,arrive,p);detail=0;if(f.lost){box=interpolate(depart,interpolate(depart,arrive,.58),p);}}
- if(at.kind==='open'){box=interpolate(arrive,focus,p);detail=ease((at.p-.25)/.6);}
+ if(at.kind==='open'){box=interpolate(arrive,focus,morphEase(at.p));detail=ease((at.p-.25)/.6);}
  if(at.kind==='modify'&&sceneId==='packetOps'){box=interpolate(plan.prepared[Math.max(0,at.index-1)].focus,focus,p);}
  if(at.kind==='focus'){box=interpolate(plan.prepared[Math.max(0,at.index-1)].focus,focus,p);}
  if(at.kind==='lost'){box=interpolate(depart,arrive,.58);box.y+=p*12;detail=0;opacity=1-p;}
  if(at.kind==='release'&&f.local){box=focus;detail=1;opacity=1-p;}
- if(at.kind==='release'&&!f.local){const release={x:arrive.x,y:arrive.y,w:plan.compactW,h:plan.compactH};box=interpolate(focus,release,ease(at.p/.8));detail=1-ease(at.p/.8);opacity=1-ease((at.p-.5)/.5);}
+ if(at.kind==='release'&&!f.local){box=interpolate(focus,arrive,morphEase(at.p));detail=1-ease(at.p);opacity=1-ease((at.p-.65)/.35);}
  if(at.kind==='hold'&&f.lost){box=arrive;opacity=0;detail=0;}
  if(sceneId==='provider'||f.assembly){box=focus;detail=1;opacity=1;}
  if(f.assembly&&at.kind==='layerChange'&&frames[at.index-1]?.assembly?.identity===f.assembly.identity)box=interpolate(plan.prepared[at.index-1].focus,focus,p);
@@ -374,8 +381,9 @@ function renderActor(at){
  for(const actor of new Set(actors.filter(Boolean).map(a=>a.actor))){if(retained.has(actor)){if(actor.parentElement!==host)host.append(actor);}else if(actor.parentElement===host)actor.remove();}
  if(a.deck)prepareFields(at.index);
  if(activeActor!==at.index){a.actor.setAttribute('aria-label',f.objectTitle+' · '+f.id);for(const n of actors)if(n){if(n.actor!==a.actor){n.actor.style.opacity='0';n.actor.inert=true;n.actor.setAttribute('aria-hidden','true');}n.face.style.opacity='0';n.face.style.visibility='hidden';}root.presentation.material(a.actor,{role:root.presentation.frameRole(f),identity:f.protocol,moving:true});a.actor.prepend(liveCanvas);liveCanvas.dataset.paintKey='';activeActor=at.index;}
- a.face.style.transform='none';a.viewport.style.height=plan.prepared[at.index].windowHeight+'px';a.viewport.scrollTop=readerOffset(at);
- const faceOpacity=clamp(s.detail),capsuleOpacity=Math.pow(1-faceOpacity,6);
+ const focus=plan.prepared[at.index].focus,scaling=!f.local&&['open','release'].includes(at.kind),scale=scaling?Math.min(1,s.box.w/focus.w,s.box.h/focus.h):1;
+ a.face.style.transformOrigin='0 0';a.face.style.transform=scaling?`translate(${(s.box.w-focus.w*scale)/2}px,${(s.box.h-focus.h*scale)/2}px) scale(${scale})`:'none';a.viewport.style.height=plan.prepared[at.index].windowHeight+'px';a.viewport.scrollTop=readerOffset(at);
+ const faceOpacity=clamp(s.detail),capsuleOpacity=Math.pow(1-faceOpacity,18);
  a.actor.style.transform=`translate(${s.box.x}px,${s.box.y}px)`;a.actor.style.width=s.box.w+'px';a.actor.style.height=s.box.h+'px';a.actor.style.borderRadius=s.radius+'px';a.actor.style.opacity=String(s.opacity);a.actor.inert=faceOpacity<.99;a.actor.setAttribute('aria-hidden',String(s.opacity<.01));a.face.style.opacity=String(faceOpacity);a.face.style.visibility=faceOpacity>0?'visible':'hidden';a.capsule.style.opacity=String(capsuleOpacity);a.capsule.style.visibility=capsuleOpacity>0?'visible':'hidden';
  if(s.opacity>0){const previous=plan.prepared[at.index-1]?.focus,handoff=previous&&['focus','modify','layerChange'].includes(at.kind);root.surfacePainter.morph(liveCanvas,s.box,s.radius,handoff?ease(at.p):s.openness,handoff?{...previous,r:24,open:1}:{w:plan.compactW,h:plan.compactH,r:16},plan.prepared[at.index].focus);}
  if(at.kind==='focus'){const previous=actors[at.index-1];previous.viewport.scrollTop=readerOffset({index:at.index-1,kind:'hold'});const enter=ease(at.p),exit=1-enter;previous.face.style.visibility=exit>0?'visible':'hidden';previous.face.style.opacity=String(exit);a.face.style.visibility=enter>0?'visible':'hidden';a.face.style.opacity=String(enter);}else if(['packet','packetOps'].includes(sceneId))for(const other of actors)if(other.face!==a.face){other.face.style.visibility='hidden';other.face.style.opacity='0';}

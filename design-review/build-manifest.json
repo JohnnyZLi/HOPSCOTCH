@@ -3,7 +3,7 @@
   "inputs": {
     "design-review/build.py": "3cfc74e7ad74dbe27292d95f1a0aadb2900c0e320def3ff979bfefe4073ae842",
     "design-review/source/base-study.html": "cedcfd274898b271c138241df65bc8dda14a4cd46fd1dd61e8c3a11c76958667",
-    "design-review/source/complete-review/assemble.py": "267cff263384ae76875e438aa28779ebfbec3acd312039cc641d6c76fb31b847",
+    "design-review/source/complete-review/assemble.py": "468511317a20a25322700f0dd8549926cd7b2e0d661ab17ed8c66dc24a01145e",
     "design-review/source/complete-review/connected.css": "a71f51327a1b76ab9927dd03f07b644c2fa5573d28240e0b34bf00bde0e60152",
     "design-review/source/complete-review/connected.html": "35d26ea3d933a262efaa84309df744198e496f89cac3a5fb1ffa36f3afdfc322",
     "design-review/source/complete-review/connected.js": "d09ac594384d03aa2c38a18c33140cb28e305aee0f6e3a7c004d3e7f1a4d5be4",
@@ -16,7 +16,7 @@
     "design-review/source/complete-review/evidence.js": "69a0a6bdc402c0400e6b97650c6dd76967aa3241e176777c591aa87f652f6b9e",
     "design-review/source/complete-review/integration-scope.js": "949b1262868db550c3e287c22b93ee559a143365a2221edf7f7fa2c42d7d1563",
     "design-review/source/complete-review/motion.html": "6cdcd521ef78d3843ff8f49d3d3b812b7be0d69ec4f3b96090263e30a2f6c7f0",
-    "design-review/source/complete-review/motion.js": "aba4a9a444a2cf4e9eea97213e7796055dbe4b7ad186725ff3b16de7b23d0889",
+    "design-review/source/complete-review/motion.js": "347f1fcaa82e46697455044dc5ca2cb0b54ac6625e6467c214f39c2b260d0bcc",
     "design-review/source/complete-review/production-builder.js": "85a09e3f1cbcf8de9d0404407c5abf246af1e2075ea0c662fcfd8a89d542a251",
     "design-review/source/complete-review/production-density.js": "daadd91de942d8fc2c16ab3893e270d6cdaeea03eff3acd7b2376da80344f688",
     "design-review/source/complete-review/production-evidence.js": "4cd555c5e096407d03c1f43b80df2ccbc22b58d6cff61626301aba2ca7fa54cf",
@@ -43,7 +43,7 @@
     "public/review/connected.html": "c752469f9ed766093a0291ea941d742b6bd3454bd39a1766a5b246a8635798eb",
     "public/review/evidence.html": "7a6a00a751c38c8c3b49d47683cacf840101c2e59c161a61f976d2471035853f",
     "public/review/index.html": "6a9c09e26f33d40273c1bb299f71be1b8fc7b7c9cf1c5438cd99887de1a44f41",
-    "public/review/lifecycle.html": "568fd78634f6bab7d83b414dfe0ac7f95875182ed15d18d4c904321e2e50bc75",
+    "public/review/lifecycle.html": "dad3a41a029d2c3899a4c0a46ac380f9b0e808d25640af7b8a9db87e6ce54f89",
     "public/review/viewport.html": "75d00ce5b75458e1f8a150c6e7897b5662ea93bf5d763ccba95eca1652980455",
     "src/redesign/builder-domain.ts": "de72948ce57c9dcc2461e6f693f1bba922a123def55df13d675c5db62143689b",
     "src/redesign/builder-runtime.css": "f2663b8cd4e06e403ffcc5f63e1b9d0e950a63d645f4fac37ca30071e9b054df",
@@ -57,7 +57,7 @@
     "src/redesign/foundation-runtime.js": "987fc9f6661eb753a7544a95f1e1fbe085d1d67ac28e0f5f5aeb6ed977c5ba9b",
     "src/redesign/home-runtime.js": "06698335fb619f277f77935408d2d0d7aeda3dc36ac58a13c8cc591f6b66523f",
     "src/redesign/lifecycle-runtime.css": "25e09559cf463a1e636e0d59667d76fbba0da41b50b34ac6dfd606e88d695cc1",
-    "src/redesign/lifecycle-runtime.js": "d8a7a8c9f50988e4aafaf4f778d86bc691f77b5a12da0a2c8d0eaeae6ce12c75",
+    "src/redesign/lifecycle-runtime.js": "d6b3d9a893d4505e7f1ba40bc2a2d4bf130c0b581a4d4d471089c6ce9e0302cd",
     "src/redesign/material-runtime.js": "c564bbc58b3865986896fc750a9f278a247046ff3c6e122bae8f5703ddf9802b",
     "src/redesign/network-planner-worker.js": "84360af905dff3cc49a822bfdfadf7aa7d5cc757947b8379e102e938f4bbe54e"
   }
