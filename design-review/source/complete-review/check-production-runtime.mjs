@@ -5,6 +5,7 @@ import {frameCamera} from './shared-geometry.js';
 const data=JSON.parse(fs.readFileSync('complete-review/source-data.json','utf8'));
 for(const failGL of [false,true]){
  const env=await environment('motion',390,{artifactPath:'../../public/review/lifecycle.html',failGL}),canvas=env.document.createElement('canvas'),ctx=canvas.getContext('2d');let transform=[2,0,0,2,0,0],drawn=0;
+ assert(env.root.reviewData.referenceModels.every(model=>Object.hasOwn(env.root.reviewData,model.id)),'The animation artifact contains only reference models for its own simulation data, with no unrelated measurement/capture fixture facts');
  ctx.setTransform=(...matrix)=>{transform=matrix;};ctx.drawImage=()=>{assert.deepEqual(transform,[1,0,0,1,0,0],'Pixel-addressed morph composition must not inherit a previous high-DPI fallback transform');drawn++;};canvas.getContext=()=>ctx;
  env.root.surfacePainter.prepare(350,260);env.root.surfacePainter.morph(canvas,{w:225,h:152},20,.5,{w:100,h:44,r:16},{w:350,h:260});assert(drawn>0);
  env.root.causalStudy.dispose();
@@ -151,4 +152,23 @@ for(const width of [320,390,1024,1440])for(const scene of ['tcp','dns','tls','jo
  for(const [x,y]of [[bounds.left,bounds.top],[bounds.right,bounds.bottom]]){assert(camera.x+x*camera.z>=0);assert(camera.x+x*camera.z<=viewport.w);assert(camera.y+y*camera.z>=0);assert(camera.y+y*camera.z<=viewport.h);}
  mount.dispose();assert.deepEqual(JSON.parse(JSON.stringify(mount.stats())),{disposed:true,frames:0,observers:0,listeners:0});assert.equal(env.root.children.length,0);assert.equal(env.root.causalStudy,undefined,'Disposed hosts must not retain the renderer plan/cache through API properties.');assert.equal(env.root.reviewData,undefined);await env.flush();
  console.log('PASS integrated runtime, canonical selection and disposal',scene,width);
+}
+{
+ for(const width of [390,1280]){
+  const env=await environment('motion',width,{artifactPath:'../../public/review/lifecycle.html'}),api=env.root.causalStudy,source=JSON.stringify(env.root.reviewData);
+  for(const scene of ['tcp','dns','tls','journey']){
+   api.select(scene);await env.flush();const s=api.snapshot(),open=s.plan.phases.find(p=>p.kind==='open'),release=s.plan.phases.find(p=>p.index===open.index&&p.kind==='release');
+   assert(open.end-open.start>=620,'A wire morph keeps its minimum readable duration');assert(Math.abs((release.end-release.start)-(open.end-open.start))<.001,'Opening and closing the same measured shape share a speed policy');
+   const poseAt=time=>{api.seek(time);const a=env.root.querySelectorAll('.rv-actor').find(a=>Number(a.style.opacity)>.01),face=a.querySelector('.rv-actor-face'),xy=a.style.transform.match(/translate\(([-\d.e]+)px,\s*([-\d.e]+)px\)/);return {x:Number(xy[1]),y:Number(xy[2]),w:parseFloat(a.style.width),h:parseFloat(a.style.height),scale:Number(face.style.transform.match(/scale\(([^)]+)\)/)?.[1]??1)};};
+   for(const phase of [open,release]){
+    const mid=(phase.start+phase.end)/2,a=poseAt(mid-1),b=poseAt(mid+1),g=s.plan.prepared[phase.index];
+    for(const x of [0,1])for(const y of [0,1])assert(Math.hypot(b.x+b.w*x-a.x-a.w*x,b.y+b.h*y-a.y-a.h*y)/2<=1.801,'Measured morph corners must not exceed the shared peak speed');
+    assert(a.scale>0&&a.scale<=1);assert(g.focus.w*a.scale<=a.w+.01&&g.focus.h*a.scale<=a.h+.01,'The complete reading face must fit inside the moving card rather than clip full-size labels');
+    const start=poseAt(phase.start+.01),early=poseAt(phase.start+1);assert(Math.hypot(early.x-start.x,early.y-start.y)<.1,'A resting card must start its morph without a velocity jump');
+   }
+   api.seek(open.end+.01);assert.equal(env.root.querySelectorAll('.rv-actor').find(a=>Number(a.style.opacity)>.99).querySelector('.rv-actor-face').style.transform,'none','Measured glyph reading retains its original full-size coordinates');
+  }
+  assert.equal(JSON.stringify(env.root.reviewData),source);api.dispose();
+ }
+ console.log('PASS paired morph timing, bounded corner speed, unclipped moving text and full-size glyph coordinates');
 }

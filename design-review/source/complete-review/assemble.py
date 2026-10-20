@@ -132,7 +132,10 @@ element.reviewData=data; element.dataset.integrated='false';
 if __name__=='__main__':
     data=json.loads(Path('complete-review/source-data.json').read_text())
     motion_data={k:data[k] for k in ['baseline','tcp','failure','packetVariants','packetOperations','packet','dns','tls','http','journey','provider']}
-    motion_data['referenceModels']=presentation_models(data)
+    # Keep the animation artifact scoped to its simulation scenes. Evidence
+    # workspaces own their separate fixture/import paths; their reference facts
+    # are unused here and must not be embedded in the animation review page.
+    motion_data['referenceModels']=[model for model in presentation_models(data) if model['id'] in motion_data]
     configs=[('motion','hop-causal-review','../dist/fragment-hopscotch-causal-lifecycle.html',motion_data)]
     if Path('complete-review/workbench.html').exists():configs.append(('workbench','hop-builder-review','../dist/fragment-hopscotch-builder-workbench.html',{k:data[k] for k in ['baseline','builder','provider','ipv6Control','challenges']}))
     if Path('complete-review/evidence.html').exists():configs.append(('evidence','hop-evidence-review','../dist/fragment-hopscotch-evidence-workspaces.html',{k:data[k] for k in ['baseline','measured','observed','physical','captureMulti','captureNg','captureTruncated','captureMultiBytes','captureNgBytes','captureTruncatedBytes','internet']}))
