@@ -768,6 +768,35 @@ app.packetMaterial=Object.freeze({create,drawFallback,pigment,
 const root=document.getElementById('hop-causal-review');
 const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x)),mix=(a,b,t)=>a+(b-a)*t,smooth=t=>{t=clamp(t);return t*t*t*(10+t*(-15+6*t));};
 const policy=Object.freeze({acquire:100,lift:170,flightSpeed:.56,minFlight:440,maxFlight:1280,seat:280,receive:180,liftRatio:.42,archRatio:.075,paddingRatio:.3});
+// Route the complete value footprint through measured text clearance. This is
+// prepared once per layout; playback only samples the cached, rounded path.
+function clearRoute(from,to,width,height,bounds){
+ const gap=Math.max(3,height*.12),right=bounds.x+bounds.w-width-gap,left=bounds.x+gap;
+ const obstacles=(bounds.obstacles||[]).map(r=>({x:r.x-width-gap,y:r.y-height-gap,right:r.x+r.w+gap,bottom:r.y+r.h+gap}));
+ const inside=(p,r)=>p.x>r.x+.01&&p.x<r.right-.01&&p.y>r.y+.01&&p.y<r.bottom-.01;
+ const clear=(a,b)=>!obstacles.some(r=>{
+  let lo=0,hi=1;for(const [v,d,min,max]of [[a.x,b.x-a.x,r.x+.01,r.right-.01],[a.y,b.y-a.y,r.y+.01,r.bottom-.01]]){
+   if(Math.abs(d)<.0001){if(v<=min||v>=max)return false;}else{const t1=(min-v)/d,t2=(max-v)/d;lo=Math.max(lo,Math.min(t1,t2));hi=Math.min(hi,Math.max(t1,t2));if(lo>hi)return false;}
+  }return lo<=hi;
+ });
+ const xs=[...new Set([from.x,to.x,left,right,...obstacles.flatMap(r=>[r.x,r.right])].filter(x=>x>=left&&x<=right))].sort((a,b)=>a-b);
+ const ys=[...new Set([from.y,to.y,bounds.y,...obstacles.flatMap(r=>[Math.max(bounds.y,r.y),r.bottom])])].sort((a,b)=>a-b);
+ const nodes=ys.flatMap((y,j)=>xs.map((x,i)=>({x,y,i,j,cost:Infinity,previous:null}))),valid=nodes.map(p=>!obstacles.some(r=>inside(p,r)));
+ const start=nodes.findIndex(p=>p.x===from.x&&p.y===from.y),end=nodes.findIndex(p=>p.x===to.x&&p.y===to.y);
+ if(start<0||end<0||!valid[start]||!valid[end])return null;
+ nodes[start].cost=0;const open=new Set([start]),done=new Set();
+ while(open.size){let id=-1,best=Infinity;for(const candidate of open){const n=nodes[candidate],score=n.cost+Math.hypot(n.x-to.x,n.y-to.y);if(score<best){best=score;id=candidate;}}if(id===end)break;open.delete(id);done.add(id);const n=nodes[id];
+  for(const [di,dj]of [[-1,0],[1,0],[0,-1],[0,1]]){const i=n.i+di,j=n.j+dj;if(i<0||i>=xs.length||j<0||j>=ys.length)continue;const next=j*xs.length+i,p=nodes[next];if(!valid[next]||done.has(next)||!clear(n,p))continue;const cost=n.cost+Math.hypot(n.x-p.x,n.y-p.y);if(cost<p.cost){p.cost=cost;p.previous=id;open.add(next);}}
+ }
+ if(!Number.isFinite(nodes[end].cost))return null;
+ let route=[];for(let id=end;id!==null;id=nodes[id].previous)route.unshift({x:nodes[id].x,y:nodes[id].y});
+ // Remove grid-only stops, then round each corner only within free space.
+ route=route.filter((p,i)=>!i||i===route.length-1||Math.abs((p.x-route[i-1].x)*(route[i+1].y-p.y)-(p.y-route[i-1].y)*(route[i+1].x-p.x))>.01);
+ const rounded=[route[0]];for(let i=1;i<route.length-1;i++){const a=route[i-1],b=route[i],c=route[i+1],ab=Math.hypot(b.x-a.x,b.y-a.y),bc=Math.hypot(c.x-b.x,c.y-b.y);let radius=Math.min(height,ab/2,bc/2),curve;
+  do{const u={x:b.x+(a.x-b.x)*radius/ab,y:b.y+(a.y-b.y)*radius/ab},v={x:b.x+(c.x-b.x)*radius/bc,y:b.y+(c.y-b.y)*radius/bc};curve=Array.from({length:13},(_,j)=>{const t=j/12,s=1-t;return{x:s*s*u.x+2*s*t*b.x+t*t*v.x,y:s*s*u.y+2*s*t*b.y+t*t*v.y};});if(curve.every((p,j)=>!j||clear(curve[j-1],p)))break;radius/=2;}while(radius>.1);
+  rounded.push(...curve);
+ }rounded.push(route.at(-1));return rounded;
+}
 function plan(from,to,before,after,note='',bounds=null){
  before=String(before);after=String(after);const sourceFont=from.fontSize||18,targetFont=to.fontSize||sourceFont,sourceH=from.lineHeight||from.h||sourceFont*1.35,targetH=to.lineHeight||to.h||targetFont*1.35,line=Math.max(sourceH,targetH),lift=line*policy.liftRatio;
  const a={x:from.x,y:from.y-lift},b={x:to.x,y:to.y-lift*.7},dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy),arch=Math.min(line*1.2,d*policy.archRatio),points=[],lengths=[];let distance=0;
@@ -775,10 +804,12 @@ function plan(from,to,before,after,note='',bounds=null){
  const footprint=Math.max(from.glyphWidths?.reduce((a,b)=>a+b,0)||before.length*sourceFont*.55,to.glyphWidths?.reduce((a,b)=>a+b,0)||after.length*targetFont*.55);
  for(let i=0;i<=64;i++){const t=i/64,u=1-t,point={x:u*u*u*a.x+3*u*u*t*c1.x+3*u*t*t*c2.x+t*t*t*b.x,y:u*u*u*a.y+3*u*u*t*c1.y+3*u*t*t*c2.y+t*t*t*b.y};if(bounds&&i>0&&i<64){point.x=clamp(point.x,bounds.x,Math.max(bounds.x,bounds.x+bounds.w-footprint));point.y=Math.max(bounds.y,point.y);}points.push(point);if(i){const prev=points[i-1],len=Math.hypot(point.x-prev.x,point.y-prev.y);lengths.push(len);distance+=len;}}
  // No value-length buckets or per-field routes. A cached arc connects measured glyph anchors.
+ const route=Math.hypot(from.x-to.x,from.y-to.y)<line*.25?[{x:from.x,y:from.y},{x:to.x,y:to.y}]:bounds?.obstacles?clearRoute(from,to,footprint,line,bounds):null;
+ if(route){points.splice(0,points.length,...route);lengths.length=0;distance=0;for(let i=1;i<points.length;i++){const len=Math.hypot(points[i].x-points[i-1].x,points[i].y-points[i-1].y);lengths.push(len);distance+=len;}}
  const flight=clamp(distance/policy.flightSpeed,policy.minFlight,policy.maxFlight),boundaries={acquire:policy.acquire,lift:policy.acquire+policy.lift,flight:policy.acquire+policy.lift+flight,seat:policy.acquire+policy.lift+flight+policy.seat};boundaries.receive=boundaries.seat+policy.receive;
  const fallback=(str,font)=>Array.from(str,()=>font*.55),beforeWidths=from.glyphWidths?.slice(0,before.length)||fallback(before,sourceFont),afterWidths=to.glyphWidths?.slice(0,after.length)||fallback(after,targetFont);
  while(beforeWidths.length<before.length)beforeWidths.push(sourceFont*.55);while(afterWidths.length<after.length)afterWidths.push(targetFont*.55);
- return {from,to,before,after,note,points,lengths,distance,boundaries,duration:boundaries.receive,sourceFont,targetFont,sourceH,targetH,lift,beforeWidths,afterWidths,glyphWidths:afterWidths};
+ return {from,to,before,after,note,points,lengths,distance,boundaries,duration:boundaries.receive,sourceFont,targetFont,sourceH,targetH,lift:route?0:lift,routed:!!route,annotation:bounds?.annotation,beforeWidths,afterWidths,glyphWidths:afterWidths};
 }
 function pointAt(p,t){let remaining=smooth(t)*p.distance;for(let i=0;i<p.lengths.length;i++){const len=p.lengths[i];if(remaining<=len||i===p.lengths.length-1){const f=len?clamp(remaining/len):1;return {x:mix(p.points[i].x,p.points[i+1].x,f),y:mix(p.points[i].y,p.points[i+1].y,f)};}remaining-=len;}return p.points.at(-1);}
 function sample(p,elapsed){elapsed=clamp(elapsed,0,p.duration);const b=p.boundaries,acquire=smooth(elapsed/b.acquire),lift=smooth((elapsed-b.acquire)/(b.lift-b.acquire)),flight=clamp((elapsed-b.lift)/(b.flight-b.lift)),seat=smooth((elapsed-b.flight)/(b.seat-b.flight)),receive=smooth((elapsed-b.seat)/(b.receive-b.seat));let point;
@@ -790,7 +821,7 @@ function makeView(node,number,note){const body=document.createElement('span');bo
 function prepare(view,p,key){if(view.key===key)return;view.key=key;view.number.replaceChildren();view.slots=[];for(let i=0;i<Math.max(p.before.length,p.after.length);i++){const slot=document.createElement('span');slot.className='hs-transfer-slot';const old=document.createElement('span'),next=document.createElement('span');old.className='hs-transfer-old';next.className='hs-transfer-new';old.textContent=p.before[i]||'';next.textContent=p.after[i]||'';slot.append(old,next);view.number.append(slot);view.slots.push({slot,old,next,same:p.before[i]===p.after[i]});}}
 function draw(view,p,elapsed,key,blendReceiver=false){prepare(view,p,key);const s=sample(p,elapsed),pad=policy.paddingRatio*s.lineHeight*s.shell;view.node.dataset.transferPhase=s.phase;view.node.style.opacity=String(s.opacity*(blendReceiver?s.copyOpacity:1));view.node.style.transform=`translate(${s.x}px,${s.y}px) scale(${s.scale})`;view.node.style.transformOrigin='0 0';view.number.style.fontSize=s.fontSize+'px';view.number.style.lineHeight=s.lineHeight+'px';view.number.style.height=s.lineHeight+'px';view.number.style.fontWeight=String(p.to.fontWeight||p.from.fontWeight||500);view.number.style.color=`color-mix(in srgb,var(--hs-accent) ${(1-s.seat)*100}%,var(--hs-ink))`;
  let oldX=0,newX=0;for(let i=0;i<view.slots.length;i++){const g=view.slots[i],a=p.beforeWidths[i]||0,b=p.afterWidths[i]||0;g.slot.style.left=mix(oldX,newX,s.mutation)+'px';g.slot.style.width=Math.max(a,b)+'px';g.slot.style.height=s.lineHeight+'px';g.old.style.transform=`translateY(${-s.mutation*s.lineHeight}px)`;g.old.style.opacity=String(g.same?0:1-s.mutation);g.next.style.transform=`translateY(${g.same?0:(1-s.mutation)*s.lineHeight}px)`;g.next.style.opacity=String(g.same?1:s.mutation);oldX+=a;newX+=b;}
- const w=mix(oldX,newX,s.mutation);view.number.style.width=w+'px';Object.assign(view.body.style,{left:-pad+'px',top:-pad*.55+'px',width:w+pad*2+'px',height:s.lineHeight+pad*1.1+'px',opacity:String(s.shell),borderRadius:mix(6,12,s.shell)+'px',transform:`translateY(${s.shell*1.5}px)`});if(view.note){view.note.textContent=p.note;view.note.hidden=!p.note;view.note.style.left=w/2+'px';view.note.style.top=s.lineHeight+pad+4+'px';view.note.style.opacity=String(s.lift*(1-s.seat));}return s;
+ const w=mix(oldX,newX,s.mutation);view.number.style.width=w+'px';Object.assign(view.body.style,{left:-pad+'px',top:-pad*.55+'px',width:w+pad*2+'px',height:s.lineHeight+pad*1.1+'px',opacity:String(s.shell),borderRadius:mix(6,12,s.shell)+'px',transform:`translateY(${s.shell*1.5}px)`});if(view.note){view.note.textContent=p.note;view.note.hidden=!p.note;view.note.style.left=(p.annotation?(p.annotation.x-s.x)/s.scale:w/2)+'px';view.note.style.top=(p.annotation?(p.annotation.y-s.y)/s.scale:s.lineHeight+pad+4)+'px';view.note.style.width=p.annotation?p.annotation.w+'px':'';view.note.style.transform=`translateX(-50%) scale(${p.annotation?1/s.scale:1})`;view.note.style.opacity=String(s.lift*(1-s.seat));}return s;
 }
 function measure(node,origin){const r=node.getBoundingClientRect(),style=getComputedStyle(node),text=node.textContent,glyphWidths=[];for(let i=0;i<text.length;i++){const range=document.createRange();if(range.setStart){range.setStart(node.firstChild,i);range.setEnd(node.firstChild,i+1);glyphWidths.push([...range.getClientRects()].reduce((sum,r)=>sum+r.width,0));}else{range.selectNodeContents(node);glyphWidths.push([...range.getClientRects()].reduce((sum,r)=>sum+r.width,0)/Math.max(1,text.length));}}return {x:r.left-origin.left,y:r.top-origin.top,w:r.width,h:r.height,glyphWidths,fontSize:parseFloat(style.fontSize)||18,lineHeight:parseFloat(style.lineHeight)||r.height,fontWeight:parseFloat(style.fontWeight)||500};}
 root.valueTransfer=Object.freeze({policy,plan,sample,draw,makeView,measure});
@@ -1794,7 +1825,7 @@ function dockValues(state){
  return [];
 }
 function initialDockValues(){return dockValues(sceneId==='tcp'?{highestAck:0,expectedAck:1001}:frames[0]?.state);}
-function sceneExtent(g,f,trailerH){return g.focus.y+g.focus.h+(f.assembly||sceneId==='packetOps'||sceneId==='provider'?trailerH+g.fit.spread:0)+16;}
+function sceneExtent(g,f,trailerH){return g.focus.y+g.focus.h+(f.assembly||sceneId==='packetOps'||sceneId==='provider'?trailerH+g.fit.spread:0)+Math.max(16,(g.annotationHeight||0)+16);}
 
 function modelFrames(id){return data.referenceModels.find(m=>m.id===id)?.frames||[];}
 // A local operation exposes its actual state changes. Wire-message fields stay
@@ -2001,9 +2032,9 @@ function reflow(){
 
   const focus={x:(width-cardWidth)/2,y:focusY+(f.assembly?.envelope.present?envelopeH:0),w:cardWidth,h:viewHeight},fit=motion.fitGeometry(cardWidth,[envelopeH||60,viewHeight,trailerH||48],1),attach=motion.makeAttachmentPlan(1,0,fit),detach=motion.makeAttachmentPlan(0,1,fit),emphasis=root.emphasis.compile(root.emphasis.readWindows(read,0,id=>a.fieldMap.get(id)));const payload=a.face.querySelector('.rv-payload-body'),pr=payload?.getBoundingClientRect(),payloadRect=pr?{x:pr.left-origin.left,y:pr.top-origin.top,w:pr.width,h:pr.height}:null;
   const transferIds=sceneId==='tcp'?['seq','ack']:sceneId==='packetOps'?f.fields.map(field=>field.id):[],transferFields=Object.fromEntries(transferIds.filter(id=>a.fieldMap.has(id)).map(id=>[id,transfer.measure(a.fieldMap.get(id).querySelector('.rv-field-value'),origin)]));
-  prepared.push({focus,fullHeight:height,contentTop,contentLeft:a.fields.getBoundingClientRect().left-origin.left,windowHeight,readingCenter,bottomPadding,startReadingY,firstReadingY,lastReadingY,lens,read,origin,targets,emphasis,fit,attach,detach,payloadRect,transferFields});maxHeight=Math.max(maxHeight,height);a.face.style.position='absolute';a.actor.remove();
+  prepared.push({focus,fullHeight:height,contentTop,contentLeft:a.fields.getBoundingClientRect().left-origin.left,windowHeight,readingCenter,bottomPadding,startReadingY,firstReadingY,lastReadingY,lens,read,origin,targets,emphasis,fit,attach,detach,payloadRect,transferFields,transferObstacles:[...a.face.querySelectorAll('.rv-field-label,.rv-field-value,.rv-actor-title,.rv-actor-role')].flatMap(el=>textLines(el,origin).map(rect=>({...rect,field:el.closest('.rv-field')?.dataset.field,value:el.matches('.rv-field-value'),scroll:!!el.closest('.rv-reading-window')})))});maxHeight=Math.max(maxHeight,height);a.face.style.position='absolute';a.actor.remove();
  }
- const sceneHeight=Math.max(...prepared.map((g,i)=>sceneExtent(g,frames[i],trailerH))),sceneFloor=Math.min(sceneHeight,Math.max(0,viewport-stageOffset-consoleHeight-48));
+ let sceneHeight=Math.max(...prepared.map((g,i)=>sceneExtent(g,frames[i],trailerH))),sceneFloor=Math.min(sceneHeight,Math.max(0,viewport-stageOffset-consoleHeight-48));
  stage.style.height=(['failure','http'].includes(sceneId)?0:sceneHeight)+'px';
  q('.rv-path').style.cssText='left:'+(ports.a.x+compactW/2)+'px;top:'+pathY+'px;width:'+(ports.b.x-ports.a.x)+'px';
  reserveState();root.surfacePainter.prepare(Math.max(cardWidth,compactW),Math.max(maxHeight,compactH));
@@ -2041,7 +2072,10 @@ function reflow(){
    const target=q(binding.target),oldValue=target.textContent,nextValue=String(f.state[binding.stateKey]);target.textContent=nextValue;
    const from={...g.transferFields[field.id]},to=transfer.measure(target,stageOrigin);const lastRead=samplePlan(g.read,g.read.total),limit=Math.max(0,g.fullHeight-g.focus.h);g.retainStartOffset=clamp(lastRead.y-g.readingCenter,0,limit);g.retainOffset=clamp(from.y+from.h/2-g.readingCenter,0,limit);const distance=Math.abs(g.retainOffset-g.retainStartOffset);if(distance>.5)add(i,'retainFocus',clamp(distance/.35,180,650));from.x+=g.focus.x;from.y+=g.focus.y-g.retainOffset;target.textContent=oldValue;
    const delta=Number(nextValue)-Number(field.value),note=binding.stateKey==='highestAck'?'Acknowledged by peer':delta===1&&(f.event.flags||'').includes('SYN')?'+1 · SYN':delta===1&&(f.event.flags||'').includes('FIN')?'+1 · FIN':'+'+delta+' B · contiguous sequence space';g.transferTarget=binding.target;g.transferStateKey=binding.stateKey;g.transferFieldId=binding.fieldId;
-   g.transfer=transfer.plan(from,to,field.value,nextValue,note,{x:0,y:0,w:width});add(i,'retain',g.transfer.duration);
+   const obstacles=g.transferObstacles.filter(r=>!(r.value&&r.field===field.id)).map(r=>({...r,x:r.x+g.focus.x,y:r.y+g.focus.y-(r.scroll?g.retainOffset:0)})).filter(r=>r.y+r.h>=g.focus.y&&r.y<=g.focus.y+g.focus.h);
+   for(const el of dock.querySelectorAll('h3,dt,dd,p'))if(el!==target)obstacles.push(...textLines(el,stageOrigin));
+   const annotationWidth=Math.min(width-24,360),noteProbe=transferView.note.cloneNode(false);noteProbe.textContent=note;noteProbe.hidden=false;noteProbe.style.width=annotationWidth+'px';stage.append(noteProbe);g.annotationHeight=noteProbe.getBoundingClientRect().height;noteProbe.remove();
+   g.transfer=transfer.plan(from,to,field.value,nextValue,note,{x:0,y:0,w:width,obstacles,annotation:{x:width/2,y:g.focus.y+g.focus.h+8,w:annotationWidth}});add(i,'retain',g.transfer.duration);
   }
   // End a cropped local outcome at its leading facts, rather than leaving
   // the completed view parked on the last incidental field. Use the same
@@ -2055,6 +2089,7 @@ function reflow(){
   if(!f.local||i<frames.length-1)add(i,'release',f.local?tuning.localRelease:g.morphDuration);
  }
  if(expected)expected.textContent=oldExpected;
+ sceneHeight=Math.max(...prepared.map((g,i)=>sceneExtent(g,frames[i],trailerH)));sceneFloor=Math.min(sceneHeight,Math.max(0,viewport-stageOffset-consoleHeight-48));
  plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH,sceneHeight,sceneFloor,viewport,stageOffset,consoleHeight};
  if(old){const match=phases.find(p=>frames[p.index].id===old.id&&p.kind===old.kind)||phases.find(p=>frames[p.index].id===old.id&&old.kind==='retainFocus'&&p.kind==='retain');clock=match?mix(match.start,match.end,match.kind===old.kind?old.p:0):0;}else clock=0;
  // Canonical app controls already own source-event selection. Retain this
@@ -2097,8 +2132,12 @@ function renderState(at){
   for(const slot of q('.rv-buffer-slots').children){const seq=Number(slot.dataset.seq),length=Number(slot.dataset.length),has=received.some(e=>e.seq===seq),hole=missing.some(e=>e.seq===seq),status=hole?'missing':has?(seq+length<=ack?'delivered':missing.length&&seq>missing[0].seq?'buffered':'delivered'):'waiting';slot.dataset.state=status;slot.querySelector('span').textContent={missing:'Missing',buffered:'Buffered',delivered:'Ready in order',waiting:'Not received'}[status];}
   recordKey=sceneId+'|'+committed;
   }
- }else if(recordKey!==sceneId+'|'+committed){
-  const current=frames[Math.max(0,committed)],values=current.records||[];drawFacts(q('.rv-client-record dl'),values.slice(0,Math.ceil(values.length/2)));drawFacts(q('.rv-server-record dl'),values.slice(Math.ceil(values.length/2)));q('.rv-phase').textContent=current.state?.phaseLabel||'';recordKey=sceneId+'|'+committed;
+ }else{
+  // Anatomy selects a layer of one unchanged frame. Its label/range describe
+  // the visible face, independently of when a simulated event commits.
+  const displayed=frames[at.index].kind==='anatomy'?(at.kind==='focus'&&at.p<.5?at.index-1:at.index):committed;
+  if(recordKey===sceneId+'|'+displayed)return;
+  const current=frames[Math.max(0,displayed)],values=current.records||[];drawFacts(q('.rv-client-record dl'),values.slice(0,Math.ceil(values.length/2)));drawFacts(q('.rv-server-record dl'),values.slice(Math.ceil(values.length/2)));q('.rv-phase').textContent=current.state?.phaseLabel||'';recordKey=sceneId+'|'+displayed;
  }
 }
 function readerOffset(at){
@@ -2134,18 +2173,20 @@ function renderActor(at){
  const faceOpacity=clamp(s.detail),capsuleOpacity=Math.pow(1-faceOpacity,18);
  a.actor.style.transform=`translate(${s.box.x}px,${s.box.y}px)`;a.actor.style.width=s.box.w+'px';a.actor.style.height=s.box.h+'px';a.actor.style.borderRadius=s.radius+'px';a.actor.style.opacity=String(s.opacity);a.actor.inert=faceOpacity<.99;a.actor.setAttribute('aria-hidden',String(s.opacity<.01));a.face.style.opacity=String(faceOpacity);a.face.style.visibility=faceOpacity>0?'visible':'hidden';a.capsule.style.opacity=String(capsuleOpacity);a.capsule.style.visibility=capsuleOpacity>0?'visible':'hidden';
  if(s.opacity>0){const previous=plan.prepared[at.index-1]?.focus,handoff=previous&&['focus','modify','layerChange'].includes(at.kind);root.surfacePainter.morph(liveCanvas,s.box,s.radius,handoff?ease(at.p):s.openness,handoff?{...previous,r:24,open:1}:{w:plan.compactW,h:plan.compactH,r:16},plan.prepared[at.index].focus);}
- if(at.kind==='focus'){const previous=actors[at.index-1];previous.viewport.scrollTop=readerOffset({index:at.index-1,kind:'hold'});const enter=ease(at.p),exit=1-enter;previous.face.style.visibility=exit>0?'visible':'hidden';previous.face.style.opacity=String(exit);a.face.style.visibility=enter>0?'visible':'hidden';a.face.style.opacity=String(enter);}else if(['packet','packetOps'].includes(sceneId))for(const other of actors)if(other.face!==a.face){other.face.style.visibility='hidden';other.face.style.opacity='0';}
+ if(at.kind==='focus'){const previous=actors[at.index-1];previous.viewport.scrollTop=readerOffset({index:at.index-1,kind:'hold'});const exit=1-morphEase(clamp(at.p/.5)),enter=morphEase(clamp((at.p-.5)/.5));previous.face.style.visibility=exit>0?'visible':'hidden';previous.face.style.opacity=String(exit);a.face.style.visibility=enter>0?'visible':'hidden';a.face.style.opacity=String(enter);}else if(['packet','packetOps'].includes(sceneId))for(const other of actors)if(other.face!==a.face){other.face.style.visibility='hidden';other.face.style.opacity='0';}
  const endpointNodes=q('.rv-endpoints').children;endpointNodes[0].textContent=f.endpoints[0];endpointNodes[1].textContent=f.endpoints[1];
+ for(const el of a.fieldMap.values())el.querySelector('.rv-field-value').style.opacity='1';
  renderAssembly(at,s);renderLens(at,s);if(at.kind==='modify')for(const m of plan.prepared[at.index].mutations||[])a.fieldMap.get(m.fieldId).style.setProperty('--hs-emphasis',String(Math.sin(Math.PI*at.p)));transferView.node.style.opacity='0';
- for(const target of [q('.rv-expected'),q('.rv-ack')])if(target){target.style.opacity='1';target.parentElement.style.setProperty('--hs-receive','0');}
- if(at.kind==='retain'&&plan.prepared[at.index].transfer){const prepared=plan.prepared[at.index],tr=prepared.transfer,s=transfer.draw(transferView,tr,at.elapsed,frames[at.index].id,true),target=q(prepared.transferTarget);target.parentElement.dataset.transferReceiving='true';target.parentElement.style.setProperty('--hs-receive',String(s.receive));if(s.landed){target.textContent=tr.after;target.style.opacity=String(s.receiverOpacity);}}
+ const committedState=stateIndex()<0?{expectedAck:1001,highestAck:0}:frames[stateIndex()].state;
+ for(const [selector,key]of [['.rv-expected','expectedAck'],['.rv-ack','highestAck']]){const target=q(selector);if(target){const value=String(committedState[key]);if(target.textContent!==value)target.textContent=value;target.style.opacity='1';target.parentElement.style.setProperty('--hs-receive','0');}}
+ if(at.kind==='retain'&&plan.prepared[at.index].transfer){const prepared=plan.prepared[at.index],tr=prepared.transfer,s=transfer.draw(transferView,tr,at.elapsed,frames[at.index].id,true),target=q(prepared.transferTarget);target.parentElement.dataset.transferReceiving='true';target.parentElement.style.setProperty('--hs-receive',String(s.receive));const source=a.fieldMap.get(prepared.transferFieldId).querySelector('.rv-field-value');source.style.opacity=String(1-s.acquire+s.receive);target.style.opacity=String(s.landed?s.receiverOpacity:1-morphEase(clamp((s.flight-.7)/.3)));if(s.landed)target.textContent=tr.after;}
 }
 function renderAssembly(at,shape){
  if(sceneId==='provider'){renderProvider(at,shape);return;}
  if(sceneId==='journey'){renderJourneyEnvelope(at,shape);return;}
  trailerCanvas.hidden=true;const host=q('.rv-envelopes');host.hidden=sceneId!=='packetOps';if(host.hidden)return;const g=plan.prepared[at.index],f=frames[at.index],gap=f.operation==='attach'?(at.kind==='fitAttach'?motion.attachmentState(g.attach,at.elapsed).amount:0):f.operation==='detach'?(at.kind==='focus'?0:at.kind==='fitDetach'?motion.attachmentState(g.detach,at.elapsed).amount:1):0,spread=g.fit.spread*gap,top=q('.rv-envelope-header'),bottom=q('.rv-envelope-trailer');top.hidden=false;bottom.hidden=false;
  Object.assign(top.style,{left:g.focus.x+'px',top:(shape.box.y-plan.envelopeH-spread)+'px',width:shape.box.w+'px',height:plan.envelopeH+'px'});Object.assign(bottom.style,{left:g.focus.x+'px',top:(shape.box.y+shape.box.h+spread)+'px',width:shape.box.w+'px',height:plan.trailerH+'px'});top.style.opacity=String(f.operation==='attach'&&at.kind==='focus'?0:1);root.surfacePainter.paint(envelopeCanvas,shape.box.w,plan.envelopeH,18,1);q('.rv-envelope-direction').textContent='02:48:4f:50:00:01 → 02:48:4f:50:00:02';
- for(const prepared of plan.prepared)for(const m of prepared.mutations||[])m.view.node.style.opacity='0';for(const field of f.fields){const value=actors[at.index].fieldMap.get(field.id).querySelector('.rv-field-value');value.textContent=field.value;value.style.opacity='1';}if(at.kind==='modify')for(const m of g.mutations||[]){const value=actors[at.index].fieldMap.get(m.fieldId).querySelector('.rv-field-value'),progress=transfer.draw(m.view,m.plan,Math.min(at.elapsed,m.plan.duration),f.id+'|'+m.fieldId,true),offset=readerOffset(at),center=progress.y-offset+progress.lineHeight/2;m.view.node.style.top=-offset+'px';if(center<shape.box.y+g.contentTop||center>shape.box.y+g.contentTop+g.windowHeight)m.view.node.style.opacity='0';value.textContent=progress.landed?m.after:m.before;value.style.opacity=String(progress.landed?progress.receiverOpacity:1-progress.lift);actors[at.index].fieldMap.get(m.fieldId).style.setProperty('--hs-emphasis',String(Math.sin(Math.PI*at.p)));}
+ for(const prepared of plan.prepared)for(const m of prepared.mutations||[])m.view.node.style.opacity='0';for(const field of f.fields){const value=actors[at.index].fieldMap.get(field.id).querySelector('.rv-field-value');value.textContent=field.value;value.style.opacity='1';}if(at.kind==='modify')for(const m of g.mutations||[]){const value=actors[at.index].fieldMap.get(m.fieldId).querySelector('.rv-field-value'),progress=transfer.draw(m.view,m.plan,Math.min(at.elapsed,m.plan.duration),f.id+'|'+m.fieldId,true),offset=readerOffset(at),center=progress.y-offset+progress.lineHeight/2;m.view.node.style.top=-offset+'px';if(center<shape.box.y+g.contentTop||center>shape.box.y+g.contentTop+g.windowHeight)m.view.node.style.opacity='0';value.textContent=progress.landed?m.after:m.before;value.style.opacity=String(progress.landed?progress.receiverOpacity:1-progress.acquire);actors[at.index].fieldMap.get(m.fieldId).style.setProperty('--hs-emphasis',String(Math.sin(Math.PI*at.p)));}
  const currentActor=actors[at.index];for(const chunk of currentActor.face.querySelectorAll('.rv-payload-chunk')){chunk.style.opacity='1';chunk.style.transform='none';}if(g.deletedPayload)g.deletedPayload.style.opacity='0';if(at.kind==='modify'){const before=frames[Math.max(0,at.index-1)].state;if(f.operation==='append'){for(const chunk of currentActor.face.querySelectorAll('.rv-payload-chunk'))if(Number(chunk.dataset.offset)>=before.payloadBytes){chunk.style.opacity=String(ease((at.p-.35)/.65));chunk.style.transform='translateY('+((1-ease(at.p))*6)+'px)';}}if(g.deletedPayload){g.deletedPayload.style.opacity=String(1-ease(at.p));g.deletedPayload.style.transform='translateY('+(ease(at.p)*8)+'px)';}}
  const parcel=q('.rv-payload-addon');parcel.style.opacity='0';if(at.kind==='modify'&&['append','remove'].includes(f.operation)){const old=frames[Math.max(0,at.index-1)].state,current=f.state,amount=motion.attachmentState(g.attach,at.elapsed).amount,inserting=f.operation==='append',distance=g.fit.spread*(inserting?amount:1-amount),blend=inserting?1-ease((at.p-.7)/.3):1-ease((at.p-.75)/.25);q('.rv-payload-addon-value').textContent=(inserting?current.payloadBytes-old.payloadBytes:old.payloadBytes-current.payloadBytes)+' B · '+(inserting?'Appending':'Removing');Object.assign(parcel.style,{left:(g.focus.x+20)+'px',top:(shape.box.y+shape.box.h-52+distance)+'px',opacity:String(blend),transform:'translateY('+((inserting?1-amount:amount)*6)+'px)'});}
 }

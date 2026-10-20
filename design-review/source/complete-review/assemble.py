@@ -19,6 +19,17 @@ base=Path('base-study.html').read_text()
 css=re.search(r'<style>(.*?)</style>',base,re.S)[1]
 script=re.search(r'<script>(.*?)</script>',base,re.S)[1]
 
+# Value transfer belongs to lifecycle scenes. Other workspaces keep their
+# unchanged foundation and embedded evidence artifacts.
+transfer_at=script.index('const policy=Object.freeze({acquire:100,lift:170')
+transfer_start=script.rfind('(()=>{',0,transfer_at)
+transfer_end=script.index('})();',transfer_at)+5
+transfer_engine=script[transfer_start:transfer_end]
+def lifecycle_engine(source):
+    assert transfer_engine in source
+    return source.replace(transfer_engine,Path('complete-review/shared-transfer.js').read_text())
+
+
 def shared_rules(text):
     result=[];at=0
     while at<len(text):
@@ -77,7 +88,7 @@ def assemble(kind,root_id,path,data):
     runtime=Path(f'complete-review/{kind}.js').read_text().replace('__VERTEX__','`'+vertex+'`').replace('__FRAGMENT__','`'+fragment.replace('hop-app-composition',root_id)+'`')
     material=Path('complete-review/shared-painter.js').read_text().replace('__VERTEX__','`'+vertex+'`').replace('__FRAGMENT__','`'+fragment.replace('hop-app-composition',root_id)+'`')
     replacements={'__ROOT__':root_id,'__SHARED_CSS__':shared_rules(css).replace('hop-app-composition',root_id),'__CSS__':Path('complete-review/review.css').read_text().replace('__ROOT__',root_id),
-       '__SHARED__':engine.replace('hop-app-composition',root_id),'__HELPERS__':(helpers+graph_helper+Path('complete-review/shared-geometry.js').read_text().replace('export function','function')+Path('complete-review/shared-ui.js').read_text()+Path('complete-review/shared-network.js').read_text()+Path('complete-review/shared-reservation.js').read_text()+Path('complete-review/shared-bytes.js').read_text()).replace('hop-app-composition',root_id),'__PAINTER__':material,
+       '__SHARED__':(lifecycle_engine(engine) if kind=='motion' else engine).replace('hop-app-composition',root_id),'__HELPERS__':(helpers+graph_helper+Path('complete-review/shared-geometry.js').read_text().replace('export function','function')+Path('complete-review/shared-ui.js').read_text()+Path('complete-review/shared-network.js').read_text()+Path('complete-review/shared-reservation.js').read_text()+Path('complete-review/shared-bytes.js').read_text()).replace('hop-app-composition',root_id),'__PAINTER__':material,
        '__DATA__':Path('complete-review/shared-presentation.js').read_text()+"\n(()=>{const root=document.getElementById('__ROOT__');\n"+Path('complete-review/source-adapters.js').read_text().replace('export { journeyFrames, dnsFrames, providerFrames };','root.sourcePresentation=Object.freeze({journeyFrames,dnsFrames,providerFrames});')+"\n})();\ndocument.getElementById('__ROOT__').reviewData="+json.dumps(data,separators=(',',':'))+';',
        '__CONNECTED_CSS__':Path('complete-review/connected.css').read_text().replace('__ROOT__',root_id) if kind=='connected' else '',
        '__GEO__':Path('complete-review/d3-array.min.js').read_text()+'\n'+Path('complete-review/d3-geo.min.js').read_text() if kind=='evidence' else '', '__RUNTIME__':runtime,'__RECORDS__':records.replace('hop-app-composition',root_id),'__DOMAIN__':Path('complete-review/domain.bundle.js').read_text() if kind=='workbench' else Path('complete-review/evidence-domain.bundle.js').read_text() if kind=='evidence' else Path('complete-review/entry-domain.bundle.js').read_text() if kind=='connected' else ''}
@@ -112,7 +123,7 @@ def integrated_runtime():
     runtime=Path('complete-review/motion.js').read_text()
     runtime=production_lifecycle(runtime)
     adapters="(()=>{const root=document.getElementById('__ROOT__');\n"+Path('complete-review/source-adapters.js').read_text().replace('export { journeyFrames, dnsFrames, providerFrames };','root.sourcePresentation=Object.freeze({journeyFrames,dnsFrames,providerFrames});')+'\n})();'
-    code='\n'.join([workspace_engine,helpers,Path('complete-review/shared-geometry.js').read_text().replace('export function','function'),*[Path('complete-review/'+name).read_text() for name in ['shared-ui.js','shared-reservation.js','shared-bytes.js','shared-presentation.js']],adapters,material,runtime,records])
+    code='\n'.join([lifecycle_engine(workspace_engine),helpers,Path('complete-review/shared-geometry.js').read_text().replace('export function','function'),*[Path('complete-review/'+name).read_text() for name in ['shared-ui.js','shared-reservation.js','shared-bytes.js','shared-presentation.js']],adapters,material,runtime,records])
     for identity in ['__ROOT__','hop-app-composition']:
         code=code.replace("document.getElementById('"+identity+"')",'element')
     code=code.replace('root.addEventListener(','scope.listen(element,')

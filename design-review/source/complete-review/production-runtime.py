@@ -127,12 +127,8 @@ def production_evidence(runtime):
     return runtime
 
 def production_lifecycle(runtime):
-    # The moving value owns the receiving glyph footprint until it lands.
-    # Keep canonical state unchanged while preventing old/new glyph overlap.
-    old_receive="if(s.landed){target.textContent=tr.after;target.style.opacity=String(s.receiverOpacity);}"
-    new_receive="const transferWidth=(tr.beforeWidths.reduce((sum,w)=>sum+w,0)*(1-s.mutation)+tr.afterWidths.reduce((sum,w)=>sum+w,0)*s.mutation)*s.scale,coversReceiver=s.x<tr.to.x+tr.to.w&&s.x+transferWidth>tr.to.x&&s.y<tr.to.y+tr.to.h&&s.y+s.lineHeight*s.scale>tr.to.y;target.style.opacity=String(s.landed?s.receiverOpacity:coversReceiver?0:1);if(s.landed)target.textContent=tr.after;"
-    assert old_receive in runtime
-    runtime=runtime.replace(old_receive,new_receive)
+    # The shared renderer owns source/copy/receiver opacity and text clearance;
+    # production and the review page must use the same handoff.
     runtime=runtime.replace('function select(id){','function select(id,restored=null){')
     runtime=runtime.replace("pause();sceneId=id;const remembered=memories.get(id);", "pause();if(restored)memories.set(id,restored);sceneId=id;const remembered=memories.get(id);")
     runtime=runtime.replace("lens.style.opacity='0';return;", "lens.style.opacity='0';lens.dataset.readerPhase='idle';delete lens.dataset.readerField;return;")

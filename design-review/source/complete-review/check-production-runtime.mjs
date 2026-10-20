@@ -12,6 +12,19 @@ for(const failGL of [false,true]){
 }
 console.log('PASS morph pixel coordinates after high-DPI GL/fallback history');
 {
+ const env=await environment('motion',390,{artifactPath:'../../public/review/lifecycle.html'}),api=env.root.causalStudy,transfer=env.root.valueTransfer;
+ const anchor=(x,y,text)=>({x,y,h:24,fontSize:18,lineHeight:24,glyphWidths:Array.from(text,()=>10)});
+ const obstacles=[{x:80,y:105,w:160,h:16},{x:20,y:40,w:80,h:16}];
+ const p=transfer.plan(anchor(30,160,'1001'),anchor(30,65,'1001'),'1001','1001','Retained result',{x:0,y:0,w:342,obstacles});
+ assert(p.routed,'Measured obstacles must produce a clear route rather than the old upward lift');
+ for(let elapsed=0;elapsed<=p.duration;elapsed+=2){const s=transfer.sample(p,elapsed);for(const r of obstacles)assert(!(s.x<r.x+r.w&&s.x+40*s.scale>r.x&&s.y<r.y+r.h&&s.y+s.lineHeight*s.scale>r.y),'The complete moving value stays clear of label ink');}
+ for(const phase of api.snapshot().plan.phases.filter(p=>p.kind==='retain')){const snapshot=api.snapshot(),g=snapshot.plan.prepared[phase.index],p=g.transfer;api.seek(phase.end-1);api.seek(phase.start+p.boundaries.lift);const sourceNode=env.root.querySelector('.rv-actors').querySelector('[data-field="'+g.transferFieldId+'"] .rv-field-value');assert.equal(Number(sourceNode.style.opacity),0,'A departing value has one visible copy');const previous=phase.index?snapshot.frames[phase.index-1].state:{expectedAck:1001,highestAck:0};assert.equal(env.q(g.transferTarget).textContent,String(previous[g.transferStateKey]),'Seeking backward from a landing restores the prior receiver value');}
+ const source=JSON.stringify(env.root.reviewData);api.select('packet');await env.flush();const snapshot=api.snapshot();
+ for(const phase of snapshot.plan.phases.filter(p=>p.kind==='read')){api.seek(phase.start+1);const frame=snapshot.frames[phase.index],context=env.q('.rv-server-record dl').textContent;assert(context.includes(frame.segment.label),'Anatomy context follows the currently displayed layer before its read commits');assert(context.includes(frame.segment.offset+' + '+frame.segment.length+' B'),'Anatomy byte range follows that same visible layer');}
+ assert.equal(JSON.stringify(env.root.reviewData),source,'Display selection cannot modify canonical packet data');api.dispose();
+ console.log('PASS measured transfer clearance and active anatomy metadata');
+}
+{
  const env=await environment('motion',390,{artifactPath:'../../public/review/lifecycle.html'}),painter=env.root.surfacePainter,canvas=env.document.createElement('canvas');
  const closed={w:100,h:44,r:16},expanded={w:350,h:260};painter.prepare(350,260);const before=painter.stats().draws;
  for(let i=1;i<60;i++){const p=i/60;painter.morph(canvas,{w:100+250*p,h:44+216*p},16+8*p,p,closed,expanded);}
@@ -85,7 +98,7 @@ console.log('PASS morph pixel coordinates after high-DPI GL/fallback history');
    if(g.transfer)assert(Math.abs(retain.end-retain.start-g.transfer.duration)<.001,'Receiver handoff motion must not be sped up');
   }
   for(const phase of after.plan.phases.filter(p=>['focus','modify','layerChange'].includes(p.kind))){
-   for(const fraction of [.1,.5,.9]){api.seek(phase.start+(phase.end-phase.start)*fraction);const actor=env.root.querySelectorAll('.rv-actor').find(n=>Number(n.style.opacity)>.99);assert(actor,'A handoff retains its physical carrier throughout the morph');if(phase.kind==='focus'){const faces=env.root.querySelectorAll('.rv-actor-face').filter(n=>n.style.visibility!=='hidden');assert(faces.some(n=>Number(n.style.opacity)>0),'Layer handoff never leaves an empty text plane');}}
+   for(const fraction of [.1,.5,.9]){api.seek(phase.start+(phase.end-phase.start)*fraction);const actor=env.root.querySelectorAll('.rv-actor').find(n=>Number(n.style.opacity)>.99);assert(actor,'A handoff retains its physical carrier throughout the morph');if(phase.kind==='focus'){const faces=env.root.querySelectorAll('.rv-actor-face').filter(n=>n.style.visibility!=='hidden');assert(faces.filter(n=>Number(n.style.opacity)>.001).length<=1,'A layer handoff must never superimpose two field text planes');}}
   }
   for(let i=1;i<after.frames.length;i++){
    const start=after.plan.starts[i],phase=after.plan.phases.find(p=>p.index===i);
