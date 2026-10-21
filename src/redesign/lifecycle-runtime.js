@@ -1215,7 +1215,7 @@ function reflow(){
  }
  if(expected)expected.textContent=oldExpected;
  sceneHeight=Math.max(...prepared.map((g,i)=>sceneExtent(g,frames[i],trailerH)));sceneFloor=Math.min(sceneHeight,Math.max(0,viewport-stageOffset-readerConsoleHeight-48));
- plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH,sceneHeight,sceneFloor,viewport,stageOffset,consoleHeight};
+ plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH,sceneHeight,sceneFloor,viewport,stageOffset,consoleHeight:readerConsoleHeight};
  if(old){const match=phases.find(p=>frames[p.index].id===old.id&&p.kind===old.kind)||phases.find(p=>frames[p.index].id===old.id&&old.kind==='retainFocus'&&p.kind==='retain');clock=match?mix(match.start,match.end,match.kind===old.kind?old.p:0):0;}else clock=0;
  // Canonical app controls already own source-event selection. Retain this
  // renderer's full picker only for its independent snapshot/review playback.
@@ -1396,7 +1396,8 @@ function resizeScene(at){
  const value=Math.ceil(height)+'px';if(stage.style.height!==value)stage.style.height=value;
  // Keep the positioning mode constant for this measured plan. Switching it at
  // an individual card boundary causes a second jump when the page is scrolled.
- q('.rv-console').style.position=plan.stageOffset+plan.sceneHeight+plan.consoleHeight+48<=plan.viewport?'sticky':'relative';
+ const expanded=root.disclosures.wanted(settings)||root.disclosures.wanted(explanation);
+ q('.rv-console').style.position=!expanded&&plan.stageOffset+plan.sceneHeight+plan.consoleHeight+48<=plan.viewport?'sticky':'relative';
 }
 function captionFor(at){
  const f=frames[at.index],pending=!f.local&&['construct','travel','open'].includes(at.kind);
@@ -1461,7 +1462,7 @@ function select(id,restored=null){
 }
 function appearance(){const value=q('.rv-theme').value;root.dataset.theme=value==='system'?(dark.matches?'dark':'light'):value;root.surfacePainter.invalidate();layoutKey='';networkKey='';queueLayout();}
 q('.rv-play').addEventListener('click',()=>playing?pause():play());q('.rv-replay').addEventListener('click',()=>{pause();clock=0;play();});q('.rv-next').addEventListener('click',next);q('.rv-event-picker').addEventListener('change',e=>seek(plan.commits[Number(e.target.value)]));q('.rv-scrub').addEventListener('input',e=>seek(Number(e.target.value)/1000*plan.total));q('.rv-scene-picker').addEventListener('change',e=>select(e.target.value));q('.rv-theme').addEventListener('change',appearance);dark.addEventListener('change',()=>{if(q('.rv-theme').value==='system')appearance();});reduced.addEventListener('change',()=>{pause();render();});
-details.addEventListener('toggle',()=>{if(details.open)pause();});scope.listen(element,'review-disclosure-layout',e=>{if([settings,explanation].includes(e.detail.element)){if(root.disclosures.wanted(e.detail.element))pause();layoutKey='';queueLayout();}});const viewportResize=()=>{alignAfterResize=playing&&bounded();layoutKey='';queueLayout();};window.addEventListener('resize',viewportResize);
+details.addEventListener('toggle',()=>{if(details.open)pause();});scope.listen(element,'review-disclosure-layout',e=>{if([settings,explanation].includes(e.detail.element)){if(root.disclosures.wanted(e.detail.element))pause();if(plan)resizeScene(locate(clock));}});const viewportResize=()=>{alignAfterResize=playing&&bounded();layoutKey='';queueLayout();};window.addEventListener('resize',viewportResize);
 let observedMainWidth=q('.rv-main').clientWidth;const resize=new ResizeObserver(()=>{const width=q('.rv-main').clientWidth;if(bounded()&&Math.abs(width-observedMainWidth)<.5)return;observedMainWidth=width;layoutKey='';queueLayout();});resize.observe(q('.rv-main'));document.fonts?.ready.then(()=>{layoutKey='';queueLayout();});document.fonts?.addEventListener('loadingdone',()=>{layoutKey='';queueLayout();});document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});scope.listen(element,'review-material-change',()=>{root.surfacePainter.invalidate();layoutKey='';queueLayout();});
 root.byteWindows.watch(q('.rv-byte-details'),()=>{if(sceneId==='packet')root.byteWindows.layout(q('.rv-bytes'),q('.rv-byte-details'));});
 function save(){return {sceneId,position:currentPosition(),variant,dnsMode,byte,speed:q('.rv-speed').value};}

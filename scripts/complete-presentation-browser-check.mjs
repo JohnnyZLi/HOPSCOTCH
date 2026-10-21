@@ -151,12 +151,12 @@ async function visiblePlaybackClock(){
   const sample=await cdp.evaluate(`(async()=>{
    const root=document.querySelector('.review-runtime'),api=root.causalStudy,s=api.snapshot(),read=s.plan.phases.filter(p=>p.kind==='read').sort((a,b)=>(b.end-b.start)-(a.end-a.start))[0],frame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
    api.seek(read.start+(read.end-read.start)*.1);api.play();await frame();await frame();
-   const before=api.snapshot().clock,start=performance.now();while(performance.now()-start<750){}await frame();await frame();const after=api.snapshot();api.pause();
+   const before=api.snapshot().clock,start=performance.now();while(performance.now()-start<750){}await frame();const after=api.snapshot();api.pause();
    const held=api.snapshot().clock;await new Promise(resolve=>setTimeout(resolve,120));const paused=api.snapshot().clock;
    api.next();const selected=api.snapshot(),caption=root.querySelector('.rv-caption-title');
    return {advance:after.clock-before,event:after.frames[after.at.index].id,expectedEvent:s.frames[read.index].id,held,paused,clock:selected.clock,commit:selected.plan.commits[selected.at.index],caption:caption.textContent,expectedCaption:selected.frames[selected.at.index].title,captionOpacity:getComputedStyle(caption).opacity,copies:root.querySelectorAll('.rv-status-copy').length};
   })()`);
-  assert.ok(sample.advance>0&&sample.advance<=101,'A stalled browser frame must preserve visible choreography instead of catching up: '+JSON.stringify(sample));assert.equal(sample.event,sample.expectedEvent);assert.equal(sample.held,sample.paused,'Pause freezes presentation time');assert.equal(sample.clock,sample.commit);assert.equal(sample.caption,sample.expectedCaption);assert.equal(sample.captionOpacity,'1','Stepping exposes the current caption on the same paint');assert.equal(sample.copies,0,'No outgoing caption can cover a stepped card');
+  assert.ok(sample.advance>0&&sample.advance<=50.001,'The first recovered frame must respect the 50 ms interruption cap: '+JSON.stringify(sample));assert.equal(sample.event,sample.expectedEvent);assert.equal(sample.held,sample.paused,'Pause freezes presentation time');assert.equal(sample.clock,sample.commit);assert.equal(sample.caption,sample.expectedCaption);assert.equal(sample.captionOpacity,'1','Stepping exposes the current caption on the same paint');assert.equal(sample.copies,0,'No outgoing caption can cover a stepped card');
   samples.push({path,width,theme,...sample});await screenshot('playback-stall-recovery-'+width+'-'+theme);
  }
  report.visiblePlaybackClock=samples;
@@ -443,8 +443,7 @@ async function readerDisclosureLayout(){
     return {index:s.at.index,phase:s.at.kind,progress:s.at.p,playing:s.playing,total:s.plan.total,source:JSON.stringify(root.reviewData),window:body?bounds.height:null,scroll:body?.scrollTop,heights:s.plan.prepared.map(g=>[g.focus.h,g.windowHeight]),largestRow:Math.max(0,...rows.map(r=>r.height)),allRowsVisible:rows.every(r=>r.top>=bounds.top-1&&r.bottom<=bounds.bottom+1)};
    })()`);
    const before=await read();
-   for(const selector of ['.rv-explanation','.rv-playback-settings']){
-    for(const opened of [true,false]){
+   for(const [selector,opened]of [['.rv-explanation',true],['.rv-playback-settings',true],['.rv-explanation',false],['.rv-playback-settings',false]]){
      await cdp.evaluate(`document.querySelector(${JSON.stringify(selector+' > summary')}).click()`);
      await wait(`!document.querySelector('.review-runtime').disclosures.snapshot(document.querySelector(${JSON.stringify(selector)})).moving`);await settled();
      const after=await read(),context=[scene,width,theme,checkpoint,selector,opened?'open':'closed'].join(' ');
@@ -455,7 +454,6 @@ async function readerDisclosureLayout(){
      if(after.window!==null){assert.ok(after.window>=after.largestRow-1,context+' must fit a complete measured field');assert.ok(Math.abs(after.scroll-before.scroll)<=1,context+' preserves the paused reading offset');}
      if(scene==='packet'&&checkpoint===1)assert.equal(after.allRowsVisible,true,context+' retains the complete final payload label and wrapped value');
      if(scene==='packet'&&checkpoint===1&&selector==='.rv-explanation'&&opened)await screenshot('packet-disclosure-'+width+'-'+theme);
-    }
    }
    results.push({scene,width,height,theme,checkpoint,index:before.index,phase:before.phase});
   }
