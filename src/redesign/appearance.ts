@@ -14,4 +14,5 @@ export function applyAppearance(value: string,remember=true) {
 }
 export function watchAppearance(listener:()=>void){listeners.add(listener);return()=>{listeners.delete(listener);};}
 media.addEventListener('change',()=>{if(appearancePreference()==='system')applyAppearance('system',false);});
+window.addEventListener('storage',event=>{if(event.key===key||event.key===null)applyAppearance(appearancePreference(),false);});
 applyAppearance(appearancePreference(),false);

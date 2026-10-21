@@ -460,6 +460,25 @@ async function readerDisclosureLayout(){
  }
  report.readerDisclosureLayout=results;
 }
+async function appearanceAcrossWindows(){
+ await open('/labs/tcp',390,844,'light',true);
+ await cdp.evaluate(`(()=>{const peer=document.createElement('iframe');peer.id='appearance-sync-peer';peer.width='390';peer.height='844';peer.src=location.origin+'/labs/packet';document.body.append(peer);})()`);
+ await wait("Boolean(document.querySelector('#appearance-sync-peer').contentDocument.querySelector('.workspace-surface'))");
+ const state=()=>cdp.evaluate(`(()=>{const documents=[document,document.querySelector('#appearance-sync-peer').contentDocument];return documents.map(doc=>({theme:doc.documentElement.dataset.theme,preference:doc.documentElement.dataset.appearance,workspace:doc.querySelector('.review-runtime').dataset.theme,label:doc.querySelector('[data-appearance-label]').textContent}));})()`);
+ try{
+  await cdp.evaluate("document.querySelector('#appearance-sync-peer').contentDocument.querySelector('[data-appearance-value=dark]').click()");
+  await wait("document.documentElement.dataset.theme==='dark'&&document.querySelector('[data-appearance-label]').textContent==='Dark'");
+  assert.deepEqual(await state(),Array.from({length:2},()=>({theme:'dark',preference:'dark',workspace:'dark',label:'Dark'})),'Changing appearance in another window must synchronize the preference, resolved theme, workspace, and header');
+  await cdp.evaluate("document.querySelector('.ws-scene-picker .ws-select-trigger').click()");await settled();
+  await cdp.evaluate("(()=>{const select=document.querySelector('.rv-scene-picker'),index=[...select.options].findIndex(o=>o.value==='dns');document.querySelector('.ws-scene-picker [data-select-index=\"'+index+'\"]').click();})()");
+  await wait("location.pathname==='/labs/dns'&&Boolean(document.querySelector('.workspace-surface'))");await settled();
+  assert.deepEqual(await state(),Array.from({length:2},()=>({theme:'dark',preference:'dark',workspace:'dark',label:'Dark'})),'Scene navigation cannot revive a stale resolved theme');
+  await cdp.evaluate("document.querySelector('[data-appearance-value=light]').click()");
+  await wait("document.querySelector('#appearance-sync-peer').contentDocument.documentElement.dataset.theme==='light'");await settled();
+  assert.deepEqual(await state(),Array.from({length:2},()=>({theme:'light',preference:'light',workspace:'light',label:'Light'})),'Appearance synchronization works in both directions without a storage-write loop');
+  report.appearanceAcrossWindows=true;
+ }finally{await cdp.evaluate("document.querySelector('#appearance-sync-peer')?.remove()");}
+}
 async function homeMenus(){
  await open('/',390,844);
  const read=()=>cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),nav=root.querySelector('.lh-menu'),appearance=root.querySelector('.lh-appearance'),panel=root.querySelector('.lh-menu-panel'),rect=n=>{const b=n.getBoundingClientRect();return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,width:b.width,height:b.height};};return {header:rect(root.querySelector('.lh-header')),trigger:rect(nav.querySelector('summary')),panel:rect(panel),position:getComputedStyle(panel).position,nav:nav.open,appearance:appearance.open,theme:root.dataset.theme,globalTheme:document.documentElement.dataset.theme,preference:root.dataset.appearance,label:root.querySelector('[data-appearance-label]').textContent,selected:[...root.querySelectorAll('[aria-pressed=true]')].map(n=>n.dataset.appearanceValue),nativeSelects:root.querySelectorAll('select').length,focus:document.activeElement.id};})()`);
@@ -511,7 +530,7 @@ try{
  production=await serveProductionArtifact(resolve('dist'));launch=await launchChrome(findChrome());const targets=await fetchJson('http://127.0.0.1:'+launch.port+'/json'),target=targets.find(t=>t.type==='page');cdp=new CdpClient(target.webSocketDebuggerUrl);for(const domain of ['Page','DOM','Runtime','Log','HeapProfiler'])await cdp.call(domain+'.enable');report.browser=launch.version;
  const task=async(name,run)=>{try{await run();}catch(error){report.failures.push(name+': '+(error.stack||String(error)));await screenshot(name+'-failure').catch(()=>{});}};
  if(mode==='motion-audit'){await task('full-motion-audit',fullMotionAudit);}else{
- await task('canonical-source',sourceSemantics);if(mode==='overview'){await task('home-menus',homeMenus);await task('workspace-menus',workspaceMenus);await task('recovered-studies',recoveredStudies);}if(mode==='choreography')await task('wire-playback',wirePlayback);await task('moving-lifecycle',movingLifecycle);if(['capture','phase4','performance'].includes(mode)){await task('capture',captureSemantics);await task('measured',measuredSemantics);}if(['phase3','performance'].includes(mode))await task('builder',builderSemantics);if(mode==='phase3'){await task('visible-playback-clock',visiblePlaybackClock);await task('visible-pacing-review',visiblePacingReview);await task('navigation',navigationContinuity);await task('adaptive-reading',adaptiveReading);await task('reader-disclosure-layout',readerDisclosureLayout);}if(mode==='phase4')await task('capture-return',captureContinuity);
+ await task('canonical-source',sourceSemantics);if(mode==='overview'){await task('home-menus',homeMenus);await task('workspace-menus',workspaceMenus);await task('recovered-studies',recoveredStudies);}if(mode==='choreography')await task('wire-playback',wirePlayback);await task('moving-lifecycle',movingLifecycle);if(['capture','phase4','performance'].includes(mode)){await task('capture',captureSemantics);await task('measured',measuredSemantics);}if(['phase3','performance'].includes(mode))await task('builder',builderSemantics);if(mode==='phase3'){await task('visible-playback-clock',visiblePlaybackClock);await task('visible-pacing-review',visiblePacingReview);await task('navigation',navigationContinuity);await task('adaptive-reading',adaptiveReading);await task('reader-disclosure-layout',readerDisclosureLayout);await task('appearance-across-windows',appearanceAcrossWindows);}if(mode==='phase4')await task('capture-return',captureContinuity);
  if(mode==='journey'||mode==='choreography')await task('journey',journeyMatrix);else await task('viewports',viewportMatrix);if(mode==='performance')await task('performance-budgets',performanceBudgets);if(report.failures.length)process.exitCode=1;
  }
  if(report.failures.length)process.exitCode=1;
