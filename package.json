@@ -113,7 +113,7 @@
     "@types/three": "0.185.1",
     "@vitejs/plugin-react": "6.0.4",
     "typescript": "7.0.2",
-    "vite": "8.1.5",
+    "vite": "8.1.6",
     "wrangler": "^4.131.0"
   }
 }
