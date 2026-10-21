@@ -430,6 +430,38 @@ async function adaptiveReading(){
  assert.ok(Math.abs(initial-await cdp.evaluate("document.querySelector('.rv-console').getBoundingClientRect().height"))<1,'HTTP transport must retain its height as event labels change');await screenshot('http-stable-transport');
  report.adaptiveReading=true;
 }
+async function readerDisclosureLayout(){
+ const results=[];
+ for(const [width,height]of [[1280,800],[390,844],[320,720]])for(const theme of ['light','dark'])for(const scene of ['packet','tcp','dns','tls','journey','packetOps','provider']){
+  await open(WORKSPACE_CATALOG[scene]?.path||WORKSPACE_CATALOG.packet.path,width,height,theme);
+  await cdp.evaluate(`document.querySelector('.review-runtime').causalStudy.select(${JSON.stringify(scene)})`);await settled();
+  const checkpoints=await cdp.evaluate(`(()=>{const api=document.querySelector('.review-runtime').causalStudy,s=api.snapshot(),read=s.plan.phases.filter(p=>p.kind==='read').sort((a,b)=>(b.end-b.start)-(a.end-a.start))[0];return [read?(read.start+read.end)/2:0,s.plan.total];})()`);
+  for(const [checkpoint,clock]of checkpoints.entries()){
+   await cdp.evaluate(`document.querySelector('.review-runtime').causalStudy.seek(${clock})`);await settled();
+   const read=()=>cdp.evaluate(`(()=>{
+    const root=document.querySelector('.review-runtime'),s=root.causalStudy.snapshot(),actor=root.querySelector('.rv-actors>.rv-actor:not([aria-hidden=true])'),face=actor&&[...actor.querySelectorAll('.rv-actor-face')].find(n=>getComputedStyle(n).visibility==='visible'&&Number(getComputedStyle(n).opacity)>.99),body=face?.querySelector('.rv-reading-window'),bounds=body?.getBoundingClientRect(),rows=face?[...face.querySelectorAll('.rv-field')].filter(n=>!n.hidden).map(n=>n.getBoundingClientRect()):[];
+    return {index:s.at.index,phase:s.at.kind,progress:s.at.p,playing:s.playing,total:s.plan.total,source:JSON.stringify(root.reviewData),window:body?bounds.height:null,scroll:body?.scrollTop,heights:s.plan.prepared.map(g=>[g.focus.h,g.windowHeight]),largestRow:Math.max(0,...rows.map(r=>r.height)),allRowsVisible:rows.every(r=>r.top>=bounds.top-1&&r.bottom<=bounds.bottom+1)};
+   })()`);
+   const before=await read();
+   for(const selector of ['.rv-explanation','.rv-playback-settings']){
+    for(const opened of [true,false]){
+     await cdp.evaluate(`document.querySelector(${JSON.stringify(selector+' > summary')}).click()`);
+     await wait(`!document.querySelector('.review-runtime').disclosures.snapshot(document.querySelector(${JSON.stringify(selector)})).moving`);await settled();
+     const after=await read(),context=[scene,width,theme,checkpoint,selector,opened?'open':'closed'].join(' ');
+     assert.equal(after.playing,false,context+' keeps paused playback paused');
+     assert.equal(after.index,before.index,context+' preserves the source event');assert.equal(after.phase,before.phase,context+' preserves the phase');assert.ok(Math.abs(after.progress-before.progress)<.0001,context+' preserves phase progress');
+     assert.equal(after.total,before.total,context+' cannot change presentation timing');assert.equal(after.source,before.source,context+' cannot change source facts');
+     assert.deepEqual(after.heights,before.heights,context+' cannot shrink or grow packet reading geometry');
+     if(after.window!==null){assert.ok(after.window>=after.largestRow-1,context+' must fit a complete measured field');assert.ok(Math.abs(after.scroll-before.scroll)<=1,context+' preserves the paused reading offset');}
+     if(scene==='packet'&&checkpoint===1)assert.equal(after.allRowsVisible,true,context+' retains the complete final payload label and wrapped value');
+     if(scene==='packet'&&checkpoint===1&&selector==='.rv-explanation'&&opened)await screenshot('packet-disclosure-'+width+'-'+theme);
+    }
+   }
+   results.push({scene,width,height,theme,checkpoint,index:before.index,phase:before.phase});
+  }
+ }
+ report.readerDisclosureLayout=results;
+}
 async function homeMenus(){
  await open('/',390,844);
  const read=()=>cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),nav=root.querySelector('.lh-menu'),appearance=root.querySelector('.lh-appearance'),panel=root.querySelector('.lh-menu-panel'),rect=n=>{const b=n.getBoundingClientRect();return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,width:b.width,height:b.height};};return {header:rect(root.querySelector('.lh-header')),trigger:rect(nav.querySelector('summary')),panel:rect(panel),position:getComputedStyle(panel).position,nav:nav.open,appearance:appearance.open,theme:root.dataset.theme,globalTheme:document.documentElement.dataset.theme,preference:root.dataset.appearance,label:root.querySelector('[data-appearance-label]').textContent,selected:[...root.querySelectorAll('[aria-pressed=true]')].map(n=>n.dataset.appearanceValue),nativeSelects:root.querySelectorAll('select').length,focus:document.activeElement.id};})()`);
@@ -481,7 +513,7 @@ try{
  production=await serveProductionArtifact(resolve('dist'));launch=await launchChrome(findChrome());const targets=await fetchJson('http://127.0.0.1:'+launch.port+'/json'),target=targets.find(t=>t.type==='page');cdp=new CdpClient(target.webSocketDebuggerUrl);for(const domain of ['Page','DOM','Runtime','Log','HeapProfiler'])await cdp.call(domain+'.enable');report.browser=launch.version;
  const task=async(name,run)=>{try{await run();}catch(error){report.failures.push(name+': '+(error.stack||String(error)));await screenshot(name+'-failure').catch(()=>{});}};
  if(mode==='motion-audit'){await task('full-motion-audit',fullMotionAudit);}else{
- await task('canonical-source',sourceSemantics);if(mode==='overview'){await task('home-menus',homeMenus);await task('workspace-menus',workspaceMenus);await task('recovered-studies',recoveredStudies);}if(mode==='choreography')await task('wire-playback',wirePlayback);await task('moving-lifecycle',movingLifecycle);if(['capture','phase4','performance'].includes(mode)){await task('capture',captureSemantics);await task('measured',measuredSemantics);}if(['phase3','performance'].includes(mode))await task('builder',builderSemantics);if(mode==='phase3'){await task('visible-playback-clock',visiblePlaybackClock);await task('visible-pacing-review',visiblePacingReview);await task('navigation',navigationContinuity);await task('adaptive-reading',adaptiveReading);}if(mode==='phase4')await task('capture-return',captureContinuity);
+ await task('canonical-source',sourceSemantics);if(mode==='overview'){await task('home-menus',homeMenus);await task('workspace-menus',workspaceMenus);await task('recovered-studies',recoveredStudies);}if(mode==='choreography')await task('wire-playback',wirePlayback);await task('moving-lifecycle',movingLifecycle);if(['capture','phase4','performance'].includes(mode)){await task('capture',captureSemantics);await task('measured',measuredSemantics);}if(['phase3','performance'].includes(mode))await task('builder',builderSemantics);if(mode==='phase3'){await task('visible-playback-clock',visiblePlaybackClock);await task('visible-pacing-review',visiblePacingReview);await task('navigation',navigationContinuity);await task('adaptive-reading',adaptiveReading);await task('reader-disclosure-layout',readerDisclosureLayout);}if(mode==='phase4')await task('capture-return',captureContinuity);
  if(mode==='journey'||mode==='choreography')await task('journey',journeyMatrix);else await task('viewports',viewportMatrix);if(mode==='performance')await task('performance-budgets',performanceBudgets);if(report.failures.length)process.exitCode=1;
  }
  if(report.failures.length)process.exitCode=1;
