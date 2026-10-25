@@ -1998,7 +1998,7 @@ function playbackChromeHeight(){
 function reflow(){
  layoutJob=0;if(disposed)return;const width=stage.clientWidth||q('.rv-main').clientWidth;if(width<160)return;
  reserveCaption();const stageOffset=stage.getBoundingClientRect().top-root.getBoundingClientRect().top,consoleHeight=q('.rv-console').offsetHeight,readerConsoleHeight=playbackChromeHeight();
- const probe=q('.rv-field-value')||q('.rv-title'),style=getComputedStyle(probe),viewport=root.dataset.integrated==='true'?root.clientHeight:typeof innerHeight==='number'?innerHeight:900,key=[sceneId,variant,dnsMode,width,viewport,style.fontSize,style.fontFamily,root.dataset.theme,devicePixelRatio||1,stageOffset,consoleHeight].join('|');if(key===layoutKey)return;
+ const probe=q('.rv-field-value')||q('.rv-title'),style=getComputedStyle(probe),compositionStyle=getComputedStyle(composition),openScene=compositionStyle.getPropertyValue('--rv-scene-layout').trim()==='open',viewport=openScene?window.innerHeight:root.dataset.integrated==='true'?root.clientHeight:typeof innerHeight==='number'?innerHeight:900,key=[sceneId,variant,dnsMode,width,viewport,style.fontSize,style.fontFamily,root.dataset.theme,devicePixelRatio||1,stageOffset,consoleHeight,openScene].join('|');if(key===layoutKey)return;
  q('.rv-envelopes').hidden=!['packetOps','provider','journey'].includes(sceneId);
  // Measure one source object at a time. Keeping every cached card connected
  // makes each field/glyph measurement relayout the entire canonical history.
@@ -2046,7 +2046,11 @@ function reflow(){
   const transferIds=sceneId==='tcp'?['seq','ack']:sceneId==='packetOps'?f.fields.map(field=>field.id):[],transferFields=Object.fromEntries(transferIds.filter(id=>a.fieldMap.has(id)).map(id=>[id,transfer.measure(a.fieldMap.get(id).querySelector('.rv-field-value'),origin)]));
   prepared.push({focus,fullHeight:height,contentTop,contentLeft:a.fields.getBoundingClientRect().left-origin.left,windowHeight,readingCenter,bottomPadding,startReadingY,firstReadingY,lastReadingY,lens,read,origin,targets,emphasis,fit,attach,detach,payloadRect,transferFields,transferObstacles:[...a.face.querySelectorAll('.rv-field-label,.rv-field-value,.rv-actor-title,.rv-actor-role')].flatMap(el=>textLines(el,origin).map(rect=>({...rect,field:el.closest('.rv-field')?.dataset.field,value:el.matches('.rv-field-value'),scroll:!!el.closest('.rv-reading-window')})))});maxHeight=Math.max(maxHeight,height);a.face.style.position='absolute';a.actor.remove();
  }
- let sceneHeight=Math.max(...prepared.map((g,i)=>sceneExtent(g,frames[i],trailerH))),sceneFloor=Math.min(sceneHeight,Math.max(0,viewport-stageOffset-readerConsoleHeight-48));
+ const room=Math.max(0,viewport-stageOffset-readerConsoleHeight-48),space=openScene?parseFloat(compositionStyle.getPropertyValue('--rv-scene-space'))||1:1;
+ let sceneHeight=Math.max(...prepared.map((g,i)=>sceneExtent(g,frames[i],trailerH))),sceneFloor=Math.min(sceneHeight,room*space);
+ // An open composition balances the actual reading object between its context
+ // and transport. Geometry comes from the same measured faces and envelopes.
+ if(openScene)for(const [i,g]of prepared.entries())g.focus.y+=Math.max(0,sceneFloor-sceneExtent(g,frames[i],trailerH))/2;
  stage.style.height=(['failure','http'].includes(sceneId)?0:sceneHeight)+'px';
  q('.rv-path').style.cssText='left:'+(ports.a.x+compactW/2)+'px;top:'+pathY+'px;width:'+(ports.b.x-ports.a.x)+'px';
  reserveState();root.surfacePainter.prepare(Math.max(cardWidth,compactW),Math.max(maxHeight,compactH));
@@ -2101,7 +2105,7 @@ function reflow(){
   if(!f.local||i<frames.length-1)add(i,'release',f.local?tuning.localRelease:g.morphDuration);
  }
  if(expected)expected.textContent=oldExpected;
- sceneHeight=Math.max(...prepared.map((g,i)=>sceneExtent(g,frames[i],trailerH)));sceneFloor=Math.min(sceneHeight,Math.max(0,viewport-stageOffset-readerConsoleHeight-48));
+ sceneHeight=Math.max(...prepared.map((g,i)=>sceneExtent(g,frames[i],trailerH)));sceneFloor=Math.min(sceneHeight,room*space);
  plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH,sceneHeight,sceneFloor,viewport,stageOffset,consoleHeight:readerConsoleHeight};
  if(old){const match=phases.find(p=>frames[p.index].id===old.id&&p.kind===old.kind)||phases.find(p=>frames[p.index].id===old.id&&old.kind==='retainFocus'&&p.kind==='retain');clock=match?mix(match.start,match.end,match.kind===old.kind?old.p:0):0;}else clock=0;
  // Canonical app controls already own source-event selection. Retain this

@@ -97,12 +97,19 @@ function prepareMap(){
  if(key===graphKey){paintMap();return;}graphKey=key;const epoch=++graphEpoch;graphPending++;
  q('.wb-context').textContent='Preparing readable paths…';const measure=graphMeasure(),keepCamera=Boolean(graphPlan&&graphPlan.nodes.some(n=>graph.nodes.some(m=>m.id===n.id)));
 
- root.networkPlanner.buildAsync(graph,measure,()=>{if(epoch!==graphEpoch)throw Error('Cancelled obsolete layout');},selected.plane==='routed'?layout:null).then(result=>{graphPending--;if(epoch!==graphEpoch)return;graphPlan=result;if(!keepCamera)frameNetwork();else resizeMap();revealPending();paintMap();}).catch(e=>{graphPending--;if(epoch!==graphEpoch)return;error(e);q('.wb-context').textContent='The last readable network remains available.';}).finally(()=>measure.dispose());
+ root.networkPlanner.buildAsync(graph,measure,()=>{if(epoch!==graphEpoch)throw Error('Cancelled obsolete layout');},selected.plane==='routed'?layout:null).then(result=>{graphPending--;if(epoch!==graphEpoch)return;graphPlan=result;if(!keepCamera)frameNetwork(true);else resizeMap();revealPending();paintMap();}).catch(e=>{graphPending--;if(epoch!==graphEpoch)return;error(e);q('.wb-context').textContent='The last readable network remains available.';}).finally(()=>measure.dispose());
 }
 function revealPending(){if(!pendingReveal||!graphPlan)return;const n=graphPlan.nodes.find(n=>n.id===pendingReveal.id);if(!n)return;cam.x=mapViewport.w/2-n.x*cam.z;cam.y=mapViewport.h/2-n.y*cam.z;pendingReveal=null;paintMap();}
 function graphBounds(nodes,links){const points=[...nodes.flatMap(n=>[[n.x-n.w/2,n.y-n.h/2],[n.x+n.w/2,n.y+n.h/2]]),...links.flatMap(link=>link.points)];return {left:Math.min(...points.map(p=>p[0])),right:Math.max(...points.map(p=>p[0])),top:Math.min(...points.map(p=>p[1])),bottom:Math.max(...points.map(p=>p[1]))};}
 function networkFrame(){return root.layoutReservation.frameCamera(graphBounds(graphPlan.nodes,graphPlan.links),mapViewport);}
-function frameNetwork(){if(!graphPlan)return;const width=q('.wb-map').clientWidth,height=Math.max(340,Math.min(480,width*.58));mapViewport={w:width,h:height};cam=networkFrame();q('.wb-map').style.height=height+'px';paintMap();}
+function frameNetwork(readable=false){
+ if(!graphPlan)return;const map=q('.wb-map'),width=map.clientWidth,height=Math.max(340,Math.min(480,width*.58));mapViewport={w:width,h:height};cam=networkFrame();
+ // A working canvas may focus the selection rather than shrink its labels
+ // below the declared reading size. Explicit Frame network still fits all.
+ const style=getComputedStyle(map),minimum=parseFloat(style.getPropertyValue('--rv-network-label-min'))||0,font=parseFloat(style.fontSize)||14,z=Math.min(1,minimum/font),anchor=graphPlan.nodes.find(n=>n.id===selected.id);
+ if(readable&&anchor&&cam.z<z)cam={x:width/2-anchor.x*z,y:height/2-anchor.y*z,z};
+ map.style.height=height+'px';paintMap();
+}
 function resizeMap(){if(!graphPlan)return;const w=q('.wb-map').clientWidth;if(!(w>0))return;const h=Math.max(340,Math.min(480,w*.58)),next={w,h};cam=root.layoutReservation.resizeCamera(cam,mapViewport,next,graphPlan.nodes.find(n=>n.id===selected.id));mapViewport=next;q('.wb-map').style.height=h+'px';paintMap();}
 function pathData(points){return points.map((p,i)=>(i?'L':'M')+p[0]+' '+p[1]).join(' ');}
 function paintMap(){
