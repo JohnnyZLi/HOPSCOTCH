@@ -920,7 +920,7 @@ function buildDock(){
    pair.append(node('dt','',label),node('dd',cls,value));fact.append(pair);card.append(node('h3','',owner),fact,node('p','rv-peer-note',note));dock.append(card);
   }
  }else if(sceneId==='tls'){for(const [label,cls]of [['Certificate','rv-tls-certificate'],['Application channel','rv-tls-channel']]){const fact=node('div','rv-fact');fact.append(node('dt','',label),node('dd',cls,cls==='rv-tls-certificate'?'Unchecked':'Not ready'));dock.append(fact);}}
- else if(sceneId==='dns'||sceneId==='journey'){for(const [label,cls]of [['Resolved address','rv-dns-answer'],['Resolver / cache','rv-dns-cache']]){const fact=node('div','rv-fact');fact.append(node('dt','',label),node('dd',cls,'Not available'));dock.append(fact);}}
+ else if(sceneId==='dns'||sceneId==='journey'){for(const [label,cls]of [[sceneId==='journey'?'Request destination':'Resolved address','rv-dns-answer'],[sceneId==='journey'?'Request DNS':'Resolver / cache','rv-dns-cache']]){const fact=node('div','rv-fact');fact.append(node('dt','',label),node('dd',cls,'Not available'));dock.append(fact);}}
  else if(sceneId==='provider'){const fact=node('div','rv-fact');fact.append(node('dt','','Source boundary'),node('dd','','GRE / MPLS projections · no model clock'));dock.append(fact);}
 }
 
@@ -934,7 +934,7 @@ function facts(before,after){const a=new Map((before||[]).map(x=>[x.label,x.valu
 function dockValues(state){
  if(sceneId==='tcp')return [{label:'Acknowledged by the server',value:String(state.highestAck),selector:'.rv-ack'},{label:'Next expected from the client',value:String(state.expectedAck),selector:'.rv-expected'}];
  if(sceneId==='tls')return [{label:'Certificate',value:state.certificateState,selector:'.rv-tls-certificate'},{label:'Application channel',value:state.applicationReady?'Ready':'Not ready',selector:'.rv-tls-channel'}];
- if(sceneId==='dns'||sceneId==='journey')return [{label:'Resolved address',value:sceneId==='dns'?state.answer?.value||'Not available':state.resolvedAddress||'Not available',selector:'.rv-dns-answer'},{label:'Resolver / cache',value:sceneId==='dns'?state.cacheState:state.dns,selector:'.rv-dns-cache'}];
+ if(sceneId==='dns'||sceneId==='journey')return [{label:sceneId==='journey'?'Request destination':'Resolved address',value:sceneId==='dns'?state.answer?.value||'Not available':state.resolvedAddress||'Not available',selector:'.rv-dns-answer'},{label:sceneId==='journey'?'Request DNS':'Resolver / cache',value:sceneId==='dns'?state.cacheState:state.dns,selector:'.rv-dns-cache'}];
  return [];
 }
 function initialDockValues(){return dockValues(sceneId==='tcp'?{highestAck:0,expectedAck:1001}:frames[0]?.state);}
