@@ -24,16 +24,44 @@ export function mountWorkspaceSurface(element,navigate,destination){
  if(sceneLabel){sceneLabel.classList.add('ws-scene-picker');if(destination!=='journey')heading.prepend(sceneLabel);heading.querySelector('.rv-eyebrow')?.remove();}
  intro.append(heading);main.prepend(intro);
  element.querySelector('.rv-foot')?.removeAttribute('data-ui-surface');
- // Keep the reviewed scene, retained values, inspector and console in their
- // authored owners. Production adds request editing within the existing tools.
+ // The scene retains its canonical objects and clock. Workspace composition
+ // groups presentation controls without creating a second simulation surface.
  if(destination==='journey'){
-  if(sceneLabel)intro.append(sceneLabel);
   const configuration=main.querySelector('.journey-configuration');
   const settings=main.querySelector('.rv-playback-settings');
   const tools=settings?.querySelector('.rv-disclosure-inner')||settings;
-  if(configuration&&tools)tools.append(configuration);
+  const requestTools=document.createElement('div');requestTools.className='ws-request-tools';
+  if(configuration){
+   const summary=configuration.querySelector('summary'),hostname=configuration.querySelector('input');
+   for(const text of summary.childNodes)if(text.nodeType===3)text.textContent=hostname.value;
+   summary.setAttribute('aria-label','Edit request to '+hostname.value);
+   requestTools.append(configuration);
+   scope.listen(element,'review-disclosure-layout',event=>{
+    if(event.detail.element===configuration&&element.disclosures.wanted(configuration))element.causalStudy.pause();
+   });
+  }
+  if(sceneLabel&&tools)tools.prepend(sceneLabel);
+  intro.append(requestTools);
+  // Endpoint names and retained facts form one quiet context band. The packet
+  // keeps the optical material; labels no longer each receive a glass box.
+  for(const endpoint of main.querySelectorAll('.rv-endpoint'))endpoint.removeAttribute('data-ui-surface');
   const actions=main.querySelector('.journey-context-actions');
   if(actions&&tools)tools.append(actions);
+ }
+ if(destination==='builder'){
+  const workspace=document.createElement('section');workspace.className='ws-builder-workspace';
+  workspace.setAttribute('aria-label','Network authoring workspace');
+  intro.after(workspace);
+  for(const child of [...main.children])if(child!==intro&&child!==workspace)workspace.append(child);
+  for(const region of workspace.querySelectorAll('.wb-workbench,.wb-result'))region.removeAttribute('data-ui-surface');
+  const overview=workspace.querySelector('.wb-overview');
+  if(overview){
+   const mapMeta=document.createElement('div');mapMeta.className='ws-map-meta';
+   mapMeta.append(workspace.querySelector('.wb-context'),overview);
+   workspace.querySelector('.wb-map-wrap').after(mapMeta);
+  }
+  const networkTools=workspace.querySelector('.wb-secondary-tools');
+  if(networkTools)workspace.querySelector('.wb-graph-toolbar').append(networkTools);
  }
  const surface=mountSurface(element,scope,navigate,{workspace:destination,registerMaterial:false});
  const selects=mountSelectMenus(element,scope,surface.menus);

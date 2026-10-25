@@ -1,13 +1,13 @@
 [
   {
     "path": "../dist/fragment-hopscotch-causal-lifecycle.html",
-    "bytes": 556564,
-    "sha256": "e00b67b59704ef3ccb37fe1319ed2cff0f9a58110dd6b0e60e60e2ef541bdb2e"
+    "bytes": 557312,
+    "sha256": "9c7c4958f1ba2ed5778ccfa92d58faae0f9bdf119f4be3637156838cff7f0f46"
   },
   {
     "path": "../dist/fragment-hopscotch-builder-workbench.html",
-    "bytes": 874882,
-    "sha256": "9447f77dd3125e58e2f93d7e8c9d481de3315596aa8a036c81e3cbf24b13c512"
+    "bytes": 875359,
+    "sha256": "1e8cec16737f2daaf6e58eb1577faf171efde50f0dbf5460cfca5e645ef9f5af"
   },
   {
     "path": "../dist/fragment-hopscotch-evidence-workspaces.html",

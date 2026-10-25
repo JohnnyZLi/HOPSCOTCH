@@ -386,6 +386,9 @@ async function workspaceMenus(){
   const headerHeight=await cdp.evaluate("document.querySelector('.lh-header').getBoundingClientRect().height");
   await cdp.evaluate("document.querySelector('.lh-theme').click()");await settled();
   assert.equal(await cdp.evaluate("document.querySelector('.lh-header').getBoundingClientRect().height"),headerHeight);
+  assert.ok(await cdp.evaluate("Boolean(document.querySelector('.ws-request-tools .journey-configuration'))"),'Request configuration belongs beside the Journey introduction');
+  await cdp.evaluate("document.querySelector('.rv-playback-settings summary').click()");await settled();
+  await wait("Boolean(document.querySelector('.ws-scene-picker .ws-select-trigger'))");
   await cdp.evaluate("document.querySelector('.ws-scene-picker .ws-select-trigger').click()");await settled();
   const scene=await cdp.evaluate(`(()=>{const panel=document.querySelector('.ws-scene-picker .ws-select-panel'),b=panel.getBoundingClientRect();return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,current:panel.querySelector('[aria-pressed=true]')?.textContent,appearance:document.querySelector('.lh-appearance').open};})()`);
   assert.equal(scene.appearance,false);assert.match(scene.current,/Journey/);assert.ok(scene.left>=0&&scene.right<=width&&scene.top>=0&&scene.bottom<=height,'Scene menu must stay in the viewport');
