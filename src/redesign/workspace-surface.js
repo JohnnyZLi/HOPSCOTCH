@@ -55,7 +55,11 @@ export function mountWorkspaceSurface(element,navigate,destination){
   for(const child of [...main.children])if(child!==intro&&child!==workspace)workspace.append(child);
   for(const region of workspace.querySelectorAll('.wb-workbench,.wb-result'))region.removeAttribute('data-ui-surface');
   const overview=workspace.querySelector('.wb-overview');
-  if(overview)workspace.querySelector('.wb-map-wrap').append(overview);
+  if(overview){
+   const mapMeta=document.createElement('div');mapMeta.className='ws-map-meta';
+   mapMeta.append(workspace.querySelector('.wb-context'),overview);
+   workspace.querySelector('.wb-map-wrap').after(mapMeta);
+  }
   const networkTools=workspace.querySelector('.wb-secondary-tools');
   if(networkTools)workspace.querySelector('.wb-graph-toolbar').append(networkTools);
  }

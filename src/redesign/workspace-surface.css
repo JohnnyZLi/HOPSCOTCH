@@ -116,7 +116,7 @@
 .review-runtime.workspace-surface .ws-request-tools .journey-configuration form{grid-template-columns:minmax(0,1.4fr) repeat(3,minmax(0,1fr)) auto;align-items:end}
 .review-runtime.workspace-surface .ws-request-tools .journey-configuration form>label:first-child{grid-column:auto}
 .review-runtime.workspace-surface .ws-request-tools .journey-configuration form input{width:100%;min-width:0;max-width:none}
-.review-runtime.workspace-surface[data-workspace=journey] .rv-composition{--rv-scene-layout:open;--rv-scene-space:.8}
+.review-runtime.workspace-surface[data-workspace=journey] .rv-composition{--rv-scene-layout:open;--rv-scene-space:.8;--rv-scene-focus-gap:16px}
 .review-runtime.workspace-surface[data-workspace=journey] .rv-endpoints{padding:0 0 8px;gap:24px}
 .review-runtime.workspace-surface[data-workspace=journey] .rv-endpoint{padding:0 2px;min-height:0;border:0;border-radius:0;background:none;box-shadow:none;font-size:13px;font-weight:600;white-space:normal;overflow-wrap:anywhere}
 .review-runtime.workspace-surface[data-workspace=journey] .rv-retained-dock{padding:0 2px 12px;gap:24px;border:0;border-radius:0;background:none}
@@ -168,8 +168,9 @@
 .review-runtime.workspace-surface .ws-builder-workspace .wb-graph-toolbar>button{font-size:12px;padding:7px 10px;min-height:36px;border:0;background:none;box-shadow:none}
 .review-runtime.workspace-surface .ws-builder-workspace .wb-graph-toolbar>button:hover{background:color-mix(in srgb,var(--hs-tint) 45%,transparent)}
 .review-runtime.workspace-surface .ws-builder-workspace .wb-map-wrap{border-radius:16px}
-.review-runtime.workspace-surface .ws-builder-workspace .wb-overview{position:absolute;inset:auto 10px 10px auto;width:120px;height:76px;margin:0;pointer-events:none;opacity:.6}
-.review-runtime.workspace-surface .ws-builder-workspace .wb-context{font-size:11px;margin:6px 0 12px}
+.review-runtime.workspace-surface .ws-builder-workspace .ws-map-meta{display:flex;align-items:center;gap:16px;min-width:0;padding:6px 0 12px}
+.review-runtime.workspace-surface .ws-builder-workspace .wb-overview{width:80px;height:50px;flex:0 0 80px;margin:0;pointer-events:none;opacity:.8}
+.review-runtime.workspace-surface .ws-builder-workspace .wb-context{font-size:11px;margin:0;flex:1;min-width:0}
 .review-runtime.workspace-surface .ws-builder-workspace .wb-workbench{padding:6px 0 12px 20px;border:0;border-left:1px solid var(--hs-line);border-radius:0;background:none;box-shadow:none;max-height:65dvh;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
 .review-runtime.workspace-surface .ws-builder-workspace .wb-workbench>.wb-device-title{font-size:18px;letter-spacing:-.02em}
 .review-runtime.workspace-surface .ws-builder-workspace .wb-tabs{margin:10px 0}
@@ -206,5 +207,11 @@
  .review-runtime.workspace-surface .ws-builder-workspace .wb-graph-toolbar>button{padding-inline:6px}
 }
 .review-runtime.workspace-surface[data-workspace=builder]{--hs-route-line:rgba(61,89,126,.40)}
-.review-runtime.workspace-surface[data-workspace=builder][data-theme=dark]{--hs-route-line:rgba(165,190,226,.56)}
+.review-runtime.workspace-surface[data-workspace=builder][data-theme=dark]{--hs-route-line:rgba(165,190,226,.95)}
 .review-runtime.workspace-surface .ws-builder-workspace .wb-map{--rv-network-label-min:12px}
+
+@container review (max-width:360px){
+ .review-runtime.workspace-surface[data-workspace=journey] .ws-heading .rv-subtitle{display:none}
+ .review-runtime.workspace-surface[data-workspace=journey] .ws-intro{margin-bottom:16px}
+ .review-runtime.workspace-surface[data-workspace=journey] .rv-controls button{padding-inline:6px}
+}
