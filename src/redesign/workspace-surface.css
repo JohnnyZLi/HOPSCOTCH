@@ -229,8 +229,8 @@
  .review-runtime.workspace-surface[data-workspace=journey] .rv-scene-details{width:min(100%,800px)}
 }
 @media(prefers-reduced-transparency:reduce){
- .review-runtime.workspace-surface[data-workspace=journey] .rv-composition>.rv-console{background:var(--hs-ui-solid)}
+ .review-runtime.workspace-surface[data-workspace=journey][data-theme] .rv-composition>.rv-console{background:var(--hs-ui-solid)}
 }
 @media(forced-colors:active){
- .review-runtime.workspace-surface[data-workspace=journey] .rv-composition>.rv-console{background:Canvas;border:1px solid CanvasText}
+ .review-runtime.workspace-surface[data-workspace=journey][data-theme] .rv-composition>.rv-console{background:Canvas;border:1px solid CanvasText}
 }
