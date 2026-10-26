@@ -1422,7 +1422,7 @@ function playbackChromeHeight(){
 function reflow(){
  layoutJob=0;if(disposed)return;const width=stage.clientWidth||q('.rv-main').clientWidth;if(width<160)return;
  reserveCaption();const stageOffset=stage.getBoundingClientRect().top-root.getBoundingClientRect().top,consoleHeight=q('.rv-console').offsetHeight,readerConsoleHeight=playbackChromeHeight();
- const probe=q('.rv-field-value')||q('.rv-title'),style=getComputedStyle(probe),compositionStyle=getComputedStyle(composition),openScene=compositionStyle.getPropertyValue('--rv-scene-layout').trim()==='open',viewport=openScene?window.innerHeight:root.dataset.integrated==='true'?root.clientHeight:typeof innerHeight==='number'?innerHeight:900,key=[sceneId,variant,dnsMode,width,viewport,style.fontSize,style.fontFamily,root.dataset.theme,devicePixelRatio||1,stageOffset,consoleHeight,openScene].join('|');if(key===layoutKey)return;
+ const probe=q('.rv-field-value')||q('.rv-title'),style=getComputedStyle(probe),compositionStyle=getComputedStyle(composition),openScene=compositionStyle.getPropertyValue('--rv-scene-layout').trim()==='open',viewport=openScene?window.innerHeight:root.dataset.integrated==='true'?root.clientHeight:typeof innerHeight==='number'?innerHeight:900,bottomInset=root.dataset.desktopWorkspace==='true'?Math.max(0,viewport-stageOffset-(parseFloat(getComputedStyle(root).getPropertyValue('--ws-workspace-height'))||0)):48,key=[sceneId,variant,dnsMode,width,viewport,bottomInset,style.fontSize,style.fontFamily,root.dataset.theme,devicePixelRatio||1,stageOffset,consoleHeight,openScene,root.dataset.desktopWorkspace].join('|');if(key===layoutKey)return;
  q('.rv-envelopes').hidden=!['packetOps','provider','journey'].includes(sceneId);
  // Measure one source object at a time. Keeping every cached card connected
  // makes each field/glyph measurement relayout the entire canonical history.
@@ -1435,7 +1435,7 @@ function reflow(){
   const clone=owner.cloneNode(true);clone.setAttribute('aria-hidden','true');clone.inert=true;Object.assign(clone.style,{position:'absolute',visibility:'hidden',width:owner.clientWidth+'px',minHeight:'0',height:'auto'});q('.rv-main').append(clone);let max=0;
   for(const f of frames){clone.textContent=f.endpoints?.[side]||'';max=Math.max(max,clone.getBoundingClientRect().height);}clone.remove();owner.style.minHeight=Math.ceil(max)+'px';
  }
- const dockHeight=bounded()?dock.offsetHeight:0;dock.style.top=endpoints.offsetHeight+'px';const pathY=endpoints.offsetHeight+dockHeight+24;
+ const dockHeight=bounded()&&dock.parentElement===stage?dock.offsetHeight:0;dock.style.top=endpoints.offsetHeight+'px';const pathY=endpoints.offsetHeight+dockHeight+24;
  const top=q('.rv-envelope-header'),bottom=q('.rv-envelope-trailer');q('.rv-envelope-direction').textContent=sceneId==='provider'?(data.provider.packet?.outer.source??'No outer header')+' → '+(data.provider.packet?.outer.destination??'Not supplied'):'02:48:4f:50:00:01 → 02:48:4f:50:00:02';top.querySelector('span').textContent=sceneId==='provider'?'Outer '+(data.provider.packet?.outer.protocol||'envelope')+' · '+(data.provider.gre?.encapsulationOverheadBytes??0)+' B':'Ethernet II · 14 B';bottom.querySelector('span').textContent=sceneId==='provider'?'MPLS label · 229811':'FCS · unavailable in model bytes';for(const piece of [top,bottom]){piece.style.width=cardWidth+'px';piece.style.height='auto';}const envelopeH=['packetOps','provider','journey'].includes(sceneId)?Math.max(64,top.offsetHeight):0,trailerH=['packetOps','provider','journey'].includes(sceneId)?Math.max(44,bottom.offsetHeight):0,focusY=pathY+(openScene?parseFloat(compositionStyle.getPropertyValue('--rv-scene-focus-gap'))||16:bounded()?(root.dataset.integrated==='true'?12:36):62)+(['packetOps','provider'].includes(sceneId)?envelopeH+20:0),compactLabelStyle=getComputedStyle(q('.rv-capsule')||q('.rv-title')),compactFont=parseFloat(compactLabelStyle.fontSize)||13,compactContext=document.createElement('canvas').getContext('2d');compactContext.font='500 '+compactFont+'px '+compactLabelStyle.fontFamily;const compactLabels=frames.map(f=>f.local?'Local state':f.kind==='anatomy'?'Frame':f.objectTitle),compactText=Math.max(...compactLabels.map(text=>compactContext.measureText(text).width)),compactW=Math.min((width-24)/2,Math.max(88,compactText+32)),compactH=Math.max(44,Math.ceil(compactText/Math.max(1,compactW-32))*compactFont*1.2+16),ports={a:{x:4,y:pathY-22,w:compactW,h:compactH},b:{x:width-compactW-4,y:pathY-22,w:compactW,h:compactH}};
  for(const ghost of root.querySelectorAll('.rv-change-token,.rv-deleted-payload'))ghost.remove();const prepared=[],readingHistory=new Map(),readingAnchors=new Map();let maxHeight=0;
  for(let i=0;i<actors.length;i++){
@@ -1462,16 +1462,16 @@ function reflow(){
   const fieldRects=[...a.fieldMap.values()].filter(el=>!el.hidden).map(el=>el.getBoundingClientRect()),contentTop=fieldRects.length?Math.min(...fieldRects.map(r=>r.top-origin.top)):height,
    bottomPadding=parseFloat(fs.paddingBottom)||20,lineHeight=Math.max(font*1.35,...targets.flatMap(t=>t.lines.map(l=>l.h))),
    rowHeight=Math.min(...fieldRects.map(r=>r.height),lineHeight*3+12),minimumBody=Math.max(Math.min(2,fieldRects.length)*Math.min(rowHeight,lineHeight*2),...fieldRects.map(r=>r.height)),minimum=contentTop+minimumBody+bottomPadding,
-   attachmentRoom=f.assembly||sceneId==='provider'||sceneId==='packetOps'?trailerH+24:0,
-   available=viewport-stageOffset-focusY-(f.assembly?.envelope.present?envelopeH:0)-readerConsoleHeight-48-attachmentRoom,
+   attachmentRoom=f.assembly||sceneId==='provider'||sceneId==='packetOps'?trailerH+(root.dataset.desktopWorkspace==='true'?motion.fitGeometry(cardWidth,[envelopeH||60,height,trailerH||48],1).spread+16:24):root.dataset.desktopWorkspace==='true'?16:0,
+   available=viewport-stageOffset-focusY-(f.assembly?.envelope.present?envelopeH:0)-readerConsoleHeight-bottomInset-attachmentRoom,
    viewHeight=Math.min(height,Math.max(minimum,available)),windowHeight=Math.max(0,viewHeight-contentTop-bottomPadding),readingCenter=contentTop+windowHeight/2;
 
   const focus={x:(width-cardWidth)/2,y:focusY+(f.assembly?.envelope.present?envelopeH:0),w:cardWidth,h:viewHeight},fit=motion.fitGeometry(cardWidth,[envelopeH||60,viewHeight,trailerH||48],1),attach=motion.makeAttachmentPlan(1,0,fit),detach=motion.makeAttachmentPlan(0,1,fit),emphasis=root.emphasis.compile(root.emphasis.readWindows(read,0,id=>a.fieldMap.get(id)));const payload=a.face.querySelector('.rv-payload-body'),pr=payload?.getBoundingClientRect(),payloadRect=pr?{x:pr.left-origin.left,y:pr.top-origin.top,w:pr.width,h:pr.height}:null;
   const transferIds=sceneId==='tcp'?['seq','ack']:sceneId==='packetOps'?f.fields.map(field=>field.id):[],transferFields=Object.fromEntries(transferIds.filter(id=>a.fieldMap.has(id)).map(id=>[id,transfer.measure(a.fieldMap.get(id).querySelector('.rv-field-value'),origin)]));
   prepared.push({focus,fullHeight:height,contentTop,contentLeft:a.fields.getBoundingClientRect().left-origin.left,windowHeight,readingCenter,bottomPadding,startReadingY,firstReadingY,lastReadingY,lens,read,origin,targets,emphasis,fit,attach,detach,payloadRect,transferFields,transferObstacles:[...a.face.querySelectorAll('.rv-field-label,.rv-field-value,.rv-actor-title,.rv-actor-role')].flatMap(el=>textLines(el,origin).map(rect=>({...rect,field:el.closest('.rv-field')?.dataset.field,value:el.matches('.rv-field-value'),scroll:!!el.closest('.rv-reading-window')})))});maxHeight=Math.max(maxHeight,height);a.face.style.position='absolute';a.actor.remove();
  }
- const room=Math.max(0,viewport-stageOffset-readerConsoleHeight-48),space=openScene?parseFloat(compositionStyle.getPropertyValue('--rv-scene-space'))||1:1;
- let sceneHeight=Math.max(...prepared.map((g,i)=>sceneExtent(g,frames[i],trailerH))),sceneFloor=Math.min(sceneHeight,room*space);
+ const room=Math.max(0,viewport-stageOffset-readerConsoleHeight-bottomInset),space=openScene?parseFloat(compositionStyle.getPropertyValue('--rv-scene-space'))||1:1;
+ let sceneHeight=Math.max(...prepared.map((g,i)=>sceneExtent(g,frames[i],trailerH))),sceneFloor=root.dataset.desktopWorkspace==='true'?room:Math.min(sceneHeight,room*space);
  // An open composition balances the actual reading object between its context
  // and transport. Geometry comes from the same measured faces and envelopes.
  if(openScene)for(const [i,g]of prepared.entries())g.focus.y+=Math.max(0,sceneFloor-sceneExtent(g,frames[i],trailerH))/2;
@@ -1529,7 +1529,7 @@ function reflow(){
   if(!f.local||i<frames.length-1)add(i,'release',f.local?tuning.localRelease:g.morphDuration);
  }
  if(expected)expected.textContent=oldExpected;
- sceneHeight=Math.max(...prepared.map((g,i)=>sceneExtent(g,frames[i],trailerH)));sceneFloor=Math.min(sceneHeight,room*space);
+ sceneHeight=Math.max(...prepared.map((g,i)=>sceneExtent(g,frames[i],trailerH)));sceneFloor=root.dataset.desktopWorkspace==='true'?room:Math.min(sceneHeight,room*space);
  plan={phases,starts,commits,total,prepared,width,ports,compactW,compactH,maxHeight,pathY,envelopeH,trailerH,sceneHeight,sceneFloor,viewport,stageOffset,consoleHeight:readerConsoleHeight};
  if(old){const match=phases.find(p=>frames[p.index].id===old.id&&p.kind===old.kind)||phases.find(p=>frames[p.index].id===old.id&&old.kind==='retainFocus'&&p.kind==='retain');clock=match?mix(match.start,match.end,match.kind===old.kind?old.p:0):0;}else clock=0;
  // Canonical app controls already own source-event selection. Retain this
@@ -1710,6 +1710,7 @@ function resizeScene(at){
  const value=Math.ceil(height)+'px';if(stage.style.height!==value)stage.style.height=value;
  // Keep the positioning mode constant for this measured plan. Switching it at
  // an individual card boundary causes a second jump when the page is scrolled.
+ if(root.dataset.desktopWorkspace==='true'){q('.rv-console').style.position='relative';return;}
  const expanded=root.disclosures.wanted(settings)||root.disclosures.wanted(explanation);
  q('.rv-console').style.position=!expanded&&plan.stageOffset+plan.sceneHeight+plan.consoleHeight+48<=plan.viewport?'sticky':'relative';
 }

@@ -1,6 +1,7 @@
 import {createRuntimeScope} from '../../design-review/source/complete-review/integration-scope.js';
 import {mountSurface} from './surface.js';
 import {mountSelectMenus} from './select-menus.js';
+import {mountDesktopWorkspace} from './desktop-workspace.js';
 import markup from './surface.html?raw';
 import './workspace-surface.css';
 
@@ -65,11 +66,12 @@ export function mountWorkspaceSurface(element,navigate,destination){
  }
  const surface=mountSurface(element,scope,navigate,{workspace:destination,registerMaterial:false});
  const selects=mountSelectMenus(element,scope,surface.menus);
+ const disposeDesktop=destination==='journey'?mountDesktopWorkspace(element,scope):()=>{};
  element.workspaceSurface=Object.freeze({appearance:surface.appearance,stats:surface.material.stats});
  let disposed=false;
  return {appearance:surface.appearance,dispose(){
   if(disposed)return;disposed=true;
-  selects.dispose();surface.dispose();scope.dispose();environment.remove();delete element.workspaceSurface;
+  disposeDesktop();selects.dispose();surface.dispose();scope.dispose();environment.remove();delete element.workspaceSurface;
   element.classList.remove('workspace-surface');delete element.dataset.workspace;
  }};
 }

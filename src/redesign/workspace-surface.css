@@ -219,7 +219,7 @@
 /* Desktop shares the compact reading rhythm: one alignment for the heading,
    context, object and transport. Mobile and measured packet geometry stay canonical. */
 @container review (min-width:761px){
- .review-runtime.workspace-surface[data-workspace=journey] .rv-main{max-width:calc(620px + var(--app-gutter)*2)}
+ .review-runtime.workspace-surface[data-workspace=journey] .rv-main{max-width:1440px}
  .review-runtime.workspace-surface[data-workspace=journey] .ws-intro{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px;margin-bottom:24px}
  .review-runtime.workspace-surface[data-workspace=journey] .rv-composition{width:100%;margin-inline:auto;--rv-scene-space:.55}
  .review-runtime.workspace-surface[data-workspace=journey] .ws-heading{display:contents}
@@ -247,3 +247,39 @@
 @media(forced-colors:active){
  .review-runtime.workspace-surface[data-workspace=journey][data-theme] .rv-composition>.rv-console{background:Canvas;border:1px solid CanvasText}
 }
+
+/* Desktop study: a scene and stable transport beside one quiet inspector. */
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-main{display:grid;grid-template-columns:minmax(0,1fr) clamp(260px,22vw,300px);column-gap:36px;align-content:start;padding-bottom:20px}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .ws-intro{grid-column:1/-1;margin-bottom:24px;position:relative}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .ws-heading{display:contents}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-composition{grid-column:1;grid-row:2;min-width:0;margin:0;--rv-scene-space:1;--rv-scene-focus-gap:8px}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-composition>.rv-console{grid-template-areas:"controls" "scrub";bottom:auto;margin-top:0;padding:8px 16px;border:0;border-top:1px solid var(--hs-line);border-radius:0;background:none;box-shadow:none;backdrop-filter:none}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-controls{display:flex;justify-content:center;gap:12px}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-controls button{width:auto;min-width:84px}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .ws-journey-inspector{grid-column:2;grid-row:2;min-width:0;min-height:0;max-height:var(--ws-workspace-height);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--hs-ink) 24%,transparent) transparent;padding:4px 0 20px 24px;border-left:1px solid var(--hs-line)}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .ws-journey-inspector>.rv-caption{margin-bottom:24px}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-caption strong{display:block;font-size:18px;font-weight:550;line-height:1.4;letter-spacing:-.025em}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-caption p{font-size:13px;line-height:1.65;margin-top:10px}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-retained-dock{position:static!important;display:flex;flex-direction:column;gap:14px;padding:18px 0;margin-bottom:12px;border-top:1px solid var(--hs-line);border-bottom:1px solid var(--hs-line)}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-retained-dock>.rv-fact{order:initial;text-align:start}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-console-tools{display:flex;flex-direction:column;gap:4px}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-console-tools>details{flex:none;width:100%}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-console-tools>details>summary,.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-scene-details>summary{width:100%;white-space:normal;line-height:1.5;min-height:40px;margin:0;padding:8px 0;font-size:12px}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-source{display:flex;flex-direction:column;gap:8px;align-items:flex-start;font-size:11px}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-facts{grid-template-columns:minmax(0,1fr)}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-state-records{display:flex;flex-direction:column}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .ws-request-tools{position:relative;min-height:44px}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .ws-intro:has(.journey-configuration[open]){grid-template-columns:minmax(0,1fr) auto}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .ws-intro:has(.journey-configuration[open]) .ws-request-tools{grid-column:2;grid-row:1;width:auto}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .ws-intro:has(.journey-configuration[open]) .ws-heading{display:contents}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .journey-configuration[open]{position:absolute;right:0;top:0;z-index:25;width:500px;max-width:calc(100vw - 48px)}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-reading-window{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--hs-ink) 24%,transparent) transparent}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-reading-window::-webkit-scrollbar{display:block;width:5px}
+.review-runtime.workspace-surface[data-workspace=journey][data-desktop-workspace=true] .rv-reading-window::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--hs-ink) 24%,transparent);border-radius:8px}
+
+.review-runtime.workspace-surface[data-desktop-workspace=true] .rv-scrub{appearance:none;-webkit-appearance:none;background:transparent;border:0;box-shadow:none;padding:0;cursor:pointer}
+.review-runtime.workspace-surface[data-desktop-workspace=true] .rv-scrub::-webkit-slider-runnable-track{height:2px;border-radius:2px;background:color-mix(in srgb,var(--hs-ink) 24%,transparent)}
+.review-runtime.workspace-surface[data-desktop-workspace=true] .rv-scrub::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:10px;height:10px;margin-top:-4px;border:0;border-radius:50%;background:var(--hs-text-accent)}
+.review-runtime.workspace-surface[data-desktop-workspace=true] .rv-scrub::-moz-range-track{height:2px;background:color-mix(in srgb,var(--hs-ink) 24%,transparent)}
+.review-runtime.workspace-surface[data-desktop-workspace=true] .rv-scrub::-moz-range-thumb{width:10px;height:10px;border:0;border-radius:50%;background:var(--hs-text-accent)}
+@media(forced-colors:active){.review-runtime.workspace-surface[data-desktop-workspace=true] .rv-scrub{appearance:auto}}
