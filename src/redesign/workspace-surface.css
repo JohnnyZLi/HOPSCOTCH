@@ -215,3 +215,22 @@
  .review-runtime.workspace-surface[data-workspace=journey] .ws-intro{margin-bottom:16px}
  .review-runtime.workspace-surface[data-workspace=journey] .rv-controls button{padding-inline:6px}
 }
+
+/* Desktop Journey reads as one centered instrument, rather than a wide dashboard.
+   The mobile composition and measured packet/envelope geometry stay canonical. */
+@container review (min-width:761px){
+ .review-runtime.workspace-surface[data-workspace=journey] .rv-main{max-width:1040px}
+ .review-runtime.workspace-surface[data-workspace=journey] .ws-intro{margin-bottom:20px}
+ .review-runtime.workspace-surface[data-workspace=journey] .rv-composition{width:min(100%,800px);margin-inline:auto;--rv-scene-space:.65}
+ .review-runtime.workspace-surface[data-workspace=journey] .rv-path{opacity:0}
+ .review-runtime.workspace-surface[data-workspace=journey] .rv-composition>.rv-console{width:100%;margin-top:12px;padding:14px 20px;background:rgba(247,251,255,.30);border:1px solid var(--hs-line);box-shadow:inset 0 1px 0 var(--hs-ui-high),0 6px 20px var(--ws-reading-shadow)}
+ .review-runtime.workspace-surface[data-workspace=journey][data-theme=dark] .rv-composition>.rv-console{background:rgba(19,32,54,.42)}
+ .review-runtime.workspace-surface[data-workspace=journey] .rv-composition>.rv-console::before{display:none}
+ .review-runtime.workspace-surface[data-workspace=journey] .rv-scene-details{width:min(100%,800px)}
+}
+@media(prefers-reduced-transparency:reduce){
+ .review-runtime.workspace-surface[data-workspace=journey] .rv-composition>.rv-console{background:var(--hs-ui-solid)}
+}
+@media(forced-colors:active){
+ .review-runtime.workspace-surface[data-workspace=journey] .rv-composition>.rv-console{background:Canvas;border:1px solid CanvasText}
+}
