@@ -120,6 +120,8 @@ def integrated_runtime():
     template=re.search(r'<section class="rv-shell">(.*?)</section>\s*<script>',markup,re.S)[0].rsplit('<script>',1)[0]
     template=template.replace('data-theme="light"','')
     material=Path('complete-review/shared-painter.js').read_text().replace('__VERTEX__','`'+vertex+'`').replace('__FRAGMENT__','`'+fragment+'`')
+    standalone=material.replace("document.getElementById('__ROOT__')",'element').replace("document.getElementById('hop-app-composition')",'element')
+    (folder/'packet-painter.js').write_text('// Generated from the shared packet painter and approved shader.\nexport function mountPacketPainter(element,scope){\nconst {document,window,matchMedia,requestAnimationFrame,cancelAnimationFrame,ResizeObserver,MutationObserver}=scope;\n'+standalone+'\nreturn element.surfacePainter;\n}\n')
     runtime=Path('complete-review/motion.js').read_text()
     runtime=production_lifecycle(runtime)
     adapters="(()=>{const root=document.getElementById('__ROOT__');\n"+Path('complete-review/source-adapters.js').read_text().replace('export { journeyFrames, dnsFrames, providerFrames };','root.sourcePresentation=Object.freeze({journeyFrames,dnsFrames,providerFrames});')+'\n})();'
