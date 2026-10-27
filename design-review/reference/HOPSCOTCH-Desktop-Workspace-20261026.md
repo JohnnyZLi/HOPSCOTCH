@@ -9,3 +9,13 @@ A workspace controller measures available width and the real introduction, trans
 The controller observes width and chrome changes, batches reflow, and disposes observers/listeners on route retirement. Document coordinates keep source-menu scrolling from enlarging the viewport budget. Other protocol layouts use their existing composition policy. Root wallpaper and overscroll continuity remain.
 
 Validation: full local check passed during implementation; current build, source/output integrity, production governance, dependency audit and diff whitespace checks passed. Actual built app inspected in the isolated cloud browser: compact desktop and full desktop, short intent and dense Ethernet/IPv4/FCS states, settings/source/full-state disclosures, custom event menus, request configuration and appearance. CI and live deployment checks are recorded in the pull request and deployment checkpoint. Browser evidence does not establish physical Safari/device or assistive-technology acceptance.
+
+## Request popover dismissal — 27 October 2026
+
+A production follow-up found that the desktop request editor looked like a popover but only its summary dismissed it. Desktop Escape, outside pointer input, and keyboard focus leaving the editor now close it through the existing disclosure controller. Escape restores trigger focus and a nested custom menu consumes Escape before its parent. The existing form remains mounted so an unsent draft survives dismissal. Inline compact/mobile behavior is unchanged. Scoped listeners retire with the workspace.
+
+Verified the original failure on production and the corrected behavior in the isolated browser preview. Browser regression covers Escape/focus restoration, draft retention, nested-menu precedence, outside pointer dismissal, focus leaving the editor, and stable transport in Light/Dark desktop views.
+
+Route retirement also clears the desktop sizing flag and custom viewport budget. The production element is reused across workspaces, so retaining those values applied Journey sizing to a later protocol scene. The route regression checks that DNS inherits neither value nor an inspector.
+
+The round trip also exposed a retained-fact render cache surviving replacement of its DOM children. Rebuilding a dock now invalidates that cache, so restoring the same event refreshes the actual values instead of leaving placeholder text. The browser regression compares request facts before and after Journey → DNS → Journey in desktop and compact Light/Dark views.
