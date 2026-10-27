@@ -376,6 +376,23 @@ async function workspaceMenus(){
   if(owners.split){assert.ok(owners.inspectorOwners,'Desktop inspector owns the single existing caption, facts, tools and full inspection');assert.ok(owners.left>=shell.stageRight&&owners.right<=width&&owners.bottom<=height,'The inspector must fit beside the scene');assert.ok(owners.page<=height+1,'Ordinary desktop content fits the viewport');}
   else assert.ok(owners.retainedInScene,'Compact retained values stay within the reviewed scene');
 
+  if(owners.split){
+   const requestState=()=>cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),request=root.querySelector('.journey-configuration');return {open:root.disclosures.wanted(request),focus:document.activeElement===request.querySelector('summary'),draft:request.querySelector('input').value,transport:root.querySelector('.rv-console').getBoundingClientRect().top};})()`);
+   await cdp.evaluate("document.querySelector('.journey-configuration > summary').click()");await settled();
+   await cdp.evaluate("(()=>{const input=document.querySelector('.journey-configuration input');input.value='draft.example.test';input.focus();})()");
+   await cdp.call('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape'});await cdp.call('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape'});await settled();
+   const escaped=await requestState();assert.equal(escaped.open,false,'Escape dismisses the desktop request');assert.equal(escaped.focus,true,'Escape restores request trigger focus');assert.equal(escaped.draft,'draft.example.test','Dismissal retains the unsent draft');assert.ok(Math.abs(escaped.transport-shell.consoleTop)<=1,'Request dismissal keeps transport stable');
+   await cdp.evaluate("document.querySelector('.journey-configuration > summary').click()");await settled();
+   await cdp.evaluate("document.querySelector('select[aria-label=Transport]').nextElementSibling.querySelector('summary').click()");await settled();
+   await cdp.call('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape'});await cdp.call('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape'});await settled();
+   assert.equal((await requestState()).open,true,'First Escape closes the nested menu and preserves its request editor');
+   const heading=await cdp.evaluate("(()=>{const r=document.querySelector('.ws-heading h2').getBoundingClientRect();return {x:r.left+8,y:r.top+8};})()");
+   await cdp.call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...heading});await cdp.call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...heading});await settled();
+   assert.equal((await requestState()).open,false,'Outside pointer dismissal closes the desktop request');
+   await cdp.evaluate("document.querySelector('.journey-configuration > summary').click()");await settled();
+   await cdp.evaluate("document.querySelector('.rv-play').focus()");await settled();
+   assert.equal((await requestState()).open,false,'Leaving the request by keyboard dismisses it');
+  }
   await screenshot('journey-shared-surface-'+width+'-'+theme);
   // Dense content keeps full fields unobscured; scrolling must reach the complete transport.
   const before=await cdp.evaluate(`(()=>{const api=document.querySelector('.review-runtime').causalStudy,s=api.snapshot(),saved=api.save(),index=s.plan.prepared.reduce((best,g,i)=>g.fullHeight>s.plan.prepared[best].fullHeight?i:best,0),phase=s.plan.phases.find(p=>p.index===index&&p.kind==='read');if(phase)api.seek((phase.start+phase.end)/2);return saved;})()`);await settled();

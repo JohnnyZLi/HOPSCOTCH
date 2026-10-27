@@ -23,6 +23,21 @@ export function mountDesktopWorkspace(root,scope){
   if(key!==budget){budget=key;root.style.setProperty('--ws-workspace-height',height+'px');root.causalStudy.reflow();}
  };
  const queue=()=>{if(!job)job=scope.requestAnimationFrame(update);};
+ const request=root.querySelector('.journey-configuration'),trigger=request.querySelector(':scope > summary');
+ const requestOpen=()=>split&&root.disclosures.wanted(request);
+ const dismissRequest=()=>root.disclosures.set(request,false);
+ // The request is a popover only in the split workspace. Keep the existing
+ // disclosure animation and draft form; nested menus consume Escape first.
+ scope.listen(document,'pointerdown',event=>{
+  if(requestOpen()&&!event.composedPath().includes(request))dismissRequest();
+ },{capture:true});
+ scope.listen(document,'keydown',event=>{
+  if(event.key!=='Escape'||event.defaultPrevented||!requestOpen())return;
+  event.preventDefault();dismissRequest();trigger.focus({preventScroll:true});
+ });
+ scope.listen(request,'focusout',event=>{
+  if(requestOpen()&&event.relatedTarget&&!request.contains(event.relatedTarget))dismissRequest();
+ });
  const observer=new scope.ResizeObserver(queue);
  for(const node of [main,root.querySelector('.ws-intro'),root.querySelector('.rv-header'),root.querySelector('.rv-console'),root.querySelector('.rv-foot')])observer.observe(node);
  scope.listen(window,'resize',queue);scope.listen(root,'review-disclosure-layout',queue);
