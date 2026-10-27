@@ -22,7 +22,7 @@ const budgets=JSON.parse(readFileSync('config/performance-budget.json','utf8'));
 const report={schema:'hopscotch.complete-presentation-validation',version:1,mode,gpuMode:process.env.HOPSCOTCH_GPU_MODE||'default',generatedAt:new Date().toISOString(),profiles:[],failures:[]};
 mkdirSync(output,{recursive:true});mkdirSync(dirname(reportPath),{recursive:true});
 let production,launch,cdp;
-async function wait(expression,timeoutMs=15000){const end=performance.now()+timeoutMs;while(performance.now()<end){if(await cdp.evaluate(expression))return;await sleep(50);}const context=await cdp.evaluate("({error:document.querySelector('.rv-error')?.textContent,context:document.querySelector('.wb-context')?.textContent})");throw Error('Timed out: '+expression+' · '+JSON.stringify(context));}
+async function wait(expression,timeoutMs=15000){const end=performance.now()+timeoutMs;while(performance.now()<end){if(await cdp.evaluate(expression))return;await sleep(50);}const context=await cdp.evaluate("({url:location.href,ready:document.readyState,error:document.querySelector('.workspace-error,.rv-error')?.textContent,context:document.querySelector('.wb-context')?.textContent,body:document.body?.innerText.slice(0,700),scripts:[...document.scripts].map(s=>s.src).filter(Boolean)})");context.runtimeErrors=cdp.events.filter(e=>e.method==='Runtime.exceptionThrown').slice(-5);throw Error('Timed out: '+expression+' · '+JSON.stringify(context));}
 async function settled(){await cdp.evaluate(`(async()=>{
  await document.fonts.ready;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
  let timeout;
@@ -390,7 +390,7 @@ async function workspaceMenus(){
    await cdp.call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...heading});await cdp.call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...heading});await settled();
    assert.equal((await requestState()).open,false,'Outside pointer dismissal closes the desktop request');
    await cdp.evaluate("document.querySelector('.journey-configuration > summary').click()");await settled();
-   await cdp.evaluate("document.querySelector('.rv-play').focus()");await settled();
+   await cdp.evaluate("(()=>{document.querySelector('.journey-configuration input').focus();document.querySelector('.rv-play').focus();})()");await settled();
    assert.equal((await requestState()).open,false,'Leaving the request by keyboard dismisses it');
   }
   await screenshot('journey-shared-surface-'+width+'-'+theme);
