@@ -17,3 +17,5 @@ A production follow-up found that the desktop request editor looked like a popov
 Verified the original failure on production and the corrected behavior in the isolated browser preview. Browser regression covers Escape/focus restoration, draft retention, nested-menu precedence, outside pointer dismissal, focus leaving the editor, and stable transport in Light/Dark desktop views.
 
 Route retirement also clears the desktop sizing flag and custom viewport budget. The production element is reused across workspaces, so retaining those values applied Journey sizing to a later protocol scene. The route regression checks that DNS inherits neither value nor an inspector.
+
+The round trip also exposed a retained-fact render cache surviving replacement of its DOM children. Rebuilding a dock now invalidates that cache, so restoring the same event refreshes the actual values instead of leaving placeholder text. The browser regression compares request facts before and after Journey → DNS → Journey in desktop and compact Light/Dark views.

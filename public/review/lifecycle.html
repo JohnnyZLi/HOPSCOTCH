@@ -1800,7 +1800,7 @@ const settingLabels=[...q('.rv-controls').children].filter(n=>n.matches('label')
 const explanation=node('details','rv-explanation');explanation.append(node('summary','','Source details'),node('p','rv-summary-detail'),q('.rv-source'));const consoleTools=node('div','rv-console-tools');consoleTools.append(settings,explanation);q('.rv-console').append(consoleTools);
 function bounded(){return ['tcp','tls','dns','journey','provider'].includes(sceneId);}
 function buildDock(){
- dock.replaceChildren();dock.hidden=!bounded()||sceneId==='provider';
+ dock.replaceChildren();delete dock.dataset.state;dock.hidden=!bounded()||sceneId==='provider';
  if(sceneId==='tcp'){
   for(const [owner,label,cls,value,note]of [['Client TCP','Acknowledged by the server','rv-ack','0','Acknowledgments retain what the peer received.'],['Server TCP','Next expected from the client','rv-expected','1001','Sequence space survives each received segment.']]){
    const card=node('section','rv-peer-state'),fact=node('dl','rv-peer-value'),pair=node('div','rv-fact');card.dataset.uiSurface='record';
