@@ -15,3 +15,5 @@ Validation: full local check passed during implementation; current build, source
 A production follow-up found that the desktop request editor looked like a popover but only its summary dismissed it. Desktop Escape, outside pointer input, and keyboard focus leaving the editor now close it through the existing disclosure controller. Escape restores trigger focus and a nested custom menu consumes Escape before its parent. The existing form remains mounted so an unsent draft survives dismissal. Inline compact/mobile behavior is unchanged. Scoped listeners retire with the workspace.
 
 Verified the original failure on production and the corrected behavior in the isolated browser preview. Browser regression covers Escape/focus restoration, draft retention, nested-menu precedence, outside pointer dismissal, focus leaving the editor, and stable transport in Light/Dark desktop views.
+
+Route retirement also clears the desktop sizing flag and custom viewport budget. The production element is reused across workspaces, so retaining those values applied Journey sizing to a later protocol scene. The route regression checks that DNS inherits neither value nor an inspector.

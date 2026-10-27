@@ -42,5 +42,8 @@ export function mountDesktopWorkspace(root,scope){
  for(const node of [main,root.querySelector('.ws-intro'),root.querySelector('.rv-header'),root.querySelector('.rv-console'),root.querySelector('.rv-foot')])observer.observe(node);
  scope.listen(window,'resize',queue);scope.listen(root,'review-disclosure-layout',queue);
  update();
- return ()=>{disposed=true;if(job)scope.cancelAnimationFrame(job);observer.disconnect();};
+ return ()=>{
+  disposed=true;if(job)scope.cancelAnimationFrame(job);observer.disconnect();
+  delete root.dataset.desktopWorkspace;root.style.removeProperty('--ws-workspace-height');
+ };
 }

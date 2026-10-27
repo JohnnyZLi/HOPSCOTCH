@@ -417,6 +417,7 @@ async function workspaceMenus(){
   await cdp.evaluate("(()=>{const select=document.querySelector('.rv-scene-picker'),index=[...select.options].findIndex(o=>o.value==='dns');document.querySelector('.ws-scene-picker [data-select-index=\"'+index+'\"]').click();})()");
   await wait("location.pathname==='/labs/dns'&&Boolean(document.querySelector('.review-runtime')?.workspaceSurface)&&document.querySelector('.review-runtime')?.causalStudy?.snapshot().sceneId==='dns'");
   await settled();assert.equal(await cdp.evaluate("document.querySelector('.review-runtime').dataset.theme"),theme,'Custom scene navigation preserves appearance');
+  const retiredDesktop=await cdp.evaluate("(()=>{const root=document.querySelector('.review-runtime');return {split:root.dataset.desktopWorkspace,budget:root.style.getPropertyValue('--ws-workspace-height'),inspector:root.querySelector('.ws-journey-inspector')};})()");assert.equal(retiredDesktop.split,undefined,'Protocol navigation must retire the desktop Journey flag');assert.equal(retiredDesktop.budget,'','Protocol navigation must retire the Journey viewport budget');assert.equal(retiredDesktop.inspector,null,'Protocol pages must not retain a Journey inspector');
  }
  await open('/journey',390,844,'light',true);
  await cdp.evaluate("document.querySelector('.rv-playback-settings summary').click()");await settled();
