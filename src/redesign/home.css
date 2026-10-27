@@ -7,7 +7,7 @@
 #hopscotch-home .lh-copy{margin-top:18px;max-width:460px;font-size:17px;line-height:1.55}
 #hopscotch-home .lh-demo{width:min(100%,540px);min-width:0}
 #hopscotch-home .lh-demo-label{display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:12px;padding:0 4px 10px;color:var(--hs-muted)}
-#hopscotch-home .lh-fold{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;border:0;border-radius:12px;padding:6px 10px;background:transparent;color:var(--hs-ink);font-size:12px;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+#hopscotch-home .lh-fold{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;border:0;border-radius:12px;padding:6px 10px;background:transparent;color:var(--hs-ink);font-size:12px;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
 #hopscotch-home .lh-fold:hover{background:color-mix(in srgb,var(--hs-tint) 40%,transparent)}
 #hopscotch-home .lh-demo-frame{position:relative;width:100%;min-height:250px}
 #hopscotch-home .lh-packet{position:absolute;left:0;top:0;width:100%;padding:22px 24px;border-radius:24px;overflow:hidden;isolation:isolate;color:var(--hs-material-ink);background:var(--hs-packet-fallback);box-shadow:0 12px 30px var(--rv-shadow-soft)}
@@ -18,7 +18,7 @@
 #hopscotch-home .lh-packet-length{font-size:12px;color:var(--hs-material-muted);white-space:nowrap}
 #hopscotch-home .lh-packet-content{margin-top:16px}
 #hopscotch-home .lh-packet-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 16px}
-#hopscotch-home .lh-packet-field{display:flex;flex-direction:column;align-items:flex-start;text-align:start;gap:5px;min-width:0;min-height:70px;border:0;border-bottom:1px solid color-mix(in srgb,var(--hs-material-ink) 15%,transparent);border-radius:10px 10px 0 0;padding:9px 8px;background:transparent;color:var(--hs-material-ink);transition:background 150ms ease;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+#hopscotch-home .lh-packet-field{display:flex;flex-direction:column;align-items:flex-start;text-align:start;gap:5px;min-width:0;min-height:70px;border:0;border-bottom:1px solid color-mix(in srgb,var(--hs-material-ink) 15%,transparent);border-radius:10px 10px 0 0;padding:9px 8px;background:transparent;color:var(--hs-material-ink);transition:background 150ms ease;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
 #hopscotch-home .lh-packet-field:is(:hover,[aria-pressed=true]){background:color-mix(in srgb,var(--hs-material-ink) 9%,transparent)}
 #hopscotch-home .lh-field-label{font-size:12px;color:var(--hs-material-muted)}
 #hopscotch-home .lh-field-value{font-size:20px;line-height:1.35;font-weight:500;letter-spacing:-.02em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
