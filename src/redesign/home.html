@@ -1,10 +1,21 @@
 <main class="lh-main">
-  <div class="lh-intro"><h1><span>See the Internet</span><span>happen.</span></h1><p class="lh-copy">Follow a request. Open its packets.<br>Understand why each step happens.</p></div>
-  <section class="lh-demo" aria-label="Interactive packet preview">
-    <div class="lh-demo-label"><span>Inside a packet</span><button class="lh-fold" type="button" aria-expanded="true" aria-controls="home-packet-fields">Fold packet <span aria-hidden="true">−</span></button></div>
-    <div class="lh-demo-frame"><article class="lh-packet" data-material-role="packet" data-protocol="IPv4"><canvas aria-hidden="true"></canvas><div class="lh-packet-heading"><h2>IPv4 packet</h2><span class="lh-packet-length"></span></div><div class="lh-packet-content" id="home-packet-fields"><div class="lh-packet-fields"></div><p class="lh-packet-payload"></p></div></article></div>
-    <p class="lh-demo-hint" aria-live="polite">Select a field to see what it does.</p>
-    <p class="lh-demo-provenance">Simulated packet · example addresses</p>
+  <div class="lh-intro">
+    <p class="lh-eyebrow">THE INTERNET, MADE VISIBLE</p>
+    <h1><span>See the Internet</span><span>happen.</span></h1>
+    <p class="lh-copy">Follow a request. Open its packets.<br>See why each step happens.</p>
+    <nav class="lh-launcher" aria-label="Start exploring"><a class="lh-primary cursor-interaction" href="/journey">Explore this request <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></a><a class="lh-secondary cursor-interaction" href="/labs/builder">Build a network <span aria-hidden="true">→</span></a></nav>
+  </div>
+  <section class="lh-demo" aria-label="A request passing through a router">
+    <div class="lh-network">
+      <svg class="lh-route" aria-hidden="true"><path class="lh-route-base"/><path class="lh-route-active"/></svg>
+      <div class="lh-net-node" data-node="incoming"><svg class="lh-node-icon" aria-hidden="true" viewBox="0 0 32 32"><rect x="3" y="5" width="26" height="18" rx="3"/><path d="M10 28h12M16 23v5"/></svg><span>Local network</span><small>From your browser</small></div>
+      <div class="lh-net-node" data-node="router"><svg class="lh-node-icon" aria-hidden="true" viewBox="0 0 32 32"><rect x="3" y="10" width="26" height="17" rx="4"/><path d="M9 10V4m14 6V4M9 19h1m5 0h1m5 0h1"/></svg><span>Edge router</span><small>One forwarding hop</small></div>
+      <div class="lh-net-node" data-node="next"><svg class="lh-node-icon" aria-hidden="true" viewBox="0 0 32 32"><path d="M5 16h22m-7-7 7 7-7 7"/></svg><span>Next hop</span><small class="lh-next-address"></small></div>
+      <article class="lh-packet" data-material-role="packet" data-protocol="IPv4"><canvas aria-hidden="true"></canvas><div class="lh-packet-heading"><h2>IPv4 packet</h2><span class="lh-packet-length"></span></div><p class="lh-packet-context"></p><div class="lh-packet-content" id="home-packet-fields"><div class="lh-packet-fields"></div><p class="lh-packet-payload"></p></div></article>
+      <div class="lh-reader" aria-hidden="true"><div class="lh-reader-copy"></div></div>
+    </div>
+    <div class="lh-scene-caption" aria-live="polite"><h2 class="lh-scene-title">A request is on its way.</h2><p class="lh-demo-hint">One IPv4 packet arrives from the local network.</p></div>
+    <div class="lh-scene-tools"><button type="button" class="lh-play cursor-interaction" aria-label="Pause preview">Pause</button><button type="button" class="lh-next cursor-interaction" aria-label="Next forwarding step">Next</button><button type="button" class="lh-fold cursor-interaction" aria-expanded="false" aria-controls="home-packet-fields">Inspect packet <span aria-hidden="true">+</span></button></div>
+    <p class="lh-demo-provenance">Simulated · one hop from a request to <span>example.test</span></p>
   </section>
-  <div class="lh-start"><nav class="lh-launcher" aria-label="Start exploring"><a class="lh-primary cursor-interaction" href="/journey"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>Explore a request</a><a class="lh-secondary cursor-interaction" href="/labs/builder">Build a network <span aria-hidden="true">↗</span></a></nav><p class="lh-start-hint">Start with the guided journey, or experiment with your own network.</p></div>
 </main>
