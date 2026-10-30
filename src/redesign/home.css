@@ -11,8 +11,8 @@
 #hopscotch-home .lh-primary{gap:18px;min-width:218px;padding:14px 22px;font-size:14px}
 #hopscotch-home .lh-primary svg{width:16px;height:16px;stroke-width:1.6}
 #hopscotch-home .lh-secondary{min-height:44px;padding:8px 4px;font-size:14px;gap:18px}
-#hopscotch-home .lh-demo{min-width:0;width:100%;max-width:none}
-#hopscotch-home .lh-network{position:relative;isolation:isolate;width:100%;min-height:430px}
+#hopscotch-home .lh-demo{display:flex;flex-direction:column;min-width:0;width:100%;max-width:none}
+#hopscotch-home .lh-network{order:0;position:relative;isolation:isolate;width:100%;min-height:430px}
 #hopscotch-home .lh-route{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;fill:none;stroke-width:1.5;stroke-linecap:round}
 #hopscotch-home .lh-route-base{stroke:var(--hs-ink);opacity:.2}
 #hopscotch-home .lh-route-active{stroke:var(--hs-text-accent);opacity:.65}
@@ -37,13 +37,13 @@
 #hopscotch-home .lh-reader{position:absolute;z-index:4;overflow:hidden;border-radius:50%;border:1px solid color-mix(in srgb,var(--hs-material-ink) 25%,transparent);box-shadow:0 3px 10px var(--rv-shadow-soft),inset 0 1px 0 var(--hs-ui-high);opacity:0;pointer-events:none;isolation:isolate}
 #hopscotch-home .lh-reader-copy{position:absolute;left:0;top:0;transform-origin:0 0}
 #hopscotch-home .lh-reader .lh-packet{box-shadow:none;will-change:auto}
-#hopscotch-home .lh-scene-caption{position:relative;min-height:66px;margin:22px auto 0;max-width:490px;text-align:center}
+#hopscotch-home .lh-scene-caption{order:1;position:relative;min-height:66px;margin:22px auto 0;max-width:490px;text-align:center}
 #hopscotch-home .lh-scene-title{margin:0;font-size:18px;line-height:1.35;letter-spacing:-.025em;font-weight:500;color:var(--hs-ink)}
 #hopscotch-home .lh-demo-hint{margin:7px 0 0;font-size:13px;line-height:1.6;color:var(--hs-muted);text-wrap:balance}
-#hopscotch-home .lh-scene-tools{display:flex;justify-content:center;align-items:center;gap:18px;margin:8px 0}
+#hopscotch-home .lh-scene-tools{order:2;display:flex;justify-content:center;align-items:center;gap:18px;margin:8px 0}
 #hopscotch-home :is(.lh-fold,.lh-play,.lh-next){display:flex;align-items:center;justify-content:center;gap:10px;min-height:40px;padding:7px 8px;border:0;border-radius:10px;background:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;color:var(--hs-ink);font-size:12px}
 #hopscotch-home :is(.lh-fold,.lh-play,.lh-next):hover{background:color-mix(in srgb,var(--hs-tint) 40%,transparent)}
-#hopscotch-home .lh-demo-provenance{margin:0;text-align:center;font-size:10px;line-height:1.5;color:var(--hs-muted)}
+#hopscotch-home .lh-demo-provenance{order:3;margin:0;text-align:center;font-size:10px;line-height:1.5;color:var(--hs-muted)}
 #hopscotch-home .lh-navigation{color:var(--hs-ink);font-weight:500;gap:24px}
 #hopscotch-home .lh-theme-label{gap:7px}
 #hopscotch-home .lh-theme{min-width:88px;min-height:40px;padding:8px 12px;border:1px solid var(--hs-line);font-size:13px}
