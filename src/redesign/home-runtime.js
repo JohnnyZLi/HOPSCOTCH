@@ -17,8 +17,8 @@ export function mountHome(element,navigate){
  const themeTrigger=element.querySelector('.lh-theme');themeTrigger.removeAttribute('data-ui-surface');themeTrigger.removeAttribute('data-glass-role');
  mountMaterialFoundation(element,scope);
  const surface=mountSurface(element,scope,navigate);
- const packet=mountHomePacket(element,scope);
- const api=Object.freeze({appearance:surface.appearance,snapshot:()=>({appearance:appearancePreference(),material:surface.material.stats(),packet:packet.snapshot()})});
+ const packet=mountHomePacket(element,scope,navigate);
+ const api=Object.freeze({pause:packet.pause,appearance:surface.appearance,snapshot:()=>({appearance:appearancePreference(),material:surface.material.stats(),packet:packet.snapshot()})});
  element.homeStudy=api;
  const ownedKeys=Reflect.ownKeys(element).filter(key=>!originalKeys.has(key));
  let disposed=false;

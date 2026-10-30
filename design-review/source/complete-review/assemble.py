@@ -124,6 +124,14 @@ def integrated_runtime():
     (folder/'packet-painter.js').write_text('// Generated from the shared packet painter and approved shader.\nexport function mountPacketPainter(element,scope){\nconst {document,window,matchMedia,requestAnimationFrame,cancelAnimationFrame,ResizeObserver,MutationObserver}=scope;\n'+standalone+'\nreturn element.surfacePainter;\n}\n')
     runtime=Path('complete-review/motion.js').read_text()
     runtime=production_lifecycle(runtime)
+    motion_core=lifecycle_engine(engine[material_end:])+'\n'+helpers
+    for identity in ['__ROOT__','hop-app-composition']:
+        motion_core=motion_core.replace("document.getElementById('"+identity+"')",'element')
+    tuning=re.search(r'const tuning=(Object.freeze\(\{.*?\}\));',runtime,re.S)[1]
+    status_source=Path('complete-review/shared-ui.js').read_text()
+    status_helpers=status_source[status_source.index('const statuses='):status_source.index('root.reviewUI=')]
+    reading_helpers=runtime[runtime.index('function readingPlan('):runtime.index('function currentPosition(')]
+    (folder/'packet-motion.js').write_text('// Generated from the shared reader, transfer, pacing and motion policies.\nexport function mountPacketMotion(element,scope){\nconst {document,window,matchMedia,requestAnimationFrame,cancelAnimationFrame,ResizeObserver,MutationObserver}=scope;\n'+motion_core+'\nconst {clamp,ease,mix,makePlan,samplePlan}=element.motionPlanner;\n'+reading_helpers+'\nconst root=element,reduced=matchMedia("(prefers-reduced-motion: reduce)");\n'+status_helpers+'\nreturn {status,settleStatus:()=>{for(const [host,entry]of activeStatuses)settleStatus(host,entry);},planner:element.motionPlanner,pacing:element.pacing,transfer:element.valueTransfer,readingPlan,textLines,tuning:'+tuning+'};\n}\n')
     adapters="(()=>{const root=document.getElementById('__ROOT__');\n"+Path('complete-review/source-adapters.js').read_text().replace('export { journeyFrames, dnsFrames, providerFrames };','root.sourcePresentation=Object.freeze({journeyFrames,dnsFrames,providerFrames});')+'\n})();'
     code='\n'.join([lifecycle_engine(workspace_engine),helpers,Path('complete-review/shared-geometry.js').read_text().replace('export function','function'),*[Path('complete-review/'+name).read_text() for name in ['shared-ui.js','shared-reservation.js','shared-bytes.js','shared-presentation.js']],adapters,material,runtime,records])
     for identity in ['__ROOT__','hop-app-composition']:

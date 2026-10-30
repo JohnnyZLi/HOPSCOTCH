@@ -4,3 +4,4 @@ import {checkCompletePresentation} from './complete-presentation-contract.mjs';
 checkCompletePresentation();
 
 await import('./disclosure-menu-contract-check.mjs');
+await import('./home-journey-contract-check.mjs');
