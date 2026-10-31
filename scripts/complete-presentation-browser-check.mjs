@@ -23,6 +23,20 @@ const budgets=JSON.parse(readFileSync('config/performance-budget.json','utf8'));
 const report={schema:'hopscotch.complete-presentation-validation',version:1,mode,gpuMode:process.env.HOPSCOTCH_GPU_MODE||'default',generatedAt:new Date().toISOString(),profiles:[],failures:[]};
 mkdirSync(output,{recursive:true});mkdirSync(dirname(reportPath),{recursive:true});
 let production,launch,cdp;
+async function closeChromeSession(activeCdp,activeLaunch){
+ await activeCdp?.close();
+ if(activeLaunch?.chrome&&activeLaunch.chrome.exitCode===null&&activeLaunch.chrome.signalCode===null){await new Promise(resolve=>{activeLaunch.chrome.once('exit',resolve);activeLaunch.chrome.kill('SIGKILL');});}
+ if(activeLaunch?.userDataDir)rmSync(activeLaunch.userDataDir,{recursive:true,force:true,maxRetries:8,retryDelay:100});
+}
+async function freshBrowserForIndependentStress(){
+ const nextLaunch=await launchChrome(findChrome());let nextCdp;
+ try{
+  const targets=await fetchJson('http://127.0.0.1:'+nextLaunch.port+'/json'),target=targets.find(t=>t.type==='page');
+  assert.ok(target?.webSocketDebuggerUrl,'Fresh stress browser has no page target');nextCdp=new CdpClient(target.webSocketDebuggerUrl);
+  for(const domain of ['Page','DOM','Runtime','Log','HeapProfiler'])await nextCdp.call(domain+'.enable');
+ }catch(error){await closeChromeSession(nextCdp,nextLaunch);throw error;}
+ const previousCdp=cdp,previousLaunch=launch;cdp=nextCdp;launch=nextLaunch;await closeChromeSession(previousCdp,previousLaunch);
+}
 async function wait(expression,timeoutMs=15000){const end=performance.now()+timeoutMs;while(performance.now()<end){if(await cdp.evaluate(expression))return;await sleep(50);}const context=await cdp.evaluate("({url:location.href,ready:document.readyState,error:document.querySelector('.workspace-error,.rv-error')?.textContent,context:document.querySelector('.wb-context')?.textContent,body:document.body?.innerText.slice(0,700),root:document.querySelector('#root')?.innerHTML.slice(0,500),scripts:[...document.scripts].map(s=>s.src).filter(Boolean),resources:performance.getEntriesByType('resource').filter(r=>r.name.includes('/assets/')).map(r=>({name:r.name.split('/').at(-1),duration:Math.round(r.duration),size:r.transferSize}))})");context.runtimeErrors=cdp.events.filter(e=>e.method==='Runtime.exceptionThrown').slice(-5);context.pageEvents=cdp.events.filter(e=>/crashed|exception|error|failed|frameNavigated/.test(e.method)).slice(-8).map(e=>({method:e.method,params:e.params}));context.chrome=launch?.state?.stderr.slice(-2500);throw Error('Timed out: '+expression+' · '+JSON.stringify(context));}
 async function settled(){await cdp.evaluate(`(async()=>{
  await document.fonts.ready;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
@@ -578,6 +592,10 @@ async function performanceBudgets(){
  }
  const config={transportProfile:'quic-h3',dnsProfile:'cache-miss',impairmentProfile:'composed',modifierIds:['dns-failure','route-failure','route-leak','server-failure','single-loss','latency-spike','congestion','partition']};await open('/journey'+encodeJourneyQuery(createPortableJourneyScenario({hostname:'example.test',config,timeMs:0})));await cdp.call('HeapProfiler.collectGarbage');const initial=await cdp.call('Runtime.getHeapUsage');const growth=await cdp.evaluate(`(()=>{const api=document.querySelector('.review-runtime').causalStudy,plan=api.snapshot().plan;for(let cycle=0;cycle<${budgets.stressBudgets.highDensitySeek.cycles};cycle++)for(const clock of plan.commits)api.seek(clock);return {events:plan.commits.length,cycles:${budgets.stressBudgets.highDensitySeek.cycles}};})()`);await settled();await cdp.call('HeapProfiler.collectGarbage');const end=await cdp.call('Runtime.getHeapUsage');assert.equal(growth.events,budgets.stressBudgets.highDensitySeek.eventsPerCycle);assert.ok(end.usedSize-initial.usedSize<=budgets.stressBudgets.highDensitySeek.maxHeapGrowthBytes,'Repeated seek heap growth exceeds existing budget');report.highDensitySeekStress={...growth,heapGrowthBytes:end.usedSize-initial.usedSize};
  for(const profile of report.profiles.filter(p=>!p.id.includes('density'))){assert.ok(profile.elements<=budgets.budgets.maxDomElements,profile.id+' DOM budget exceeded: '+profile.elements);assert.ok(profile.heap<=budgets.budgets.maxHeapUsedBytes,profile.id+' heap budget exceeded: '+profile.heap);}
+ // The 47-profile GPU run and 828 high-density seeks have already met their
+ // budgets. Measure ordinary seeking in a fresh renderer so SwiftShader's
+ // retained stress resources cannot stall the next dynamic workspace import.
+ await freshBrowserForIndependentStress();report.independentSeekBrowser=true;
  await open('/journey');await cdp.call('HeapProfiler.collectGarbage');const seekBefore=await cdp.call('Runtime.getHeapUsage');const ordinarySeek=await cdp.evaluate(`(()=>{const api=document.querySelector('.review-runtime').causalStudy,plan=api.snapshot().plan,before=JSON.stringify(api.snapshot().frames.map(f=>[f.id,f.at]));for(let cycle=0;cycle<${budgets.stress.seekCycles};cycle++)for(const clock of plan.commits)api.seek(clock);return {cycles:${budgets.stress.seekCycles},events:plan.commits.length,unchanged:before===JSON.stringify(api.snapshot().frames.map(f=>[f.id,f.at]))};})()`);await cdp.call('HeapProfiler.collectGarbage');const seekAfter=await cdp.call('Runtime.getHeapUsage');assert.equal(ordinarySeek.unchanged,true);assert.ok(seekAfter.usedSize-seekBefore.usedSize<=budgets.budgets.maxHeapGrowthBytes,'Regular seek heap growth exceeds existing budget');report.seekStress={...ordinarySeek,heapGrowthBytes:seekAfter.usedSize-seekBefore.usedSize};
 }
 try{
@@ -589,4 +607,4 @@ try{
  }
  if(report.failures.length)process.exitCode=1;
 }catch(error){report.failures.push(error.stack||String(error));process.exitCode=1;}
-finally{writeFileSync(reportPath,JSON.stringify(report,null,2)+'\n');await cdp?.close();if(launch?.chrome&&launch.chrome.exitCode===null&&launch.chrome.signalCode===null){await new Promise(resolve=>{launch.chrome.once('exit',resolve);launch.chrome.kill('SIGKILL');});}if(launch?.userDataDir)rmSync(launch.userDataDir,{recursive:true,force:true,maxRetries:8,retryDelay:100});await new Promise(resolve=>production?.server.close(resolve)||resolve());console.log(JSON.stringify({mode,profiles:report.profiles.length,failures:report.failures,report:reportPath}));}
+finally{writeFileSync(reportPath,JSON.stringify(report,null,2)+'\n');await closeChromeSession(cdp,launch);await new Promise(resolve=>production?.server.close(resolve)||resolve());console.log(JSON.stringify({mode,profiles:report.profiles.length,failures:report.failures,report:reportPath}));}
