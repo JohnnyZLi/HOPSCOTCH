@@ -9,11 +9,11 @@ export function createHomeJourney(){
  const scenario=buildJourneyScenario('example.test',DEFAULT_JOURNEY_CONFIG);
  const phases=['switch-forward','router-decapsulate','router-ttl','router-route','router-reencapsulate','next-link'];
  const explanations:Record<string,[string,string,string[]]>={
-  'switch-forward':['A request is on its way.','One IPv4 packet arrives from the local network.',[]],
+  'switch-forward':['A request is on its way.','An IPv4 packet reaches the router.',[]],
   'router-decapsulate':['Every hop makes a decision.','The router opens the local frame to inspect the IP packet.',['ip-dst']],
   'router-ttl':['One hop. One less to live.','TTL decreases; the header checksum changes with it.',['ip-ttl','ip-checksum']],
   'router-route':['The destination decides the route.','The routing table selects the next hop for this address.',['ip-dst']],
-  'router-reencapsulate':['Same packet. A new local frame.','The router prepares a new Ethernet envelope for the next link.',[]],
+  'router-reencapsulate':['Same IP packet. New Ethernet frame.','Ready for the next link.',[]],
   'next-link':['And the request continues.','The destination stays the same as the packet leaves this hop.',[]],
  };
  const steps=scenario.events.filter(e=>e.kind==='packet.transit'&&phases.includes(e.phase)).map(event=>{

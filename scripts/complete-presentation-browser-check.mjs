@@ -222,6 +222,23 @@ async function fullMotionAudit(){
   assert.equal(await cdp.evaluate("JSON.stringify(document.querySelector('.review-runtime').reviewData)"),prepared.source,'Playback mutated source evidence');
   await geometry('complete-'+scene+'-'+width+'-'+theme);
  }
+ // The home carrier has its own clock and choreography, so record the actual
+ // normal-speed introduction as well as the workspace studies above.
+ await open('/',width,height,theme);
+ const home={total:await cdp.evaluate("document.querySelector('.review-runtime').homeStudy.snapshot().packet.total"),events:createHomeJourney().steps.map(step=>step.event.id)};
+ const stopHome=await recordPlayback('complete-home-'+width+'-'+theme,3),homeSamples=[],homeStarted=performance.now(),homeDeadline=homeStarted+home.total*1.45+5000;
+ let homeRecording,homeComplete=false;
+ try{
+  while(performance.now()<homeDeadline){
+   const sample=await cdp.evaluate(`(()=>{const root=document.querySelector('.review-runtime'),packet=root.homeStudy.snapshot().packet,face=root.querySelector('.lh-network>.lh-packet').getBoundingClientRect();return {clock:packet.clock,index:packet.index,phase:packet.phase,playing:packet.playing,event:packet.event.id,x:face.x,y:face.y,w:face.width,h:face.height};})()`);
+   homeSamples.push({wallMs:performance.now()-homeStarted,...sample});
+   if(!sample.playing&&sample.clock>=home.total){homeComplete=true;break;}
+   await sleep(100);
+  }
+ }finally{homeRecording=await stopHome();}
+ assert(homeComplete,'Home introduction failed to finish at normal speed');
+ assert.deepEqual([...new Set(homeSamples.map(s=>s.event))],home.events,'Home playback skipped a source event');
+ report.homeMotionAudit={width,height,theme,totalMs:home.total,durationMs:performance.now()-homeStarted,recording:homeRecording,samples:homeSamples};
  // Exercise real shared controls at normal speed, including interrupted/reversed
  // disclosures and repeated pane selections. Record motion, not settled PNGs.
  for(const [path,label]of [[WORKSPACE_CATALOG.builder.path,'builder'],[WORKSPACE_CATALOG.capture.path,'evidence']]){
@@ -545,6 +562,13 @@ async function homePacketPreview(){
  await cdp.evaluate(`document.querySelector('.lh-brand').click()`);await wait("Boolean(document.querySelector('.review-runtime')?.homeStudy)");await settled();state=await read();assert.equal(state.singleCarrier,1);assert.equal(state.packet.playing,false,'Returning home must not repeat the introduction');assert.equal(state.packet.progress,1,'Returning home must show the final packet instead of a tiny closed carrier');assert.ok(Math.abs(state.rightGap-12)<1,'The resting packet stays attached to the outgoing edge');assert.equal(state.packet.index,home.steps.length-1);assert.equal(state.inert,true,'The summary stays inert until inspection');assert.equal(await cdp.evaluate("Boolean(document.querySelector('.review-runtime').causalStudy)"),false);assert.equal(await cdp.evaluate("document.querySelector('.review-runtime').dataset.desktopWorkspace"),undefined);
  // A slow RAF cadence must not turn a short hop into a long apparent hang.
  await cdp.evaluate(`(()=>{window.__homeRAF=window.requestAnimationFrame;window.__homeCancelRAF=window.cancelAnimationFrame;window.requestAnimationFrame=callback=>setTimeout(()=>callback(performance.now()),180);window.cancelAnimationFrame=id=>clearTimeout(id);document.querySelector('.lh-play').click();})()`);state=await read();assert.equal(state.packet.event.id,home.steps.at(-1).event.id,'Replay retains the final material while the packet folds back');assert.deepEqual(state.fields.find(f=>f[0]==='ip-ttl'),['ip-ttl','63']);await sleep(2400);state=await read();assert.equal(state.packet.playing,true);assert.ok(state.packet.clock>=950,'Playback clock must follow elapsed time under a slow frame cadence');await cdp.evaluate(`(()=>{document.querySelector('.lh-play').click();window.requestAnimationFrame=window.__homeRAF;window.cancelAnimationFrame=window.__homeCancelRAF;delete window.__homeRAF;delete window.__homeCancelRAF;})()`);
+ // A single long visible stall should preserve the next source operation
+ // instead of jumping over several phases on the first resumed paint.
+ await cdp.evaluate("document.querySelector('.lh-play').click()");await sleep(100);
+ const beforeStall=(await read()).packet;
+ await cdp.evaluate(`(()=>{window.__homeRAF=window.requestAnimationFrame;window.__homeCancelRAF=window.cancelAnimationFrame;window.requestAnimationFrame=callback=>setTimeout(()=>callback(performance.now()),900);window.cancelAnimationFrame=id=>clearTimeout(id);})()`);
+ await sleep(1050);state=await read();assert(state.packet.clock-beforeStall.clock<550,'A stalled frame must not skip ahead through the home choreography');
+ await cdp.evaluate(`(()=>{document.querySelector('.lh-play').click();window.requestAnimationFrame=window.__homeRAF;window.cancelAnimationFrame=window.__homeCancelRAF;delete window.__homeRAF;delete window.__homeCancelRAF;})()`);
  report.homePacketPreview=true;report.homeHopEvents=[...seen];
 }
 async function homeMenus(){
